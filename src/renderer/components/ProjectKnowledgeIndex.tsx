@@ -66,7 +66,7 @@ export function ProjectKnowledgeIndex({ snapshot, onOpenCard, onOpenSession }: P
   async function refresh() {
     if (refreshing) return;
     setRefreshing(true); setError('');
-    try { setStatus(await window.studio.refreshProjectMemoryIndex(projectId)); }
+    try { setStatus(await window.studio.refreshProjectMemoryIndex(projectId, true)); }
     catch (reason) { setError(messageOf(reason)); }
     finally { setRefreshing(false); }
   }

@@ -106,7 +106,7 @@ async function git(cwd: string, args: string[], maxBuffer = 3_000_000): Promise<
 }
 
 async function baseCommit(cwd: string): Promise<string> {
-  for (const candidate of ['refs/remotes/origin/HEAD', 'refs/remotes/origin/main', 'refs/heads/main', 'refs/remotes/origin/master', 'refs/heads/master', 'HEAD']) {
+  for (const candidate of ['refs/heads/main', 'refs/heads/master', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main', 'refs/remotes/origin/master', 'HEAD']) {
     try { return (await git(cwd, ['rev-parse', '--verify', `${candidate}^{commit}`])).trim(); }
     catch { /* Try the next available local reference. */ }
   }
@@ -205,14 +205,14 @@ export function projectMemoryIndexStatus(store: StudioStore, projectId: string):
   return { projectId, state: row?.state ?? 'idle', indexedAt: row?.indexed_at ?? null, gitRef: row?.git_ref ?? null, counts, codeFilesSeen: row?.code_files_seen ?? 0, codeFilesIndexed: row?.code_files_indexed ?? 0, warning: row?.warning ?? null };
 }
 
-async function doRefresh(store: StudioStore, projectId: string): Promise<ProjectMemoryIndexStatus> {
+async function doRefresh(store: StudioStore, projectId: string, force: boolean): Promise<ProjectMemoryIndexStatus> {
   const project = store.project(projectId);
   syncTasks(store, projectId);
   try {
     const repository = (await git(project.path, ['rev-parse', '--show-toplevel'])).trim();
     const gitRef = await baseCommit(project.path);
     const old = store.db.prepare('SELECT * FROM project_memory_index_state WHERE project_id = ?').get(projectId) as StateRow | undefined;
-    if (old?.git_ref === gitRef && old.repository === repository && (old.state === 'ready' || old.state === 'partial')) return projectMemoryIndexStatus(store, projectId);
+    if (!force && old?.git_ref === gitRef && old.repository === repository && old.state === 'ready') return projectMemoryIndexStatus(store, projectId);
     const scan = await scanGit(project.path);
     store.db.transaction(() => {
       store.db.prepare("DELETE FROM project_memory_sources WHERE project_id = ? AND kind IN ('commit', 'code')").run(projectId);
@@ -228,11 +228,11 @@ async function doRefresh(store: StudioStore, projectId: string): Promise<Project
   return projectMemoryIndexStatus(store, projectId);
 }
 
-export function refreshProjectMemoryIndex(store: StudioStore, projectId: string): Promise<ProjectMemoryIndexStatus> {
+export function refreshProjectMemoryIndex(store: StudioStore, projectId: string, force = false): Promise<ProjectMemoryIndexStatus> {
   store.project(projectId);
   const current = inProgress.get(projectId);
-  if (current) return current;
-  const run = doRefresh(store, projectId).finally(() => { inProgress.delete(projectId); });
+  if (current) return force ? current.then(() => refreshProjectMemoryIndex(store, projectId, true)) : current;
+  const run = doRefresh(store, projectId, force).finally(() => { inProgress.delete(projectId); });
   inProgress.set(projectId, run);
   return run;
 }

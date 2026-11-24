@@ -198,7 +198,7 @@ export interface StudioAPI {
   stopCommandTerminal(terminalId: string): Promise<void>;
   onCommandTerminalEvent(callback: (event: CommandTerminalEvent) => void): () => void;
   searchSessionTranscripts(input: { projectId: string; query: string }): Promise<SessionSearchHit[]>;
-  refreshProjectMemoryIndex(projectId: string): Promise<ProjectMemoryIndexStatus>;
+  refreshProjectMemoryIndex(projectId: string, force?: boolean): Promise<ProjectMemoryIndexStatus>;
   searchProjectMemoryIndex(input: ProjectMemorySearchInput): Promise<ProjectMemorySearch>;
   readProjectMemorySource(input: ProjectMemorySourceInput): Promise<ProjectMemorySourceDetail | null>;
   sessionForProject(input: { projectId: string; sessionId: string }): Promise<Session>;

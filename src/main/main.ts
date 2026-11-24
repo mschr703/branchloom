@@ -308,7 +308,7 @@ function installIpc(): void {
   bind('resizeCommandTerminal', (input: Parameters<StudioAPI['resizeCommandTerminal']>[0]) => commandRunner?.resize(input));
   bind('stopCommandTerminal', (terminalId: string) => commandRunner?.stop(terminalId));
   bind('searchSessionTranscripts', (input: { projectId: string; query: string }) => db.searchSessionTranscripts(input.projectId, input.query));
-  bind('refreshProjectMemoryIndex', (projectId: string) => refreshProjectMemoryIndex(db, projectId));
+  bind('refreshProjectMemoryIndex', (projectId: string, force?: boolean) => refreshProjectMemoryIndex(db, projectId, force));
   bind('searchProjectMemoryIndex', (input: Parameters<StudioAPI['searchProjectMemoryIndex']>[0]) => searchProjectMemoryIndex(db, input));
   bind('readProjectMemorySource', (input: Parameters<StudioAPI['readProjectMemorySource']>[0]) => readProjectMemorySource(db, input));
   bind('sessionForProject', (input: { projectId: string; sessionId: string }) => db.sessionForProject(input.projectId, input.sessionId));

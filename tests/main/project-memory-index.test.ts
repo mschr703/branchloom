@@ -124,4 +124,50 @@ describe('automatic project memory index', () => {
     expect(searchProjectMemoryIndex(store, { projectId: child.id, query: 'sibling topic', kind: 'commit' }).hits).toEqual([]);
     store.close();
   });
+
+  it('prefers local main commits ahead of an unchanged remote tracking ref', async () => {
+    const { projectPath, store, project } = fixture();
+    git(projectPath, 'branch', '-M', 'main');
+    const remoteCommit = git(projectPath, 'rev-parse', 'HEAD').trim();
+    git(projectPath, 'update-ref', 'refs/remotes/origin/main', remoteCommit);
+    expect((await refreshProjectMemoryIndex(store, project.id)).gitRef).toBe(remoteCommit);
+    writeFileSync(join(projectPath, 'src', 'relay.ts'), "export const localAhead = 'new local source';\n");
+    commit(projectPath, 'Add local-ahead source');
+    const localCommit = git(projectPath, 'rev-parse', 'HEAD').trim();
+    expect(git(projectPath, 'rev-parse', 'refs/remotes/origin/main').trim()).toBe(remoteCommit);
+    const updated = await refreshProjectMemoryIndex(store, project.id);
+    expect(updated.gitRef).toBe(localCommit);
+    expect(searchProjectMemoryIndex(store, { projectId: project.id, query: 'localAhead', kind: 'code' }).hits).toHaveLength(1);
+    store.close();
+  });
+
+  it('retries a partial scan and allows an explicit rescan of an unchanged ready ref', async () => {
+    const { projectPath, store, project } = fixture();
+    writeFileSync(join(projectPath, 'src', 'relay.ts'), Array.from({ length: 450 }, (_, line) => `export const row${line} = 'bounded source';`).join('\n'));
+    commit(projectPath, 'Add long bounded source');
+    const partial = await refreshProjectMemoryIndex(store, project.id);
+    expect(partial.state).toBe('partial');
+    expect(partial.counts.code).toBe(4);
+    store.db.prepare("DELETE FROM project_memory_sources WHERE project_id = ? AND kind = 'code' AND source_id = ?").run(project.id, 'src/relay.ts#1');
+    expect((await refreshProjectMemoryIndex(store, project.id)).counts.code).toBe(4);
+
+    writeFileSync(join(projectPath, 'src', 'relay.ts'), "export const stableSource = 'ready source';\n");
+    commit(projectPath, 'Shorten bounded source');
+    const ready = await refreshProjectMemoryIndex(store, project.id);
+    expect(ready.state).toBe('ready');
+    store.db.prepare("DELETE FROM project_memory_sources WHERE project_id = ? AND kind = 'code'").run(project.id);
+    expect((await refreshProjectMemoryIndex(store, project.id)).counts.code).toBe(0);
+    const restored = await refreshProjectMemoryIndex(store, project.id, true);
+    expect(restored.gitRef).toBe(ready.gitRef);
+    expect(restored.counts.code).toBe(1);
+    expect(searchProjectMemoryIndex(store, { projectId: project.id, query: 'stableSource', kind: 'code' }).hits).toHaveLength(1);
+    const automatic = refreshProjectMemoryIndex(store, project.id);
+    const removeAfterAutomatic = automatic.then(() => {
+      store.db.prepare("DELETE FROM project_memory_sources WHERE project_id = ? AND kind = 'code'").run(project.id);
+    });
+    const queuedManual = refreshProjectMemoryIndex(store, project.id, true);
+    await removeAfterAutomatic;
+    expect((await queuedManual).counts.code).toBe(1);
+    store.close();
+  });
 });
