@@ -4,6 +4,8 @@ Branchloom ist eine lokale Windows-App für Ideen, Projekte, Kanban-Boards, CLI-
 
 Der aktuelle Quellcode steht unter [PolyForm Noncommercial 1.0.0](LICENSE): private Nutzung, nichtkommerzielle Forks, Änderungen und Weitergabe sind nach den Lizenzbedingungen erlaubt. Für geschäftliche Nutzung ist eine separate schriftliche Lizenz erforderlich; [Lizenzhinweise](docs/COMMERCIAL_LICENSING.md). Frühere unter MIT veröffentlichte Stände behalten ihre MIT-Rechte. Branchloom ist damit öffentlich einsehbarer Quellcode, aber keine OSI-Open-Source-Software.
 
+Für Beiträge gibt es einen [Leitfaden](CONTRIBUTING.md). Externe PRs brauchen vor dem Merge eine gesondert geprüfte Rechtefreigabe, damit der Quellcode auch unter einer späteren kommerziellen Lizenz angeboten werden kann. Die PR-Vorlage allein gilt nicht als Unterschrift.
+
 ## Starten
 
 Wenn du Branchloom nur benutzen möchtest, öffne die [Windows-CI-Läufe](https://github.com/mschr703/branchloom/actions/workflows/ci.yml), wähle einen **grünen Lauf auf `main`** und lade unter **Artifacts** `branchloom-windows-installer` für die installierbare Ausgabe oder `branchloom-windows-portable` für ein ZIP herunter. Der Installer prüft bei App-Start und danach alle sechs Stunden auf veröffentlichte GitHub-Releases. Neue Versionen werden erst nach Klick auf **Aktualisieren** heruntergeladen und installiert; **Später** lässt die App unverändert. Portables ZIP und Quellstart aktualisieren sich nicht selbst. Beide Pakete sind derzeit unsigniert. [Details zum Paket und Release-Ablauf](docs/RELEASE.md).

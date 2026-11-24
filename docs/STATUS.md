@@ -4,6 +4,8 @@ Stand: 24.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollst�
 
 ## Aktueller integrierter Stand
 
+- Externe Beiträge: Ein Beitragsleitfaden, eine PR-Vorlage und ein `pull_request_target`-Check verlangen vor dem Merge eine manuell verifizierte Rechtefreigabe. Der Check läuft nur mit dem vertrauenswürdigen Hauptzweig und wertet PR-Autor und Maintainer-Label aus; er führt keinen Fork-Code aus. Die Label-Freigabe ist kein Vertrag. Ein persönlich benannter und juristisch geprüfter Contributor-Lizenzvertrag sowie die erforderliche GitHub-Branch-Protection stehen noch aus. [Prozess und Grenzen](CONTRIBUTOR_RIGHTS.md).
+
 - Board-Schnellaktionen sind integriert: Jede Karte bietet das Kopieren ihrer ID über die Electron-Zwischenablage, den direkten Einstieg in bereits gespeicherte Sitzungen und das Öffnen eines vorhandenen, frisch geprüften Karten-Worktrees. Diese Aktionen starten keinen Agenten und setzen keine Sitzung automatisch fort. [Ablauf und Grenzen](CARD_QUICK_ACTIONS.md). Elf gezielte Integrationstests, Typprüfung, Build, Audit ohne kritische Funde und Public-Scan bestanden. Die lokale Gesamtsuite bestand mit **672 Tests in 165 Dateien**, sechs optionale Dateien wurden übersprungen. Die [Windows-CI für `6295c90`](https://github.com/mschr703/branchloom/actions/runs/45470179080) bestand vollständig einschließlich portablem und installierbarem Paket-Smoke.
 
 - Lizenzentscheidung vom 24.11.2026: Aktuelle und künftige Snapshots werden mit PolyForm Noncommercial 1.0.0 und einem öffentlichen Copyright-Hinweis angeboten; für geschäftliche Nutzung kann eine separate schriftliche Lizenz vereinbart werden. Frühere MIT-Snapshots behalten ihre ursprünglichen Rechte. [Lizenzhinweise](COMMERCIAL_LICENSING.md).
