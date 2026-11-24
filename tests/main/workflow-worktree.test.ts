@@ -7,6 +7,8 @@ import { SessionRunner } from '../../src/main/cli';
 import { StudioStore } from '../../src/main/store';
 import { WorkflowEngine } from '../../src/main/workflows';
 import { globalInboxItems } from '../../src/main/global-inbox';
+import { ensureCardWorktree } from '../../src/main/git-worktree';
+import { reserveCardSession } from '../../src/main/parallel-runs';
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -51,6 +53,98 @@ async function waitFor(check: () => boolean): Promise<void> {
 }
 
 describe('optional card worktree in workflow steps', () => {
+  it('runs independent cards concurrently in separate worktrees when the step opts in', async () => {
+    const { root, repository, dbPath, store, project, column, card, agent } = fixture();
+    const second = store.createCard({ projectId: project.id, columnId: card.columnId, title: 'Second task' });
+    writeFileSync(join(root, 'agent.cjs'), 'setTimeout(() => { require("node:fs").writeFileSync("worktree-result.txt", "done"); console.log("[JARVIS_STEP_DONE]"); }, 500);\n');
+    const flow = store.createWorkflow({ projectId: project.id, name: 'Parallel step', cardIds: [card.id, second.id], steps: [
+      { id: 'execute', columnId: column.id, agentId: agent.id, requireApproval: false, useWorktree: true, parallel: true },
+    ] });
+    let engine!: WorkflowEngine;
+    const runner = new SessionRunner(store, () => undefined, (session, finalMessage) => engine.onSessionFinished(session, finalMessage));
+    engine = new WorkflowEngine(store, runner);
+    try {
+      engine.setState({ id: flow.id, state: 'running' });
+      const live = store.runningSessionsForProject(project.id);
+      expect(live).toHaveLength(2);
+      expect(new Set(live.map((session) => session.cardId))).toEqual(new Set([card.id, second.id]));
+      expect(new Set(live.map((session) => session.worktreePath)).size).toBe(2);
+      await waitFor(() => store.workflow(flow.id).state === 'done');
+      expect(store.workflowProgress(flow.id, 0).map((row) => row.state)).toEqual(['complete', 'complete']);
+      for (const id of [card.id, second.id]) {
+        expect(readFileSync(join(store.cardWorktree(id)!.path, 'worktree-result.txt'), 'utf8')).toBe('done');
+      }
+      expect(existsSync(join(repository, 'worktree-result.txt'))).toBe(false);
+    } finally { runner.dispose(); store.close(); }
+    const reopened = new StudioStore(dbPath);
+    expect(reopened.workflow(flow.id).state).toBe('done');
+    expect(reopened.workflow(flow.id).steps[0]?.parallel).toBe(true);
+    reopened.close();
+  }, 35_000);
+
+  it('keeps a dependent card pending until its predecessor has a verified workflow result', async () => {
+    const { root, store, project, column, card, agent } = fixture();
+    const dependent = store.createCard({ projectId: project.id, columnId: card.columnId, title: 'Dependent task' });
+    store.db.prepare('INSERT INTO card_splits (id, parent_card_id, child_card_id, depends_on_card_id, position, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run('dependency-link', card.id, dependent.id, card.id, 1, new Date().toISOString());
+    writeFileSync(join(root, 'agent.cjs'), 'setTimeout(() => console.log("[JARVIS_STEP_DONE]"), 250);\n');
+    const flow = store.createWorkflow({ projectId: project.id, name: 'Dependency step', cardIds: [card.id, dependent.id], steps: [
+      { id: 'execute', columnId: column.id, agentId: agent.id, requireApproval: false, useWorktree: true, parallel: true },
+    ] });
+    let engine!: WorkflowEngine;
+    const runner = new SessionRunner(store, () => undefined, (session, finalMessage) => engine.onSessionFinished(session, finalMessage));
+    engine = new WorkflowEngine(store, runner);
+    try {
+      engine.setState({ id: flow.id, state: 'running' });
+      expect(store.runningSessionsForProject(project.id).map((session) => session.cardId)).toEqual([card.id]);
+      expect(store.latestSession(dependent.id)).toBeNull();
+      await waitFor(() => store.workflow(flow.id).state === 'done');
+      expect(store.workflowProgress(flow.id, 0).map((row) => row.state)).toEqual(['complete', 'complete']);
+      expect(store.snapshot(project.id).sessions.filter((session) => session.cardId === dependent.id)).toHaveLength(1);
+    } finally { runner.dispose(); store.close(); }
+  }, 35_000);
+
+  it('pauses both parallel sessions and does not replay them after restart', () => {
+    const { dbPath, store, project, column, card, agent } = fixture();
+    const second = store.createCard({ projectId: project.id, columnId: card.columnId, title: 'Second task' });
+    const flow = store.createWorkflow({ projectId: project.id, name: 'Restartable parallel step', cardIds: [card.id, second.id], steps: [
+      { id: 'execute', columnId: column.id, agentId: agent.id, requireApproval: false, useWorktree: true, parallel: true },
+    ] });
+    const fakeRunner = (activeStore: StudioStore) => ({
+      start: ({ cardId, agentId }: { cardId: string; agentId: string }) => {
+        const worktree = ensureCardWorktree(activeStore, cardId);
+        return reserveCardSession(activeStore, { cardId, agentId, worktreePath: worktree.path });
+      },
+      stop: (sessionId: string) => { activeStore.finishSession(sessionId, 'stopped', null); },
+    }) as unknown as SessionRunner;
+    const engine = new WorkflowEngine(store, fakeRunner(store));
+    engine.setState({ id: flow.id, state: 'running' });
+    const firstRuns = store.runningSessionsForProject(project.id).map((session) => session.id);
+    expect(firstRuns).toHaveLength(2);
+    engine.setState({ id: flow.id, state: 'paused' });
+    expect(store.runningSessionsForProject(project.id)).toHaveLength(0);
+    expect(store.workflowProgress(flow.id, 0).map((row) => row.state)).toEqual(['needs_review', 'needs_review']);
+    store.close();
+
+    const reopened = new StudioStore(dbPath);
+    try {
+      expect(reopened.workflow(flow.id).state).toBe('paused');
+      expect(reopened.snapshot(project.id).sessions).toHaveLength(2);
+      const resumed = new WorkflowEngine(reopened, fakeRunner(reopened));
+      resumed.setState({ id: flow.id, state: 'running' });
+      const newRuns = reopened.runningSessionsForProject(project.id);
+      expect(newRuns).toHaveLength(2);
+      expect(newRuns.every((session) => !firstRuns.includes(session.id))).toBe(true);
+      for (const session of newRuns) {
+        reopened.appendOutput(session.id, '[JARVIS_STEP_DONE]\n');
+        reopened.finishSession(session.id, 'exited', 0);
+        resumed.onSessionFinished(reopened.session(session.id));
+      }
+      expect(reopened.workflow(flow.id).state).toBe('done');
+      expect(reopened.snapshot(project.id).sessions).toHaveLength(4);
+    } finally { reopened.close(); }
+  }, 35_000);
+
   it('runs a workflow agent in the persisted card worktree and leaves the project checkout unchanged', async () => {
     const { repository, dbPath, store, project, column, card, agent } = fixture();
     const flow = store.createWorkflow({ projectId: project.id, name: 'Isolated step', cardIds: [card.id], steps: [
@@ -85,6 +179,9 @@ describe('optional card worktree in workflow steps', () => {
     expect(() => store.createWorkflow({ projectId: project.id, name: 'Manual', cardIds: [card.id], steps: [
       { id: 'manual', columnId: column.id, agentId: null, requireApproval: false, useWorktree: true },
     ] })).toThrow('manueller Schritt');
+    expect(() => store.createWorkflow({ projectId: project.id, name: 'Parallel without worktree', cardIds: [card.id], steps: [
+      { id: 'parallel', columnId: column.id, agentId: agent.id, requireApproval: false, parallel: true },
+    ] })).toThrow('Karten-Worktrees');
     const flow = store.createWorkflow({ projectId: project.id, name: 'Legacy default', cardIds: [card.id], steps: [
       { id: 'execute', columnId: column.id, agentId: agent.id, requireApproval: false },
     ] });

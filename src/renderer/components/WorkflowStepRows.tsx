@@ -8,12 +8,14 @@ interface Props {
   selectedIds: string[];
   approvalIds: string[];
   worktreeIds: string[];
+  parallelIds: string[];
   agentByColumn: Record<string, string>;
   modelByColumn: Record<string, string>;
   effortByColumn: Record<string, string>;
   toggleStep: (id: string) => void;
   toggleApproval: (id: string) => void;
   toggleWorktree: (id: string) => void;
+  toggleParallel: (id: string) => void;
   changeAgent: (id: string, agentId: string) => void;
   changeModel: (id: string, model: string) => void;
   changeEffort: (id: string, effort: string) => void;
@@ -33,6 +35,7 @@ export function WorkflowStepRows(props: Props) {
           <label className="step-main"><input type="checkbox" checked={selected} onChange={() => props.toggleStep(column.id)} /> <span>{column.name}</span></label>
           <label className="approval-check"><input type="checkbox" checked={props.approvalIds.includes(column.id)} disabled={!selected} onChange={() => props.toggleApproval(column.id)} /> Freigabe vor Start</label>
           <label className="approval-check"><input type="checkbox" aria-label={`Karten-Worktree für ${column.name}`} checked={props.worktreeIds.includes(column.id) && Boolean(agentId)} disabled={!selected || !agentId} onChange={() => props.toggleWorktree(column.id)} /> Karten-Worktree</label>
+          <label className="approval-check"><input type="checkbox" aria-label={`Karten in ${column.name} parallel bearbeiten`} checked={props.parallelIds.includes(column.id) && props.worktreeIds.includes(column.id) && Boolean(agentId)} disabled={!selected || !agentId || !props.worktreeIds.includes(column.id)} onChange={() => props.toggleParallel(column.id)} /> Karten parallel</label>
         </div>
         <div className="workflow-step-row-settings">
           <label>Agent<select aria-label={`Agent für ${column.name}`} value={agentId} disabled={!selected} onChange={(event) => props.changeAgent(column.id, event.target.value)}><option value="">Manuell</option>{props.agents.filter((item) => item.enabled || item.id === agentId).map((item) => <option key={item.id} value={item.id} disabled={!item.enabled}>{item.name}{item.enabled ? '' : ' (deaktiviert)'}</option>)}</select></label>

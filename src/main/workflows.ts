@@ -2,6 +2,7 @@ import type { Session, Workflow } from '../shared/types';
 import { DONE_MARKER, SessionRunner } from './cli';
 import { StudioStore } from './store';
 import { wireframeStartBlockReason } from './card-wireframe-gate';
+import { cardRunGate } from './parallel-runs';
 
 /** Last-line gate: the marker in the initial instruction or an earlier echo is not completion. */
 export function hasCompletionMarker(output: string): boolean {
@@ -69,18 +70,22 @@ export class WorkflowEngine {
 
   onSessionFinished(session: Session, finalMessage: string | null = null): void {
     const linked = this.store.workflowForSession(session.id);
-    if (!linked) return;
-    const current = this.store.workflow(linked.id);
-    const agent = this.store.agent(session.agentId);
-    // Codex exec writes its actual final message to a separate file. Its PTY
-    // scrollback may echo the prompt and redraw lines, so never treat that as
-    // evidence of completion. Other one-shot CLIs use their final output.
-    const evidence = agent.kind === 'codex' ? finalMessage ?? '' : session.output;
-    const completed = session.state === 'exited' && session.exitCode === 0 && hasCompletionMarker(evidence);
-    this.store.finishWorkflowCard(session.id, completed);
-    if (current.state !== 'running' || current.currentStep !== linked.stepIndex) return;
-    if (completed) this.pump(current.id);
-    else this.store.setWorkflowState(current.id, 'paused');
+    if (linked) {
+      const current = this.store.workflow(linked.id);
+      const agent = this.store.agent(session.agentId);
+      // Codex exec writes its actual final message to a separate file. Its PTY
+      // scrollback may echo the prompt and redraw lines, so never treat that as
+      // evidence of completion. Other one-shot CLIs use their final output.
+      const evidence = agent.kind === 'codex' ? finalMessage ?? '' : session.output;
+      const completed = session.state === 'exited' && session.exitCode === 0 && hasCompletionMarker(evidence);
+      this.store.finishWorkflowCard(session.id, completed);
+      if (current.state === 'running' && current.currentStep === linked.stepIndex && !completed) this.store.setWorkflowState(current.id, 'paused');
+    }
+    // A different card may have been waiting for this session's capacity or
+    // verified prerequisite. Never launch it from a stale renderer snapshot.
+    for (const workflow of this.store.snapshot(session.projectId).workflows) {
+      if (workflow.state === 'running') this.pump(workflow.id);
+    }
   }
 
   private pump(id: string): void {
@@ -101,38 +106,60 @@ export class WorkflowEngine {
         }
         this.store.ensureWorkflowProgress(id, workflow.currentStep, workflow.cardIds);
         const progress = this.store.workflowProgress(id, workflow.currentStep);
-        if (progress.some((row) => row.state === 'running')) return;
+        const running = progress.some((row) => row.state === 'running');
+        if (running && !step.parallel) return;
         if (progress.some((row) => row.state === 'needs_review' || row.state === 'manual_wait')) {
           this.store.setWorkflowState(id, 'paused');
           return;
         }
-        const next = progress.find((row) => row.state === 'pending');
-        if (!next) {
+        const pending = progress.filter((row) => row.state === 'pending');
+        if (!pending.length) {
+          if (running) return;
           this.store.advanceWorkflow(id);
           continue;
         }
-        const card = this.store.card(next.cardId);
-        if (step.agentId && wireframeStartBlockReason(this.store, card.id)) {
-          this.store.setWorkflowState(id, 'paused');
-          return;
+        const blocked: string[] = [];
+        let launched = false;
+        let waitingForPrerequisite = false;
+        for (const next of step.parallel ? pending : pending.slice(0, 1)) {
+          const card = this.store.card(next.cardId);
+          if (step.agentId && wireframeStartBlockReason(this.store, card.id)) {
+            blocked.push(`Karte „${card.title}“ wartet auf die aktuelle Wireframe-Freigabe.`);
+            continue;
+          }
+          if (step.parallel) {
+            const gate = cardRunGate(this.store, card.id);
+            if (gate.runningCount >= gate.capacity) return;
+            if (!gate.canStart) {
+              blocked.push(`Karte „${card.title}“: ${gate.blockers.join(' ')}`);
+              if (gate.dependency?.status === 'blocked' && gate.running.some((session) => session.cardId === gate.dependency?.prerequisiteCardId)) waitingForPrerequisite = true;
+              continue;
+            }
+          }
+          if (card.columnId !== step.columnId) this.store.moveCard({ id: card.id, columnId: step.columnId });
+          const agentId = step.agentId;
+          if (!agentId) {
+            this.store.markManualWait(id, workflow.currentStep, card.id);
+            this.store.setWorkflowState(id, 'paused');
+            return;
+          }
+          try {
+            const prompt = `Work on the following card in the selected project.\n\nTitle: ${card.title}\n\n${card.description}\n\nWhen you have finished this step and checked your work, make ${DONE_MARKER} the exact final line of your response. If blocked or incomplete, explain why and omit the marker.`;
+            this.store.clearWorkflowStartError(id);
+            const session = this.runner.start({ cardId: card.id, agentId, prompt, mode: 'one-shot', useWorktree: step.useWorktree === true, overrides: { model: step.model ?? null, effort: step.effort ?? null } });
+            this.store.beginWorkflowCard(id, workflow.currentStep, card.id, session.id);
+            launched = true;
+          } catch (error) {
+            this.store.setWorkflowState(id, 'paused');
+            try { this.store.saveWorkflowStartError(id, error); } catch { /* A failed diagnostic write must not undo the pause. */ }
+            throw error;
+          }
+          if (!step.parallel) return;
         }
-        if (card.columnId !== step.columnId) this.store.moveCard({ id: card.id, columnId: step.columnId });
-        const agentId = step.agentId;
-        if (!agentId) {
-          this.store.markManualWait(id, workflow.currentStep, card.id);
-          this.store.setWorkflowState(id, 'paused');
-          return;
-        }
-        try {
-          const prompt = `Work on the following card in the selected project.\n\nTitle: ${card.title}\n\n${card.description}\n\nWhen you have finished this step and checked your work, make ${DONE_MARKER} the exact final line of your response. If blocked or incomplete, explain why and omit the marker.`;
-          this.store.clearWorkflowStartError(id);
-          const session = this.runner.start({ cardId: card.id, agentId, prompt, mode: 'one-shot', useWorktree: step.useWorktree === true, overrides: { model: step.model ?? null, effort: step.effort ?? null } });
-          this.store.beginWorkflowCard(id, workflow.currentStep, card.id, session.id);
-        } catch (error) {
-          this.store.setWorkflowState(id, 'paused');
-          try { this.store.saveWorkflowStartError(id, error); } catch { /* A failed diagnostic write must not undo the pause. */ }
-          throw error;
-        }
+        if (launched) continue;
+        if (running || waitingForPrerequisite) return;
+        this.store.setWorkflowState(id, 'paused');
+        if (blocked.length) this.store.saveWorkflowStartError(id, new Error(blocked.join(' ').slice(0, 500)));
         return;
       }
       throw new Error('Workflow exceeded its immediate transition limit');

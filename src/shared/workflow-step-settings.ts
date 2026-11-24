@@ -22,5 +22,5 @@ export function workflowStepSettings(
 }
 
 export function normalizedWorkflowStep(step: WorkflowStep): WorkflowStep {
-  return { ...step, model: step.model ?? null, effort: step.effort ?? null, useWorktree: step.useWorktree === true };
+  return { ...step, model: step.model ?? null, effort: step.effort ?? null, useWorktree: step.useWorktree === true, parallel: step.parallel === true };
 }
