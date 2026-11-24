@@ -1,4 +1,4 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
 import type { CardDevEnvironment, DevEnvironmentProfile, DevEnvironmentState, SaveDevEnvironmentProfile } from '../shared/dev-environment';
@@ -87,9 +87,23 @@ function ownerAlive(pid: number | null): boolean {
   catch (reason) { return (reason as NodeJS.ErrnoException).code !== 'ESRCH'; }
 }
 
+function terminateOwnedTree(child: ChildProcessWithoutNullStreams): void {
+  const pid = child.pid;
+  if (!pid) throw new Error('The owned process has no PID.');
+  if (process.platform === 'win32') {
+    // Keep the parent alive until taskkill has enumerated its descendants.
+    execFileSync('taskkill.exe', ['/PID', String(pid), '/T', '/F'], {
+      timeout: 8000, windowsHide: true, stdio: 'pipe', maxBuffer: 64_000,
+    });
+  } else {
+    // POSIX children are started in their own process group below.
+    process.kill(-pid, 'SIGKILL');
+  }
+}
+
 function rowToRun(row: RunRow, managed: boolean): CardDevEnvironment {
   return { id: row.id, projectId: row.project_id, cardId: row.card_id, worktreePath: row.worktree_path,
-    branch: row.branch, port: row.port, url: `http://127.0.0.1:${row.port}/`, state: row.state,
+    branch: row.branch, port: row.port, pid: row.pid, url: `http://127.0.0.1:${row.port}/`, state: row.state,
     startedAt: row.started_at, readyAt: row.ready_at, endedAt: row.ended_at, exitCode: row.exit_code,
     output: row.output, managed };
 }
@@ -119,6 +133,7 @@ async function pageHasMarker(port: number, path: string, marker: string): Promis
 /** Manual card preview process. Nothing is replayed after an app restart. */
 export class DevEnvironmentRunner {
   private readonly children = new Map<string, ChildProcessWithoutNullStreams>();
+  private readonly uncertainTermination = new Set<string>();
   private disposed = false;
 
   constructor(private readonly store: StudioStore, private readonly allocatePort: () => Promise<number> = randomLocalPort) {}
@@ -160,9 +175,14 @@ export class DevEnvironmentRunner {
     }
     if (this.children.get(id) === child && this.row(id).state === 'starting') {
       this.append(id, '\n[Readiness marker was not found within 20 seconds.]\n');
-      this.update(id, 'failed');
-      this.children.delete(id);
-      child.kill();
+      try {
+        terminateOwnedTree(child);
+        this.update(id, 'failed');
+        this.children.delete(id);
+      } catch {
+        this.uncertainTermination.add(id);
+        this.append(id, '[Process tree could not be stopped. Use Stop again or inspect it in Task Manager.]\n');
+      }
     }
   }
 
@@ -174,6 +194,8 @@ export class DevEnvironmentRunner {
     if (!profile) throw new Error('Set a project development profile before starting a card preview.');
     const current = this.card(cardId);
     if (current && active(current.state)) throw new Error('This card already has a development run. Stop or inspect it first.');
+    if (current && current.state !== 'stopped' && !await portAvailable(current.port))
+      throw new Error('The previous preview still occupies its port. Inspect and stop it outside Branchloom before starting again.');
     const worktree = ensureCardWorktree(this.store, cardId);
     let row: RunRow | null = null;
     for (let attempt = 0; attempt < 5 && !row; attempt++) {
@@ -199,7 +221,7 @@ export class DevEnvironmentRunner {
     let child: ChildProcessWithoutNullStreams;
     try {
       child = spawn(profile.executable, args, { cwd: worktree.cwd, env: { ...process.env, PORT: String(row.port), HOST: '127.0.0.1', BRANCHLOOM_DEV_PORT: String(row.port) },
-        shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+        shell: false, detached: process.platform !== 'win32', windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
       // A failed spawn reports asynchronously even when no PID was assigned.
       child.once('error', () => {});
       if (!child.pid) throw new Error('The configured executable could not start.');
@@ -221,7 +243,8 @@ export class DevEnvironmentRunner {
     child.on('exit', (code) => {
       if (this.children.get(row!.id) !== child) return;
       this.children.delete(row!.id);
-      if (active(this.row(row!.id).state)) this.update(row!.id, code === 0 ? 'stopped' : 'failed', code);
+      if (active(this.row(row!.id).state)) this.update(row!.id, this.uncertainTermination.has(row!.id) || code === 0 ? 'interrupted' : 'failed', code);
+      this.uncertainTermination.delete(row!.id);
     });
     void this.waitReady(row.id, child, profile, row.port);
     return rowToRun(this.row(row.id), true);
@@ -230,14 +253,27 @@ export class DevEnvironmentRunner {
   stop(id: string): CardDevEnvironment {
     const child = this.children.get(id);
     if (!child || !active(this.row(id).state)) throw new Error('This development run is not managed or is already stopped.');
+    try { terminateOwnedTree(child); }
+    catch {
+      this.uncertainTermination.add(id);
+      this.append(id, '\n[Process tree could not be stopped. Use Stop again or inspect it in Task Manager.]\n');
+      throw new Error('Could not stop the complete development process tree. Inspect it in Task Manager and retry.');
+    }
+    this.uncertainTermination.delete(id);
     this.update(id, 'stopped');
     this.children.delete(id);
-    child.kill();
     return rowToRun(this.row(id), false);
   }
 
   dispose(): void {
-    for (const id of [...this.children.keys()]) this.stop(id);
+    for (const id of [...this.children.keys()]) {
+      try { this.stop(id); }
+      catch {
+        this.store.db.prepare("UPDATE dev_environment_runs SET state = 'interrupted', ended_at = ? WHERE id = ?").run(stamp(), id);
+        this.children.delete(id);
+        this.uncertainTermination.delete(id);
+      }
+    }
     this.disposed = true;
   }
 }

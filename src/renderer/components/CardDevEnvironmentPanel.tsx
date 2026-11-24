@@ -65,6 +65,14 @@ export function CardDevEnvironmentPanel({ cardId, projectId, archived, onOpenBro
     if (!run || busy) return;
     setBusy(true); setError('');
     try { setRun(await window.studio.stopCardDevEnvironment(run.id)); }
+    catch (reason) { setError(message(reason)); setRun(await window.studio.cardDevEnvironment(cardId).catch(() => run)); }
+    finally { setBusy(false); }
+  }
+
+  async function refreshRun() {
+    if (busy) return;
+    setBusy(true); setError('');
+    try { setRun(await window.studio.cardDevEnvironment(cardId)); }
     catch (reason) { setError(message(reason)); }
     finally { setBusy(false); }
   }
@@ -94,8 +102,9 @@ export function CardDevEnvironmentPanel({ cardId, projectId, archived, onOpenBro
     {profile ? <div className="card-dev-env-actions"><button className="secondary-button" type="button" disabled={archived || busy || run?.state === 'starting' || run?.state === 'ready'} onClick={() => void start()}><Play size={14} aria-hidden="true" /> Für diese Karte starten</button>
       {run?.managed && (run.state === 'starting' || run.state === 'ready') ? <button className="text-button" type="button" disabled={busy} onClick={() => void stop()}><Square size={13} aria-hidden="true" /> Stoppen</button> : null}
       {run?.managed && run.state === 'ready' ? <button className="text-button" type="button" disabled={busy} onClick={() => void openPreview()}>Vorschau öffnen <ArrowUpRight size={14} aria-hidden="true" /></button> : null}</div> : null}
-    {run ? <div className="card-dev-env-state" role="status"><strong>{run.state === 'starting' ? 'Startet und prüft…' : run.state === 'ready' ? 'Bereit' : run.state === 'interrupted' ? 'Nach Neustart ungeklärt' : run.state === 'failed' ? 'Start fehlgeschlagen' : 'Gestoppt'}</strong><span>{run.url}</span><small>Branch {run.branch} · Worktree {run.worktreePath}</small>
-      {run.state === 'ready' && !run.managed ? <p>Der frühere Prozess gehört nicht zu dieser App-Sitzung. Die Vorschau wird nicht als geprüft geöffnet.</p> : null}
+    {run ? <div className="card-dev-env-state" role="status"><strong>{!run.managed && (run.state === 'starting' || run.state === 'ready') ? 'Frühere Sitzung möglicherweise aktiv' : run.state === 'starting' ? 'Startet und prüft…' : run.state === 'ready' ? 'Bereit' : run.state === 'interrupted' ? 'Nach Unterbrechung prüfen' : run.state === 'failed' ? 'Start fehlgeschlagen' : 'Gestoppt'}</strong><span>{run.url}</span><small>Branch {run.branch} · Worktree {run.worktreePath} · Start-PID {run.pid ?? 'unbekannt'}</small>
+      {!run.managed && (run.state === 'starting' || run.state === 'ready' || run.state === 'interrupted') ? <p>Prüfe Port und Programm im Task-Manager und beende nur den verifizierten alten Server. Eine PID kann inzwischen zu einem anderen Prozess gehören. Danach Status erneut prüfen.</p> : null}
+      {!run.managed && (run.state === 'starting' || run.state === 'ready' || run.state === 'interrupted') ? <button className="text-button" type="button" disabled={busy} onClick={() => void refreshRun()}>Status erneut prüfen</button> : null}
       {run.output ? <details><summary>Prozessausgabe</summary><pre>{run.output}</pre></details> : null}</div> : null}
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
   </section>;

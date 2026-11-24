@@ -29,6 +29,12 @@ function fixture() {
     const port = Number(process.argv[process.argv.indexOf('--port') + 1]);
     http.createServer((_req, res) => { res.writeHead(200, {'content-type':'text/plain'}); res.end('READY:' + fs.readFileSync('variant.txt','utf8')); }).listen(port, '127.0.0.1', () => console.log('synthetic server listening'));`);
   writeFileSync(join(repo, 'variant.txt'), 'base');
+  writeFileSync(join(repo, 'grandchild-server.js'), `const http = require('node:http');
+    const port = Number(process.argv[2]);
+    http.createServer((_req, res) => res.end('READY:grandchild')).listen(port, '127.0.0.1');`);
+  writeFileSync(join(repo, 'parent-server.js'), `const { spawn } = require('node:child_process');
+    spawn(process.execPath, ['grandchild-server.js', process.argv[process.argv.indexOf('--port') + 1]], { stdio: 'ignore' });
+    setInterval(() => {}, 1000);`);
   git(repo, 'add', '.'); git(repo, 'commit', '-qm', 'synthetic app');
   const dbPath = join(data, 'studio.sqlite');
   const store = new StudioStore(dbPath); stores.push(store);
@@ -82,6 +88,26 @@ describe('manual card development environments', () => {
     expect(runner.stop(a!.id).state).toBe('stopped');
     expect(await (await fetch(b!.url)).text()).toBe('READY:B');
     expect(runner.stop(b!.id).state).toBe('stopped');
+  });
+
+  it('stops a preview served by a grandchild process before reporting stopped', async () => {
+    const { store, first, profile } = fixture();
+    saveDevEnvironmentProfile(store, { ...profile, args: ['parent-server.js', '--host', '127.0.0.1', '--port', '{port}'], healthMarker: 'READY:grandchild' });
+    const runner = new DevEnvironmentRunner(store); runners.push(runner);
+    const started = await runner.start(first.id);
+    expect((await ready(runner, first.id))?.state).toBe('ready');
+    expect(await (await fetch(started.url)).text()).toBe('READY:grandchild');
+    expect(runner.stop(started.id).state).toBe('stopped');
+    let portReleased = false;
+    for (let attempt = 0; attempt < 30 && !portReleased; attempt++) {
+      const probe = createServer();
+      portReleased = await new Promise<boolean>((resolve) => {
+        probe.once('error', () => resolve(false));
+        probe.listen(started.port, '127.0.0.1', () => probe.close(() => resolve(true)));
+      });
+      if (!portReleased) await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    expect(portReleased).toBe(true);
   });
 
   it('rejects occupied ports and archived cards without claiming a ready preview', async () => {

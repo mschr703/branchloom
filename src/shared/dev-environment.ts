@@ -16,6 +16,7 @@ export interface CardDevEnvironment {
   worktreePath: string;
   branch: string;
   port: number;
+  pid: number | null;
   url: string;
   state: DevEnvironmentState;
   startedAt: string;
