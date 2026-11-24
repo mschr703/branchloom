@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { realpathSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
 import type { AgentCapability, AgentCapabilityEvidence, AgentPreset, BulkCardAction, Card, CardAttachment, CardPriority, Column, ColumnEffort, CommandShell, CommandTerminal, InterruptedSessionReview, MemoryNote, Project, ProjectOrganization, ProjectQueue, ProjectSnapshot, ProjectSort, QueueState, Session, SessionSearchHit, SessionState, TrelloImportPreview, TrelloImportResult, Workflow, WorkflowAgentSettings, WorkflowProposal, WorkflowState, WorkflowStep } from '../shared/types';
+import type { UsageSessionPage } from '../shared/usage';
 import { cardLabels, cardPriority } from '../shared/card-metadata';
 import { columnSettings } from '../shared/column-settings';
 import { normalizedWorkflowStep, workflowStepSettings } from '../shared/workflow-step-settings';
@@ -118,6 +119,7 @@ export class StudioStore {
       CREATE INDEX IF NOT EXISTS idx_cards_column ON cards(column_id, position);
       CREATE INDEX IF NOT EXISTS idx_card_attachments_card ON card_attachments(card_id, added_at);
       CREATE INDEX IF NOT EXISTS idx_sessions_card ON sessions(card_id, started_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_sessions_usage ON sessions(project_id, started_at DESC);
       CREATE INDEX IF NOT EXISTS idx_command_terminals_project ON command_terminals(project_id, started_at DESC);
       CREATE INDEX IF NOT EXISTS idx_workflows_project ON workflows(project_id, state);
       CREATE INDEX IF NOT EXISTS idx_notes_project ON notes(project_id, updated_at DESC);
@@ -318,6 +320,22 @@ export class StudioStore {
       notes: (this.db.prepare('SELECT * FROM notes WHERE project_id = ? ORDER BY updated_at DESC').all(projectId) as NoteRow[]).map(note),
       queue: this.projectQueue(projectId),
     };
+  }
+
+  /** A bounded metadata-only read, independent of the snapshot's recent 200-session limit. */
+  usageSessions(input: { projectId: string; since: string }): UsageSessionPage {
+    if (!input || typeof input.projectId !== 'string' || typeof input.since !== 'string'
+      || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(input.since)) throw new Error('Invalid usage request.');
+    const sinceMs = Date.parse(input.since);
+    if (!Number.isFinite(sinceMs) || sinceMs > Date.now() || Date.now() - sinceMs > 35 * 86_400_000) throw new Error('Usage range must be within 35 days.');
+    this.project(input.projectId);
+    const rows = this.db.prepare(`SELECT id, agent_id, state, started_at, ended_at, exit_code
+      FROM sessions WHERE project_id = ? AND started_at >= ? ORDER BY started_at DESC, id DESC LIMIT 10001`)
+      .all(input.projectId, input.since) as Array<Pick<SessionRow, 'id' | 'agent_id' | 'state' | 'started_at' | 'ended_at' | 'exit_code'>>;
+    return { truncated: rows.length > 10000, sessions: rows.slice(0, 10000).map((row) => ({
+      id: row.id, agentId: row.agent_id, state: row.state, startedAt: row.started_at,
+      endedAt: row.ended_at, exitCode: row.exit_code,
+    })) };
   }
 
   projectQueue(projectId: string): ProjectQueue {

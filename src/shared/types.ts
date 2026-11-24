@@ -24,6 +24,7 @@ import type { SessionRecoveryState } from './session-recovery';
 import type { CardRunGate } from './parallel-runs';
 import type { ProjectMemoryIndexStatus, ProjectMemorySearch, ProjectMemorySearchInput, ProjectMemorySourceDetail, ProjectMemorySourceInput } from './project-memory-index';
 import type { ReleaseUpdateState } from './release-update';
+import type { UsageSessionPage } from './usage';
 
 export type SessionState = 'running' | 'exited' | 'failed' | 'stopped';
 export type WorkflowState = 'draft' | 'running' | 'paused' | 'done';
@@ -123,6 +124,7 @@ export interface StudioAPI {
   previewProjectPackage(): Promise<ProjectPackagePreview | null>;
   importProjectPackage(input: { fingerprint: string; name: string; path: string }): Promise<Project>;
   snapshot(projectId: string): Promise<ProjectSnapshot>;
+  usageSessions(input: { projectId: string; since: string }): Promise<UsageSessionPage>;
   projectChangelog(input: { projectId: string; period: ChangelogPeriod; scope?: ChangelogScope }): Promise<ProjectChangelog>;
   listMilestones(projectId: string): Promise<import('./milestones').ProjectMilestone[]>;
   createMilestone(input: { projectId: string; label: string }): Promise<import('./milestones').ProjectMilestone>;

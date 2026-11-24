@@ -26,6 +26,7 @@ const studio: StudioAPI = {
   previewProjectPackage: () => invoke('previewProjectPackage'),
   importProjectPackage: (input) => invoke('importProjectPackage', input),
   snapshot: (projectId) => invoke('snapshot', projectId),
+  usageSessions: (input) => invoke('usageSessions', input),
   projectChangelog: (input) => invoke('projectChangelog', input),
   listMilestones: (projectId) => invoke('listMilestones', projectId),
   createMilestone: (input) => invoke('createMilestone', input),

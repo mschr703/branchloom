@@ -3,6 +3,7 @@ import { ArrowUpRight, Bot, BrainCircuit, CircleAlert, CircleStop, Clock3, Colum
 import type { ProjectSnapshot, Session } from '../../shared/types';
 import { activityItems, formatDuration, sessionDuration, type ActivityKindFilter, type ActivityStatusFilter } from '../activity-data';
 import { readableSessionOutput, serializeSessionTranscript, sessionTranscriptFileName } from '../activity-transcript';
+import { UsagePanel } from './UsagePanel';
 import '../activity.css';
 
 interface Props { snapshot: ProjectSnapshot; openSession?: { id: string; token: number } | null; onSessionClosed?: () => void; onOpenCard: (id: string) => void; onOpenWorkflow: (id: string) => void; onSaveSessionAsNote?: (session: Session) => Promise<void> }
@@ -13,6 +14,7 @@ function dateTime(value: string): string {
 }
 
 export function ActivityView({ snapshot, openSession, onSessionClosed, onOpenCard, onOpenWorkflow, onSaveSessionAsNote }: Props) {
+  const [section, setSection] = useState<'activity' | 'usage'>('activity');
   const [kind, setKind] = useState<ActivityKindFilter>('all');
   const [status, setStatus] = useState<ActivityStatusFilter>('all');
   const [query, setQuery] = useState('');
@@ -33,6 +35,7 @@ export function ActivityView({ snapshot, openSession, onSessionClosed, onOpenCar
       // Deep links can arrive after their original view has unmounted. Return
       // to the activity search rather than focusing the document body.
       transcriptOpener.current = null;
+      setSection('activity');
       setSelectedSessionId(openSession.id);
     }
   }, [openSession?.id, openSession?.token]);
@@ -117,7 +120,9 @@ export function ActivityView({ snapshot, openSession, onSessionClosed, onOpenCar
   }
 
   return <div className="standard-page activity-page">
-    <div className="view-header"><div><div className="eyebrow">PROJEKTAKTIVITÄT</div><h2>Was gerade passiert</h2><p>Gespeicherte Agentenläufe, Workflows und Karten ohne Lauf. Zeiten stammen aus dem lokalen Projektstand.</p></div></div>
+    <div className="view-header"><div><div className="eyebrow">PROJEKTAKTIVITÄT</div><h2>{section === 'activity' ? 'Was gerade passiert' : 'Nutzung im Projekt'}</h2><p>{section === 'activity' ? 'Gespeicherte Agentenläufe, Workflows und Karten ohne Lauf. Zeiten stammen aus dem lokalen Projektstand.' : 'Tatsächliche Läufe und Laufzeiten aus diesem Projekt, ohne geschätzte Modellkosten.'}</p></div></div>
+    <div className="activity-section-switch" role="group" aria-label="Aktivitätsbereich"><button type="button" aria-pressed={section === 'activity'} onClick={() => setSection('activity')}>Aktivität</button><button type="button" aria-pressed={section === 'usage'} onClick={() => setSection('usage')}>Nutzung</button></div>
+    {section === 'usage' ? <UsagePanel snapshot={snapshot} now={now} onShowAgent={(name) => { setKind('session'); setStatus('all'); setQuery(name); setSection('activity'); }} /> : <>
     <div className="activity-stats" aria-label="Aktivitätsübersicht"><div><Bot size={17} /><strong>{runningCount}</strong><span>Läuft</span></div><div><CircleAlert size={17} /><strong>{attentionCount}</strong><span>Handlungsbedarf</span></div><div><CircleStop size={17} /><strong>{stoppedCount}</strong><span>Gestoppt</span></div><div><Columns3 size={17} /><strong>{untouchedCount}</strong><span>Karten ohne Lauf</span></div></div>
     <div className="activity-filters">
       <label>Art<select value={kind} onChange={(event) => setKind(event.target.value as ActivityKindFilter)}><option value="all">Alle Aktivitäten</option><option value="session">Agentenläufe</option><option value="workflow">Workflows</option><option value="card">Karten mit letztem Lauf</option></select></label>
@@ -131,7 +136,7 @@ export function ActivityView({ snapshot, openSession, onSessionClosed, onOpenCar
         <div className="activity-main">
           <div className="activity-title-row"><h3>{item.title}</h3><span className={`activity-badge ${item.status}`}>{item.statusLabel}</span></div>
           <p>{item.subtitle} · {item.detail}</p>
-          <div className="activity-meta"><span><Clock3 size={13} /> {item.kind === 'card' ? 'Letzter Lauf' : item.kind === 'session' ? 'Gestartet' : 'Aktualisiert'}: {item.kind === 'card' && item.status === 'idle' ? 'nicht erfasst' : dateTime(item.timestamp)}</span><span>Dauer: {formatDuration(item.durationMs)}</span>{item.exitCode !== null ? <span>Exit-Code: {item.exitCode}</span> : null}<span>Token: nicht erfasst</span><span>Kosten: nicht erfasst</span></div>
+          <div className="activity-meta"><span><Clock3 size={13} /> {item.kind === 'card' ? 'Letzter Lauf' : item.kind === 'session' ? 'Gestartet' : 'Aktualisiert'}: {item.kind === 'card' && item.status === 'idle' ? 'nicht erfasst' : dateTime(item.timestamp)}</span><span>Dauer: {formatDuration(item.durationMs)}</span>{item.exitCode !== null ? <span>Exit-Code: {item.exitCode}</span> : null}</div>
         </div>
         <div className="activity-row-actions">
           {item.kind === 'session' ? <button className="secondary-button small" type="button" onClick={(event) => openTranscript(item.id, event.currentTarget)}>Verlauf ansehen</button> : null}
@@ -140,6 +145,7 @@ export function ActivityView({ snapshot, openSession, onSessionClosed, onOpenCar
       </article>;
     })}{filtered.length === 0 ? <div className="feature-empty activity-empty"><Clock3 size={28} /><h3>{rows.length === 0 ? 'Noch keine Aktivität' : 'Keine Treffer'}</h3><p>{rows.length === 0 ? 'Starte einen Agenten auf einer Karte oder lege einen Workflow an. Hier erscheinen dann die gespeicherten Zustände.' : 'Ändere Status, Art oder Suchbegriff.'}</p></div> : null}</div>
     {filtered.length > shown.length ? <p className="activity-more">{filtered.length - shown.length} weitere Einträge. Nutze die Filter, um sie einzugrenzen.</p> : null}
+    </>}
     {selectedSessionId ? <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeTranscript(); }}>
       <section ref={transcriptDialog} className="dialog wide activity-transcript-dialog" role="dialog" aria-modal="true" aria-labelledby="activity-transcript-title" tabIndex={-1} onKeyDown={keepFocusInTranscript}>
         <div className="dialog-heading"><div><small>GESPEICHERTER AGENTENLAUF</small><h2 id="activity-transcript-title">{selectedSession ? snapshot.cards.find((card) => card.id === selectedSession.cardId)?.title ?? 'Entfernte Karte' : 'Agentenverlauf'}</h2></div><button className="icon-button" type="button" autoFocus aria-label="Verlauf schließen" onClick={closeTranscript}><X size={18} /></button></div>

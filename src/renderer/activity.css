@@ -1,4 +1,9 @@
 .activity-row-actions{display:flex;flex-direction:column;align-items:flex-end;gap:7px}
+.activity-section-switch{display:flex;gap:20px;border-bottom:1px solid var(--border);margin:0 0 22px}
+.activity-section-switch button{background:transparent;border:0;border-bottom:2px solid transparent;color:var(--muted);font:inherit;font-size:13px;padding:10px 2px;cursor:pointer}
+.activity-section-switch button[aria-pressed='true']{border-color:var(--accent);color:var(--text);font-weight:650}
+.activity-section-switch button:hover{color:var(--text)}
+.activity-section-switch button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .activity-transcript-dialog{max-width:900px;width:min(900px,calc(100vw - 32px));max-height:calc(100vh - 48px);display:flex;flex-direction:column}
 .activity-transcript-meta{display:flex;flex-wrap:wrap;gap:8px 15px;color:#91a5b7;font-size:11px;margin:12px 0}
 .activity-transcript-output{min-height:150px;max-height:55vh;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#0d1a29;border:1px solid #344b60;border-radius:9px;padding:14px;color:#d3e5ee;font-size:11px;line-height:1.55}

@@ -39,14 +39,15 @@ describe('activity data', () => {
     expect(activityItems(snapshot, Date.parse(t1), 'card').map((item) => item.id)).toEqual(['c1', 'c2']);
   });
 
-  it('renders real states and labels absent token and cost metrics', () => {
+  it('renders real states and links to a separate usage view without repeated unknown metrics', () => {
     const html = renderToStaticMarkup(createElement(ActivityView, { snapshot, onOpenCard: () => undefined, onOpenWorkflow: () => undefined }));
     expect(html).toContain('Fehlgeschlagen');
     expect(html).toContain('Zum Workflow');
     expect(html).toContain('Zur Karte');
     expect(html).toContain('Verlauf ansehen');
-    expect(html).toContain('Token: nicht erfasst');
-    expect(html).toContain('Kosten: nicht erfasst');
+    expect(html).toContain('Nutzung');
+    expect(html).not.toContain('Token: nicht erfasst');
+    expect(html).not.toContain('Kosten: nicht erfasst');
     expect(html).not.toContain('private output');
   });
 });

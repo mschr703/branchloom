@@ -166,6 +166,7 @@ function installIpc(): void {
   bind('assignProjectGroup', (input: { projectId: string; groupId: string | null }) => db.assignProjectGroup(input));
   bind('setProjectSort', (sort: 'name' | 'newest') => db.setProjectSort(sort));
   bind('componentCatalog', (projectId: string) => scanProjectComponents(db.project(projectId).path));
+  bind('usageSessions', (input: Parameters<StudioAPI['usageSessions']>[0]) => db.usageSessions(input));
   bind('createProject', (input: { name: string; path: string }) => db.createProject(input));
   bind('exportProjectPackage', async (projectId: string) => {
     if (!window || window.isDestroyed()) throw new Error('Das Exportfenster ist nicht verfügbar.');
