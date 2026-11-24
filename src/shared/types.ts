@@ -1,5 +1,6 @@
 import type { ConflictRadarResult, ProjectConflictRadarResult } from './conflict-radar';
 import type { DraftTurn, TaskDraftReply } from './task-draft';
+import type { ProjectChatInput, ProjectChatReply } from './project-chat';
 import type { CardDiffPreview, CreateReviewComment, ReviewComment } from './diff-review';
 import type { ChangelogPeriod, ChangelogScope, ProjectChangelog } from './changelog';
 import type { ThemeTokenInventory, ThemeTokenDefinition, ThemeTokenEditPreview, ThemeTokenEditResult } from './theme-tokens';
@@ -250,6 +251,7 @@ export interface StudioAPI {
   createPlanComment(input: { planId: string; fingerprint: string; line: number; body: string }): Promise<import('./plan-review').PlanComment>;
   acceptReviewedPlan(input: { planId: string; fingerprint: string }): Promise<Workflow>;
   discussTaskDraft(input: { projectId: string; turns: DraftTurn[] }): Promise<TaskDraftReply>;
+  discussProject(input: ProjectChatInput): Promise<ProjectChatReply>;
   acceptWorkflowProposal(input: { projectId: string; proposal: WorkflowProposal }): Promise<Workflow>;
   previewTrelloImport(input: { projectId: string; json: string }): Promise<TrelloImportPreview>;
   acceptTrelloImport(input: { projectId: string; columnId: string; columnByListId?: Record<string, string>; json: string; fingerprint: string; sourceIds: string[] }): Promise<TrelloImportResult>;

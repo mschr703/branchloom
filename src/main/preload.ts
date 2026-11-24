@@ -159,6 +159,7 @@ const studio: StudioAPI = {
   createPlanComment: (input) => invoke('createPlanComment', input),
   acceptReviewedPlan: (input) => invoke('acceptReviewedPlan', input),
   discussTaskDraft: (input) => invoke('discussTaskDraft', input),
+  discussProject: (input) => invoke('discussProject', input),
   acceptWorkflowProposal: (input) => invoke('acceptWorkflowProposal', input),
   previewTrelloImport: (input) => invoke('previewTrelloImport', input),
   acceptTrelloImport: (input) => invoke('acceptTrelloImport', input),

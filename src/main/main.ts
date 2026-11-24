@@ -59,6 +59,7 @@ import { AgentBrowserBridge } from './agent-browser-bridge';
 import { inspectAgentBrowserPage } from './agent-browser-inspector';
 import { proposeWorkflow } from './workflow-planner';
 import { discussTaskDraft } from './task-draft';
+import { discussProject } from './project-chat';
 import { convertIdeaToCard, discussIdea, listIdeas, saveIdea } from './ideas';
 import { linkIdeaMatch, previewIdeaMatches, unlinkIdeaMatch } from './idea-matches';
 import { acceptTrelloIdeas, applyTrelloIdeaSource, compareTrelloIdea, previewTrelloIdeas } from './trello-ideas';
@@ -391,6 +392,7 @@ function installIpc(): void {
   bind('createPlanComment', (input: Parameters<StudioAPI['createPlanComment']>[0]) => createPlanComment(db, input));
   bind('acceptReviewedPlan', (input: Parameters<StudioAPI['acceptReviewedPlan']>[0]) => acceptReviewedPlan(db, input));
   bind('discussTaskDraft', (input: Parameters<StudioAPI['discussTaskDraft']>[0]) => discussTaskDraft(db, input));
+  bind('discussProject', (input: Parameters<StudioAPI['discussProject']>[0]) => discussProject(db, input));
   bind('acceptWorkflowProposal', (input: { projectId: string; proposal: WorkflowProposal }) => db.acceptWorkflowProposal(input));
   bind('previewTrelloImport', (input: { projectId: string; json: string }) => db.previewTrelloImport(input));
   bind('acceptTrelloImport', (input: Parameters<StudioAPI['acceptTrelloImport']>[0]) => db.acceptTrelloImport(input));
