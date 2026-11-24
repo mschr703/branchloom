@@ -1725,6 +1725,29 @@ function createWindow(): void {
                   await new Promise((resolve) => setTimeout(resolve, 50));
                 }
                 if (!savedNote || document.querySelector('.topbar-title h1')?.textContent !== 'Memory') throw new Error('Agentenlauf wurde nicht sichtbar als lokale Memory-Notiz gespeichert.');
+                [...document.querySelectorAll('.knowledge-index-view-tabs button')].find((item) => item.textContent?.includes('Beziehungen'))?.click();
+                for (let attempt = 0; attempt < 100 && !document.querySelector('.knowledge-map-view'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+                let linkedFileVisible = false;
+                for (let excerpt = 0; excerpt < 20 && !linkedFileVisible; excerpt++) {
+                  for (let attempt = 0; attempt < 100 && document.querySelector('.knowledge-map-source-status'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+                  const fileEntry = [...document.querySelectorAll('.knowledge-map-list button')].find((item) => item.textContent?.includes('Datei · src/widget.ts'));
+                  if (fileEntry) {
+                    fileEntry.click();
+                    for (let attempt = 0; attempt < 100 && document.querySelector('.knowledge-map-inspector h3')?.textContent !== 'src/widget.ts'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+                    linkedFileVisible = document.querySelector('.knowledge-map-inspector h3')?.textContent === 'src/widget.ts'
+                      && Boolean(document.querySelector('.knowledge-map-inspector .knowledge-map-related button'));
+                    break;
+                  }
+                  const nextExcerpt = document.querySelector('button[aria-label="Weitere Aufgaben zeigen"]');
+                  if (!(nextExcerpt instanceof HTMLButtonElement) || nextExcerpt.disabled) break;
+                  nextExcerpt.click();
+                }
+                if (!linkedFileVisible || !document.querySelector('.knowledge-map-node.source')) throw new Error('Gespeicherter Datei-Kartenbezug erschien nicht in der Memory-Beziehungskarte: ' + JSON.stringify({
+                  hasMap: Boolean(document.querySelector('.knowledge-map-view')),
+                  activeTab: [...document.querySelectorAll('.knowledge-index-view-tabs button')].find((item) => item.getAttribute('aria-pressed') === 'true')?.textContent,
+                  entries: document.querySelector('.knowledge-map-list')?.textContent?.slice(0, 700),
+                  status: document.querySelector('.knowledge-map-source-status')?.textContent,
+                }));
                 let sourceButton;
                 for (let attempt = 0; attempt < 300; attempt++) {
                   sourceButton = [...document.querySelectorAll('.memory-modebar button')].find((item) => item.textContent?.includes('Quellverlauf öffnen'));

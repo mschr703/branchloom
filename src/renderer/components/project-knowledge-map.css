@@ -2,6 +2,7 @@
 .knowledge-map-summary { display: flex; justify-content: space-between; align-items: baseline; gap: 24px; margin-bottom: 12px; }
 .knowledge-map-summary p { margin: 0; max-width: 65ch; color: var(--soft); font-size: 12px; line-height: 1.5; }
 .knowledge-map-summary span { flex: none; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.knowledge-map-source-status { margin: 0 0 10px; color: var(--muted); font-size: 11px; }
 .knowledge-map-layout { display: grid; grid-template-columns: minmax(0, 1fr) 250px; min-height: 510px; border: 1px solid var(--border); background: var(--surface); }
 .knowledge-map-canvas { min-width: 0; height: 510px; background: var(--surface); }
 .knowledge-map-inspector { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-width: 0; padding: 20px 18px; border-left: 1px solid var(--border); }
@@ -12,6 +13,8 @@
 .knowledge-map-node.react-flow__node { width: 210px; min-height: 74px; padding: 0; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); box-shadow: 0 2px 8px rgba(0, 0, 0, .06); text-align: left; }
 .knowledge-map-node.task.react-flow__node { width: 290px; border-left: 3px solid var(--accent); }
 .knowledge-map-node.conversation.react-flow__node { border-left: 3px solid var(--muted); }
+.knowledge-map-node.source.react-flow__node { width: 210px; min-height: 58px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; box-shadow: none; }
+.knowledge-map-node.source.unavailable.react-flow__node { border-bottom-style: dashed; opacity: .72; }
 .knowledge-map-node.selected.react-flow__node, .knowledge-map-node.react-flow__node:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .knowledge-map-node-label { display: grid; gap: 4px; padding: 10px 12px; }
 .knowledge-map-node-label span { color: var(--muted); font-size: 10px; }
@@ -19,6 +22,13 @@
 .knowledge-map-node-label small { color: var(--soft); font-size: 10px; }
 .knowledge-map-node .react-flow__handle { opacity: 0; pointer-events: none; }
 .knowledge-map-link.react-flow__edge path { stroke: var(--muted); stroke-width: 1.25; }
+.knowledge-map-link.source.react-flow__edge path { stroke: var(--focus); stroke-width: 1.4; }
+.knowledge-map-link.source.unavailable.react-flow__edge path { stroke-dasharray: 4 4; }
+.knowledge-map-related { display: grid; gap: 6px; width: 100%; padding-top: 12px; border-top: 1px solid var(--border); }
+.knowledge-map-related strong { font-size: 11px; font-weight: 650; }
+.knowledge-map-related button { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 0; padding: 6px 0; background: transparent; color: var(--text); text-align: left; font: inherit; font-size: 12px; cursor: pointer; }
+.knowledge-map-related button:hover { color: var(--accent); }
+.knowledge-map-related button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .knowledge-map-list { width: 100%; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; }
 .knowledge-map-list summary { cursor: pointer; }
 .knowledge-map-list summary:focus-visible, .knowledge-map-list button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
