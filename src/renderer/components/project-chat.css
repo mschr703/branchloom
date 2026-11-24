@@ -23,6 +23,7 @@
 .project-chat-evidence ol { list-style: none; padding: 0; margin: 9px 0 0; }
 .project-chat-evidence li { padding: 13px 0; border-bottom: 1px solid var(--border); }
 .project-chat-evidence li span { display: block; color: var(--muted); font-size: 11px; margin-bottom: 4px; }
+.project-chat-source-id { display: block; margin: 0 0 5px; color: var(--muted); font-size: 10px; overflow-wrap: anywhere; }
 .project-chat-evidence li strong { display: block; font-size: 13px; overflow-wrap: anywhere; }
 .project-chat-evidence li p { margin: 5px 0; color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .project-chat-evidence li button { display: inline-flex; align-items: center; gap: 4px; padding: 4px 0; font-size: 12px; }
