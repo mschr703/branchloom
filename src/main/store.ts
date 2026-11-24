@@ -13,6 +13,7 @@ import { installSessionSearch, searchSessionTranscripts } from './session-search
 import { installProjectMemoryIndex } from './project-memory-index';
 import { installSessionRecovery } from './session-recovery';
 import { installActiveCardIndex, installParallelRuns } from './parallel-runs';
+import { installIntegrationQueue } from './integration-queue';
 import { clearAgentCapabilityEvidence, installAgentCapabilities, listAgentCapabilityEvidence, recordAgentCapability } from './agent-capabilities';
 import { installSessionEvidence } from './session-evidence';
 import { parseProjectPackage, type ProjectPackage } from './project-package';
@@ -190,6 +191,7 @@ export class StudioStore {
     this.db.prepare("UPDATE project_queues SET state = 'paused', pause_reason = CASE WHEN EXISTS (SELECT 1 FROM queue_launch_retries r WHERE r.project_id = project_queues.project_id) THEN 'App neu gestartet während eines CLI-Startfehlers. Es lief kein automatischer Retry nach Neustart; prüfe den Workflow und starte ihn ausdrücklich.' ELSE 'App neu gestartet: aktiven Workflow und Agentenlauf prüfen.' END, updated_at = ? WHERE state = 'running'").run(now());
     this.db.prepare('DELETE FROM queue_launch_retries').run();
     installActiveCardIndex(this.db);
+    installIntegrationQueue(this);
   }
 
   close(): void { this.db.close(); }

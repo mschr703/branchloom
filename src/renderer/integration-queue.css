@@ -1,0 +1,5 @@
+.integration-queue-list { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--border); }
+.integration-queue-list li { display: grid; gap: 4px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.integration-queue-list li[aria-current='true'] { border-left: 2px solid var(--accent); padding-left: 10px; }
+.integration-queue-list strong { font-size: 13px; font-weight: 600; }
+.integration-queue-list span, .integration-queue-list small { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }

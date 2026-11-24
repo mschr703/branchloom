@@ -43,6 +43,12 @@ function commonDir(path: string): string {
   return realpathSync(value);
 }
 
+/** Stable identity across multiple project subfolders and checkouts of one repository. */
+export function worktreeRepositoryKey(path: string): string {
+  const directory = realpathSync.native(commonDir(path));
+  return process.platform === 'win32' ? directory.toLowerCase() : directory;
+}
+
 function sameDirectory(first: string, second: string): boolean {
   const left = statSync(first, { bigint: true });
   const right = statSync(second, { bigint: true });
@@ -125,7 +131,16 @@ export function reviewCardWorktree(store: StudioStore, cardId: string): Worktree
   if (targetStatusText) blockers.push('Ziel-Checkout ist nicht sauber.');
   if (sourceHead === targetHead) blockers.push('Keine neuen Commits im Worktree.');
   if (behind > 0) blockers.push('Branches sind auseinander gelaufen; nur Fast-Forward ist erlaubt.');
-  if (store.activeSessionForProject(record.projectId)) blockers.push('In diesem Projekt läuft noch ein Agent.');
+  const running = store.db.prepare(`SELECT s.card_id, s.worktree_path, p.path AS project_path FROM sessions s
+    JOIN projects p ON p.id = s.project_id WHERE s.state = 'running' AND (s.card_id = ? OR s.worktree_path IS NULL)`)
+    .all(cardId) as Array<{ card_id: string; worktree_path: string | null; project_path: string }>;
+  if (running.some((session) => {
+    if (session.card_id === cardId) return true;
+    if (session.worktree_path) return false;
+    try { return sameDirectory(gitRoot(session.project_path), targetPath); }
+    catch { return false; }
+  }))
+    blockers.push('Auf dieser Karte oder im Ziel-Checkout läuft noch ein Agent.');
   for (const [checkout, label] of [[targetPath, 'Ziel-Checkout'], [record.path, 'Worktree']] as const) {
     const gitDirectory = git(checkout, ['rev-parse', '--path-format=absolute', '--git-dir']);
     for (const marker of ['MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD', 'rebase-merge', 'rebase-apply', 'index.lock']) {

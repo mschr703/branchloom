@@ -19,6 +19,7 @@ import { CardQaPanel } from './CardQaPanel';
 import { PrDraftPanel } from './PrDraftPanel';
 import { OutputErrorPanel } from './OutputErrorPanel';
 import { ConflictRadarNotice } from './ConflictRadarNotice';
+import { IntegrationQueuePanel } from './IntegrationQueuePanel';
 import { startConflictRadarRefresh } from '../conflict-radar-schedule';
 import { parallelStartWarning } from '../parallel-run-gate';
 import { addCardLabel, labelSuggestions } from '../card-labels';
@@ -172,24 +173,6 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
     }
   }
 
-  async function mergeWorktree() {
-    if (!worktreeReview?.canFastForward) return;
-    setWorktreeBusy(true); setWorktreeError('');
-    try {
-      const preflight = await window.studio.reviewCardConflicts(card.id);
-      setConflictRadar(preflight);
-      if (preflight.state === 'overlap' || preflight.state === 'unknown') {
-        const note = preflight.state === 'overlap' ? 'Andere Karten-Worktrees enthalten Änderungen an denselben Git-Pfaden.' : 'Die Prüfung anderer Karten-Worktrees war unvollständig.';
-        if (!window.confirm(`${note} Trotzdem zur abschließenden Merge-Bestätigung weitergehen?`)) return;
-      }
-      if (!window.confirm(`Die ${worktreeReview.ahead} committeten Änderung(en) aus ${worktreeReview.branch} per Fast-Forward in ${worktreeReview.targetBranch} übernehmen? Der Worktree bleibt erhalten.`)) return;
-      const merged = await window.studio.mergeCardWorktree({ cardId: card.id, previewToken: worktreeReview.previewToken, confirm: true });
-      setWorktreeReview(merged);
-      setCleanupPreview(undefined);
-    } catch (reason) { setWorktreeError(reason instanceof Error ? reason.message : String(reason)); }
-    finally { setWorktreeBusy(false); }
-  }
-
   async function changeArchive(archived: boolean) {
     if (archived && !window.confirm(`„${card.title}“ archivieren? Die Karte bleibt erhalten und kann wiederhergestellt werden.`)) return;
     setArchiveBusy(true); setArchiveError('');
@@ -328,9 +311,9 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
           {worktreeReview.uncommittedStat ? <><strong>Uncommitteter Diff-Stat</strong><pre className="terminal-output">{worktreeReview.uncommittedStat}</pre></> : null}
           {worktreeReview.committedStat ? <><strong>Committeter Diff-Stat</strong><pre className="terminal-output">{worktreeReview.committedStat}</pre></> : null}
           {worktreeReview.blockers.length ? <p className="inline-note">Merge gesperrt: {worktreeReview.blockers.join(' ')}</p> : null}
-          <button className="primary-button" type="button" disabled={worktreeBusy || !worktreeReview.canFastForward} onClick={() => void mergeWorktree()}>Fast-Forward bestätigt übernehmen</button>
           <button className="text-button" type="button" disabled={worktreeBusy} onClick={() => void checkCleanup()}>Aufräumbarkeit prüfen</button>
         </div> : null}
+        <IntegrationQueuePanel card={card} cards={snapshot.cards} onIntegrated={() => void reviewWorktree()} />
         {cleanupPreview === null ? <p className="inline-note">Für diese Karte gibt es keinen gespeicherten Worktree.</p> : null}
         {cleanupPreview ? <section className="stacked-form" aria-label="Lesende Worktree-Aufräumprüfung">
           <h4>Worktree-Aufräumprüfung</h4>

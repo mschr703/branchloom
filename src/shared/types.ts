@@ -25,6 +25,7 @@ import type { CardRunGate } from './parallel-runs';
 import type { ProjectMemoryIndexStatus, ProjectMemorySearch, ProjectMemorySearchInput, ProjectMemorySourceDetail, ProjectMemorySourceInput } from './project-memory-index';
 import type { ReleaseUpdateState } from './release-update';
 import type { UsageSessionPage } from './usage';
+import type { IntegrationItem } from './integration-queue';
 
 export type SessionState = 'running' | 'exited' | 'failed' | 'stopped';
 export type WorkflowState = 'draft' | 'running' | 'paused' | 'done';
@@ -277,7 +278,10 @@ export interface StudioAPI {
   deleteReviewRule(input: { projectId: string; id: string }): Promise<void>;
   reviewCardConflicts(cardId: string): Promise<ConflictRadarResult>;
   reviewProjectConflicts(projectId: string): Promise<ProjectConflictRadarResult>;
-  mergeCardWorktree(input: { cardId: string; previewToken: string; confirm: boolean }): Promise<WorktreeReview>;
+  integrationQueue(projectId: string): Promise<IntegrationItem[]>;
+  enqueueIntegration(cardId: string): Promise<IntegrationItem>;
+  prepareIntegration(cardId: string): Promise<IntegrationItem>;
+  approveIntegration(input: { cardId: string; confirm: boolean }): Promise<IntegrationItem>;
   saveNote(input: { projectId: string; id?: string; title: string; body: string; tags: string[]; links: string[] }): Promise<MemoryNote>;
   memoryGitCandidates(projectId: string): Promise<import('./memory-git-source').MemoryGitCommit[]>;
   memoryGitSource(input: { projectId: string; noteId: string }): Promise<import('./memory-git-source').MemoryGitSource | null>;
