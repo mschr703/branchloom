@@ -6,7 +6,13 @@ Beim Öffnen von **Memory** aktualisiert Branchloom einen projektbezogenen Worti
 
 Die Suche filtert nach Aufgaben, Agentenverläufen, Commits und Code. Ein Treffer nennt die Quelle, ihren Zeitpunkt und bei Code den Dateipfad sowie den gelesenen Commitstand. Aufgaben und Agentenverläufe öffnen ihre gespeicherte Originalansicht. Bei Code zeigt Branchloom den indizierten Ausschnitt; die Arbeitsdatei kann seit dem Commit anders aussehen. Alles bleibt lokal. Die Suche startet keinen Agenten und sendet weder Code noch Verlauf an ein Modell.
 
-Der Codeindex beschränkt sich auf höchstens 180 geeignete getrackte Dateien bis 64 KB, vier Textpassagen je Datei und insgesamt 1,5 Millionen Zeichen. Tests, Fixtures, Build-Ausgaben, Lockfiles und `.env`-Dateien werden ausgelassen. Nicht erfasste Inhalte liefern keine Treffer und werden nicht als vollständig indexiert ausgegeben. Die Suche basiert auf Wörtern und FTS5; ein lokales Embedding-Modell, automatische Task-Zusammenfassungen, semantische Beziehungen, eine Karte der Agentengespräche und Antworten mit Agentenbelegen sind weiterhin offen. Der bisherige Notizgraph zeigt ausschließlich manuelle Verweise und ist kein Ersatz dafür.
+Der Codeindex beschränkt sich auf höchstens 180 geeignete getrackte Dateien bis 64 KB, vier Textpassagen je Datei und insgesamt 1,5 Millionen Zeichen. Tests, Fixtures, Build-Ausgaben, Lockfiles und `.env`-Dateien werden ausgelassen. Nicht erfasste Inhalte liefern keine Treffer und werden nicht als vollständig indexiert ausgegeben. Die Suche basiert auf Wörtern und FTS5; ein lokales Embedding-Modell, automatische Task-Zusammenfassungen, semantische Ähnlichkeit und Antworten mit Agentenbelegen sind weiterhin offen.
+
+### Belegte Arbeitsbeziehungen
+
+**Projektwissen → Beziehungen** zeigt eine lesende Karte aus gespeicherten Aufgaben und abgeschlossenen Agentenläufen mit Text. Eine Linie wird ausschließlich aus der gespeicherten `cardId` des Laufs gebildet. Ein Klick zeigt Quelle und Zeitpunkt; ein Doppelklick oder **Quelle öffnen** führt zur Aufgabe beziehungsweise zum Lauf. Die Karte zeigt vier Aufgaben pro Ausschnitt, höchstens zwei jüngste Läufe pro Aufgabe und nennt ausgeblendete ältere Läufe. Weitere Ausschnitte sind über die Pfeile erreichbar. Sie aktualisiert sich mit dem Projektstand, startet keinen Agenten und verändert weder Karten noch Whiteboard.
+
+Die Position im Diagramm ist eine lesbare Anordnung, keine berechnete Themen- oder semantische Nähe. Commits und Code stehen weiterhin unter **Quellen durchsuchen**; sie werden ohne belegten Bezug zu einer Aufgabe nicht als Graphkante dargestellt. Das Whiteboard bleibt der editierbare Ort für geplante Architektur. Eine gemeinsame automatisch belegte Karte von Code, Commits, Gesprächen und Whiteboard-Boxen ist noch offen.
 
 Memory speichert Notizen pro Projekt in der lokalen SQLite-Datenbank der App. Der Projektordner bekommt keine Memory-Dateien. Notizen lassen sich mit `[[Notiztitel]]` verbinden; Klicks in der Vorschau und im Graph öffnen die verknüpfte Notiz.
 
@@ -19,7 +25,7 @@ Memory speichert Notizen pro Projekt in der lokalen SQLite-Datenbank der App. De
 
 ## Verknüpfungen erkunden
 
-Liste, Graph und geöffnete Notiz stehen auf breiten Fenstern nebeneinander; bei schmalen Fenstern folgen sie untereinander. **Alle** zeigt bis zu 50 gespeicherte Notizen als Netz. Echte `[[Titel]]`- und gespeicherte ID-Verweise ziehen zusammengehörige Notizen näher zueinander; nicht verbundene Notizen bleiben sichtbar. Bei vielen Knoten erscheinen Titel beim Überfahren oder Tastaturfokus, damit die Fläche lesbar bleibt.
+Liste, Graph und geöffnete Notiz stehen auf breiten Fenstern nebeneinander; bei schmalen Fenstern folgen sie untereinander. Der manuelle Notizgraph erscheint nur, wenn wirklich ein gespeicherter Verweis existiert. **Alle** zeigt dann bis zu 50 gespeicherte Notizen als Netz. Echte `[[Titel]]`- und gespeicherte ID-Verweise ziehen zusammengehörige Notizen näher zueinander; nicht verbundene Notizen bleiben sichtbar. Bei vielen Knoten erscheinen Titel beim Überfahren oder Tastaturfokus, damit die Fläche lesbar bleibt.
 
 Wähle eine Notiz in der Liste oder im Graph: **Umgebung** rückt diese Notiz in die Mitte und zeigt bis zu 23 direkt verknüpfte Nachbarn. Die Anzeige nennt weitere ausgeblendete Nachbarn. Mit **Alle** kommst du zur Übersicht zurück. Graphknoten sind per Tab und Enter/Leertaste erreichbar. Der Graph zeigt ausschließlich lokal gespeicherte Notizen und vorhandene Verweise; er indiziert keine fremden Dateien und erfindet keine Verbindungen. Eine freie Zoom-/Pan-Fläche und automatische semantische Verknüpfungen sind noch offen.
 
@@ -40,4 +46,4 @@ Beim erneuten Öffnen oder über **Erneut prüfen** fragt Branchloom Git nochmal
 
 Wähle für persönliche Notizen einen privaten Ordner außerhalb öffentlich geteilter Git-Repositories. Import und Export erfolgen nur nach Klick und Ordnerwahl; Branchloom greift nicht automatisch auf andere Vaults zu. Ein Live-Abgleich findet nicht statt.
 
-Die automatisch indizierten Quellen sind von den manuell geschriebenen Notizen getrennt. Die semantische Suche und ein aus Agentengesprächen aufgebauter Knowledge Graph stehen auf der [Paritätsliste](PARITY.md).
+Die automatisch indizierten Quellen sind von den manuell geschriebenen Notizen getrennt. Die semantische Suche und ein thematisch aus Agentengesprächen aufgebauter Knowledge Graph stehen auf der [Paritätsliste](PARITY.md).

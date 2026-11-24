@@ -76,6 +76,23 @@ describe('memory workspace', () => {
     expect(html).toContain('1 Verweise');
     expect(html).toContain('<details class="memory-transfer"><summary>Import &amp; Export</summary>');
   });
+
+  it('shows the automatic relationship map for saved agent work without an empty manual-note circle', () => {
+    const snapshot: ProjectSnapshot = {
+      project: { id: 'p', name: 'Test', path: 'synthetic', createdAt: '2026-01-01T00:00:00Z' },
+      columns: [],
+      cards: [{ id: 'card', projectId: 'p', columnId: 'todo', title: 'Review relay', description: 'Check the bridge', priority: 'none', labels: [], wireframeRequired: false, position: 0, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', archivedAt: null }],
+      agents: [{ id: 'agent', name: 'Codex', kind: 'codex', command: 'codex', args: [], model: null, enabled: true }],
+      sessions: [{ id: 'run', projectId: 'p', cardId: 'card', agentId: 'agent', state: 'exited', startedAt: '2026-01-01T00:00:00Z', endedAt: '2026-01-01T01:00:00Z', exitCode: 0, output: 'Saved result' }],
+      workflows: [], notes: [],
+    };
+    const html = renderToStaticMarkup(createElement(MemoryView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() }));
+    expect(html).toContain('Beziehungskarte aus Aufgaben und Agentenläufen');
+    expect(html).toContain('1 Aufgaben · 1 belegte Läufe');
+    expect(html).toContain('Quellen als Liste');
+    expect(html).toContain('without-note-graph');
+    expect(html).not.toContain('aria-label="Manuelle Notizverknüpfungen"');
+  });
 });
 
 describe('board view', () => {

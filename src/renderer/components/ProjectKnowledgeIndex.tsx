@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowUpRight, RefreshCw, Search } from 'lucide-react';
 import type { ProjectSnapshot } from '../../shared/types';
 import type { ProjectMemoryHit, ProjectMemoryIndexStatus, ProjectMemorySourceDetail, ProjectMemorySourceKind } from '../../shared/project-memory-index';
+import { ProjectKnowledgeMap } from './ProjectKnowledgeMap';
 import './project-knowledge-index.css';
 
 const kindLabels: Record<ProjectMemorySourceKind, string> = {
@@ -20,6 +21,7 @@ export function ProjectKnowledgeIndex({ snapshot, onOpenCard, onOpenSession }: P
   const projectId = snapshot.project.id;
   const [query, setQuery] = useState('');
   const [kind, setKind] = useState<ProjectMemorySourceKind | 'all'>('all');
+  const [view, setView] = useState<'map' | 'sources'>(() => snapshot.sessions.some((session) => session.state !== 'running' && Boolean(session.output.trim())) ? 'map' : 'sources');
   const [status, setStatus] = useState<ProjectMemoryIndexStatus | null>(null);
   const [hits, setHits] = useState<ProjectMemoryHit[]>([]);
   const [selectedId, setSelectedId] = useState('');
@@ -31,7 +33,7 @@ export function ProjectKnowledgeIndex({ snapshot, onOpenCard, onOpenSession }: P
   const revision = useMemo(() => `${snapshot.cards.length}:${snapshot.cards.reduce((latest, card) => card.updatedAt > latest ? card.updatedAt : latest, '')}:${snapshot.sessions.filter((session) => session.state !== 'running').length}`, [snapshot.cards, snapshot.sessions]);
   const selected = hits.find((hit) => `${hit.kind}:${hit.sourceId}` === selectedId) ?? null;
 
-  useEffect(() => { setQuery(''); setKind('all'); setSelectedId(''); setDetail(null); setStatus(null); setHits([]); setLoading(true); }, [projectId]);
+  useEffect(() => { setQuery(''); setKind('all'); setView(snapshot.sessions.some((session) => session.state !== 'running' && Boolean(session.output.trim())) ? 'map' : 'sources'); setSelectedId(''); setDetail(null); setStatus(null); setHits([]); setLoading(true); }, [projectId]);
 
   useEffect(() => {
     let active = true;
@@ -77,14 +79,16 @@ export function ProjectKnowledgeIndex({ snapshot, onOpenCard, onOpenSession }: P
   }
 
   return <section className="project-knowledge-index" aria-label="Automatischer Projektindex">
-    <div className="knowledge-index-head"><div><h2>Projektwissen</h2><p>Durchsuche Aufgaben, Agentenverläufe, Commits und den getrackten Code dieses Projekts.</p></div><button className="text-button" type="button" disabled={refreshing} onClick={() => void refresh()}><RefreshCw size={16} aria-hidden="true" /> {refreshing ? 'Index wird aktualisiert…' : 'Index aktualisieren'}</button></div>
+    <div className="knowledge-index-head"><div><h2>Projektwissen</h2><p>Gespeicherte Arbeit als belegte Beziehungen und durchsuchbare Quellen.</p></div><button className="text-button" type="button" disabled={refreshing} onClick={() => void refresh()}><RefreshCw size={16} aria-hidden="true" /> {refreshing ? 'Index wird aktualisiert…' : 'Index aktualisieren'}</button></div>
     {status ? <div className="knowledge-index-sources" aria-label="Indexierte Quellen"><span>{status.counts.task} Aufgaben</span><span>{status.counts.conversation} Agentenverläufe</span><span>{status.counts.commit} Commits</span><span>{status.counts.code} Codepassagen</span><small>{status.indexedAt ? `Stand ${new Date(status.indexedAt).toLocaleString('de-DE')}` : 'Noch nicht indexiert'}</small></div> : null}
     {status?.warning ? <p className="knowledge-index-warning" role="status">{status.warning}</p> : null}
     {status?.state === 'partial' ? <p className="knowledge-index-limit">{status.codeFilesIndexed} von {status.codeFilesSeen} geeigneten Codedateien erfasst. Nicht erfasste Inhalte liefern keine Treffer.</p> : null}
+    <div className="knowledge-index-view-tabs" role="group" aria-label="Projektwissen anzeigen"><button type="button" aria-pressed={view === 'map'} onClick={() => setView('map')}>Beziehungen</button><button type="button" aria-pressed={view === 'sources'} onClick={() => setView('sources')}>Quellen durchsuchen</button></div>
+    {view === 'map' ? <ProjectKnowledgeMap snapshot={snapshot} onOpenCard={onOpenCard} onOpenSession={onOpenSession} /> : <>
     <div className="knowledge-index-controls"><label><Search size={17} aria-hidden="true" /><input value={query} maxLength={160} onChange={(event) => { setQuery(event.target.value); setSelectedId(''); }} aria-label="Projektwissen durchsuchen" placeholder="Was wurde zu … gemacht?" /></label><div role="group" aria-label="Quelle filtern">{filters.map((item) => <button key={item} type="button" aria-pressed={kind === item} onClick={() => { setKind(item); setSelectedId(''); }}>{item === 'all' ? 'Alle' : kindLabels[item]}</button>)}</div></div>
     {error ? <p className="knowledge-index-warning error" role="alert">{error}</p> : null}
     <div className="knowledge-index-body"><div className="knowledge-index-results" aria-label="Quellentreffer">{loading ? <p>Quellen werden geladen…</p> : hits.length ? hits.map((hit) => <button key={`${hit.kind}:${hit.sourceId}`} type="button" className={selectedId === `${hit.kind}:${hit.sourceId}` ? 'knowledge-index-result selected' : 'knowledge-index-result'} aria-current={selectedId === `${hit.kind}:${hit.sourceId}` ? 'true' : undefined} onClick={() => setSelectedId(`${hit.kind}:${hit.sourceId}`)}><span>{kindLabels[hit.kind]} · {new Date(hit.updatedAt).toLocaleDateString('de-DE')}</span><strong>{hit.title}</strong><small>{hit.snippet || 'Kein Textauszug verfügbar.'}</small></button>) : <p>{query ? 'Keine passenden Quellen gefunden.' : 'Noch keine indexierten Quellen. Aufgaben und Agentenläufe erscheinen nach dem ersten gespeicherten Schritt.'}</p>}</div>
       <aside className="knowledge-index-detail" aria-label="Quellbeleg">{selected ? <><span>{kindLabels[selected.kind]}</span><h3>{selected.title}</h3>{selected.path ? <code>{selected.path}</code> : null}{selected.gitRef ? <small>Commitstand {selected.gitRef.slice(0, 12)} · Arbeitsdateien können inzwischen anders aussehen.</small> : null}{selected.kind === 'code' || selected.kind === 'commit' ? detail ? <pre>{detail.body}</pre> : <p>{detailError || 'Gespeicherter Quellausschnitt wird geladen…'}</p> : <p>{selected.snippet || 'Kein Textauszug verfügbar.'}</p>}{(selected.kind === 'task' && onOpenCard || selected.kind === 'conversation' && onOpenSession) ? <button className="secondary-button" type="button" onClick={() => sourceAction(selected)}>Quelle öffnen <ArrowUpRight size={15} aria-hidden="true" /></button> : null}</> : <><h3>Quellen statt Vermutungen</h3><p>Wähle einen Treffer. Jede Aussage hier verweist auf eine gespeicherte Aufgabe, einen Agentenlauf oder einen konkreten Git-Stand.</p></>}</aside></div>
-    <p className="knowledge-index-foot">Die Suche läuft lokal und sucht Wörter. Semantische Ähnlichkeit, automatische Zusammenfassungen und eine Karte der Agentengespräche sind noch nicht aktiv.</p>
+    <p className="knowledge-index-foot">Die Suche läuft lokal und sucht Wörter. Semantische Ähnlichkeit und automatische Zusammenfassungen sind noch nicht aktiv.</p></>}
   </section>;
 }

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, ArrowUpRight, BrainCircuit, Download, Eye, Link2, Pencil, Plus, Search, Trash2, Upload } from 'lucide-react';
 import type { MemoryNote, MemoryVaultImportPreview, ProjectSnapshot } from '../../shared/types';
-import { backlinks, graphScope, layoutFocusedNotes, layoutNetworkNotes, linkedIdsForBody, type GraphScope } from '../memory-graph';
+import { backlinks, graphScope, layoutFocusedNotes, layoutNetworkNotes, linkedIdsForBody, noteEdges, type GraphScope } from '../memory-graph';
 import { MemoryMarkdown, memoryMarkdownFileName, parseMemoryMarkdownFile, serializeMemoryNote } from '../memory-markdown';
 import { emptyNoteNavigation, filterMemoryNotes, nextMemoryNote, openMemoryNote, previousMemoryNote } from '../memory-navigation';
 import { sourceSessionIdFromNote } from '../activity-transcript';
@@ -35,6 +35,7 @@ export function MemoryView({ snapshot, mutate, openNote, onOpenSession, onOpenCa
   const sourceSessionId = selected ? sourceSessionIdFromNote(selected) : null;
   const shown = useMemo(() => filterMemoryNotes(notes, query, activeTag), [notes, query, activeTag]);
   const scope = useMemo(() => graphScope(notes, selectedId, graphMode), [notes, selectedId, graphMode]);
+  const showNoteGraph = useMemo(() => noteEdges(notes).length > 0, [notes]);
   const tags = useMemo(() => [...new Set(notes.flatMap((note) => note.tags))].sort((a, b) => a.localeCompare(b, 'de-DE')), [notes]);
 
   function selectNote(id: string) { setNavigation((old) => openMemoryNote(old, id)); setGraphMode('focus'); }
@@ -182,7 +183,7 @@ export function MemoryView({ snapshot, mutate, openNote, onOpenSession, onOpenCa
     {exportMessage ? <p className="memory-vault-feedback" role="status">{exportMessage}</p> : null}
     {vaultPreview ? <MemoryVaultImportDialog preview={vaultPreview} selected={vaultSelection} busy={vaultPending} onToggle={(key) => setVaultSelection((current) => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; })} onAll={(all) => setVaultSelection(new Set(all ? vaultPreview.files.filter((file) => file.eligible).map((file) => file.key) : []))} onClose={() => setVaultPreview(null)} onImport={() => void acceptVaultImport()} /> : null}
     {tags.length ? <div className="memory-tag-filter" aria-label="Notizen nach Tag filtern"><button className={activeTag ? '' : 'active'} type="button" aria-pressed={!activeTag} onClick={() => setActiveTag('')}>Alle</button>{tags.map((tag) => <button className={activeTag === tag ? 'active' : ''} key={tag} type="button" aria-pressed={activeTag === tag} onClick={() => setActiveTag(tag)}>#{tag}</button>)}</div> : null}
-    <div className="memory-layout">
+    <div className={showNoteGraph ? 'memory-layout' : 'memory-layout without-note-graph'}>
       <aside className="memory-list">
         <label className="search-field"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Memory durchsuchen…" aria-label="Memory durchsuchen" /></label>
         <div className="memory-list-items">
@@ -190,13 +191,13 @@ export function MemoryView({ snapshot, mutate, openNote, onOpenSession, onOpenCa
           {shown.length === 0 ? <p className="list-empty">{notes.length === 0 ? 'Noch keine Notizen.' : 'Keine Treffer.'}</p> : null}
         </div>
       </aside>
-      <section className="graph-panel" aria-label="Wissensgraph">
-        <div className="graph-header"><div><h3>Verknüpfungen</h3><span>{scope.notes.length} Notizen · {scope.edges.length} Verweise{scope.hiddenCount ? ` · ${scope.hiddenCount} weitere` : ''}</span></div>
+      {showNoteGraph ? <section className="graph-panel" aria-label="Manuelle Notizverknüpfungen">
+        <div className="graph-header"><div><h3>Notizverweise</h3><span>{scope.notes.length} Notizen · {scope.edges.length} Verweise{scope.hiddenCount ? ` · ${scope.hiddenCount} weitere` : ''}</span></div>
           <div className="graph-modes" role="group" aria-label="Graphansicht"><button type="button" aria-pressed={graphMode === 'all'} onClick={() => setGraphMode('all')}>Alle</button><button type="button" aria-pressed={graphMode === 'focus'} disabled={!selectedId} onClick={() => setGraphMode('focus')}>Umgebung</button></div>
         </div>
         <MemoryGraph scope={scope} selectedId={selectedId} onSelect={selectNote} />
         {scope.focused && scope.edges.length === 0 ? <p className="graph-caption">Diese Notiz hat noch keine Verknüpfung. Schreibe <code>[[Notiztitel]]</code> in eine Notiz, um eine Verbindung anzulegen.</p> : null}
-      </section>
+      </section> : null}
       <div className="memory-main">
         {newNote || selected ? <>
           <div className="memory-modebar">

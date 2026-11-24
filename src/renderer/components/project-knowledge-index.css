@@ -35,6 +35,10 @@
 .knowledge-index-detail small { color: var(--muted); font-size: 11px; }
 .knowledge-index-detail button { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; }
 .knowledge-index-foot { margin: 10px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.knowledge-index-view-tabs { display: inline-flex; align-items: center; gap: 3px; margin: 4px 0 12px; padding: 3px; background: var(--surface-2); border-radius: 5px; }
+.knowledge-index-view-tabs button { min-height: 32px; padding: 5px 11px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
+.knowledge-index-view-tabs button[aria-pressed='true'] { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.knowledge-index-view-tabs button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 @media (max-width: 1050px) {
   .knowledge-index-controls { align-items: stretch; flex-direction: column; }
   .knowledge-index-sources small { flex-basis: 100%; margin-left: 0; }

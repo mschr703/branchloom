@@ -43,6 +43,7 @@
   overflow: hidden;
   background: var(--surface);
 }
+.memory-page .memory-layout.without-note-graph { grid-template-columns: 220px minmax(0, 1fr); }
 :root[data-theme] .memory-page .memory-list,
 :root[data-theme] .memory-page .graph-panel,
 :root[data-theme] .memory-page .memory-main {
@@ -105,12 +106,15 @@
 @media (max-width: 1220px) {
   .memory-page .memory-layout { grid-template-columns: 220px minmax(0, 1fr); }
   :root[data-theme] .memory-page .memory-main { grid-column: 1 / -1; border-top: 1px solid var(--border); border-left: 0; }
+  :root[data-theme] .memory-page .without-note-graph .memory-main { grid-column: auto; border-top: 0; border-left: 1px solid var(--border); }
 }
 @media (max-width: 760px) {
   .memory-page .memory-layout { grid-template-columns: 1fr; }
+  .memory-page .memory-layout.without-note-graph { grid-template-columns: 1fr; }
   :root[data-theme] .memory-page .memory-list { border-right: 0; border-bottom: 1px solid var(--border); }
   .memory-page .memory-list-items { max-height: 190px; }
   .memory-page .graph-panel { min-height: 390px; }
   :root[data-theme] .memory-page .memory-graph { min-height: 320px; height: 320px; }
   .memory-page .memory-main { grid-column: 1; }
+  :root[data-theme] .memory-page .without-note-graph .memory-main { grid-column: 1; border-top: 1px solid var(--border); border-left: 0; }
 }
