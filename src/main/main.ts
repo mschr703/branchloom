@@ -1672,7 +1672,7 @@ function createWindow(): void {
               if (document.activeElement?.id !== 'workflow-plan-review' || !document.activeElement?.textContent?.includes('BRANCHLOOM_PLAN_REVIEW_SMOKE')) throw new Error('Globale Inbox öffnete den konkreten Plan nicht: ' + JSON.stringify({ active: document.activeElement?.outerHTML?.slice(0, 250), plan: document.querySelector('#workflow-plan-review')?.textContent?.slice(-300), view: document.querySelector('.topbar-title h1')?.textContent }));
               if (!(await sessionsUnchanged())) throw new Error('Globale Inbox startete einen Agenten.');
               document.querySelector('.project-actions summary')?.click();
-              [...document.querySelectorAll('.project-actions-menu button')].find((item) => item.textContent?.includes('Projekt hinzufügen'))?.click();
+              [...document.querySelectorAll('.project-actions-menu button')].find((item) => item.textContent?.includes('Codeordner hinzufügen'))?.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('.modal-backdrop form.dialog'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const form = document.querySelector('.modal-backdrop form.dialog');
               const inputs = form?.querySelectorAll('input');
@@ -2997,6 +2997,24 @@ function createWindow(): void {
               if (document.querySelector('.trello-import-dialog')) throw new Error('Trello-Import schloss nicht.');
               return true;
             })()`);
+            const nativeOpenDialog = dialog.showOpenDialog;
+            let packagePickerOpened = false;
+            try {
+              dialog.showOpenDialog = (async (...args: unknown[]) => {
+                if ((args.at(-1) as { title?: string })?.title !== 'Projektpaket auswählen') throw new Error('Unexpected native dialog during project import check.');
+                packagePickerOpened = true;
+                return { canceled: true, filePaths: [] };
+              }) as typeof dialog.showOpenDialog;
+              await smokeWindow.webContents.executeJavaScript(`(() => {
+                document.querySelector('.project-actions summary')?.click();
+                const action = [...document.querySelectorAll('.project-actions-menu button')].find((item) => item.textContent?.includes('Branchloom-Paket (.json) importieren'));
+                if (!(action instanceof HTMLButtonElement)) throw new Error('Direct JSON package action is missing.');
+                action.click();
+                if (document.querySelector('.project-import-choice')) throw new Error('A redundant import choice opened.');
+              })()`);
+              for (let attempt = 0; attempt < 100 && !packagePickerOpened; attempt++) await new Promise((resolve) => setTimeout(resolve, 10));
+              if (!packagePickerOpened) throw new Error('JSON package action did not open the native file picker.');
+            } finally { dialog.showOpenDialog = nativeOpenDialog; }
             if (!await safeStorage.isAsyncEncryptionAvailable()) throw new Error('Trello-Smoke: Windows-Verschlüsselung ist nicht verfügbar.');
             const sealed = await safeStorage.encryptStringAsync('branchloom-trello-smoke');
             if ((await safeStorage.decryptStringAsync(sealed)).result !== 'branchloom-trello-smoke') throw new Error('Trello-Smoke: Windows-Verschlüsselung konnte nicht lesen.');

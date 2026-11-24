@@ -9,8 +9,9 @@
 .project-actions summary::-webkit-details-marker { display: none; }
 .project-actions summary:hover, .project-actions[open] summary { color: var(--text); }
 .project-actions summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.project-actions-menu { position: absolute; top: 31px; left: -2px; width: 192px; display: grid; padding: 5px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 10px 28px #0002; }
-.project-actions-menu button { display: flex; align-items: center; gap: 8px; min-height: 35px; padding: 7px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--text); text-align: left; font-size: 12px; }
+.project-actions-menu { position: absolute; top: 31px; left: -2px; width: 174px; display: grid; padding: 5px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 10px 28px #0002; }
+.project-actions-menu button { display: flex; align-items: flex-start; gap: 8px; min-height: 35px; padding: 7px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--text); text-align: left; font-size: 12px; line-height: 1.35; }
+.project-actions-menu button svg { flex: none; margin-top: 1px; }
 .project-actions-menu button:hover { background: var(--surface-2); }
 
 .side-nav { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 2px 6px; scrollbar-width: thin; }
