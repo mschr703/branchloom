@@ -1,32 +1,5 @@
 .column-settings { display: flex; flex-direction: column; gap: 8px; }
 .column-settings label { display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
 .column-settings input, .column-settings select { width: 100%; min-width: 0; min-height: 30px; font-size: 11px; }
-.column-settings small { color: #91a5b8; font-size: 10px; line-height: 1.4; }
+.column-settings small { color: var(--muted); font-size: 12px; line-height: 1.4; }
 .column-settings button { align-self: flex-start; }
-.column-agent span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-:root[data-theme='light'] .column-settings small { color: #4a6173; }
-
-.column-agent-details { width: 100%; min-width: 0; }
-.column-agent-details > summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 32px;
-  cursor: pointer;
-  list-style: none;
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 600;
-}
-.column-agent-details > summary::-webkit-details-marker { display: none; }
-.column-agent-details > summary::after { content: '+'; color: var(--muted); font-size: 17px; font-weight: 400; }
-.column-agent-details[open] > summary::after { content: '−'; }
-.column-agent-details > summary span { margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; font-weight: 400; }
-.column-agent-details > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 3px; }
-.column-agent-details-body { display: flex; flex-direction: column; gap: 10px; padding: 10px 0 4px; border-top: 1px solid var(--border); }
-.column-agent-details .column-settings input,
-.column-agent-details .column-settings select { min-height: 36px; font-size: 13px; }
-.column-agent-details .column-settings label,
-.column-agent-details .column-agent-details-body > label { font-size: 12px; }
-.column-agent-details .column-settings small { font-size: 12px; line-height: 1.45; }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Bot, Check, FileJson2, GripVertical, MessageCircle, Pencil, Plus, Search, Settings2, Terminal, Trash2, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Archive, ArrowDown, ArrowRight, ArrowUp, FileJson2, GripVertical, MessageCircle, Pencil, Plus, Search, Terminal, X } from 'lucide-react';
 import type { Card, CardPriority, Column, ColumnEffort, ProjectSnapshot } from '../../shared/types';
 import { CARD_PRIORITIES } from '../../shared/card-metadata';
 import { COLUMN_EFFORTS } from '../../shared/column-settings';
@@ -8,6 +9,7 @@ import { CardPanel } from './CardPanel';
 import { TrelloImportPanel } from './TrelloImportPanel';
 import { TaskDraftAssistant } from './TaskDraftAssistant';
 import { QaCoveragePanel } from './QaCoveragePanel';
+import { ColumnSettingsSheet } from './ColumnSettingsSheet';
 import { filterBoardCards, type BoardVisibility } from '../board-filters';
 import '../board-metadata.css';
 import '../board-order.css';
@@ -192,14 +194,15 @@ export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenQaRe
   }
 
   return <div className="board-page">
-    <div className="view-header"><div><h2>Board</h2><p>Karten ordnen, Agenten zuweisen und Ergebnisse prüfen.</p></div><div className="board-header-actions"><button className="secondary-button" type="button" onClick={() => setShowTaskDraft(true)} title="Mit einem Agenten aus einer Idee eine überprüfbare Aufgabe formulieren"><MessageCircle size={16} /> Aufgabe vorbereiten</button><button className="secondary-button" type="button" onClick={() => setShowImport(true)}><FileJson2 size={16} /> Trello importieren</button></div></div>
+    <div className="board-toolbar board-header-actions"><button className="secondary-button" type="button" onClick={() => setShowTaskDraft(true)} title="Mit einem Agenten aus einer Idee eine überprüfbare Aufgabe formulieren"><MessageCircle size={16} /> Aufgabe vorbereiten</button><button className="secondary-button" type="button" onClick={() => setShowImport(true)}><FileJson2 size={16} /> Trello importieren</button></div>
     <QaCoveragePanel key={snapshot.project.id} snapshot={snapshot} onOpenQaReport={onOpenQaReport ?? ((cardId) => openBoardCard(cardId))} />
     <div className="board-filters" role="search" aria-label="Board-Filter">
       <label className="board-search"><Search size={16} aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Karten suchen…" aria-label="Karten suchen" aria-describedby="board-filter-help" /></label>
-      <details className="board-filter-options"><summary>Filter{filterColumnId || visibility !== 'active' || filterPriority || filterLabel ? ' · aktiv' : ''}</summary><div className="board-filter-fields"><label><span className="sr-only">Spalte filtern</span><select value={filterColumnId} onChange={(event) => setFilterColumnId(event.target.value)} aria-label="Spalte filtern"><option value="">Alle Spalten</option>{columns.map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select></label>
+      <label className="board-quick-filter"><span className="sr-only">Priorität filtern</span><select value={filterPriority} onChange={(event) => setFilterPriority(event.target.value as CardPriority | '')} aria-label="Priorität filtern"><option value="">Alle Prioritäten</option>{CARD_PRIORITIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+      <label className="board-quick-filter"><span className="sr-only">Label filtern</span><select value={filterLabel} onChange={(event) => setFilterLabel(event.target.value)} aria-label="Label filtern"><option value="">Alle Labels</option>{labels.map((label) => <option key={label} value={label}>{label}</option>)}</select></label>
+      <details className="board-filter-options"><summary>Weitere Filter{filterColumnId || visibility !== 'active' ? ' · aktiv' : ''}</summary><div className="board-filter-fields"><label><span className="sr-only">Spalte filtern</span><select value={filterColumnId} onChange={(event) => setFilterColumnId(event.target.value)} aria-label="Spalte filtern"><option value="">Alle Spalten</option>{columns.map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select></label>
       <label><span className="sr-only">Archivstatus filtern</span><select value={visibility} onChange={(event) => setVisibility(event.target.value as BoardVisibility)} aria-label="Archivstatus filtern"><option value="active">Aktive Karten</option><option value="archived">Archiv ({archivedCount})</option><option value="all">Alle Karten</option></select></label>
-      <label><span className="sr-only">Priorität filtern</span><select value={filterPriority} onChange={(event) => setFilterPriority(event.target.value as CardPriority | '')} aria-label="Priorität filtern"><option value="">Alle Prioritäten</option>{CARD_PRIORITIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-      <label><span className="sr-only">Label filtern</span><select value={filterLabel} onChange={(event) => setFilterLabel(event.target.value)} aria-label="Label filtern"><option value="">Alle Labels</option>{labels.map((label) => <option key={label} value={label}>{label}</option>)}</select></label></div></details>
+      </div></details>
       <span className="board-filter-count" role="status" aria-live="polite">{visibleCards.length} Treffer</span>
       <span id="board-filter-help" className="sr-only">Karten mit Tab erreichen. Enter öffnet Details, M öffnet die Verschiebeauswahl. Pfeiltasten-Schaltflächen ändern die Reihenfolge innerhalb der vollständigen Spalte, auch wenn Karten ausgefiltert sind. Archivierte Karten bleiben an ihrem Platz.</span>
     </div>
@@ -271,33 +274,20 @@ function BoardColumn({ column, columns, cards, snapshot, onSelect, onMove, onReo
   onDrop: (event: React.DragEvent<HTMLElement>, columnId: string) => void;
   onCreate: () => void; canCreate: boolean; mutate: Mutate; bulkIds: Set<string>; onToggleBulk: (id: string) => void; children: React.ReactNode;
 }) {
-  const agent = snapshot.agents.find((item) => item.id === column.agentId);
-  const columnIndex = columns.findIndex((item) => item.id === column.id);
-  const [editingName, setEditingName] = useState(false);
-  const [draftName, setDraftName] = useState(column.name);
-  const [renaming, setRenaming] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsTrigger = useRef<HTMLButtonElement>(null);
   const renameLocked = column.name.trim().toLocaleLowerCase('de-DE') === 'to do' && (snapshot.queue?.state ?? 'off') !== 'off';
   const hasCards = snapshot.cards.some((item) => item.columnId === column.id);
   const inWorkflow = snapshot.workflows.some((item) => item.steps.some((step) => step.columnId === column.id));
   const deleteReason = columns.length <= 1 ? 'Letzte Spalte' : hasCards ? 'Spalte enthält aktive oder archivierte Karten' : inWorkflow ? 'Spalte wird in einem Workflow verwendet' : renameLocked ? 'To-Do-Spalte erst nach Ausschalten der Warteschlange löschen' : '';
-  useEffect(() => { setDraftName(column.name); }, [column.name]);
-  async function rename(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (renaming || !draftName.trim()) return;
-    setRenaming(true);
-    try {
-      const saved = await mutate(() => window.studio.updateColumn({ id: column.id, name: draftName.trim() }));
-      if (saved) setEditingName(false);
-    } finally { setRenaming(false); }
+  function closeSettings() {
+    setSettingsOpen(false);
+    requestAnimationFrame(() => settingsTrigger.current?.focus());
   }
   const activeOrder = snapshot.cards.filter((card) => card.columnId === column.id && !card.archivedAt).sort(compareCardOrder);
   return <section className="board-column" onDragOver={(event) => event.preventDefault()} onDrop={(event) => onDrop(event, column.id)} aria-label={`Spalte ${column.name}`}>
-    <header className="column-header">{editingName ? <form className="column-rename-form" onSubmit={(event) => void rename(event)}><input autoFocus required maxLength={80} aria-label={`Neuer Name für Spalte ${column.name}`} value={draftName} disabled={renaming} onChange={(event) => setDraftName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); setEditingName(false); setDraftName(column.name); } }} /><button className="icon-button" type="submit" disabled={renaming || !draftName.trim()} aria-label="Spaltennamen speichern"><Check size={15} /></button><button className="icon-button" type="button" disabled={renaming} aria-label="Umbenennen abbrechen" onClick={() => { setEditingName(false); setDraftName(column.name); }}><X size={15} /></button></form> : <><div className="column-title"><span className="column-indicator" /><h3>{column.name}</h3><span className="count-pill">{cards.length}</span></div><details className="column-menu"><summary aria-label={`Spalte ${column.name} einstellen`} title="Spalte einstellen"><Settings2 size={17} /></summary><div className="column-menu-actions"><button type="button" disabled={renameLocked} aria-label={`Spalte ${column.name} umbenennen`} title={renameLocked ? 'To-Do-Spalte erst nach Ausschalten der Warteschlange umbenennen' : 'Spalte umbenennen'} onClick={() => setEditingName(true)}><Pencil size={15} /> Name ändern</button><button type="button" disabled={columnIndex <= 0} aria-label={`Spalte ${column.name} nach links verschieben`} title={columnIndex > 0 ? `Vor ${columns[columnIndex - 1]?.name}` : 'Erste Spalte'} onClick={() => void onReorderColumn(column, 'left')}><ArrowLeft size={15} /> Nach links</button><button type="button" disabled={columnIndex >= columns.length - 1} aria-label={`Spalte ${column.name} nach rechts verschieben`} title={columnIndex < columns.length - 1 ? `Hinter ${columns[columnIndex + 1]?.name}` : 'Letzte Spalte'} onClick={() => void onReorderColumn(column, 'right')}><ArrowRight size={15} /> Nach rechts</button><button type="button" disabled={Boolean(deleteReason)} aria-label={`Spalte ${column.name} löschen`} title={deleteReason || 'Leere Spalte löschen'} onClick={() => setConfirmDelete(true)}><Trash2 size={15} /> Spalte löschen</button></div></details></>}</header>
-    {confirmDelete ? <div className="column-delete-confirm" role="group" aria-label={`Löschen von Spalte ${column.name} bestätigen`}><strong>„{column.name}“ löschen?</strong><span>Die leere Spalte wird entfernt. Die übrige Reihenfolge bleibt erhalten.</span><div><button className="danger-button small" type="button" disabled={deleting || Boolean(deleteReason)} onClick={() => { setDeleting(true); void mutate(() => window.studio.deleteColumn(column.id)).finally(() => setDeleting(false)); }}>Spalte löschen</button><button className="secondary-button small" type="button" disabled={deleting} onClick={() => setConfirmDelete(false)}>Abbrechen</button></div></div> : null}
+    <header className="column-header"><div className="column-title"><span className="column-indicator" /><h3>{column.name}</h3><span className="count-pill">{cards.length}</span></div><button ref={settingsTrigger} className="column-settings-trigger" type="button" aria-label={`Spalte ${column.name} einstellen`} aria-haspopup="dialog" aria-expanded={settingsOpen} title="Spalte einstellen" onClick={() => setSettingsOpen(true)}><Pencil size={16} aria-hidden="true" /></button></header>
     <div className="column-body">
-      {agent ? <div className="column-agent"><Bot size={13} /><span>{column.autoStart ? 'Auto' : 'Manuell'} · {agent.name}{column.model ? ` · ${column.model}` : ''}{column.effort ? ` · ${column.effort}` : ''}</span></div> : null}
       {cards.map((card) => {
         const index = activeOrder.findIndex((item) => item.id === card.id);
         return <BoardCard key={card.id} card={card} column={column} columns={columns} snapshot={snapshot} onSelect={onSelect} onMove={onMove} onReorder={onReorder} bulkSelected={bulkIds.has(card.id)} onToggleBulk={onToggleBulk} previousTitle={index > 0 ? activeOrder[index - 1]?.title : undefined} nextTitle={index >= 0 ? activeOrder[index + 1]?.title : undefined} />;
@@ -305,7 +295,8 @@ function BoardColumn({ column, columns, cards, snapshot, onSelect, onMove, onReo
       {children}
       {cards.length === 0 && !children ? <p className="empty-column">Karten hierher ziehen</p> : null}
     </div>
-    <footer className="column-footer">{canCreate ? <button className="column-add-task" type="button" aria-label={`Karte in ${column.name} hinzufügen`} onClick={onCreate}><Plus size={17} /> Aufgabe hinzufügen</button> : null}<details className="column-agent-details"><summary>Spaltenagent <span>{agent ? `${agent.name} · ${column.autoStart ? 'Auto' : 'Manuell'}` : 'Nicht zugewiesen'}</span></summary><div className="column-agent-details-body"><ColumnAgentSettings column={column} agents={snapshot.agents} mutate={mutate} /><label><input type="checkbox" checked={column.autoStart} disabled={!column.agentId} onChange={(event) => void mutate(() => window.studio.updateColumn({ id: column.id, autoStart: event.target.checked }))} /> Agent automatisch starten</label></div></details></footer>
+    <footer className="column-footer">{canCreate ? <button className="column-add-task" type="button" aria-label={`Karte in ${column.name} hinzufügen`} onClick={onCreate}><Plus size={17} /> Aufgabe hinzufügen</button> : null}</footer>
+    {settingsOpen ? createPortal(<ColumnSettingsSheet column={column} columns={columns} snapshot={snapshot} mutate={mutate} onClose={closeSettings} onSelectCard={(id) => { setSettingsOpen(false); onSelect(id); }} onReorderColumn={onReorderColumn} renameLocked={renameLocked} deleteReason={deleteReason}><ColumnAgentSettings column={column} agents={snapshot.agents} mutate={mutate} /></ColumnSettingsSheet>, document.body) : null}
   </section>;
 }
 

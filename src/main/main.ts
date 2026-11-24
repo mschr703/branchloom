@@ -1734,6 +1734,16 @@ function createWindow(): void {
               const nav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Board');
               if (!nav) throw new Error('Board-Navigation für QA-Abdeckung fehlt.');
               nav.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.column-settings-trigger'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const settingsTrigger = document.querySelector('.column-settings-trigger');
+              if (!(settingsTrigger instanceof HTMLButtonElement)) throw new Error('Spalteneinstellungen fehlen im Board-Kopf.');
+              settingsTrigger.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.column-settings-sheet'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const settingsSheet = document.querySelector('.column-settings-sheet');
+              if (!settingsSheet?.querySelector('.column-settings select[aria-label^="Agent für"]') || !settingsSheet.textContent?.includes('Sitzungen aktueller Karten') || document.querySelector('.column-footer .column-settings')) throw new Error('Spaltenagent, Automatik oder Sitzungen liegen nicht im Kopfpanel.');
+              settingsSheet.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+              for (let attempt = 0; attempt < 100 && document.querySelector('.column-settings-sheet'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('.column-settings-sheet')) throw new Error('Spalteneinstellungen schließen nicht mit Escape.');
               for (let attempt = 0; attempt < 100 && !document.querySelector('.qa-coverage > summary'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               let panel = document.querySelector('.qa-coverage');
               panel?.querySelector('summary')?.click();

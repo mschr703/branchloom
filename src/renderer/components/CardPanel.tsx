@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, Bot, CircleStop, Mic, MicOff, Play, RotateCcw, Send, Terminal, X } from 'lucide-react';
+import { Archive, Bot, CircleStop, Mic, MicOff, Play, Plus, RotateCcw, Send, Terminal, X } from 'lucide-react';
 import type { Card, CardPriority, ProjectSnapshot, WorktreeReview } from '../../shared/types';
 import type { WorktreeCleanupPreview } from '../../shared/worktree-cleanup';
 import type { ConflictRadarResult } from '../../shared/conflict-radar';
@@ -21,6 +21,8 @@ import { OutputErrorPanel } from './OutputErrorPanel';
 import { ConflictRadarNotice } from './ConflictRadarNotice';
 import { startConflictRadarRefresh } from '../conflict-radar-schedule';
 import { parallelStartWarning } from '../parallel-run-gate';
+import { addCardLabel, labelSuggestions } from '../card-labels';
+import '../card-label-editor.css';
 
 const SessionTerminal = lazy(() => import('./SessionTerminal').then((module) => ({ default: module.SessionTerminal })));
 const ReviewDiffPanel = lazy(() => import('./ReviewDiffPanel').then((module) => ({ default: module.ReviewDiffPanel })));
@@ -31,7 +33,9 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description);
   const [priority, setPriority] = useState<CardPriority>(card.priority);
-  const [labelsInput, setLabelsInput] = useState(card.labels.join(', '));
+  const [labels, setLabels] = useState(card.labels);
+  const [labelDraft, setLabelDraft] = useState('');
+  const [metadataError, setMetadataError] = useState('');
   const [agentId, setAgentId] = useState('');
   const [prompt, setPrompt] = useState('');
   const [useWorktree, setUseWorktree] = useState(false);
@@ -62,7 +66,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
   const drawerRef = useRef<HTMLElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 
-  useEffect(() => { cleanupRequest.current += 1; setTitle(card.title); setDescription(card.description); setPriority(card.priority); setLabelsInput(card.labels.join(', ')); setPrompt(''); setMessage(''); setUseWorktree(false); setWorktreeReview(undefined); setCleanupPreview(undefined); setWorktreeBusy(false); setWorktreeError(''); setShowDiffReview(false); setCriterionQaFocus(null); setCriterionReviewFocus(null); setConflictRadar(null); setConflictError(''); }, [card.id]);
+  useEffect(() => { cleanupRequest.current += 1; setTitle(card.title); setDescription(card.description); setPriority(card.priority); setLabels(card.labels); setLabelDraft(''); setMetadataError(''); setPrompt(''); setMessage(''); setUseWorktree(false); setWorktreeReview(undefined); setCleanupPreview(undefined); setWorktreeBusy(false); setWorktreeError(''); setShowDiffReview(false); setCriterionQaFocus(null); setCriterionReviewFocus(null); setConflictRadar(null); setConflictError(''); }, [card.id]);
   useEffect(() => { closeButtonRef.current?.focus(); }, [card.id]);
   useEffect(() => { if (focusReviewComment) setShowDiffReview(true); }, [card.id, focusReviewComment?.id, focusReviewComment?.token]);
   useEffect(() => { setCriterionReviewFocus(null); }, [focusReviewComment?.token]);
@@ -99,7 +103,16 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
   async function saveCard(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (card.archivedAt) return;
-    await mutate(() => window.studio.updateCard({ id: card.id, title: title.trim(), description, priority, labels: labelsInput.split(',').map((item) => item.trim()).filter(Boolean) }));
+    let nextLabels = labels;
+    try { if (labelDraft.trim()) nextLabels = addCardLabel(labels, labelDraft); }
+    catch (reason) { setMetadataError(reason instanceof Error ? reason.message : String(reason)); return; }
+    const saved = await mutate(() => window.studio.updateCard({ id: card.id, title: title.trim(), description, priority, labels: nextLabels }));
+    if (saved) { setLabels(nextLabels); setLabelDraft(''); setMetadataError(''); }
+  }
+
+  function addLabel() {
+    try { setLabels(addCardLabel(labels, labelDraft)); setLabelDraft(''); setMetadataError(''); }
+    catch (reason) { setMetadataError(reason instanceof Error ? reason.message : String(reason)); }
   }
 
   function openAcceptanceEvidence(kind: CardCriterionEvidenceKind, sourceId: string) {
@@ -244,7 +257,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
           <label>Beschreibung<textarea rows={5} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Ziel, Kontext und gewünschtes Ergebnis…" /></label>
           <div className="card-metadata-fields">
             <label>Priorität<select value={priority} onChange={(event) => setPriority(event.target.value as CardPriority)}>{CARD_PRIORITIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-            <label>Labels, mit Komma getrennt<input value={labelsInput} maxLength={500} onChange={(event) => setLabelsInput(event.target.value)} placeholder="z. B. Planung, Bug" /><small>Bis zu 12 Labels mit je 32 Zeichen.</small></label>
+            <div className="card-label-editor"><label htmlFor={`card-label-input-${card.id}`}>Labels</label><div className="card-label-editor-list">{labels.map((label) => <span className="card-label-editor-chip" key={label}>{label}<button type="button" aria-label={`Label ${label} entfernen`} onClick={() => setLabels((current) => current.filter((item) => item !== label))}><X size={12} aria-hidden="true" /></button></span>)}</div><div className="card-label-editor-add"><input id={`card-label-input-${card.id}`} aria-label="Neues Label" list={`card-label-suggestions-${card.id}`} value={labelDraft} maxLength={32} onChange={(event) => { setLabelDraft(event.target.value); setMetadataError(''); }} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addLabel(); } }} placeholder="Label anlegen oder auswählen" /><button className="secondary-button small" type="button" disabled={!labelDraft.trim() || labels.length >= 12 && !labels.some((item) => item.toLocaleLowerCase('de-DE') === labelDraft.trim().toLocaleLowerCase('de-DE'))} onClick={addLabel}><Plus size={14} /> Hinzufügen</button></div><datalist id={`card-label-suggestions-${card.id}`}>{labelSuggestions(snapshot.cards, labels).map((label) => <option key={label} value={label} />)}</datalist><small>Bis zu 12 Labels pro Karte. Vorhandene Labels im Projekt werden vorgeschlagen.</small>{metadataError ? <small role="alert" className="card-label-error">{metadataError}</small> : null}</div>
           </div>
           <div className="form-row"><label>Spalte<select value={card.columnId} onChange={(event) => void mutate(() => window.studio.moveCard({ id: card.id, columnId: event.target.value }))}>{[...snapshot.columns].sort((a, b) => a.position - b.position).map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select></label><button className="secondary-button" type="submit">Karte speichern</button></div>
         </fieldset></form>

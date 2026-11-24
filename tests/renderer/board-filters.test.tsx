@@ -66,8 +66,10 @@ describe('board filters and archive visibility', () => {
     expect(html).toContain('Verschieben');
     expect(html).toContain('Karte „Aktive Suche“ in „To Do“ öffnen');
     const activePanel = renderToStaticMarkup(createElement(CardPanel, { card: cards[0]!, snapshot, mutate: async <T,>(action: () => Promise<T>) => action(), onClose: () => undefined }));
-    expect(activePanel).toContain('Labels, mit Komma getrennt');
-    expect(activePanel).toContain('value="Kundenmail, Heute"');
+    expect(activePanel).toContain('aria-label="Neues Label"');
+    expect(activePanel).toContain('aria-label="Label Kundenmail entfernen"');
+    expect(activePanel).toContain('aria-label="Label Heute entfernen"');
+    expect(activePanel).toContain('Label anlegen oder auswählen');
     expect(activePanel).toContain('<option value="urgent" selected=""');
     const archived = renderToStaticMarkup(createElement(CardPanel, { card: cards[1]!, snapshot, mutate: async <T,>(action: () => Promise<T>) => action(), onClose: () => undefined }));
     expect(archived).toContain('Wiederherstellen');

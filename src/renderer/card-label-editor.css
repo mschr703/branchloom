@@ -1,0 +1,14 @@
+.card-label-editor { display: grid; gap: 7px; min-width: 0; }
+.card-label-editor > label { color: var(--muted); font-size: 12px; }
+.card-label-editor-list { display: flex; flex-wrap: wrap; gap: 5px; }
+.card-label-editor-list:empty { display: none; }
+.card-label-editor-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 3px 4px 3px 8px; border: 1px solid var(--border); border-radius: 4px; color: var(--text); background: var(--surface-2); font-size: 12px; overflow-wrap: anywhere; }
+.card-label-editor-chip button { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 3px; background: transparent; color: var(--muted); cursor: pointer; }
+.card-label-editor-chip button:hover { color: var(--danger); }
+.card-label-editor-add { display: flex; align-items: stretch; gap: 6px; }
+.card-label-editor-add input { flex: 1; min-width: 0; min-height: 37px; }
+.card-label-editor-add button { flex: none; display: inline-flex; align-items: center; gap: 4px; min-height: 37px; }
+.card-label-editor > small { color: var(--muted); font-size: 11px; line-height: 1.35; }
+.card-label-editor .card-label-error { color: var(--danger); }
+.card-label-editor button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (max-width: 700px) { .card-label-editor-add { flex-wrap: wrap; } .card-label-editor-add input { flex-basis: 100%; } }
