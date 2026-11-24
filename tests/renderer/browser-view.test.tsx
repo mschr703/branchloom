@@ -17,7 +17,7 @@ describe('browser controls', () => {
     expect(html).toContain('Öffnen');
     expect(html).toContain('aria-label="Browser-Tabs"');
     expect(html).toContain('aria-label="Neuer Tab"');
-    expect(html).toContain('Webseiten laufen getrennt');
+    expect(html).toContain('Den lesenden Zugriff für Kartenagenten');
   });
 
   it('shows an observed source and requires a deliberate card action', () => {

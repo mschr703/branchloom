@@ -1,0 +1,16 @@
+.agent-browser-settings { padding: 22px 0; border-top: 1px solid var(--border); }
+.agent-browser-settings-head { display: flex; justify-content: space-between; align-items: baseline; gap: 20px; }
+.agent-browser-settings-head h3 { margin: 0 0 5px; font-size: 16px; }
+.agent-browser-settings-head p { margin: 0; max-width: 70ch; color: var(--soft); font-size: 13px; line-height: 1.5; }
+.agent-browser-settings-head > span { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.agent-browser-settings form { display: grid; gap: 12px; max-width: 720px; margin-top: 18px; }
+.agent-browser-settings form > label:first-child { display: grid; gap: 6px; font-size: 13px; font-weight: 600; }
+.agent-browser-settings input[type="url"] { width: 100%; padding: 9px 11px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text); font: inherit; }
+.agent-browser-settings input:focus-visible, .agent-browser-settings button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.agent-browser-settings form > p { margin: -5px 0 1px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.agent-browser-settings form > label.agent-browser-choice { display: flex; flex-direction: row; align-items: center; gap: 9px; color: var(--text); font-size: 13px; font-weight: 400; }
+.agent-browser-settings .agent-browser-choice input[type="checkbox"] { flex: 0 0 16px; width: 16px; height: 16px; min-height: 16px; margin: 0; padding: 0; accent-color: var(--accent); }
+.agent-browser-actions { display: flex; align-items: center; gap: 14px; }
+.agent-browser-actions small { color: var(--muted); font-size: 12px; }
+.agent-browser-unavailable, .agent-browser-notice { margin: 12px 0 0; color: var(--soft); font-size: 12px; }
+@media (max-width: 680px) { .agent-browser-settings-head, .agent-browser-actions { align-items: flex-start; flex-direction: column; gap: 8px; } }

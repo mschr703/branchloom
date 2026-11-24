@@ -16,6 +16,7 @@ import { captureRunGit, recordSessionLaunch, recordSessionPromptWrite, recordSes
 import type { PromptDelivery, RunSource } from '../shared/session-evidence';
 import { assertSafeModelContext } from './sensitive-content';
 import type { AgentCardMetadataBridge } from './agent-card-metadata-bridge';
+import type { AgentBrowserBridge } from './agent-browser-bridge';
 
 const DONE_MARKER = '[JARVIS_STEP_DONE]';
 export { DONE_MARKER };
@@ -228,6 +229,7 @@ export class SessionRunner {
     private readonly emit: (event: SessionEvent) => void,
     private readonly onFinished: (session: Session, finalMessage: string | null) => void,
     private readonly metadataBridge?: AgentCardMetadataBridge | null,
+    private readonly browserBridge?: AgentBrowserBridge | null,
   ) {}
 
   start(input: { cardId: string; agentId?: string; prompt?: string; mode?: 'interactive' | 'one-shot'; useWorktree?: boolean; overrides?: { model: string | null; effort: ColumnEffort | null } }): Session {
@@ -251,7 +253,8 @@ export class SessionRunner {
     const taskPrompt = (input.prompt ?? `Work on this card in the selected project.\n\nTitle: ${card.title}\n\n${card.description}`).trim();
     const wireframeContext = approvedCardWireframeContext(this.store, { projectId: card.projectId, cardId: card.id });
     const metadataInstructions = this.metadataBridge?.instructions(card.projectId) ?? '';
-    const prompt = (wireframeContext ? `${taskPrompt}\n\n${wireframeContext}` : taskPrompt) + metadataInstructions;
+    const browserInstructions = this.browserBridge?.instructions(card.projectId) ?? '';
+    const prompt = (wireframeContext ? `${taskPrompt}\n\n${wireframeContext}` : taskPrompt) + metadataInstructions + browserInstructions;
     if (prompt.length > 30_000) throw new Error('Agent prompt exceeds 30000 characters');
     assertSafeModelContext([
       { field: 'Kartentitel', text: card.title },
@@ -280,11 +283,14 @@ export class SessionRunner {
     if (finalFile) this.finalMessageFiles.set(row.id, finalFile);
     let args: string[];
     let metadataEnv: Record<string, string> = {};
+    let browserEnv: Record<string, string> = {};
     try {
       metadataEnv = this.metadataBridge?.environment(row.id) ?? {};
+      browserEnv = this.browserBridge?.environment(row.id) ?? {};
       args = [...launcher.prefixArgs, ...codexPackagedArgs(launcher, agent), ...buildAgentArgs(agent, prompt, input.mode ?? 'interactive', finalFile?.path, launchOverrides)];
     } catch (error) {
       this.metadataBridge?.revoke(row.id);
+      this.browserBridge?.revoke(row.id);
       this.readAndClearFinalMessage(row.id);
       this.store.finishSession(row.id, 'failed', null);
       throw error;
@@ -293,12 +299,13 @@ export class SessionRunner {
     try {
       child = spawnPty(launcher.executable, args, {
         cwd: worktree?.cwd ?? project.path,
-        env: { ...process.env, BRANCHLOOM_CARD_METADATA_URL: '', BRANCHLOOM_CARD_METADATA_TOKEN: '', ...metadataEnv, TERM: 'xterm-256color' } as Record<string, string>,
+        env: { ...process.env, BRANCHLOOM_CARD_METADATA_URL: '', BRANCHLOOM_CARD_METADATA_TOKEN: '', BRANCHLOOM_AGENT_BROWSER_URL: '', BRANCHLOOM_AGENT_BROWSER_TOKEN: '', ...metadataEnv, ...browserEnv, TERM: 'xterm-256color' } as Record<string, string>,
         cols: 100, rows: 30,
         name: 'xterm-256color',
       });
     } catch (error) {
       this.metadataBridge?.revoke(row.id);
+      this.browserBridge?.revoke(row.id);
       this.readAndClearFinalMessage(row.id);
       const failed = this.store.finishSession(row.id, 'failed', null);
       this.emit({ sessionId: row.id, cardId: row.cardId, type: 'state', data: String(error), state: failed.state });
@@ -360,17 +367,19 @@ export class SessionRunner {
     let child: IPty;
     try {
       const metadataEnv = this.metadataBridge?.environment(row.id) ?? {};
+      const browserEnv = this.browserBridge?.environment(row.id) ?? {};
       // An exact ID is linked only from Codex's structured thread.started
       // event. The picker remains available when no ID is proven or the user
       // chooses it. Neither path selects --last or sends an old prompt.
       child = spawnPty(launcher.executable, [...launcher.prefixArgs, ...codexPackagedArgs(launcher, agent), 'resume', ...(exactId ? [exactId] : ['--include-non-interactive'])], {
         cwd: worktree?.cwd ?? project.path,
-        env: { ...process.env, BRANCHLOOM_CARD_METADATA_URL: '', BRANCHLOOM_CARD_METADATA_TOKEN: '', ...metadataEnv, TERM: 'xterm-256color' } as Record<string, string>,
+        env: { ...process.env, BRANCHLOOM_CARD_METADATA_URL: '', BRANCHLOOM_CARD_METADATA_TOKEN: '', BRANCHLOOM_AGENT_BROWSER_URL: '', BRANCHLOOM_AGENT_BROWSER_TOKEN: '', ...metadataEnv, ...browserEnv, TERM: 'xterm-256color' } as Record<string, string>,
         cols: 100, rows: 30,
         name: 'xterm-256color',
       });
     } catch (error) {
       this.metadataBridge?.revoke(row.id);
+      this.browserBridge?.revoke(row.id);
       const failed = this.store.finishSession(row.id, 'failed', null);
       this.emit({ sessionId: row.id, cardId: row.cardId, type: 'state', data: String(error), state: failed.state });
       throw error;
@@ -434,6 +443,7 @@ export class SessionRunner {
       this.pendingFirstTurn.delete(row.id);
       this.processes.delete(row.id);
       this.metadataBridge?.revoke(row.id);
+      this.browserBridge?.revoke(row.id);
       const finalMessage = this.readAndClearFinalMessage(row.id);
       if (this.disposed) return;
       const current = this.store.session(row.id);
@@ -480,6 +490,7 @@ export class SessionRunner {
     const session = this.store.session(sessionId);
     this.store.finishSession(sessionId, 'stopped', null);
     this.metadataBridge?.revoke(sessionId);
+    this.browserBridge?.revoke(sessionId);
     this.processes.delete(sessionId);
     const pending = this.pendingFirstTurn.get(sessionId);
     if (pending) clearTimeout(pending);
@@ -497,6 +508,7 @@ export class SessionRunner {
       this.pendingFirstTurn.delete(sessionId);
       this.processes.delete(sessionId);
       this.metadataBridge?.revoke(sessionId);
+      this.browserBridge?.revoke(sessionId);
       this.stopAwaitingExit.delete(sessionId);
       // Closing the app is not an explicit user stop of this card. The child
       // may already have made a change, so require review after the next start.

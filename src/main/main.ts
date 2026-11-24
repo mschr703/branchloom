@@ -54,6 +54,9 @@ import { linkSessionQa, sessionRunEvidence, unlinkSessionQa } from './session-ev
 import { agentHandoffReceipt, previewAgentHandoff, startAgentHandoff } from './agent-handoff';
 import { agentCardMetadataAudit, agentCardMetadataEnabled, setAgentCardMetadataEnabled } from './agent-card-metadata';
 import { AgentCardMetadataBridge } from './agent-card-metadata-bridge';
+import { agentBrowserPolicy, setAgentBrowserPolicy } from './agent-browser-policy';
+import { AgentBrowserBridge } from './agent-browser-bridge';
+import { inspectAgentBrowserPage } from './agent-browser-inspector';
 import { proposeWorkflow } from './workflow-planner';
 import { discussTaskDraft } from './task-draft';
 import { convertIdeaToCard, discussIdea, listIdeas, saveIdea } from './ideas';
@@ -77,6 +80,7 @@ let browser: StudioBrowser | null = null;
 let designInspector: DesignInspector | null = null;
 let trelloSignIn: TrelloSignIn | null = null;
 let agentCardMetadataBridge: AgentCardMetadataBridge | null = null;
+let agentBrowserBridge: AgentBrowserBridge | null = null;
 let releaseUpdater: ReleaseUpdateController;
 let releaseCheckTimer: NodeJS.Timeout | null = null;
 let releaseStartTimer: NodeJS.Timeout | null = null;
@@ -141,7 +145,7 @@ function installIpc(): void {
   }, (session, finalMessage) => {
     workflowEngine.onSessionFinished(session, finalMessage);
     queueEngine.onSessionFinished(session);
-  }, agentCardMetadataBridge);
+  }, agentCardMetadataBridge, agentBrowserBridge);
   workflowEngine = new WorkflowEngine(db, runner, () => net.isOnline());
   queueEngine = new ProjectQueueEngine(db, workflowEngine, () => net.isOnline());
   recoveryMonitor = new SessionRecoveryMonitor(db, () => net.isOnline(), (sessionId) => runner?.hasLiveProcess(sessionId) ?? false, (projectId) => queueEngine.pauseForConnectionLoss(projectId));
@@ -255,6 +259,13 @@ function installIpc(): void {
     return enabled;
   });
   bind('agentCardMetadataAudit', (projectId: string) => agentCardMetadataAudit(db, projectId));
+  bind('agentBrowserPolicy', (projectId: string) => agentBrowserPolicy(db, projectId));
+  bind('agentBrowserAvailable', () => agentBrowserBridge?.available === true);
+  bind('setAgentBrowserPolicy', (input: Parameters<StudioAPI['setAgentBrowserPolicy']>[0]) => {
+    const policy = setAgentBrowserPolicy(db, input);
+    agentBrowserBridge?.revokeProject(input.projectId);
+    return policy;
+  });
   bind('cardSplitLinks', (cardId: string) => cardSplitLinks(db, cardId));
   bind('previewCardSplit', (input: Parameters<StudioAPI['previewCardSplit']>[0]) => previewCardSplit(db, input));
   bind('createCardSplit', (input: Parameters<StudioAPI['createCardSplit']>[0]) => createCardSplit(db, input));
@@ -3220,6 +3231,8 @@ if (ownsSharedProfile) app.whenReady().then(async () => {
     } satisfies SessionEvent);
   }, 0, (error) => console.error('[Branchloom] optional agent card metadata bridge unavailable', error));
   void agentCardMetadataBridge.start().catch(() => undefined);
+  agentBrowserBridge = new AgentBrowserBridge(store, inspectAgentBrowserPage);
+  void agentBrowserBridge.start().catch((error) => console.error('[Branchloom] optional agent browser bridge unavailable', error));
   installIpc();
   createWindow();
   app.on('activate', () => { if (!window) createWindow(); });
@@ -3247,6 +3260,8 @@ app.on('before-quit', () => {
   runner = null;
   agentCardMetadataBridge?.close();
   agentCardMetadataBridge = null;
+  agentBrowserBridge?.close();
+  agentBrowserBridge = null;
   commandRunner?.dispose();
   commandRunner = null;
   store?.close();

@@ -151,7 +151,7 @@ export function BrowserView({ active, snapshot = null, onOpenCard }: { active: b
     {notice ? <div className="browser-notice" role="status">{notice}</div> : null}
     {state.diagnostics.length ? <BrowserDiagnostics diagnostics={state.diagnostics} selectedId={selectedDiagnosticId} snapshot={snapshot} columnId={columnId} reproduction={reproduction} saving={savingDiagnostic} onSelect={setSelectedDiagnosticId} onColumn={setColumnId} onReproduction={setReproduction} onCreate={(event) => void createDiagnosticCard(event)} onToggle={() => requestAnimationFrame(syncBounds)} /> : null}
     <div className="browser-viewport" ref={viewport}>
-      {!state.url ? <div className="browser-empty"><Globe2 size={30} /><h2>Browser</h2><p>Gib oben eine Webadresse ein. Webseiten laufen getrennt von den Rechten der App und der CLI-Agenten.</p></div> : null}
+      {!state.url ? <div className="browser-empty"><Globe2 size={30} /><h2>Webvorschau</h2><p>Öffne hier eine Seite von Hand. Den lesenden Zugriff für Kartenagenten auf eine lokale Dev-Seite stellst du unter Agenten ein.</p></div> : null}
     </div>
   </section>;
 }

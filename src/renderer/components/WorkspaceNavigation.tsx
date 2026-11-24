@@ -15,7 +15,7 @@ export const views: { id: View; name: string; icon: typeof Columns3 }[] = [
   { id: 'milestones', name: 'Zeitmaschine', icon: History },
   { id: 'agents', name: 'Agenten', icon: Bot },
   { id: 'terminal', name: 'Terminal', icon: TerminalSquare },
-  { id: 'browser', name: 'Browser', icon: Globe2 },
+  { id: 'browser', name: 'Webvorschau', icon: Globe2 },
   { id: 'design', name: 'Design', icon: MousePointer2 },
 ];
 

@@ -112,6 +112,9 @@ export interface StudioAPI {
   agentCardMetadataAvailable(): Promise<boolean>;
   setAgentCardMetadataEnabled(input: { projectId: string; enabled: boolean }): Promise<boolean>;
   agentCardMetadataAudit(projectId: string): Promise<import('./agent-card-metadata').AgentCardMetadataAudit[]>;
+  agentBrowserPolicy(projectId: string): Promise<import('./agent-browser').AgentBrowserPolicy>;
+  agentBrowserAvailable(): Promise<boolean>;
+  setAgentBrowserPolicy(input: import('./agent-browser').AgentBrowserPolicy): Promise<import('./agent-browser').AgentBrowserPolicy>;
   projects(): Promise<Project[]>;
   projectOrganization(): Promise<ProjectOrganization>;
   createProjectGroup(name: string): Promise<ProjectOrganization>;

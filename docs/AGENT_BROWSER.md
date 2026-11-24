@@ -1,0 +1,13 @@
+# Lesender lokaler Browser für Kartenagenten
+
+Unter **Agenten → Browser für Agenten** kann ein Projekt eine einzige Entwicklungsadresse wie `http://127.0.0.1:5173` freigeben. Standardmäßig ist diese Fähigkeit gesperrt. Nur neu gestartete Kartenläufe des Projekts erhalten bei aktiviertem und erreichbarem lokalen Dienst einen zufälligen Token. Die Freigabe überlebt einen Neustart, der Token nicht. Eine Änderung oder Sperre der Freigabe entzieht laufenden Sitzungen die Fähigkeit sofort.
+
+Ein Agent kann einen Pfad unter dem gespeicherten Ursprung öffnen und Seitentitel sowie bis zu 12.000 Zeichen sichtbaren Text lesen. Pro Kartenlauf sind höchstens 20 Aufrufe möglich, nur einer gleichzeitig; jede Seite hat 15 Sekunden Ladezeit. Die CLI bekommt Endpunkt und Token nur als Prozess-Umgebungsvariablen. Der Startauftrag erklärt die Bedienung ohne Token. Die App kann nicht erzwingen, dass ein Modell den Aufruf tatsächlich macht, und andere CLI-Sandboxen können lokalen HTTP-Zugriff sperren.
+
+Jede Prüfung verwendet eine neue nicht persistente Electron-Sitzung. Sie teilt keine Cookies, Logins, Tabs oder Profile mit der menschlichen **Webvorschau**. Nur GET/HEAD an den exakt freigegebenen `127.0.0.1`-Ursprung sind erlaubt. POST, andere Domains, Pop-ups, Downloads und Browser-Berechtigungen sind gesperrt. Es gibt noch keine Klicks, Formulare, Uploads, Submits, Login-Übernahme oder Interaktion mit menschlichen Tabs. Eine eigene lokale Seite kann bereits bei GET einen Seiteneffekt auslösen; freigegeben werden sollte deshalb nur ein vertrauenswürdiger Dev-Server. Ausgelesener Seiteninhalt gilt als unvertrauenswürdige Quelle.
+
+Die UI zeigt klar, ob eine Änderung nur vorbereitet oder gespeichert ist. Ein nicht verfügbarer Dienst macht die gespeicherte Freigabe nicht wirksam. Fehlende Seiten und Entzug während des Ladens melden Fehler statt eines angeblich erfolgreichen Ergebnisses. Beim Codex-Resume wird der Token erneut vergeben, aber die Bedienanleitung nicht automatisch als neue Nachricht wiederholt.
+
+## Nachweis und Grenzen
+
+`npx vitest run tests/main/agent-browser.test.ts tests/renderer/agent-browser-settings.test.tsx tests/renderer/browser-view.test.tsx` prüft Ursprung/Pfad, gesperrten Standard, Persistenz, HTTP-Grenzen, Entzug, einen echten synthetischen Node-CLI-Aufruf und die UI-Texte. Ein zusätzlicher echter Electron-Lauf mit synthetischem lokalen HTTP-Server las Titel/Text und blockierte einen von der Seite gestarteten POST. Der allgemeine Quell-Electron-Smoke bestand. Ein echter Modellaufruf an einem bestehenden Dev-Projekt und eine verpackte Windows-App sind für diese Erweiterung noch nicht separat geprüft.
