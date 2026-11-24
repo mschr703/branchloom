@@ -10,7 +10,7 @@ Die Abnahme ist ausdrücklich **nicht** „Kangentic-Parität“: Die Matrix in 
 
 ## Repository, Start und Daten
 
-- Public GitHub: <https://github.com/mschr703/branchloom>; Branch `main`. Entwicklungs-Commits und Pushes kommen von `mschr703CODEX`. Keine Zugangsdaten oder persönlichen Daten in Git.
+- Public GitHub: <https://github.com/mschr703/branchloom>; Branch `main`. Neue Entwicklungs-Commits und Pushes kommen nach der Nutzerentscheidung vom 24.11.2026 von `mschr703`. Keine Zugangsdaten oder persönlichen Daten in Git.
 - Voraussetzungen: Windows 11, Node.js 24, Git. Agenten-CLIs müssen separat installiert und angemeldet sein. Für lokales `npm run make:win` braucht `node-gyp` Visual-Studio-C++-Build-Tools; die Windows-CI baut das portable ZIP auf einem passenden Runner.
 - Lokal: `npm ci`, `npm run doctor`, `npm run dev`. Produktionsmodus: `npm run build`, `npm start`. Beim ersten Start ein Projekt mit einem bestehenden absoluten Ordner anlegen.
 - `npm run dev` startet Vite nur auf `127.0.0.1:5181` und Electron. App-Zustand und SQLite liegen im Electron-`userData`-Ordner außerhalb des Repositories. Lokale Projektdateien, CLI-Anmeldungen und Browserprofile gehören nicht in Git.

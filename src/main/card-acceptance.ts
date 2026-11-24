@@ -61,7 +61,7 @@ function source(store: StudioStore, cardId: string, kind: CardCriterionEvidenceK
 export function cardCriteria(store: StudioStore, cardId: string): CardCriterion[] {
   checkedCard(store, cardId);
   const rows = store.db.prepare('SELECT * FROM card_acceptance_criteria WHERE card_id = ? ORDER BY position, created_at, id').all(cardId) as CriterionRow[];
-  const evidenceQuery = store.db.prepare('SELECT * FROM card_acceptance_evidence WHERE criterion_id = ? ORDER BY linked_at, id');
+  const evidenceQuery = store.db.prepare('SELECT * FROM card_acceptance_evidence WHERE criterion_id = ? ORDER BY linked_at, rowid');
   return rows.map((row) => ({
     id: row.id, cardId: row.card_id, text: row.text, position: row.position, createdAt: row.created_at, updatedAt: row.updated_at,
     evidence: (evidenceQuery.all(row.id) as EvidenceRow[]).map((link) => ({

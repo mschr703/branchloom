@@ -5,19 +5,22 @@
   right: 22px;
   width: min(370px, calc(100vw - 28px));
   padding: 15px 16px 13px;
-  color: var(--text, #e8edf4);
-  background: var(--surface, #121b29);
-  border: 1px solid var(--border, #28374a);
+  color: var(--text, #252922);
+  background: var(--surface, #f7f6f1);
+  border: 1px solid var(--border, #d7d8cf);
   border-radius: 10px;
   box-shadow: 0 10px 28px #0002;
 }
 .release-update-copy { display: grid; gap: 4px; line-height: 1.4; }
 .release-update-copy strong { font-size: 13px; font-weight: 650; }
-.release-update-copy span { color: var(--muted, #8999ad); font-size: 12px; }
+.release-update-copy span { color: var(--muted, #626b62); font-size: 12px; }
 .release-update-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 13px; }
-.release-update-actions button { min-height: 34px; padding: 6px 10px; border: 1px solid var(--border, #28374a); border-radius: 6px; font-size: 12px; font-weight: 600; }
-.release-update-later { background: transparent; color: var(--text, #e8edf4); }
+.release-update-actions button { min-height: 34px; padding: 6px 10px; border: 1px solid var(--border, #d7d8cf); border-radius: 6px; font-size: 12px; font-weight: 600; }
+.release-update-later { background: transparent; color: var(--text, #252922); }
 .release-update-now { background: var(--accent, #087572); border-color: var(--accent, #087572) !important; color: #fff; }
 .release-update-actions button:hover:not(:disabled) { filter: brightness(1.12); }
+.release-update-actions button:focus-visible { outline: 2px solid var(--accent, #087572); outline-offset: 2px; }
+.release-update-actions button:active:not(:disabled) { transform: translateY(1px); }
+.release-update-actions button:disabled { cursor: wait; opacity: 0.55; }
 .release-update-notice progress { width: 100%; height: 5px; margin-top: 12px; accent-color: var(--accent, #087572); }
 @media (max-width: 600px) { .release-update-notice { top: 132px; right: 14px; } }

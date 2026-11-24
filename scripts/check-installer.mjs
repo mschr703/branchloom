@@ -1,4 +1,5 @@
-import { existsSync, readdirSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
 const root = join(process.cwd(), 'out', 'installer');
@@ -8,4 +9,14 @@ if (!existsSync(join(root, 'win-unpacked', 'resources', 'app-update.yml'))) thro
 if (!existsSync(join(root, 'latest.yml'))) throw new Error('Installer release metadata is missing.');
 if (!existsSync(join(root, 'win-unpacked', 'resources', 'app', 'LICENSE'))) throw new Error('Installer license is missing.');
 if (!existsSync(join(root, 'win-unpacked', 'resources', 'app', 'docs', 'COMMERCIAL_LICENSING.md'))) throw new Error('Installer commercial licensing notice is missing.');
-console.log('Installer, update feed, and release metadata are present.');
+const manifest = readFileSync(join(root, 'latest.yml'), 'utf8');
+const version = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8')).version;
+if (manifest.match(/^version: (.+)$/m)?.[1] !== version) throw new Error('Installer release version does not match the package.');
+if (manifest.match(/^path: (.+)$/m)?.[1] !== setup[0]) throw new Error('Installer release path does not match the package.');
+if (Number(manifest.match(/^\s+size: (\d+)$/m)?.[1]) !== statSync(join(root, setup[0])).size) throw new Error('Installer release size does not match the package.');
+const checksums = [...manifest.matchAll(/^\s*sha512: ([A-Za-z0-9+/=]+)$/gm)].map((match) => match[1]);
+if (checksums.length !== 2 || checksums[0] !== checksums[1]) throw new Error('Installer release checksums disagree.');
+const hash = createHash('sha512');
+for await (const chunk of createReadStream(join(root, setup[0]))) hash.update(chunk);
+if (hash.digest('base64') !== checksums[0]) throw new Error('Installer release checksum does not match the package.');
+console.log('Installer, update feed, release checksum, and licensing notices are valid.');
