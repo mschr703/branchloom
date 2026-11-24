@@ -107,6 +107,17 @@ describe('automatic project memory index', () => {
     store.close();
   });
 
+  it('shows readable task excerpts without raw default metadata', async () => {
+    const { store, project, card } = fixture(false);
+    store.updateCard({ id: card.id, description: '', priority: 'none', labels: [] });
+    await refreshProjectMemoryIndex(store, project.id);
+    expect(searchProjectMemoryIndex(store, { projectId: project.id, query: '', kind: 'task' }).hits[0]?.snippet).toBe('');
+    store.updateCard({ id: card.id, priority: 'high', labels: ['backend'] });
+    await refreshProjectMemoryIndex(store, project.id);
+    expect(searchProjectMemoryIndex(store, { projectId: project.id, query: '', kind: 'task' }).hits[0]?.snippet).toBe('Priorität: high Labels: backend');
+    store.close();
+  });
+
   it('limits a project inside a monorepo to its own commits and code', async () => {
     const { projectPath, store } = fixture();
     const childPath = join(projectPath, 'child');

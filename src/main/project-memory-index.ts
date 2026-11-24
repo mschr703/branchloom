@@ -93,7 +93,15 @@ function syncTasks(store: StudioStore, projectId: string): void {
   store.db.transaction(() => {
     store.db.prepare("DELETE FROM project_memory_sources WHERE project_id = ? AND kind = 'task' AND source_id NOT IN (SELECT id FROM cards WHERE project_id = ?)").run(projectId, projectId);
     const rows = store.db.prepare('SELECT id, title, description, priority, labels_json, updated_at FROM cards WHERE project_id = ?').all(projectId) as Array<{ id: string; title: string; description: string; priority: string; labels_json: string; updated_at: string }>;
-    for (const row of rows) putSource(store.db, projectId, { kind: 'task', sourceId: row.id, title: row.title, body: `${row.description}\n${row.priority}\n${row.labels_json}`, updatedAt: row.updated_at, path: null }, null);
+    for (const row of rows) {
+      let labels: string[] = [];
+      try {
+        const parsed: unknown = JSON.parse(row.labels_json);
+        if (Array.isArray(parsed)) labels = parsed.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()));
+      } catch { /* Ignore malformed legacy label metadata in the search excerpt. */ }
+      const body = [row.description.trim(), row.priority !== 'none' ? `Priorität: ${row.priority}` : '', labels.length ? `Labels: ${labels.join(', ')}` : ''].filter(Boolean).join('\n');
+      putSource(store.db, projectId, { kind: 'task', sourceId: row.id, title: row.title, body, updatedAt: row.updated_at, path: null }, null);
+    }
   })();
 }
 
