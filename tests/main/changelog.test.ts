@@ -103,6 +103,36 @@ describe('project changelog', () => {
     } finally { store.close(); }
   });
 
+  it('reads bounded QA and diff-review activity from the selected project and period without attributing it to a commit', async () => {
+    const { repository, store, project } = fixture();
+    try {
+      const head = commit(repository, 1, 'Project work', '2026-01-03T08:00:00+00:00');
+      const card = store.createCard({ projectId: project.id, columnId: store.snapshot(project.id).columns[0]!.id, title: 'Synthetic preview' });
+      const otherRoot = join(repository, 'other-project');
+      mkdirSync(otherRoot);
+      const otherProject = store.createProject({ name: 'Other project', path: otherRoot });
+      const otherCard = store.createCard({ projectId: otherProject.id, columnId: store.snapshot(otherProject.id).columns[0]!.id, title: 'Other card' });
+        const insertQa = store.db.prepare(`INSERT INTO card_qa_reports
+          (id,card_id,project_id,requested_url,started_at,ended_at,status,diagnostics_json,note,viewport_width,viewport_height,page_check,page_observations_json,git_evidence_json)
+          VALUES (?,?,?,'http://127.0.0.1:5181/','2026-01-03T09:00:00.000Z',?,?,'[]',NULL,1280,800,'complete','[]',?)`);
+        insertQa.run('qa-current', card.id, project.id, '2026-01-03T10:00:00.000Z', 'failed', JSON.stringify({ scope: 'card-worktree', state: 'clean', startHead: head, endHead: head, dirtyAtStart: false, dirtyAtEnd: false }));
+        insertQa.run('qa-old', card.id, project.id, '2025-12-20T10:00:00.000Z', 'passed', 'null');
+        insertQa.run('qa-other', otherCard.id, otherProject.id, '2026-01-03T10:00:00.000Z', 'passed', 'null');
+        store.db.prepare(`INSERT INTO review_comments (id,card_id,fingerprint,file_path,side,line,body,created_at)
+          VALUES ('review-current',?,'fingerprint','src/app.ts','new',1,'Check focus','2026-01-03T10:30:00.000Z')`).run(card.id);
+        store.db.prepare(`INSERT INTO review_comments (id,card_id,fingerprint,file_path,side,line,body,created_at)
+          VALUES ('review-old',?,'fingerprint','src/app.ts','new',1,'Older note','2025-12-20T10:30:00.000Z')`).run(card.id);
+        store.db.prepare(`INSERT INTO review_comments (id,card_id,fingerprint,file_path,side,line,body,created_at)
+          VALUES ('review-other',?,'fingerprint','src/app.ts','new',1,'Other note','2026-01-03T10:30:00.000Z')`).run(otherCard.id);
+        const result = await projectChangelog(store, project.id, 'week', new Date('2026-01-03T12:00:00Z'));
+        expect(result.qaTotal).toBe(1);
+        expect(result.qaObservations).toEqual([{ id: 'qa-current', cardId: card.id, cardTitle: 'Synthetic preview', endedAt: '2026-01-03T10:00:00.000Z', status: 'failed', checkoutState: 'clean', checkoutHead: head }]);
+        expect(result.reviewTotal).toBe(1);
+        expect(result.reviewActivity).toEqual([{ cardId: card.id, cardTitle: 'Synthetic preview', count: 1, lastAt: '2026-01-03T10:30:00.000Z' }]);
+        expect(result.commits.map((item) => item.hash)).toEqual([head]);
+    } finally { store.close(); }
+  });
+
   it('does not trust a saved card checkout after its Git branch changes', async () => {
     const { repository, store, project } = fixture();
     try {

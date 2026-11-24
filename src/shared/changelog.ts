@@ -17,6 +17,25 @@ export interface ChangelogCommit {
 
 export interface ChangelogIssue { cardId: string | null; cardTitle: string | null; reason: string }
 
+/** A saved local browser result, not proof that a particular commit was served. */
+export interface ChangelogQaObservation {
+  id: string;
+  cardId: string;
+  cardTitle: string;
+  endedAt: string;
+  status: 'passed' | 'failed' | 'error';
+  checkoutState: 'clean' | 'dirty' | 'changed' | 'unavailable' | 'not-recorded';
+  checkoutHead: string | null;
+}
+
+/** Diff comments are activity, never an approval or commit-level review result. */
+export interface ChangelogReviewActivity {
+  cardId: string;
+  cardTitle: string;
+  count: number;
+  lastAt: string;
+}
+
 export interface ProjectChangelog {
   projectId: string;
   period: ChangelogPeriod;
@@ -30,4 +49,8 @@ export interface ProjectChangelog {
   moreAvailable: boolean;
   issues: ChangelogIssue[];
   checkedWorktrees: number;
+  qaObservations: ChangelogQaObservation[];
+  qaTotal: number;
+  reviewActivity: ChangelogReviewActivity[];
+  reviewTotal: number;
 }

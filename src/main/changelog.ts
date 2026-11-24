@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { lstat, realpath, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { ChangelogCommit, ChangelogIssue, ChangelogPeriod, ChangelogScope, ChangelogSource, ProjectChangelog } from '../shared/changelog';
+import type { ChangelogCommit, ChangelogIssue, ChangelogPeriod, ChangelogQaObservation, ChangelogReviewActivity, ChangelogScope, ChangelogSource, ProjectChangelog } from '../shared/changelog';
 import type { CardWorktree } from './store';
 import type { StudioStore } from './store';
 
@@ -10,6 +10,43 @@ const MAX_OUTPUT = 512 * 1024;
 const GIT_TIMEOUT_MS = 5_000;
 const MAX_WORKTREES = 12;
 const WORKTREE_BUDGET_MS = 30_000;
+const MAX_QA_OBSERVATIONS = 20;
+const MAX_REVIEW_CARDS = 10;
+
+type QaRow = { id: string; card_id: string; card_title: string; ended_at: string; status: ChangelogQaObservation['status']; git_evidence_json: string };
+type ReviewRow = { card_id: string; card_title: string; count: number; last_at: string };
+
+function oneLine(value: string): string { return value.replace(/[\x00-\x1f\x7f]/g, ' ').trim().slice(0, 120); }
+
+function checkoutObservation(value: string): Pick<ChangelogQaObservation, 'checkoutState' | 'checkoutHead'> {
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown> | null;
+    const state = parsed?.state;
+    const checkoutState = state === 'clean' || state === 'dirty' || state === 'changed' || state === 'unavailable' ? state : 'not-recorded';
+    const head = parsed?.startHead;
+    const checkoutHead = checkoutState === 'clean' && head === parsed?.endHead && typeof head === 'string' && /^[a-f0-9]{40,64}$/i.test(head) ? head : null;
+    return { checkoutState: checkoutState === 'clean' && !checkoutHead ? 'unavailable' : checkoutState, checkoutHead };
+  } catch { return { checkoutState: 'not-recorded', checkoutHead: null }; }
+}
+
+function localEvidence(store: StudioStore, projectId: string, since: string, until: string): Pick<ProjectChangelog, 'qaObservations' | 'qaTotal' | 'reviewActivity' | 'reviewTotal'> {
+  const qaFilter = `FROM card_qa_reports q JOIN cards c ON c.id = q.card_id
+    WHERE c.project_id = ? AND q.project_id = ? AND q.ended_at >= ? AND q.ended_at <= ? AND q.status IN ('passed','failed','error')`;
+  const qaArgs = [projectId, projectId, since, until];
+  const qaTotal = (store.db.prepare(`SELECT COUNT(*) AS count ${qaFilter}`).get(...qaArgs) as { count: number }).count;
+  const qaRows = store.db.prepare(`SELECT q.id, q.card_id, c.title AS card_title, q.ended_at, q.status, q.git_evidence_json ${qaFilter}
+    ORDER BY q.ended_at DESC, q.rowid DESC LIMIT ${MAX_QA_OBSERVATIONS}`).all(...qaArgs) as QaRow[];
+  const qaObservations = qaRows.map((row) => ({ id: row.id, cardId: row.card_id, cardTitle: oneLine(row.card_title),
+    endedAt: row.ended_at, status: row.status, ...checkoutObservation(row.git_evidence_json) }));
+
+  const reviewFilter = 'FROM review_comments r JOIN cards c ON c.id = r.card_id WHERE c.project_id = ? AND r.created_at >= ? AND r.created_at <= ?';
+  const reviewArgs = [projectId, since, until];
+  const reviewTotal = (store.db.prepare(`SELECT COUNT(*) AS count ${reviewFilter}`).get(...reviewArgs) as { count: number }).count;
+  const reviewRows = store.db.prepare(`SELECT r.card_id, c.title AS card_title, COUNT(*) AS count, MAX(r.created_at) AS last_at ${reviewFilter}
+    GROUP BY r.card_id ORDER BY last_at DESC, r.card_id LIMIT ${MAX_REVIEW_CARDS}`).all(...reviewArgs) as ReviewRow[];
+  const reviewActivity = reviewRows.map((row) => ({ cardId: row.card_id, cardTitle: oneLine(row.card_title), count: row.count, lastAt: row.last_at }));
+  return { qaObservations, qaTotal, reviewActivity, reviewTotal };
+}
 
 function git(cwd: string, args: string[], timeout = GIT_TIMEOUT_MS): Promise<{ stdout: string; failed: boolean }> {
   return new Promise((resolve, reject) => {
@@ -86,8 +123,9 @@ export async function projectChangelog(store: StudioStore, projectId: string, pe
   const project = store.project(projectId);
   const checkedAt = now.toISOString();
   const since = new Date(now.getTime() - (period === 'day' ? 24 : 7 * 24) * 60 * 60 * 1_000).toISOString();
+  const evidence = localEvidence(store, projectId, since, checkedAt);
   const base = { projectId, period, scope, since, until: checkedAt, checkedAt, head: null, commits: [] as ChangelogCommit[], moreAvailable: false,
-    issues: [] as ChangelogIssue[], checkedWorktrees: 0 };
+    issues: [] as ChangelogIssue[], checkedWorktrees: 0, ...evidence };
   const inside = await git(project.path, ['rev-parse', '--is-inside-work-tree']);
   if (inside.failed || inside.stdout.trim() !== 'true') return { ...base, state: 'no-repository' };
   const head = await git(project.path, ['rev-parse', '--verify', 'HEAD']);
