@@ -8,12 +8,13 @@ import { sourceSessionIdFromNote } from '../activity-transcript';
 import type { Mutate } from './shared';
 import { MemoryVaultImportDialog } from './MemoryVaultImportDialog';
 import { MemoryGitSourcePanel } from './MemoryGitSourcePanel';
+import { ProjectKnowledgeIndex } from './ProjectKnowledgeIndex';
 import '../memory.css';
 import '../memory-workspace.css';
 
-interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openNote?: { id: string; token: number } | null; onOpenSession?: (id: string) => void }
+interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openNote?: { id: string; token: number } | null; onOpenSession?: (id: string) => void; onOpenCard?: (id: string) => void }
 
-export function MemoryView({ snapshot, mutate, openNote, onOpenSession }: Props) {
+export function MemoryView({ snapshot, mutate, openNote, onOpenSession, onOpenCard }: Props) {
   const [query, setQuery] = useState('');
   const [navigation, setNavigation] = useState(emptyNoteNavigation);
   const selectedId = navigation.currentId;
@@ -164,8 +165,9 @@ export function MemoryView({ snapshot, mutate, openNote, onOpenSession }: Props)
   }
 
   return <div className="standard-page memory-page">
+    <ProjectKnowledgeIndex snapshot={snapshot} onOpenCard={onOpenCard} onOpenSession={onOpenSession} />
     <div className="view-header">
-      <div><h2>Projektgedächtnis</h2><p>Halte Entscheidungen, Kontext und Ideen fest. Mit <code>[[Notiztitel]]</code> verknüpfst du Notizen.</p></div>
+      <div><h2>Eigene Notizen</h2><p>Halte eigene Entscheidungen und Kontext fest. Verweise mit <code>[[Notiztitel]]</code> sind optional.</p></div>
       <div className="memory-header-actions">
         <details className="memory-transfer"><summary>Import &amp; Export</summary><div>
           <input ref={fileInputRef} className="sr-only" type="file" accept=".md,text/markdown" aria-label="Markdown-Datei auswählen" onChange={(event) => void importMarkdown(event)} />

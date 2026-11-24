@@ -108,6 +108,9 @@ const studio: StudioAPI = {
     return () => ipcRenderer.removeListener('studio:command-terminal-event', listener);
   },
   searchSessionTranscripts: (input) => invoke('searchSessionTranscripts', input),
+  refreshProjectMemoryIndex: (projectId) => invoke('refreshProjectMemoryIndex', projectId),
+  searchProjectMemoryIndex: (input) => invoke('searchProjectMemoryIndex', input),
+  readProjectMemorySource: (input) => invoke('readProjectMemorySource', input),
   sessionForProject: (input) => invoke('sessionForProject', input),
   sessionRunEvidence: (input) => invoke('sessionRunEvidence', input),
   linkSessionQa: (input) => invoke('linkSessionQa', input),

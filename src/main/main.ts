@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { basename, isAbsolute, join } from 'node:path';
 import type { AgentPreset, CommandTerminalEvent, QueueState, SessionEvent, StudioAPI, WorkflowAgentSettings, WorkflowProposal, WorkflowStep } from '../shared/types';
 import { StudioBrowser } from './browser';
+import { readProjectMemorySource, refreshProjectMemoryIndex, searchProjectMemoryIndex } from './project-memory-index';
 import { createDiagnosticCard } from './error-catcher';
 import { cardQaReports, cardQaScreenshot, runCardQa, runCardQaBatch } from './card-qa';
 import { qaCoverageRoutes, saveQaCoverageRoute, removeQaCoverageRoute, runQaCoverageCell } from './qa-coverage';
@@ -307,6 +308,9 @@ function installIpc(): void {
   bind('resizeCommandTerminal', (input: Parameters<StudioAPI['resizeCommandTerminal']>[0]) => commandRunner?.resize(input));
   bind('stopCommandTerminal', (terminalId: string) => commandRunner?.stop(terminalId));
   bind('searchSessionTranscripts', (input: { projectId: string; query: string }) => db.searchSessionTranscripts(input.projectId, input.query));
+  bind('refreshProjectMemoryIndex', (projectId: string) => refreshProjectMemoryIndex(db, projectId));
+  bind('searchProjectMemoryIndex', (input: Parameters<StudioAPI['searchProjectMemoryIndex']>[0]) => searchProjectMemoryIndex(db, input));
+  bind('readProjectMemorySource', (input: Parameters<StudioAPI['readProjectMemorySource']>[0]) => readProjectMemorySource(db, input));
   bind('sessionForProject', (input: { projectId: string; sessionId: string }) => db.sessionForProject(input.projectId, input.sessionId));
   bind('sessionRunEvidence', (input: Parameters<StudioAPI['sessionRunEvidence']>[0]) => sessionRunEvidence(db, input));
   bind('linkSessionQa', (input: Parameters<StudioAPI['linkSessionQa']>[0]) => linkSessionQa(db, input));
@@ -2829,6 +2833,19 @@ function createWindow(): void {
               setter.call(select, ${JSON.stringify(milestoneProjectId)}); select.dispatchEvent(new Event('change', { bubbles: true }));
               for (let attempt = 0; attempt < 100 && !document.querySelector('#project-select option:checked')?.textContent?.includes('Meilenstein-Vorschau'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((button) => button.textContent?.trim() === 'Memory')?.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.knowledge-index-sources')?.textContent?.includes('Commits'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const index = document.querySelector('.project-knowledge-index');
+              const notes = document.querySelector('.memory-list');
+              if (!index || !notes || !(index.compareDocumentPosition(notes) & Node.DOCUMENT_POSITION_FOLLOWING)) throw new Error('Automatischer Projektindex steht nicht vor den Notizen.');
+              let found;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                found = await window.studio.searchProjectMemoryIndex({ projectId: ${JSON.stringify(milestoneProjectId)}, query: 'milestone', kind: 'commit' });
+                if (found.hits.some((hit) => hit.kind === 'commit' && hit.gitRef === ${JSON.stringify(memoryHead)})) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!found?.hits.some((hit) => hit.kind === 'commit' && hit.gitRef === ${JSON.stringify(memoryHead)})) throw new Error('Gespeicherter Git-Commit fehlt im lokalen Projektindex: ' + JSON.stringify(found?.status));
+              const source = await window.studio.readProjectMemorySource({ projectId: ${JSON.stringify(milestoneProjectId)}, kind: 'commit', sourceId: ${JSON.stringify(memoryHead)} });
+              if (!source?.body.includes('Synthetic preview milestone')) throw new Error('Git-Quellbeleg lässt sich nicht projektbezogen öffnen.');
               let note;
               for (let attempt = 0; attempt < 100; attempt++) {
                 note = [...document.querySelectorAll('.memory-item')].find((item) => item.textContent?.includes('Commit-Beleg Smoke'));

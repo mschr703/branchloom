@@ -64,6 +64,10 @@ describe('memory workspace', () => {
       notes: [note('a', 'Alpha', '[[Beta]]'), note('b', 'Beta')],
     };
     const html = renderToStaticMarkup(createElement(MemoryView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() }));
+    expect(html.indexOf('aria-label="Automatischer Projektindex"')).toBeLessThan(html.indexOf('class="memory-list"'));
+    expect(html).toContain('aria-label="Projektwissen durchsuchen"');
+    expect(html).toContain('Index aktualisieren');
+    expect(html).toContain('Eigene Notizen');
     expect(html.indexOf('class="memory-list"')).toBeLessThan(html.indexOf('class="graph-panel"'));
     expect(html.indexOf('class="graph-panel"')).toBeLessThan(html.indexOf('class="memory-main"'));
     expect(html).toContain('aria-label="Graphansicht"');

@@ -1,4 +1,5 @@
 .memory-page .memory-header-actions { gap: 6px; }
+.memory-page .project-knowledge-index + .view-header { margin-top: 28px; }
 .memory-page .memory-header-actions .secondary-button { font-size: 12px; }
 .memory-transfer { position: relative; }
 .memory-transfer > summary {

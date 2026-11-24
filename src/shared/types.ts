@@ -22,6 +22,7 @@ import type { CardWireframe, CardWireframeKey, SaveCardWireframeInput, Wireframe
 import type { SaveWireframeComponentInput, WireframeComponent } from './wireframe-components';
 import type { SessionRecoveryState } from './session-recovery';
 import type { CardRunGate } from './parallel-runs';
+import type { ProjectMemoryIndexStatus, ProjectMemorySearch, ProjectMemorySearchInput, ProjectMemorySourceDetail, ProjectMemorySourceInput } from './project-memory-index';
 
 export type SessionState = 'running' | 'exited' | 'failed' | 'stopped';
 export type WorkflowState = 'draft' | 'running' | 'paused' | 'done';
@@ -197,6 +198,9 @@ export interface StudioAPI {
   stopCommandTerminal(terminalId: string): Promise<void>;
   onCommandTerminalEvent(callback: (event: CommandTerminalEvent) => void): () => void;
   searchSessionTranscripts(input: { projectId: string; query: string }): Promise<SessionSearchHit[]>;
+  refreshProjectMemoryIndex(projectId: string): Promise<ProjectMemoryIndexStatus>;
+  searchProjectMemoryIndex(input: ProjectMemorySearchInput): Promise<ProjectMemorySearch>;
+  readProjectMemorySource(input: ProjectMemorySourceInput): Promise<ProjectMemorySourceDetail | null>;
   sessionForProject(input: { projectId: string; sessionId: string }): Promise<Session>;
   sessionRunEvidence(input: { projectId: string; sessionId: string }): Promise<SessionRunEvidence>;
   linkSessionQa(input: { projectId: string; sessionId: string; reportId: string }): Promise<SessionRunEvidence>;

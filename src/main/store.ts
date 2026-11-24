@@ -9,6 +9,7 @@ import { normalizedWorkflowStep, workflowStepSettings } from '../shared/workflow
 import { validateWorkflowProposal } from './workflow-proposal';
 import { parseTrelloBoard } from './trello-import';
 import { installSessionSearch, searchSessionTranscripts } from './session-search';
+import { installProjectMemoryIndex } from './project-memory-index';
 import { installSessionRecovery } from './session-recovery';
 import { installActiveCardIndex, installParallelRuns } from './parallel-runs';
 import { clearAgentCapabilityEvidence, installAgentCapabilities, listAgentCapabilityEvidence, recordAgentCapability } from './agent-capabilities';
@@ -155,6 +156,7 @@ export class StudioStore {
     installCardWireframes(this.db);
     installWireframeComponents(this.db);
     installSessionSearch(this.db);
+    installProjectMemoryIndex(this.db);
     installSessionRecovery(this.db);
     installAgentCapabilities(this.db);
     installSessionEvidence(this.db);

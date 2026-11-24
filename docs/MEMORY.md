@@ -1,4 +1,12 @@
-# Memory-Notizen
+# Projektwissen und Memory-Notizen
+
+## Automatischer lokaler Projektindex
+
+Beim Öffnen von **Memory** aktualisiert Branchloom einen projektbezogenen Wortindex in der lokalen App-Datenbank. Dafür ist keine manuelle Notiz und kein `[[...]]`-Verweis nötig. Der Index liest gespeicherte Board-Aufgaben einschließlich Priorität und Labels, abgeschlossene Agentenläufe mit gespeichertem Terminaltext, bis zu 120 Commits und begrenzte, getrackte Quelldateien vom verfügbaren Standard-Branch. Ein erneuter Klick auf **Index aktualisieren** prüft einen inzwischen geänderten Git-Stand. Die Oberfläche nennt die wirklichen Quellenzahlen, den Stand und unvollständige oder fehlende Git-Quellen. Aufgaben und Agentenverläufe bleiben auch ohne Git suchbar.
+
+Die Suche filtert nach Aufgaben, Agentenverläufen, Commits und Code. Ein Treffer nennt die Quelle, ihren Zeitpunkt und bei Code den Dateipfad sowie den gelesenen Commitstand. Aufgaben und Agentenverläufe öffnen ihre gespeicherte Originalansicht. Bei Code zeigt Branchloom den indizierten Ausschnitt; die Arbeitsdatei kann seit dem Commit anders aussehen. Alles bleibt lokal. Die Suche startet keinen Agenten und sendet weder Code noch Verlauf an ein Modell.
+
+Der Codeindex beschränkt sich auf höchstens 180 geeignete getrackte Dateien bis 64 KB, vier Textpassagen je Datei und insgesamt 1,5 Millionen Zeichen. Tests, Fixtures, Build-Ausgaben, Lockfiles und `.env`-Dateien werden ausgelassen. Nicht erfasste Inhalte liefern keine Treffer und werden nicht als vollständig indexiert ausgegeben. Die Suche basiert auf Wörtern und FTS5; ein lokales Embedding-Modell, automatische Task-Zusammenfassungen, semantische Beziehungen, eine Karte der Agentengespräche und Antworten mit Agentenbelegen sind weiterhin offen. Der bisherige Notizgraph zeigt ausschließlich manuelle Verweise und ist kein Ersatz dafür.
 
 Memory speichert Notizen pro Projekt in der lokalen SQLite-Datenbank der App. Der Projektordner bekommt keine Memory-Dateien. Notizen lassen sich mit `[[Notiztitel]]` verbinden; Klicks in der Vorschau und im Graph öffnen die verknüpfte Notiz.
 
@@ -32,4 +40,4 @@ Beim erneuten Öffnen oder über **Erneut prüfen** fragt Branchloom Git nochmal
 
 Wähle für persönliche Notizen einen privaten Ordner außerhalb öffentlich geteilter Git-Repositories. Import und Export erfolgen nur nach Klick und Ordnerwahl; Branchloom greift nicht automatisch auf andere Vaults zu. Ein Live-Abgleich findet nicht statt.
 
-Das Modell indexiert Agentengespräche und Repository-Dateien derzeit nicht automatisch. Die semantische Suche und Quellenbelege stehen auf der [Paritätsliste](PARITY.md).
+Die automatisch indizierten Quellen sind von den manuell geschriebenen Notizen getrennt. Die semantische Suche und ein aus Agentengesprächen aufgebauter Knowledge Graph stehen auf der [Paritätsliste](PARITY.md).
