@@ -111,6 +111,7 @@ const studio: StudioAPI = {
   sessionRecovery: (sessionId) => invoke('sessionRecovery', sessionId),
   cardRunGate: (cardId) => invoke('cardRunGate', cardId),
   setProjectRunCapacity: (input) => invoke('setProjectRunCapacity', input),
+  setCardRunDependencies: (input) => invoke('setCardRunDependencies', input),
   approveCardDependency: (input) => invoke('approveCardDependency', input),
   saveAgent: (input) => invoke('saveAgent', input),
   startSession: (input) => invoke('startSession', input),

@@ -47,7 +47,7 @@ import { acceptRepoMap, previewRepoMap } from './repo-map-import';
 import { parseProjectPackage, PROJECT_PACKAGE_LIMIT } from './project-package';
 import { ProjectQueueEngine } from './queue';
 import { SessionRecoveryMonitor } from './session-recovery';
-import { approveCardDependency, cardRunGate, setProjectRunCapacity } from './parallel-runs';
+import { approveCardDependency, cardRunGate, setCardRunDependencies, setProjectRunCapacity } from './parallel-runs';
 import { WorkflowEngine } from './workflows';
 import { workflowRunEvidence } from './workflow-evidence';
 import { linkSessionQa, sessionRunEvidence, unlinkSessionQa } from './session-evidence';
@@ -332,6 +332,7 @@ function installIpc(): void {
   bind('sessionRecovery', (sessionId: string) => recoveryMonitor?.state(sessionId));
   bind('cardRunGate', (cardId: string) => cardRunGate(db, cardId));
   bind('setProjectRunCapacity', (input: Parameters<StudioAPI['setProjectRunCapacity']>[0]) => setProjectRunCapacity(db, input));
+  bind('setCardRunDependencies', (input: Parameters<StudioAPI['setCardRunDependencies']>[0]) => setCardRunDependencies(db, input));
   bind('approveCardDependency', (input: Parameters<StudioAPI['approveCardDependency']>[0]) => approveCardDependency(db, input));
   bind('saveAgent', (input: Omit<AgentPreset, 'id'> & { id?: string }) => db.saveAgent(input));
   bind('startSession', (input: { cardId: string; agentId?: string; prompt?: string; useWorktree?: boolean }) => runner?.start(input));
@@ -674,6 +675,14 @@ function createWindow(): void {
           if (initialRunGate.capacity !== 2 || initialRunGate.runningCount !== 0 || !initialRunGate.canStart) throw new Error('Parallele Startbedingungen fehlen im IPC.');
           if (await window.studio.setProjectRunCapacity({ projectId: project.id, capacity: 3 }) !== 3
             || (await window.studio.cardRunGate(card.id)).capacity !== 3) throw new Error('Projektkapazität wurde nicht gespeichert.');
+          const extraDependency = await window.studio.setCardRunDependencies({ cardId: card.id, prerequisiteCardIds: [ideaCard.id] });
+          if (extraDependency.dependencies.length !== 1 || extraDependency.canStart || extraDependency.dependencies[0]?.prerequisiteCardId !== ideaCard.id) {
+            throw new Error('Zusätzlicher Kartenvorgänger wurde nicht über IPC gespeichert oder gesperrt.');
+          }
+          if (!(await window.studio.cardRunGate(card.id)).dependencies.some((item) => item.prerequisiteCardId === ideaCard.id)
+            || !(await window.studio.setCardRunDependencies({ cardId: card.id, prerequisiteCardIds: [] })).canStart) {
+            throw new Error('Kartenvorgänger wurde nicht über IPC entfernt oder der Start blieb gesperrt.');
+          }
           if (candidates.length !== 1 || candidates[0].id !== card.id) throw new Error('Queue-Vorschau wich von der freien To-Do-Karte ab.');
           const draft = await window.studio.createWorkflow({ projectId: project.id, name: 'Smoke-Entwurf', cardIds: [card.id], steps: [{ id: 'smoke-step', columnId: saved.columns[2].id, agentId: null, requireApproval: false }] });
           if ((await window.studio.queueCandidates(project.id)).length !== 0) throw new Error('Karte mit Workflow-Entwurf blieb in der Queue.');

@@ -5,7 +5,7 @@ import type { CardRunGate } from '../../src/shared/parallel-runs';
 const gate: CardRunGate = {
   cardId: 'next', projectId: 'project', capacity: 2, runningCount: 1,
   running: [{ cardId: 'first', title: 'First', sessionId: 'session', worktreePath: null }],
-  dependency: null, blockers: [], canStart: true,
+  dependency: null, dependencies: [], blockers: [], canStart: true,
 };
 
 describe('parallel run start control', () => {

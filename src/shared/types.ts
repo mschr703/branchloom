@@ -207,7 +207,8 @@ export interface StudioAPI {
   sessionRecovery(sessionId: string): Promise<SessionRecoveryState>;
   cardRunGate(cardId: string): Promise<CardRunGate>;
   setProjectRunCapacity(input: { projectId: string; capacity: number }): Promise<number>;
-  approveCardDependency(input: { cardId: string; qaReportId: string; note: string }): Promise<CardRunGate>;
+  setCardRunDependencies(input: { cardId: string; prerequisiteCardIds: string[] }): Promise<CardRunGate>;
+  approveCardDependency(input: { cardId: string; prerequisiteCardId?: string; qaReportId: string; note: string }): Promise<CardRunGate>;
   saveAgent(input: Omit<AgentPreset, 'id'> & { id?: string }): Promise<AgentPreset>;
   startSession(input: { cardId: string; agentId?: string; prompt?: string; useWorktree?: boolean }): Promise<Session>;
   resumeCodexSession(input: { sessionId: string; picker?: boolean }): Promise<Session>;

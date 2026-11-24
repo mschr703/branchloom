@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudioStore } from '../../src/main/store';
-import { approveCardDependency, cardRunGate, reserveCardSession, setProjectRunCapacity } from '../../src/main/parallel-runs';
+import { approveCardDependency, cardRunGate, reserveCardSession, setCardRunDependencies, setProjectRunCapacity } from '../../src/main/parallel-runs';
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 }); });
@@ -37,6 +37,69 @@ function addQa(store: StudioStore, cardId: string, projectId: string, status: st
 }
 
 describe('parallel session reservation and dependency gate', () => {
+  it('waits for both verified predecessors and persists the chosen dependency set', () => {
+    const { file, store, project, agent, first, second } = fixture();
+    const combined = store.createCard({ projectId: project.id, columnId: first.columnId, title: 'Integration test' });
+    const configured = setCardRunDependencies(store, { cardId: combined.id, prerequisiteCardIds: [first.id, second.id] });
+    expect(configured.dependencies.map((item) => item.prerequisiteCardId)).toEqual([first.id, second.id]);
+    expect(configured.blockers).toHaveLength(2);
+    const flow = store.createWorkflow({ projectId: project.id, name: 'Verified outcomes', cardIds: [first.id, second.id], steps: [
+      { id: randomUUID(), columnId: first.columnId, agentId: agent.id, requireApproval: false },
+    ] });
+    store.setWorkflowState(flow.id, 'running');
+    store.ensureWorkflowProgress(flow.id, 0, [first.id, second.id]);
+    for (const card of [first, second]) {
+      const run = reserveCardSession(store, { cardId: card.id, agentId: agent.id });
+      store.beginWorkflowCard(flow.id, 0, card.id, run.id);
+      store.finishSession(run.id, 'exited', 0);
+      store.finishWorkflowCard(run.id, true);
+      const gate = cardRunGate(store, combined.id);
+      expect(gate.dependencies.filter((item) => item.status === 'blocked')).toHaveLength(card.id === first.id ? 1 : 0);
+    }
+    expect(cardRunGate(store, combined.id).canStart).toBe(true);
+    store.close();
+    const reopened = new StudioStore(file);
+    try {
+      expect(cardRunGate(reopened, combined.id).dependencies).toHaveLength(2);
+      expect(cardRunGate(reopened, combined.id).canStart).toBe(true);
+    } finally { reopened.close(); }
+  });
+
+  it('rejects cycles, cross-project predecessors and changes during a live card session', () => {
+    const { root, store, project, agent, first, second } = fixture();
+    setCardRunDependencies(store, { cardId: second.id, prerequisiteCardIds: [first.id] });
+    expect(() => setCardRunDependencies(store, { cardId: first.id, prerequisiteCardIds: [second.id] })).toThrow('Zyklus');
+    const otherPath = join(root, 'other');
+    mkdirSync(otherPath);
+    const otherProject = store.createProject({ name: 'Other', path: otherPath });
+    const other = store.createCard({ projectId: otherProject.id, columnId: store.snapshot(otherProject.id).columns[0]!.id, title: 'Other task' });
+    expect(() => setCardRunDependencies(store, { cardId: first.id, prerequisiteCardIds: [other.id] })).toThrow('desselben Projekts');
+    const running = reserveCardSession(store, { cardId: first.id, agentId: agent.id });
+    expect(() => setCardRunDependencies(store, { cardId: first.id, prerequisiteCardIds: [] })).toThrow('laufenden Karte');
+    store.finishSession(running.id, 'stopped', null);
+    expect(setCardRunDependencies(store, { cardId: second.id, prerequisiteCardIds: [] }).dependencies).toHaveLength(0);
+    store.close();
+  });
+
+  it('keeps separate QA approvals for two predecessors and invalidates only the changed one', () => {
+    const { store, project, agent, first, second } = fixture();
+    const combined = store.createCard({ projectId: project.id, columnId: first.columnId, title: 'Integration test' });
+    setCardRunDependencies(store, { cardId: combined.id, prerequisiteCardIds: [first.id, second.id] });
+    const reports = [first, second].map((card) => {
+      const run = reserveCardSession(store, { cardId: card.id, agentId: agent.id });
+      store.finishSession(run.id, 'exited', 0);
+      return addQa(store, card.id, project.id, 'passed', '2099-01-01T00:00:00.000Z');
+    });
+    expect(() => approveCardDependency(store, { cardId: combined.id, qaReportId: reports[0]!, note: 'First report is accepted' })).toThrow('auswählen');
+    approveCardDependency(store, { cardId: combined.id, prerequisiteCardId: first.id, qaReportId: reports[0]!, note: 'First report is accepted' });
+    expect(cardRunGate(store, combined.id).canStart).toBe(false);
+    approveCardDependency(store, { cardId: combined.id, prerequisiteCardId: second.id, qaReportId: reports[1]!, note: 'Second report is accepted' });
+    expect(cardRunGate(store, combined.id).canStart).toBe(true);
+    store.updateCard({ id: first.id, title: 'First revised' });
+    expect(cardRunGate(store, combined.id).dependencies.map((item) => item.status)).toEqual(['blocked', 'approved']);
+    store.close();
+  });
+
   it('migrates legacy duplicate running rows into reviewable interruptions before installing the unique index', () => {
     const { file, store, project, agent, first } = fixture();
     store.db.exec('DROP INDEX one_running_session_per_card');
