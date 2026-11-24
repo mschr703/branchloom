@@ -1,0 +1,17 @@
+.manual-revision { display: grid; gap: 12px; padding: 14px 0; border-top: 1px solid var(--border); }
+.manual-revision-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.manual-revision-heading h3 { margin: 0; font-size: 15px; }
+.manual-revision > button { justify-self: start; }
+.manual-revision p { margin: 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
+.manual-revision-row { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; }
+.manual-revision-row label { display: grid; flex: 1 1 220px; min-width: 0; gap: 5px; font-size: 12px; }
+.manual-revision-row select { width: 100%; min-width: 0; }
+.manual-revision-row button { flex: 0 0 auto; }
+.manual-revision-result { display: grid; gap: 12px; }
+.manual-revision-result strong { color: var(--text); }
+.manual-revision-variants { display: grid; gap: 10px; }
+.manual-revision-variants h4 { margin: 0 0 5px; font-size: 12px; }
+.manual-revision-result pre { max-height: 180px; margin: 0; padding: 10px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--border); border-radius: 5px; font-size: 11px; line-height: 1.45; }
+.manual-revision-result summary { cursor: pointer; font-size: 12px; }
+.manual-revision-result > button { justify-self: start; }
+.manual-revision :is(button, select):focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

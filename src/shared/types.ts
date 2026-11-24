@@ -298,6 +298,11 @@ export interface StudioAPI {
   reviewCardConflicts(cardId: string): Promise<ConflictRadarResult>;
   reviewProjectConflicts(projectId: string): Promise<ProjectConflictRadarResult>;
   integrationQueue(projectId: string): Promise<IntegrationItem[]>;
+  manualRevisionFiles(cardId: string): Promise<string[]>;
+  manualRevisions(cardId: string): Promise<import('./manual-revision').ManualRevision[]>;
+  captureManualRevision(input: { cardId: string; path: string }): Promise<import('./manual-revision').ManualRevision>;
+  previewManualRevision(id: string): Promise<import('./manual-revision').ManualMergePreview>;
+  applyManualRevision(input: { revisionId: string; previewToken: string; confirm: boolean }): Promise<import('./manual-revision').ManualRevision>;
   enqueueIntegration(cardId: string): Promise<IntegrationItem>;
   prepareIntegration(cardId: string): Promise<IntegrationItem>;
   approveIntegration(input: { cardId: string; confirm: boolean }): Promise<IntegrationItem>;

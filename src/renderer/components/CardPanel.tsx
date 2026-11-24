@@ -21,6 +21,7 @@ import { OutputErrorPanel } from './OutputErrorPanel';
 import { ConflictRadarNotice } from './ConflictRadarNotice';
 import { IntegrationQueuePanel } from './IntegrationQueuePanel';
 import { CardDevEnvironmentPanel } from './CardDevEnvironmentPanel';
+import { ManualRevisionPanel } from './ManualRevisionPanel';
 import { startConflictRadarRefresh } from '../conflict-radar-schedule';
 import { parallelStartWarning } from '../parallel-run-gate';
 import { addCardLabel, labelSuggestions } from '../card-labels';
@@ -316,6 +317,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
           {worktreeReview.blockers.length ? <p className="inline-note">Merge gesperrt: {worktreeReview.blockers.join(' ')}</p> : null}
           <button className="text-button" type="button" disabled={worktreeBusy} onClick={() => void checkCleanup()}>Aufräumbarkeit prüfen</button>
         </div> : null}
+        <ManualRevisionPanel key={`manual-${card.id}`} cardId={card.id} />
         <IntegrationQueuePanel card={card} cards={snapshot.cards} onIntegrated={() => void reviewWorktree()} onOpenDiff={() => {
           setShowDiffReview(true);
           let attempts = 0;
