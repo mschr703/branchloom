@@ -28,6 +28,7 @@ import './brand.css';
 const WhiteboardView = lazy(() => import('./components/WhiteboardView').then((module) => ({ default: module.WhiteboardView })));
 const WorkflowView = lazy(() => import('./components/WorkflowView').then((module) => ({ default: module.WorkflowView })));
 const MemoryView = lazy(() => import('./components/MemoryView').then((module) => ({ default: module.MemoryView })));
+const ProjectChat = lazy(() => import('./components/ProjectChat').then((module) => ({ default: module.ProjectChat })));
 const BrowserView = lazy(() => import('./components/BrowserView').then((module) => ({ default: module.BrowserView })));
 const DesignInspectionView = lazy(() => import('./components/DesignInspectionView').then((module) => ({ default: module.DesignInspectionView })));
 
@@ -364,6 +365,13 @@ export function App() {
         <Suspense fallback={<div className="content-message" role="status">{activeView.name} wird geladen…</div>}>
         {view === 'board' ? <BoardView snapshot={snapshot} mutate={mutate} openCard={navigationTarget?.kind === 'card' ? navigationTarget : null} onOpenDesign={(cardId) => { setDesignCardId(cardId); setView('design'); }} onOpenQaReport={navigateToQaReport} /> : null}
         {view === 'ideas' ? <IdeasView key={snapshot.project.id} snapshot={snapshot} mutate={mutate} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
+        {view === 'chat' ? <ProjectChat key={snapshot.project.id} snapshot={snapshot} onOpenCard={(id) => navigateToEntity('card', id)} onOpenSession={(id) => void openSessionFromMemory(id)} onSaveTask={async (title, description) => {
+          const column = snapshot.columns.find((item) => item.name.trim().toLocaleLowerCase() === 'to do') ?? snapshot.columns[0];
+          if (!column) throw new Error('Dieses Projekt hat keine Boardspalte.');
+          const card = await window.studio.createCard({ projectId: snapshot.project.id, columnId: column.id, title, description });
+          await refresh();
+          navigateToEntity('card', card.id);
+        }} /> : null}
         {view === 'activity' ? <ActivityView snapshot={snapshot} openSession={navigationTarget?.kind === 'session' ? navigationTarget : null} onSessionClosed={() => setNavigationTarget((old) => old?.kind === 'session' ? null : old)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onSaveSessionAsNote={saveSessionAsNote} /> : null}
         {view === 'changelog' ? <ChangelogView key={snapshot.project.id} projectId={snapshot.project.id} /> : null}
         {view === 'workflows' ? <WorkflowView snapshot={snapshot} mutate={mutate} openWorkflow={navigationTarget?.kind === 'workflow' ? navigationTarget : null} openPlan={openPlan} onOpenCard={(id) => navigateToEntity('card', id)} onOpenSession={(id) => void openSessionFromMemory(id)} /> : null}

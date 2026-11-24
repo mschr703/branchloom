@@ -1017,6 +1017,11 @@ function createWindow(): void {
               for (let attempt = 0; attempt < 100 && !document.querySelector('[role="dialog"][aria-label="Aufgabe besprechen"]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!document.querySelector('[role="dialog"][aria-label="Aufgabe besprechen"]')) throw new Error('Aufgabenklärung öffnete sich nicht.');
               document.querySelector('[role="dialog"][aria-label="Aufgabe besprechen"] button[aria-label="Schließen"]')?.click();
+              const projectChatNav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Projektgespräch'));
+              if (!projectChatNav) throw new Error('Projektgespräch fehlt in der Navigation.');
+              projectChatNav.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.project-chat textarea'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.project-chat[aria-label="Projektgespräch"] textarea') || !(await sessionsUnchanged())) throw new Error('Projektgespräch wurde nicht als lesende Arbeitsfläche geöffnet.');
               const whiteboardNav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Whiteboard'));
               if (!whiteboardNav) throw new Error('Whiteboard-Navigation fehlt.');
               whiteboardNav.click();

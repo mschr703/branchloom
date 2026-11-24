@@ -1,11 +1,12 @@
-import { Activity, Bot, BrainCircuit, Columns3, GitBranch, GitCommitHorizontal, Globe2, History, Inbox, Lightbulb, MousePointer2, Network, TerminalSquare } from 'lucide-react';
+import { Activity, Bot, BrainCircuit, Columns3, GitBranch, GitCommitHorizontal, Globe2, History, Inbox, Lightbulb, MessageCircle, MousePointer2, Network, TerminalSquare } from 'lucide-react';
 import type { ProjectSnapshot } from '../../shared/types';
 
-export type View = 'board' | 'ideas' | 'activity' | 'workflows' | 'decisions' | 'whiteboard' | 'memory' | 'milestones' | 'agents' | 'terminal' | 'browser' | 'design' | 'changelog';
+export type View = 'board' | 'ideas' | 'chat' | 'activity' | 'workflows' | 'decisions' | 'whiteboard' | 'memory' | 'milestones' | 'agents' | 'terminal' | 'browser' | 'design' | 'changelog';
 
 export const views: { id: View; name: string; icon: typeof Columns3 }[] = [
   { id: 'board', name: 'Board', icon: Columns3 },
   { id: 'ideas', name: 'Ideenraum', icon: Lightbulb },
+  { id: 'chat', name: 'Projektgespräch', icon: MessageCircle },
   { id: 'activity', name: 'Aktivität', icon: Activity },
   { id: 'changelog', name: 'Changelog', icon: GitCommitHorizontal },
   { id: 'workflows', name: 'Workflows', icon: GitBranch },
@@ -19,7 +20,7 @@ export const views: { id: View; name: string; icon: typeof Columns3 }[] = [
   { id: 'design', name: 'Design', icon: MousePointer2 },
 ];
 
-const primaryViewIds: View[] = ['board', 'ideas', 'workflows'];
+const primaryViewIds: View[] = ['board', 'ideas', 'chat', 'workflows'];
 const primaryViews = primaryViewIds.map((id) => views.find((item) => item.id === id)!);
 const otherViews = views.filter((item) => !primaryViewIds.includes(item.id));
 
