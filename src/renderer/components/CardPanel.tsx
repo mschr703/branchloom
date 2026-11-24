@@ -8,6 +8,7 @@ import type { Mutate } from './shared';
 import { CardAttachments } from './CardAttachments';
 import { CardContextPanel } from './CardContextPanel';
 import { CardAcceptancePanel } from './CardAcceptancePanel';
+import { CardRequirementStatus } from './CardRequirementStatus';
 import { CardSplitPanel } from './CardSplitPanel';
 import { SessionEvidencePanel } from './SessionEvidencePanel';
 import { SessionRecoveryPanel } from './SessionRecoveryPanel';
@@ -263,6 +264,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
         <CardContextPanel key={`context-${card.id}`} card={card} attachmentRequest={contextAttachmentRequest?.cardId === card.id ? contextAttachmentRequest : null} />
         <div className="drawer-divider" />
         <CardAcceptancePanel key={`acceptance-${card.id}`} card={card} onOpenEvidence={openAcceptanceEvidence} />
+        <CardRequirementStatus projectId={card.projectId} cardId={card.id} onOpenCard={onOpenCard} />
         <div className="drawer-divider" />
         <CardSplitPanel key={`split-${card.id}`} card={card} columns={snapshot.columns} queue={snapshot.queue} mutate={mutate} onOpenCard={onOpenCard} />
         <div className="drawer-divider" />

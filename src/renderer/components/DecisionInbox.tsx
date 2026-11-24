@@ -5,6 +5,7 @@ import type { ReviewInboxItem, ReviewInboxPage } from '../../shared/review-inbox
 import type { GlobalInboxItem } from '../../shared/global-inbox';
 import { decisionItems, filterDecisionItems, type DecisionFilter } from '../decision-inbox';
 import { CrossProjectInbox } from './CrossProjectInbox';
+import { RequirementConflictsPanel } from './RequirementConflictsPanel';
 import { inboxFirstPageChanged, useVisibleInboxRefresh } from '../inbox-refresh';
 import '../decision-inbox.css';
 
@@ -133,11 +134,12 @@ export function DecisionInbox({ snapshot, onOpenWorkflow, onOpenQueue, onOpenSes
     <div className="view-header"><div><h2>Offene Entscheidungen</h2><p>{scope === 'all' ? 'Gespeicherte offene Hinweise aller lokalen Projekte. Jede Quelle ist einem Projekt zugeordnet.' : 'Gespeicherte Pausen, unterbrochene Agentenläufe, Reviews und Browser-QA aus dem aktiven Projekt. Öffne die Quelle vor einer Entscheidung.'}</p></div></div>
     {onOpenGlobalItem ? <div className="decision-scope" role="group" aria-label="Projektumfang"><button type="button" className="secondary-button" aria-pressed={scope === 'project'} onClick={() => setScope('project')}>Dieses Projekt</button><button type="button" className="secondary-button" aria-pressed={scope === 'all'} onClick={() => setScope('all')}>Alle Projekte</button></div> : null}
     {scope === 'all' && onOpenGlobalItem ? <CrossProjectInbox onOpen={onOpenGlobalItem} /> : <>
+    <RequirementConflictsPanel projectId={snapshot.project.id} cards={snapshot.cards} onOpenCard={onOpenCard} />
     {!reviews && !reviewError ? <p className="section-copy" role="status">Reviews und Browser-QA werden geladen…</p> : null}
     {reviewError ? <p className="inline-error" role="alert">Reviews und Browser-QA konnten nicht geladen werden: {reviewError}</p> : null}
     {reviewNotice ? <p className="inline-note" role="status">{reviewNotice}</p> : null}
     {reviewUpdateAvailable && scope === 'project' ? <p className="inline-note" role="status">Die ersten Inbox-Einträge haben sich geändert. <button type="button" className="decision-subaction" onClick={() => void reloadReviews()}>Liste aktualisieren</button></p> : null}
-    {!hasItems && reviews && !query.trim() ? <div className="decision-empty"><Inbox size={24} aria-hidden="true" /><h3>Keine offenen Entscheidungen</h3><p>Hier erscheinen pausierte Workflows, angehaltene Warteschlangen, unterbrochene Agentenläufe, Review-Kommentare und fehlgeschlagene Browser-QA.</p></div>
+    {!hasItems && reviews && !query.trim() ? <div className="decision-empty"><Inbox size={24} aria-hidden="true" /><h3>Keine weiteren Pausen oder Reviews</h3><p>Hier erscheinen pausierte Workflows, angehaltene Warteschlangen, unterbrochene Agentenläufe, Review-Kommentare und fehlgeschlagene Browser-QA. Anforderungswidersprüche stehen darüber.</p></div>
       : <>
         {items.length + (reviews?.items.length ?? 0) > 4 || category !== 'all' || query ? <div className="decision-controls">
           <label>Entscheidung suchen<input type="search" maxLength={200} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Workflow, Karte oder Grund" /></label>

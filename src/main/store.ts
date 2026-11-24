@@ -14,6 +14,7 @@ import { installProjectMemoryIndex } from './project-memory-index';
 import { installSessionRecovery } from './session-recovery';
 import { installActiveCardIndex, installParallelRuns } from './parallel-runs';
 import { installApiContracts } from './api-contract';
+import { installRequirementConflicts } from './requirement-conflicts';
 import { installIntegrationQueue } from './integration-queue';
 import { installManualRevisions } from './manual-revision';
 import { installIntegrationEvidence } from './integration-evidence';
@@ -180,6 +181,7 @@ export class StudioStore {
     installParallelRuns(this.db);
     installProjectRunPause(this.db);
     installApiContracts(this.db);
+    installRequirementConflicts(this.db);
     const count = this.db.prepare('SELECT COUNT(*) AS count FROM agents').get() as { count: number };
     if (count.count === 0) {
       for (const preset of [
