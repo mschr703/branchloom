@@ -1,11 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { AgentCapabilityRows, DiagnosticStatus, diagnosticHint } from '../../src/renderer/components/AgentView';
-import type { AgentDetection, AgentPreset } from '../../src/shared/types';
+import { AgentCapabilityRows, AgentView, DiagnosticStatus, diagnosticHint } from '../../src/renderer/components/AgentView';
+import type { AgentDetection, AgentPreset, ProjectSnapshot } from '../../src/shared/types';
 
 const base: AgentDetection = { kind: 'codex', command: 'codex', available: false, version: null, status: 'missing' };
 
 describe('agent diagnostic messages', () => {
+  it('shows the project-scoped metadata permission as initially unavailable until loaded', () => {
+    const snapshot = {
+      project: { id: 'p', name: 'Synthetic', path: '/synthetic', createdAt: '2026-11-24T00:00:00.000Z' },
+      columns: [], cards: [], agents: [], sessions: [], workflows: [], notes: [],
+      queue: { projectId: 'p', state: 'off', templateWorkflowId: null, activeWorkflowId: null, pauseReason: null, completedCount: 0, updatedAt: null },
+    } satisfies ProjectSnapshot;
+    const html = renderToStaticMarkup(<AgentView snapshot={snapshot} mutate={async () => null} />);
+    expect(html).toContain('Agenten dürfen ändern');
+    expect(html).toContain('Noch keine Agentenänderungen');
+    expect(html).toMatch(/type="checkbox"[^>]*disabled/);
+  });
   it('distinguishes missing CLI, timeout and verified version from login', () => {
     expect(diagnosticHint(base)).toContain('nicht gefunden');
     expect(diagnosticHint({ ...base, status: 'timeout' })).toContain('8 Sekunden');

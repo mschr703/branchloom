@@ -50,6 +50,8 @@ import { WorkflowEngine } from './workflows';
 import { workflowRunEvidence } from './workflow-evidence';
 import { linkSessionQa, sessionRunEvidence, unlinkSessionQa } from './session-evidence';
 import { agentHandoffReceipt, previewAgentHandoff, startAgentHandoff } from './agent-handoff';
+import { agentCardMetadataAudit, agentCardMetadataEnabled, setAgentCardMetadataEnabled } from './agent-card-metadata';
+import { AgentCardMetadataBridge } from './agent-card-metadata-bridge';
 import { proposeWorkflow } from './workflow-planner';
 import { discussTaskDraft } from './task-draft';
 import { convertIdeaToCard, discussIdea, listIdeas, saveIdea } from './ideas';
@@ -71,6 +73,7 @@ let recoveryMonitor: SessionRecoveryMonitor | null = null;
 let browser: StudioBrowser | null = null;
 let designInspector: DesignInspector | null = null;
 let trelloSignIn: TrelloSignIn | null = null;
+let agentCardMetadataBridge: AgentCardMetadataBridge | null = null;
 let smokeQaServer: ReturnType<typeof createServer> | null = null;
 const smoke = process.argv.includes('--studio-smoke');
 const smokeDataDirectory = smoke ? mkdtempSync(join(tmpdir(), 'branchloom-smoke-')) : null;
@@ -132,7 +135,7 @@ function installIpc(): void {
   }, (session, finalMessage) => {
     workflowEngine.onSessionFinished(session, finalMessage);
     queueEngine.onSessionFinished(session);
-  });
+  }, agentCardMetadataBridge);
   workflowEngine = new WorkflowEngine(db, runner, () => net.isOnline());
   queueEngine = new ProjectQueueEngine(db, workflowEngine, () => net.isOnline());
   recoveryMonitor = new SessionRecoveryMonitor(db, () => net.isOnline(), (sessionId) => runner?.hasLiveProcess(sessionId) ?? false, (projectId) => queueEngine.pauseForConnectionLoss(projectId));
@@ -228,6 +231,13 @@ function installIpc(): void {
   bind('designTaskCandidate', (input: Parameters<StudioAPI['designTaskCandidate']>[0]) => designTaskCandidate(db, input));
   bind('createCardFromDesignRequest', (input: Parameters<StudioAPI['createCardFromDesignRequest']>[0]) => createCardFromDesignRequest(db, input));
   bind('updateCard', (input: Parameters<StudioAPI['updateCard']>[0]) => db.updateCard(input));
+  bind('agentCardMetadataEnabled', (projectId: string) => agentCardMetadataEnabled(db, projectId));
+  bind('setAgentCardMetadataEnabled', (input: Parameters<StudioAPI['setAgentCardMetadataEnabled']>[0]) => {
+    const enabled = setAgentCardMetadataEnabled(db, input);
+    if (!enabled) agentCardMetadataBridge?.revokeProject(input.projectId);
+    return enabled;
+  });
+  bind('agentCardMetadataAudit', (projectId: string) => agentCardMetadataAudit(db, projectId));
   bind('cardSplitLinks', (cardId: string) => cardSplitLinks(db, cardId));
   bind('previewCardSplit', (input: Parameters<StudioAPI['previewCardSplit']>[0]) => previewCardSplit(db, input));
   bind('createCardSplit', (input: Parameters<StudioAPI['createCardSplit']>[0]) => createCardSplit(db, input));
@@ -3067,10 +3077,16 @@ function createWindow(): void {
   window.on('closed', () => { designInspector?.dispose(); designInspector = null; browser?.dispose(); browser = null; window = null; });
 }
 
-if (ownsSharedProfile) app.whenReady().then(() => {
+if (ownsSharedProfile) app.whenReady().then(async () => {
   const directory = app.getPath('userData');
   mkdirSync(directory, { recursive: true });
   store = new StudioStore(join(directory, 'studio.sqlite'));
+  agentCardMetadataBridge = new AgentCardMetadataBridge(store, (sessionId, cardId) => {
+    if (window && !window.isDestroyed()) window.webContents.send('studio:session-event', {
+      sessionId, cardId, type: 'state', data: 'Card metadata updated', state: 'running',
+    } satisfies SessionEvent);
+  });
+  await agentCardMetadataBridge.start();
   installIpc();
   createWindow();
   app.on('activate', () => { if (!window) createWindow(); });
@@ -3094,6 +3110,8 @@ app.on('before-quit', () => {
   designInspector = null;
   runner?.dispose();
   runner = null;
+  agentCardMetadataBridge?.close();
+  agentCardMetadataBridge = null;
   commandRunner?.dispose();
   commandRunner = null;
   store?.close();

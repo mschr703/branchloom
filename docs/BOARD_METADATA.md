@@ -10,4 +10,6 @@ Die Metadaten liegen in der lokalen SQLite-Datenbank im App-Datenordner. Bestehe
 
 Für mehrere aktive Karten kann die Priorität über die [Board-Sammelaktion](BULK_BOARD.md) nach Vorschau und Bestätigung zusammen geändert werden. Auch diese Änderung sortiert die To-Do-Warteschlange nicht neu und startet keinen Agenten.
 
+Im Agentenbereich kann ein Projekt ausdrücklich erlauben, dass seine laufenden Kartenagenten Priorität und Labels über einen begrenzten lokalen Werkzeugaufruf ändern. Die Einstellung ist standardmäßig aus. Herkunft und Werte stehen im Agenten-Änderungsverlauf; der Ablauf und seine Grenzen sind in [Agent card metadata](AGENT_CARD_METADATA.md) beschrieben.
+
 Gezielte synthetische Prüfung: `npx vitest run tests/main/card-metadata.test.ts tests/renderer/board-filters.test.tsx tests/renderer/memory-board.test.tsx`.

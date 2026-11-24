@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Bot, Check, CircleHelp, Plus, Radar, RefreshCw, Terminal } from 'lucide-react';
 import type { AgentCapability, AgentCapabilityEvidence, AgentDetection, AgentPreset, ProjectSnapshot } from '../../shared/types';
+import type { AgentCardMetadataAudit } from '../../shared/agent-card-metadata';
+import { CARD_PRIORITIES } from '../../shared/card-metadata';
 import type { Mutate } from './shared';
 
 interface Props { snapshot: ProjectSnapshot; mutate: Mutate }
@@ -52,6 +54,35 @@ export function AgentView({ snapshot, mutate }: Props) {
   const [evidenceError, setEvidenceError] = useState('');
   const [selectedAgentId, setSelectedAgentId] = useState(snapshot.agents[0]?.id ?? '');
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [metadataEnabled, setMetadataEnabled] = useState<boolean | null>(null);
+  const [metadataAudit, setMetadataAudit] = useState<AgentCardMetadataAudit[]>([]);
+  const [metadataError, setMetadataError] = useState('');
+  const [metadataPending, setMetadataPending] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setMetadataEnabled(null);
+    Promise.all([window.studio.agentCardMetadataEnabled(snapshot.project.id), window.studio.agentCardMetadataAudit(snapshot.project.id)])
+      .then(([enabled, audit]) => { if (active) { setMetadataEnabled(enabled); setMetadataAudit(audit); setMetadataError(''); } })
+      .catch((reason: unknown) => { if (active) setMetadataError(reason instanceof Error ? reason.message : String(reason)); });
+    return () => { active = false; };
+  }, [snapshot.project.id]);
+  useEffect(() => {
+    let active = true;
+    window.studio.agentCardMetadataAudit(snapshot.project.id)
+      .then((audit) => { if (active) setMetadataAudit(audit); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [snapshot.project.id, snapshot.cards]);
+
+  async function setMetadataPermission(enabled: boolean) {
+    setMetadataPending(true); setMetadataError('');
+    try {
+      const saved = await mutate(() => window.studio.setAgentCardMetadataEnabled({ projectId: snapshot.project.id, enabled }));
+      if (saved !== null) setMetadataEnabled(saved);
+    } catch (reason) { setMetadataError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setMetadataPending(false); }
+  }
 
   async function refreshEvidence() {
     try { setEvidence(await window.studio.agentCapabilityEvidence()); setEvidenceError(''); }
@@ -96,6 +127,11 @@ export function AgentView({ snapshot, mutate }: Props) {
         {snapshot.agents.length ? <div className="preset-list">{snapshot.agents.map((agent) => { const check = detections.find((item) => item.profileId === agent.id); return <button className="preset-item" type="button" key={agent.id} onClick={() => edit(agent)}><span className="preset-avatar"><Bot size={19} /></span><span><strong>{agent.name}</strong><small>{agent.kind} · {agent.command}{agent.model ? ` · ${agent.model}` : ''}</small>{check ? <small className="agent-diagnostic-hint">{diagnosticHint(check)}</small> : null}</span>{check ? <DiagnosticStatus item={check} /> : null}<span className={agent.enabled ? 'available-badge' : 'unavailable-badge'}>{agent.enabled ? 'Aktiv' : 'Inaktiv'}</span></button>; })}</div> : <div className="agent-empty"><CircleHelp size={22} /><p>Noch kein Agent gespeichert. Nutze einen erkannten CLI-Eintrag oder lege einen eigenen an.</p></div>}
       </section>
     </div>
+    <section className="agent-metadata-policy" aria-label="Agentenrechte für Kartenmetadaten">
+      <div className="agent-metadata-policy-head"><div><h3>Priorität und Labels durch Agenten</h3><p>Nur für dieses Projekt. Ein laufender Kartenagent erhält bei erlaubter Einstellung einen lokalen, auf seine Karte begrenzten Schreibweg. Änderungen bleiben mit Sitzung und Begründung nachvollziehbar.</p></div><label className="agent-metadata-toggle"><input type="checkbox" checked={metadataEnabled === true} disabled={metadataEnabled === null || metadataPending} onChange={(event) => void setMetadataPermission(event.target.checked)} /><span>Agenten dürfen ändern</span></label></div>
+      {metadataError ? <p className="inline-error" role="alert">{metadataError}</p> : null}
+      {metadataAudit.length > 0 ? <details className="agent-metadata-history"><summary>Agentenänderungen · {metadataAudit.length}</summary><ol>{metadataAudit.slice(0, 10).map((item) => <li key={item.id}><time dateTime={item.changedAt}>{new Date(item.changedAt).toLocaleString('de-DE')}</time><strong>{item.agentName}</strong><span>{snapshot.cards.find((card) => card.id === item.cardId)?.title ?? 'Karte'}</span><small>Priorität: {CARD_PRIORITIES.find((entry) => entry.value === item.beforePriority)?.label} → {CARD_PRIORITIES.find((entry) => entry.value === item.afterPriority)?.label}; Labels: {item.beforeLabels.join(', ') || 'keine'} → {item.afterLabels.join(', ') || 'keine'}</small><p>{item.reason}</p><small>Sitzung {item.sessionId}</small></li>)}</ol></details> : <p className="agent-metadata-empty">Noch keine Agentenänderungen an Priorität oder Labels.</p>}
+    </section>
     <section className="panel agent-capability-panel">
       <div className="panel-heading"><div><Radar size={18} /><h3>Fähigkeitsbelege</h3></div></div>
       <p className="panel-subtitle">Aus echten lokalen Kartensitzungen. Ein PTY-Start oder gesendete Eingabe beweist keine Anmeldung, Modellantwort oder erfolgreiche Gesprächsfortsetzung. Alte Läufe ohne Aufzeichnung bleiben offen.</p>

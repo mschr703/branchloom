@@ -255,6 +255,21 @@
 :root[data-theme] .detected-item strong,
 :root[data-theme] .preset-item strong { font-size: 13px; }
 :root[data-theme] .agent-capability-panel { margin-top: 16px; }
+:root[data-theme] .agent-metadata-policy { margin-top: 20px; padding: 18px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+:root[data-theme] .agent-metadata-policy-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
+:root[data-theme] .agent-metadata-policy h3 { margin: 0; color: var(--text); font-size: 16px; }
+:root[data-theme] .agent-metadata-policy-head p { max-width: 70ch; margin: 7px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+:root[data-theme] .agent-metadata-toggle { display: inline-flex; flex: none; align-items: center; gap: 8px; color: var(--text); font-size: 13px; cursor: pointer; }
+:root[data-theme] .agent-metadata-toggle input { accent-color: var(--accent); }
+:root[data-theme] .agent-metadata-history { margin-top: 14px; color: var(--text); }
+:root[data-theme] .agent-metadata-history summary { cursor: pointer; font-size: 13px; }
+:root[data-theme] .agent-metadata-history ol { list-style: none; margin: 12px 0 0; padding: 0; }
+:root[data-theme] .agent-metadata-history li { display: flex; flex-wrap: wrap; gap: 5px 12px; border-top: 1px solid var(--border); padding: 9px 0; font-size: 12px; }
+:root[data-theme] .agent-metadata-history li time,
+:root[data-theme] .agent-metadata-history li small { color: var(--muted); }
+:root[data-theme] .agent-metadata-history li p { flex-basis: 100%; margin: 0; }
+:root[data-theme] .agent-metadata-empty { margin: 12px 0 0; color: var(--muted); font-size: 12px; }
+@media (max-width: 700px) { :root[data-theme] .agent-metadata-policy-head { flex-direction: column; gap: 12px; } }
 :root[data-theme] .agent-capability-panel .panel-subtitle { margin-bottom: 12px; max-width: 75ch; }
 :root[data-theme] .agent-capability-select { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
 :root[data-theme] .agent-capability-select select { max-width: 260px; min-height: 36px; }

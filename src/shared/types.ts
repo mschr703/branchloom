@@ -98,6 +98,9 @@ export interface WorktreeReview { cardId: string; path: string; branch: string; 
 export interface PrDraftPreview { cardId: string; sourceHead: string; targetHead: string; text: string; reportCount: number }
 
 export interface StudioAPI {
+  agentCardMetadataEnabled(projectId: string): Promise<boolean>;
+  setAgentCardMetadataEnabled(input: { projectId: string; enabled: boolean }): Promise<boolean>;
+  agentCardMetadataAudit(projectId: string): Promise<import('./agent-card-metadata').AgentCardMetadataAudit[]>;
   projects(): Promise<Project[]>;
   componentCatalog(projectId: string): Promise<ComponentCatalog>;
   createProject(input: { name: string; path: string }): Promise<Project>;
