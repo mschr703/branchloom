@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ensureCardWorktree, mergeCardWorktree, reviewCardWorktree } from '../../src/main/git-worktree';
-import { approveIntegration, enqueueIntegration, integrationQueue, prepareIntegration } from '../../src/main/integration-queue';
+import { approveIntegration, enqueueIntegration, installIntegrationQueue, integrationQueue, prepareIntegration } from '../../src/main/integration-queue';
 import { StudioStore } from '../../src/main/store';
 import { createCardCriterion } from '../../src/main/card-acceptance';
 
@@ -44,6 +44,22 @@ function fixture() {
 }
 
 describe('persistent integration queue', () => {
+  it('migrates an existing integration table before reserving an owner', () => {
+    const { store } = fixture();
+    try {
+      store.db.exec(`DROP TABLE integration_items;
+        CREATE TABLE integration_items (
+          id INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL, card_id TEXT NOT NULL UNIQUE,
+          repository_key TEXT NOT NULL, target_branch TEXT NOT NULL, source_head TEXT NOT NULL,
+          target_head TEXT NOT NULL, card_fingerprint TEXT NOT NULL, preview_token TEXT,
+          state TEXT NOT NULL, reason TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+          integrated_head TEXT);`);
+      installIntegrationQueue(store);
+      const columns = store.db.prepare('PRAGMA table_info(integration_items)').all() as Array<{ name: string }>;
+      expect(columns.some((column) => column.name === 'owner_pid')).toBe(true);
+    } finally { store.close(); }
+  });
+
   it('serializes two finished cards against the same target and blocks the stale second base', () => {
     const { store, project, card, finish, repo } = fixture();
     try {
@@ -138,5 +154,40 @@ describe('persistent integration queue', () => {
       expect(() => second.db.prepare("UPDATE integration_items SET state = 'integrating' WHERE card_id = ?").run(b.id)).toThrow();
       expect(integrationQueue(second, second.card(a.id).projectId)[0]!.state).toBe('blocked');
     } finally { second.close(); store.close(); }
+  });
+
+  it('does not release a live process lock when another app connection reads the queue', () => {
+    const { store, dbPath, card, finish } = fixture();
+    const first = card('First'); const secondCard = card('Second');
+    finish(first.id, 'first.txt'); finish(secondCard.id, 'second.txt');
+    enqueueIntegration(store, first.id); enqueueIntegration(store, secondCard.id);
+    prepareIntegration(store, first.id); prepareIntegration(store, secondCard.id);
+    store.db.prepare("UPDATE integration_items SET state = 'integrating', owner_pid = ? WHERE card_id = ?")
+      .run(process.pid, first.id);
+    const other = new StudioStore(dbPath);
+    try {
+      expect(integrationQueue(other, other.card(first.id).projectId)[0]!.state).toBe('integrating');
+      expect(() => approveIntegration(other, { cardId: secondCard.id, confirm: true })).toThrow('earlier card');
+      expect(other.db.prepare('SELECT owner_pid FROM integration_items WHERE card_id = ?').get(first.id))
+        .toMatchObject({ owner_pid: process.pid });
+    } finally { other.close(); store.close(); }
+  });
+
+  it('recovers a completed merge from the saved target branch after the card worktree is missing', () => {
+    const { store, dbPath, card, finish, repo } = fixture();
+    const task = card('Completed'); const source = finish(task.id, 'feature.txt');
+    enqueueIntegration(store, task.id); prepareIntegration(store, task.id);
+    const preview = reviewCardWorktree(store, task.id)!;
+    store.db.prepare("UPDATE integration_items SET state = 'integrating' WHERE card_id = ?").run(task.id);
+    mergeCardWorktree(store, { cardId: task.id, previewToken: preview.previewToken, confirm: true });
+    git(repo, ['switch', '-q', '-c', 'another-branch']);
+    rmSync(source.worktree.path, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    store.close();
+    const reopened = new StudioStore(dbPath);
+    try {
+      expect(integrationQueue(reopened, reopened.card(task.id).projectId)[0]).toMatchObject({
+        state: 'integrated', integratedHead: source.head,
+      });
+    } finally { reopened.close(); }
   });
 });
