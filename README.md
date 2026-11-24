@@ -2,6 +2,8 @@
 
 Branchloom ist eine lokale Windows-App für Ideen, Projekte, Kanban-Boards, CLI-Agenten, Worktrees, Workflows, Browser und verknüpfte Notizen. Das Ziel reicht von der ersten Idee bis zu Design, Review und QA; die [Produktvision](docs/PRODUCT_VISION.md) trennt Wünsche vom tatsächlich Erreichten. [Die Paritätsliste](docs/PARITY.md) zeigt offene Funktionen. Der persönliche Jarvis-Assistent und seine Module sind separate Projekte.
 
+Der aktuelle Quellcode steht unter [PolyForm Noncommercial 1.0.0](LICENSE): private Nutzung, nichtkommerzielle Forks, Änderungen und Weitergabe sind nach den Lizenzbedingungen erlaubt. Für geschäftliche Nutzung ist eine separate schriftliche Lizenz erforderlich; [Lizenzhinweise](docs/COMMERCIAL_LICENSING.md). Frühere unter MIT veröffentlichte Stände behalten ihre MIT-Rechte. Branchloom ist damit öffentlich einsehbarer Quellcode, aber keine OSI-Open-Source-Software.
+
 ## Starten
 
 Wenn du Branchloom nur benutzen möchtest, öffne die [Windows-CI-Läufe](https://github.com/mschr703/branchloom/actions/workflows/ci.yml), wähle einen **grünen Lauf auf `main`** und lade unter **Artifacts** `branchloom-windows-portable` herunter. Entpacke zuerst das GitHub-Artefakt und dann das darin liegende ZIP. Im zweiten entpackten Ordner startest du `Branchloom.exe`. Dafür sind Node.js und Visual-Studio-Build-Tools nicht nötig; das Paket ist derzeit unsigniert. [Details zum Paket](docs/RELEASE.md).
@@ -92,4 +94,4 @@ Auf dem Board zeigt die [UI-Abdeckung](docs/QA_COVERAGE.md) nur ausdrücklich au
 
 ## Stand und Grenzen
 
-[STATUS.md](docs/STATUS.md) nennt den tatsächlich geprüften Stand. Die App ist eine frühe Entwicklungsfassung. Weitere Importquellen, Konflikt-Merge und Worktree-Aufräumen, zusätzliche CLI-Adapter, Live-Diktat, kontrollierte Browsersteuerung durch Agenten, Remote-Mobilzugriff und automatische Knowledge-Graph-Indizierung stehen noch auf der [Paritätsliste](docs/PARITY.md). [Produktvision](docs/PRODUCT_VISION.md), [Open-Source-Referenzen](docs/OPEN_SOURCE_REFERENCES.md) und [technische Orientierung](docs/HANDOVER.md) beschreiben Ziel und Einstieg. Der persönliche Jarvis-Assistent und seine privaten Module sind separate Projekte.
+[STATUS.md](docs/STATUS.md) nennt den tatsächlich geprüften Stand. Die App ist eine frühe Entwicklungsfassung. Weitere Importquellen, Konflikt-Merge und Worktree-Aufräumen, zusätzliche CLI-Adapter, Live-Diktat, kontrollierte Browsersteuerung durch Agenten, Remote-Mobilzugriff und automatisch berechnete Beziehungen im Knowledge-Graph stehen noch auf der [Paritätsliste](docs/PARITY.md). [Produktvision](docs/PRODUCT_VISION.md), [Open-Source-Referenzen](docs/OPEN_SOURCE_REFERENCES.md) und [technische Orientierung](docs/HANDOVER.md) beschreiben Ziel und Einstieg. Der persönliche Jarvis-Assistent und seine privaten Module sind separate Projekte.
