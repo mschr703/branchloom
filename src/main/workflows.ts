@@ -3,6 +3,7 @@ import { DONE_MARKER, SessionRunner } from './cli';
 import { StudioStore } from './store';
 import { wireframeStartBlockReason } from './card-wireframe-gate';
 import { cardRunGate } from './parallel-runs';
+import { assertProjectCanStart, projectPauseRequested } from './project-pause';
 
 /** Last-line gate: the marker in the initial instruction or an earlier echo is not completion. */
 export function hasCompletionMarker(output: string): boolean {
@@ -30,6 +31,7 @@ export class WorkflowEngine {
     if (old.state === 'done') throw new Error('Completed workflows cannot be restarted');
     if (old.state === 'draft' && input.state === 'paused') throw new Error('Ein ungestarteter Workflow kann nicht pausiert werden.');
     if (input.state === 'running') {
+      assertProjectCanStart(this.store, old.projectId);
       if (!this.deviceOnline()) throw new Error('Gerät meldet offline. Automatische Workflow-Schritte erst nach erneuter Prüfung bewusst fortsetzen.');
       if (old.state === 'paused' && this.store.workflowProgress(old.id, old.currentStep).some((row) => row.state === 'running' && row.sessionId && this.store.session(row.sessionId).state === 'running')) {
         throw new Error('Der bisherige Agentenprozess läuft noch. Warte auf sein Ende oder stoppe ihn bewusst, bevor du den Workflow fortsetzt.');
@@ -97,6 +99,10 @@ export class WorkflowEngine {
       for (let pass = 0; pass < 100; pass += 1) {
         const workflow = this.store.workflow(id);
         if (workflow.state !== 'running') return;
+        if (projectPauseRequested(this.store, workflow.projectId)) {
+          this.store.setWorkflowState(id, 'paused');
+          return;
+        }
         if (!this.deviceOnline()) { this.store.setWorkflowState(id, 'paused'); return; }
         const step = workflow.steps[workflow.currentStep];
         if (!step) { this.store.setWorkflowState(id, 'done'); return; }

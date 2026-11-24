@@ -1,6 +1,7 @@
 .topbar { position: relative; }
 .topbar:has(.topbar-search-slot.is-open) .topbar-meta,
 .topbar:has(.topbar-search-slot.is-open) .topbar-actions > .icon-button { visibility: hidden; }
+.topbar:has(.topbar-search-slot.is-open) .project-pause-button { visibility: hidden; }
 .topbar-search-slot {
   --search-open-left: clamp(190px, 24%, 300px);
   position: relative;

@@ -6,6 +6,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import type { IntegrationEvidence, IntegrationTestEvidence, IntegrationTestState } from '../shared/integration-evidence';
 import { cardFingerprint, currentPreparedIntegration } from './integration-queue';
 import type { StudioStore } from './store';
+import { assertProjectCanStart } from './project-pause';
 
 const MAX_OUTPUT = 8_000;
 const TEST_TIMEOUT_MS = 180_000;
@@ -41,6 +42,9 @@ export function installIntegrationEvidence(store: StudioStore): void {
     card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
     source_head TEXT NOT NULL, target_head TEXT NOT NULL, card_fingerprint TEXT NOT NULL, reviewed_at TEXT NOT NULL
   );`);
+  const running = store.db.prepare("SELECT DISTINCT item_id FROM integration_test_runs WHERE state = 'running'")
+    .all() as Array<{ item_id: number }>;
+  for (const row of running) reconcileRunning(store, row.item_id);
 }
 
 function alive(pid: number | null): boolean {
@@ -189,6 +193,7 @@ function cleanTemporaryRoot(root: string): void {
 /** Run a selected npm script in a detached checkout of the prepared source commit. */
 export async function runIntegrationTest(store: StudioStore, cardId: string, timeoutMs = TEST_TIMEOUT_MS): Promise<IntegrationTestEvidence> {
   const prepared = currentPreparedIntegration(store, cardId);
+  assertProjectCanStart(store, prepared.item.projectId);
   const scriptName = configuredScript(store, prepared.item.projectId);
   if (!scriptName) throw new Error('Configure an npm test script for this project first.');
   const root = mkdtempSync(join(tmpdir(), 'branchloom-integration-test-'));
@@ -207,6 +212,7 @@ export async function runIntegrationTest(store: StudioStore, cardId: string, tim
       symlinkSync(dependencyDir, dependencyLink, process.platform === 'win32' ? 'junction' : 'dir');
     const scriptHash = sha(scriptBody);
     const inserted = store.db.transaction(() => {
+      assertProjectCanStart(store, prepared.item.projectId);
       const fresh = currentPreparedIntegration(store, cardId);
       if (fresh.item.sourceHead !== prepared.item.sourceHead || fresh.item.targetHead !== prepared.item.targetHead
         || fresh.item.cardFingerprint !== prepared.item.cardFingerprint || configuredScript(store, fresh.item.projectId) !== scriptName)

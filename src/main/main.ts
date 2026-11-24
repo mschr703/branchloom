@@ -49,6 +49,7 @@ import { parseProjectPackage, PROJECT_PACKAGE_LIMIT } from './project-package';
 import { ProjectQueueEngine } from './queue';
 import { SessionRecoveryMonitor } from './session-recovery';
 import { approveCardDependency, cardRunGate, setCardRunDependencies, setProjectRunCapacity } from './parallel-runs';
+import { setProjectRunPause } from './project-pause';
 import { WorkflowEngine } from './workflows';
 import { workflowRunEvidence } from './workflow-evidence';
 import { linkSessionQa, sessionRunEvidence, unlinkSessionQa } from './session-evidence';
@@ -391,6 +392,11 @@ function installIpc(): void {
   });
   bind('workflowRunEvidence', (input: Parameters<StudioAPI['workflowRunEvidence']>[0]) => workflowRunEvidence(db, input));
   bind('setProjectQueue', (input: { projectId: string; state: QueueState; templateWorkflowId?: string }) => queueEngine.setState(input));
+  bind('setProjectRunPause', (input: Parameters<StudioAPI['setProjectRunPause']>[0]) => {
+    const state = setProjectRunPause(db, input);
+    if (input.paused) queueEngine.cancelProjectRetry(input.projectId);
+    return state;
+  });
   bind('queueCandidates', (projectId: string) => db.queueCandidates(projectId, 5));
   bind('skipQueuedCard', (input: Parameters<StudioAPI['skipQueuedCard']>[0]) => db.skipQueuedCard(input));
   bind('workflowAgentSettings', () => db.workflowAgentSettings());
@@ -721,6 +727,15 @@ function createWindow(): void {
               name: 'Smoke-Agent', kind: 'custom', command: ${JSON.stringify(join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'cmd.exe'))},
               args: ['/C', 'echo JARVIS_STUDIO_AGENT_OK && echo Error: BRANCHLOOM_OUTPUT_TEST'], model: null, enabled: true,
             });
+            const paused = await window.studio.setProjectRunPause({ projectId: project.id, paused: true });
+            if (paused.state !== 'paused' || (await window.studio.snapshot(project.id)).runPause.state !== 'paused')
+              throw new Error('Projektweite sichere Pause wurde nicht gespeichert.');
+            let pauseBlocked = false;
+            try { await window.studio.startSession({ cardId: card.id, agentId: agent.id, prompt: '' }); }
+            catch (error) { pauseBlocked = String(error).includes('sicher angehalten'); }
+            if (!pauseBlocked || (await window.studio.snapshot(project.id)).sessions.length !== 0)
+              throw new Error('Projektpause hat einen echten Karten-Agentenstart nicht gesperrt.');
+            await window.studio.setProjectRunPause({ projectId: project.id, paused: false });
             const syntheticToken = 'sk-' + 's'.repeat(24);
             const sessionsBeforeGuard = (await window.studio.snapshot(project.id)).sessions.length;
             let guardMessage = '';
@@ -827,6 +842,19 @@ function createWindow(): void {
               const evidenceSessionId = ${JSON.stringify(evidenceSession.id)};
               const baselineSessions = (await window.studio.snapshot(boardProject.id)).sessions;
               if (!baselineSessions.some((item) => item.id === evidenceSessionId)) throw new Error('Synthetische Workflow-Sitzung fehlt nach Reload.');
+              const pauseControl = document.querySelector('.project-pause-button');
+              if (!pauseControl || pauseControl.disabled || pauseControl.getAttribute('aria-label') !== 'Sicher anhalten')
+                throw new Error('Projektweite sichere Pause ist nicht als bedienbarer Schalter sichtbar.');
+              pauseControl.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.project-pause-status'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if ((await window.studio.snapshot(boardProject.id)).runPause.state !== 'paused' || document.querySelector('.project-pause-status')?.textContent?.includes('Projekt angehalten') !== true)
+                throw new Error('Projektpause wurde im Renderer nicht als angehalten angezeigt.');
+              const resumeControl = document.querySelector('.project-pause-button');
+              if (resumeControl?.getAttribute('aria-label') !== 'Projekt fortsetzen') throw new Error('Bewusstes Fortsetzen ist nicht sichtbar.');
+              resumeControl.click();
+              for (let attempt = 0; attempt < 100 && document.querySelector('.project-pause-status'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if ((await window.studio.snapshot(boardProject.id)).runPause.state !== 'active' || document.querySelector('.project-pause-status'))
+                throw new Error('Projektpause wurde nach bewusstem Fortsetzen nicht aufgehoben.');
               const baselineSessionIds = baselineSessions.map((item) => item.id).sort();
               const sessionsUnchanged = async () => JSON.stringify((await window.studio.snapshot(boardProject.id)).sessions.map((item) => item.id).sort()) === JSON.stringify(baselineSessionIds);
               const storedColumns = (await window.studio.snapshot(boardProject.id)).columns.map((item) => item.name);

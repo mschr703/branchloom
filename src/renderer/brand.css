@@ -53,6 +53,57 @@
 :root[data-theme] .sidebar { background: var(--sidebar); border-color: var(--border); }
 :root[data-theme] .topbar,
 :root[data-theme] .mobile-workspace { background: var(--surface); border-color: var(--border); }
+.project-pause-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  min-height: 32px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.project-pause-button:hover:not(:disabled) { background: var(--surface-2); }
+.project-pause-button:disabled { cursor: default; color: var(--muted); }
+.project-pause-button:focus-visible,
+.project-pause-status button:focus-visible,
+.project-pause-status summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.project-pause-status {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 30px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  background: var(--surface-2);
+  font-size: 12px;
+}
+.project-pause-status strong { color: var(--text); font-weight: 650; }
+.project-pause-status details { position: relative; }
+.project-pause-status summary { cursor: pointer; }
+.project-pause-status ul {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 7px);
+  left: 0;
+  width: min(360px, 75vw);
+  max-height: 260px;
+  overflow: auto;
+  margin: 0;
+  padding: 5px;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  box-shadow: 0 8px 20px #0002;
+}
+.project-pause-status li button { width: 100%; padding: 7px; border: 0; background: none; color: var(--text); text-align: left; cursor: pointer; }
+.project-pause-status li button:hover { background: var(--surface-2); }
 :root[data-theme] .brand-mark,
 :root[data-theme] .intro-icon,
 :root[data-theme] .topbar-icon {
@@ -565,6 +616,9 @@
   .topbar-title h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .topbar-icon { flex: none; }
   .topbar-actions { flex: none; gap: 8px; }
+  .project-pause-button { min-width: 32px; padding: 6px; justify-content: center; }
+  .project-pause-button span { display: none; }
+  .project-pause-status { padding-inline: 12px; }
   .board-header-actions { flex-wrap: wrap; }
   .board-header-actions .secondary-button { width: auto; flex: 1 1 100%; }
   .board-page .view-header { flex-direction: column; align-items: stretch; gap: 12px; }

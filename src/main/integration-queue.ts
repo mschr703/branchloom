@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import type { IntegrationItem, IntegrationState } from '../shared/integration-queue';
+import { assertProjectCanStart } from './project-pause';
 import { mergeCardWorktree, reviewCardWorktree, worktreeRepositoryKey } from './git-worktree';
 import type { StudioStore } from './store';
 
@@ -186,6 +187,7 @@ function requireBoundEvidence(store: StudioStore, row: Row): void {
 export function approveIntegration(store: StudioStore, input: { cardId: string; confirm: boolean }): IntegrationItem {
   if (input.confirm !== true) throw new Error('Explicit integration approval is required.');
   const row = rowForCard(store, input.cardId);
+  if (row) assertProjectCanStart(store, row.project_id);
   if (!row || row.state !== 'ready' || !row.preview_token) throw new Error('Prepare this integration again before approval.');
   const previewToken = row.preview_token;
   const precedingPending = store.db.prepare(`SELECT card_id FROM integration_items WHERE repository_key = ? AND target_branch = ?
@@ -203,6 +205,7 @@ export function approveIntegration(store: StudioStore, input: { cardId: string; 
     throw new Error('Card run or browser QA changed since preparation. Prepare again.');
   requireBoundEvidence(store, row);
   store.db.transaction(() => {
+    assertProjectCanStart(store, row.project_id);
     const current = rowForCard(store, input.cardId);
     if (!current || current.state !== 'ready') throw new Error('Integration state changed.');
     const earlier = store.db.prepare(`SELECT id FROM integration_items WHERE repository_key = ? AND target_branch = ?

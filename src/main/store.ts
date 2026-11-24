@@ -15,6 +15,7 @@ import { installSessionRecovery } from './session-recovery';
 import { installActiveCardIndex, installParallelRuns } from './parallel-runs';
 import { installIntegrationQueue } from './integration-queue';
 import { installIntegrationEvidence } from './integration-evidence';
+import { installProjectRunPause, projectRunPause } from './project-pause';
 import { clearAgentCapabilityEvidence, installAgentCapabilities, listAgentCapabilityEvidence, recordAgentCapability } from './agent-capabilities';
 import { installSessionEvidence } from './session-evidence';
 import { parseProjectPackage, type ProjectPackage } from './project-package';
@@ -175,6 +176,7 @@ export class StudioStore {
     installAgentBrowserPolicy(this.db);
     installDevEnvironments(this);
     installParallelRuns(this.db);
+    installProjectRunPause(this.db);
     const count = this.db.prepare('SELECT COUNT(*) AS count FROM agents').get() as { count: number };
     if (count.count === 0) {
       for (const preset of [
@@ -327,6 +329,7 @@ export class StudioStore {
       workflows: (this.db.prepare('SELECT * FROM workflows WHERE project_id = ? ORDER BY created_at DESC').all(projectId) as WorkflowRow[]).map((row) => this.hydrateWorkflow(row)),
       notes: (this.db.prepare('SELECT * FROM notes WHERE project_id = ? ORDER BY updated_at DESC').all(projectId) as NoteRow[]).map(note),
       queue: this.projectQueue(projectId),
+      runPause: projectRunPause(this, projectId),
     };
   }
 

@@ -64,6 +64,8 @@ export interface SessionSearchHit { sessionId: string; cardId: string; cardTitle
 export interface WorkflowStep { id: string; columnId: string; agentId: string | null; requireApproval: boolean; model?: string | null; effort?: ColumnEffort | null; useWorktree?: boolean; parallel?: boolean }
 export interface Workflow { id: string; projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[]; state: WorkflowState; currentStep: number; pauseReason?: 'approval' | 'manual' | 'review' | 'wireframe' | 'user'; startError?: { message: string; at: string }; queueSkip?: { reason: string; at: string }; createdAt: string; updatedAt: string }
 export interface ProjectQueue { projectId: string; state: QueueState; templateWorkflowId: string | null; activeWorkflowId: string | null; pauseReason: string | null; completedCount: number; updatedAt: string | null }
+export interface ProjectRunPauseActivity { kind: 'agent' | 'integration-test' | 'integration'; id: string; cardId: string; title: string; startedAt: string }
+export interface ProjectRunPause { projectId: string; state: 'active' | 'requested' | 'paused'; requestedAt: string | null; running: ProjectRunPauseActivity[] }
 export interface WorkflowAgentSettings { agentId: string | null; model: string | null; effort: 'low' | 'medium' | 'high' | null }
 export interface WorkflowProposal { title: string; explanation: string; cards: Array<{ title: string; description: string }>; columnIds: string[] }
 export interface MemoryNote { id: string; projectId: string; title: string; body: string; tags: string[]; links: string[]; createdAt: string; updatedAt: string }
@@ -73,7 +75,7 @@ export interface MemoryVaultImportPreview { token: string; directoryName: string
 export interface MemoryVaultImportResult { count: number }
 export interface ProjectPackagePreview { fingerprint: string; name: string; columns: number; cards: number; notes: number; workflows: number }
 export interface ProjectPackageExportResult { file: string; columns: number; cards: number; notes: number; workflows: number }
-export interface ProjectSnapshot { project: Project; columns: Column[]; cards: Card[]; agents: AgentPreset[]; sessions: Session[]; interruptedSessions?: InterruptedSessionReview[]; workflows: Workflow[]; notes: MemoryNote[]; queue: ProjectQueue }
+export interface ProjectSnapshot { project: Project; columns: Column[]; cards: Card[]; agents: AgentPreset[]; sessions: Session[]; interruptedSessions?: InterruptedSessionReview[]; workflows: Workflow[]; notes: MemoryNote[]; queue: ProjectQueue; runPause: ProjectRunPause }
 export interface SessionEvent { sessionId: string; cardId: string; type: 'output' | 'state'; data: string; state?: SessionState }
 export interface BrowserBounds { x: number; y: number; width: number; height: number }
 export interface BrowserTabState { id: string; url: string; title: string; loading: boolean; canGoBack: boolean; canGoForward: boolean; error: string | null }
@@ -246,6 +248,7 @@ export interface StudioAPI {
   setWorkflowState(input: { id: string; state: 'running' | 'paused' }): Promise<Workflow>;
   workflowRunEvidence(input: { projectId: string; workflowId: string }): Promise<import('./workflow-evidence').WorkflowRunEvidence>;
   setProjectQueue(input: { projectId: string; state: QueueState; templateWorkflowId?: string }): Promise<ProjectQueue>;
+  setProjectRunPause(input: { projectId: string; paused: boolean }): Promise<ProjectRunPause>;
   queueCandidates(projectId: string): Promise<Card[]>;
   skipQueuedCard(input: { projectId: string; workflowId: string; reason: string }): Promise<ProjectQueue>;
   workflowAgentSettings(): Promise<WorkflowAgentSettings>;

@@ -3,6 +3,7 @@ import { StudioStore } from './store';
 import { WorkflowEngine } from './workflows';
 import { detectQueueFailureLoop } from './loop-guard';
 import { AgentSpawnError } from './cli';
+import { assertProjectCanStart, projectPauseRequested } from './project-pause';
 
 const RETRY_DELAYS_MS = [5_000, 20_000] as const;
 
@@ -25,10 +26,13 @@ export class ProjectQueueEngine {
     this.retryTimers.clear();
   }
 
+  cancelProjectRetry(projectId: string): void { this.clearLaunchRetry(projectId); }
+
   setState(input: { projectId: string; state: QueueState; templateWorkflowId?: string }): ProjectQueue {
     const current = this.store.projectQueue(input.projectId);
     const templateWorkflowId = input.templateWorkflowId ?? current.templateWorkflowId;
     if (input.state === 'running') {
+      assertProjectCanStart(this.store, input.projectId);
       if (!this.deviceOnline()) throw new Error('Gerät meldet offline. Warteschlange nach Netzprüfung bewusst fortsetzen.');
       if (!templateWorkflowId) throw new Error('Zuerst eine Workflow-Route als Vorlage wählen.');
       this.store.queueCandidates(input.projectId, 1); // Validate To Do before persisting a running queue.
@@ -107,10 +111,18 @@ export class ProjectQueueEngine {
 
   private pump(projectId: string): void {
     if (this.pumping.has(projectId) || this.store.projectQueue(projectId).state !== 'running') return;
+    if (projectPauseRequested(this.store, projectId)) {
+      this.pause(projectId, 'Projektweite sichere Pause angefordert. Queue nach Prüfung bewusst fortsetzen.');
+      return;
+    }
     if (!this.deviceOnline()) { this.pauseForConnectionLoss(projectId); return; }
     this.pumping.add(projectId);
     try {
       for (let pass = 0; pass < 2; pass += 1) {
+        if (projectPauseRequested(this.store, projectId)) {
+          this.pause(projectId, 'Projektweite sichere Pause angefordert. Queue nach Prüfung bewusst fortsetzen.');
+          return;
+        }
         const queue = this.store.projectQueue(projectId);
         if (queue.state !== 'running' || !queue.templateWorkflowId) return;
         if (queue.activeWorkflowId) {

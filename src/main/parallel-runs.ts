@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3';
 import type { CardRunGate, ReserveCardSessionInput, RunDependency } from '../shared/parallel-runs';
 import type { Session } from '../shared/types';
 import type { StudioStore } from './store';
+import { projectPauseRequested } from './project-pause';
 
 const DEFAULT_CAPACITY = 2;
 
@@ -144,6 +145,7 @@ export function cardRunGate(store: StudioStore, cardId: string, proposedWorktree
   const capacity = projectRunCapacity(store, card.projectId);
   const depends = dependencies(store, cardId);
   const blockers: string[] = [];
+  if (projectPauseRequested(store, card.projectId)) blockers.push('Projekt ist sicher angehalten. Erst das Projekt bewusst fortsetzen.');
   if (card.archivedAt) blockers.push('Archivierte Karte zuerst wiederherstellen.');
   if (running.some((row) => row.card_id === cardId)) blockers.push('Auf dieser Karte läuft bereits ein Agent.');
   if (running.length >= capacity) blockers.push(`Projektkapazität erreicht: ${running.length} von ${capacity} Agenten laufen.`);
