@@ -14,6 +14,7 @@ import { installProjectMemoryIndex } from './project-memory-index';
 import { installSessionRecovery } from './session-recovery';
 import { installActiveCardIndex, installParallelRuns } from './parallel-runs';
 import { installIntegrationQueue } from './integration-queue';
+import { installIntegrationEvidence } from './integration-evidence';
 import { clearAgentCapabilityEvidence, installAgentCapabilities, listAgentCapabilityEvidence, recordAgentCapability } from './agent-capabilities';
 import { installSessionEvidence } from './session-evidence';
 import { parseProjectPackage, type ProjectPackage } from './project-package';
@@ -194,6 +195,7 @@ export class StudioStore {
     this.db.prepare('DELETE FROM queue_launch_retries').run();
     installActiveCardIndex(this.db);
     installIntegrationQueue(this);
+    installIntegrationEvidence(this);
   }
 
   close(): void { this.db.close(); }

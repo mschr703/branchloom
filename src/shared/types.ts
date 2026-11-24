@@ -288,6 +288,10 @@ export interface StudioAPI {
   enqueueIntegration(cardId: string): Promise<IntegrationItem>;
   prepareIntegration(cardId: string): Promise<IntegrationItem>;
   approveIntegration(input: { cardId: string; confirm: boolean }): Promise<IntegrationItem>;
+  integrationEvidence(cardId: string): Promise<import('./integration-evidence').IntegrationEvidence>;
+  setIntegrationTestScript(input: { projectId: string; scriptName: string }): Promise<string | null>;
+  attestIntegrationReview(input: { cardId: string; confirm: boolean }): Promise<import('./integration-evidence').IntegrationEvidence>;
+  runIntegrationTest(cardId: string): Promise<import('./integration-evidence').IntegrationTestEvidence>;
   saveNote(input: { projectId: string; id?: string; title: string; body: string; tags: string[]; links: string[] }): Promise<MemoryNote>;
   memoryGitCandidates(projectId: string): Promise<import('./memory-git-source').MemoryGitCommit[]>;
   memoryGitSource(input: { projectId: string; noteId: string }): Promise<import('./memory-git-source').MemoryGitSource | null>;

@@ -28,6 +28,7 @@ import { detectAgents, SessionRunner } from './cli';
 import { CommandTerminalRunner } from './command-terminal';
 import { ensureCardWorktree, previewCardWorktreeCleanup, reviewCardWorktree, verifiedCardWorktreePath } from './git-worktree';
 import { approveIntegration, enqueueIntegration, integrationQueue, prepareIntegration } from './integration-queue';
+import { attestIntegrationReview, integrationEvidence, runIntegrationTest, setIntegrationTestScript } from './integration-evidence';
 import { previewPrDraft } from './pr-draft';
 import { scanProjectComponents } from './component-catalog';
 import { checkoutMilestone, compareMilestone, createMilestone, createMilestoneWithPreview, listMilestones, milestonePreviewImage } from './milestones';
@@ -438,6 +439,10 @@ function installIpc(): void {
   bind('enqueueIntegration', (cardId: string) => enqueueIntegration(db, cardId));
   bind('prepareIntegration', (cardId: string) => prepareIntegration(db, cardId));
   bind('approveIntegration', (input: { cardId: string; confirm: boolean }) => approveIntegration(db, input));
+  bind('integrationEvidence', (cardId: string) => integrationEvidence(db, cardId));
+  bind('setIntegrationTestScript', (input: Parameters<StudioAPI['setIntegrationTestScript']>[0]) => setIntegrationTestScript(db, input));
+  bind('attestIntegrationReview', (input: Parameters<StudioAPI['attestIntegrationReview']>[0]) => attestIntegrationReview(db, input));
+  bind('runIntegrationTest', (cardId: string) => runIntegrationTest(db, cardId));
   bind('saveNote', (input: { projectId: string; id?: string; title: string; body: string; tags: string[]; links: string[] }) => db.saveNote(input));
   bind('memoryGitCandidates', (projectId: string) => memoryGitCandidates(db, projectId));
   bind('memoryGitSource', (input: Parameters<StudioAPI['memoryGitSource']>[0]) => memoryGitSource(db, input));

@@ -17,7 +17,7 @@ const item = (row: Row): IntegrationItem => ({ id: row.id, projectId: row.projec
   updatedAt: row.updated_at, integratedHead: row.integrated_head });
 const stamp = () => new Date().toISOString();
 const fingerprint = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
-function cardFingerprint(store: StudioStore, cardId: string): string {
+export function cardFingerprint(store: StudioStore, cardId: string): string {
   const revision = store.db.prepare('SELECT content_revision FROM cards WHERE id = ?').get(cardId) as { content_revision: number };
   return fingerprint([revision.content_revision, store.card(cardId)]);
 }
@@ -152,11 +152,42 @@ export function prepareIntegration(store: StudioStore, cardId: string): Integrat
   return item(rowForCard(store, cardId)!);
 }
 
+/** Immutable Git/card snapshot that a separate check or review may attest to. */
+export function currentPreparedIntegration(store: StudioStore, cardId: string): { item: IntegrationItem; worktreePath: string; repositoryKey: string; previewToken: string } {
+  const row = rowForCard(store, cardId);
+  if (!row || row.state !== 'ready' || !row.preview_token) throw new Error('Prepare this integration again before checking it.');
+  if (cardFingerprint(store, cardId) !== row.card_fingerprint) throw new Error('Card changed since preparation. Prepare again.');
+  const review = reviewCardWorktree(store, cardId);
+  if (!review || !review.canFastForward || review.previewToken !== row.preview_token || review.targetHead !== row.target_head
+    || review.sourceHead !== row.source_head || review.targetBranch !== row.target_branch || worktreeRepositoryKey(review.targetPath) !== row.repository_key)
+    throw new Error('Git base or source changed since preparation. Prepare and verify again.');
+  if (!latestSuccessfulRun(store, cardId, review.path) || qaFailure(store, cardId))
+    throw new Error('Card run or browser QA changed since preparation. Prepare again.');
+  return { item: item(row), worktreePath: review.path, repositoryKey: row.repository_key, previewToken: row.preview_token };
+}
+
+function requireBoundEvidence(store: StudioStore, row: Row): void {
+  const review = store.db.prepare('SELECT source_head, target_head, card_fingerprint FROM integration_reviews WHERE item_id = ?')
+    .get(row.id) as { source_head: string; target_head: string; card_fingerprint: string } | undefined;
+  if (!review || review.source_head !== row.source_head || review.target_head !== row.target_head
+    || review.card_fingerprint !== row.card_fingerprint) throw new Error('Review this exact prepared Git diff before integration.');
+  const test = store.db.prepare('SELECT state, source_head, target_head, card_fingerprint, script_name FROM integration_test_runs WHERE item_id = ? ORDER BY id DESC LIMIT 1')
+    .get(row.id) as { state: string; source_head: string; target_head: string; card_fingerprint: string; script_name: string } | undefined;
+  if (test?.state === 'running') throw new Error('An integration test is still running for this card.');
+  const config = store.db.prepare('SELECT script_name FROM integration_test_config WHERE project_id = ?')
+    .get(row.project_id) as { script_name: string } | undefined;
+  if (!config) return;
+  if (!test || test.state !== 'passed' || test.source_head !== row.source_head || test.target_head !== row.target_head
+    || test.card_fingerprint !== row.card_fingerprint || test.script_name !== config.script_name)
+    throw new Error('Run the configured test script successfully for this exact source and target before integration.');
+}
+
 /** Single target-branch slot, fresh checks, then existing reviewed ff-only path. Manual approval is required. */
 export function approveIntegration(store: StudioStore, input: { cardId: string; confirm: boolean }): IntegrationItem {
   if (input.confirm !== true) throw new Error('Explicit integration approval is required.');
   const row = rowForCard(store, input.cardId);
   if (!row || row.state !== 'ready' || !row.preview_token) throw new Error('Prepare this integration again before approval.');
+  const previewToken = row.preview_token;
   const precedingPending = store.db.prepare(`SELECT card_id FROM integration_items WHERE repository_key = ? AND target_branch = ?
     AND id < ? AND state = 'integrating'`).all(row.repository_key, row.target_branch, row.id) as Array<{ card_id: string }>;
   for (const pending of precedingPending) reconcileIntegration(store, pending.card_id);
@@ -170,6 +201,7 @@ export function approveIntegration(store: StudioStore, input: { cardId: string; 
     throw new Error('Git base or source changed since preparation. Prepare and verify again.');
   if (!latestSuccessfulRun(store, input.cardId, review.path) || qaFailure(store, input.cardId))
     throw new Error('Card run or browser QA changed since preparation. Prepare again.');
+  requireBoundEvidence(store, row);
   store.db.transaction(() => {
     const current = rowForCard(store, input.cardId);
     if (!current || current.state !== 'ready') throw new Error('Integration state changed.');
@@ -180,12 +212,25 @@ export function approveIntegration(store: StudioStore, input: { cardId: string; 
     if (cardFingerprint(store, input.cardId) !== row.card_fingerprint) throw new Error('Card changed since preparation. Prepare again.');
     if (!latestSuccessfulRun(store, input.cardId, review.path) || qaFailure(store, input.cardId))
       throw new Error('Card run or browser QA changed since preparation. Prepare again.');
+    requireBoundEvidence(store, current);
     store.db.prepare("UPDATE integration_items SET state = 'integrating', reason = NULL, updated_at = ?, integrated_head = NULL, owner_pid = ? WHERE id = ?")
       .run(stamp(), process.pid, row.id);
   }).immediate();
   try {
-    mergeCardWorktree(store, { cardId: input.cardId, previewToken: row.preview_token, confirm: true });
-    return update(store, row.id, 'integrated', null, row.source_head);
+    // The durable reservation above survives a crash. This second transaction
+    // holds the SQLite write lock across the last evidence check and Git write,
+    // so another app process cannot change the card or QA in between.
+    return store.db.transaction(() => {
+      const current = rowForCard(store, input.cardId);
+      if (!current || current.state !== 'integrating' || current.owner_pid !== process.pid)
+        throw new Error('Integration reservation changed.');
+      if (cardFingerprint(store, input.cardId) !== current.card_fingerprint
+        || !latestSuccessfulRun(store, input.cardId, review.path) || qaFailure(store, input.cardId))
+        throw new Error('Card run or browser QA changed during integration.');
+      requireBoundEvidence(store, current);
+      mergeCardWorktree(store, { cardId: input.cardId, previewToken, confirm: true });
+      return update(store, row.id, 'integrated', null, row.source_head);
+    }).immediate();
   } catch (error) {
     // The Git command may have succeeded before a process error. Reconcile its actual target state.
     store.db.prepare('UPDATE integration_items SET owner_pid = NULL WHERE id = ? AND owner_pid = ?')

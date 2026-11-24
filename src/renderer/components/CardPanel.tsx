@@ -313,7 +313,16 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
           {worktreeReview.blockers.length ? <p className="inline-note">Merge gesperrt: {worktreeReview.blockers.join(' ')}</p> : null}
           <button className="text-button" type="button" disabled={worktreeBusy} onClick={() => void checkCleanup()}>Aufräumbarkeit prüfen</button>
         </div> : null}
-        <IntegrationQueuePanel card={card} cards={snapshot.cards} onIntegrated={() => void reviewWorktree()} />
+        <IntegrationQueuePanel card={card} cards={snapshot.cards} onIntegrated={() => void reviewWorktree()} onOpenDiff={() => {
+          setShowDiffReview(true);
+          let attempts = 0;
+          const scrollToDiff = () => {
+            const panel = document.querySelector('.review-diff');
+            if (panel) panel.scrollIntoView({ block: 'start', behavior: 'smooth' });
+            else if (attempts++ < 20) window.setTimeout(scrollToDiff, 50);
+          };
+          window.setTimeout(scrollToDiff, 0);
+        }} />
         {cleanupPreview === null ? <p className="inline-note">Für diese Karte gibt es keinen gespeicherten Worktree.</p> : null}
         {cleanupPreview ? <section className="stacked-form" aria-label="Lesende Worktree-Aufräumprüfung">
           <h4>Worktree-Aufräumprüfung</h4>

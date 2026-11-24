@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ensureCardWorktree, mergeCardWorktree, reviewCardWorktree } from '../../src/main/git-worktree';
 import { approveIntegration, enqueueIntegration, installIntegrationQueue, integrationQueue, prepareIntegration } from '../../src/main/integration-queue';
+import { attestIntegrationReview } from '../../src/main/integration-evidence';
 import { StudioStore } from '../../src/main/store';
 import { createCardCriterion } from '../../src/main/card-acceptance';
 
@@ -75,6 +76,8 @@ describe('persistent integration queue', () => {
       expect(() => approveIntegration(store, { cardId: second.id, confirm: true })).toThrow('earlier card');
       expect(prepareIntegration(store, first.id).state).toBe('ready');
       expect(() => approveIntegration(store, { cardId: first.id, confirm: false })).toThrow('approval');
+      expect(() => approveIntegration(store, { cardId: first.id, confirm: true })).toThrow('Review');
+      attestIntegrationReview(store, { cardId: first.id, confirm: true });
       expect(approveIntegration(store, { cardId: first.id, confirm: true })).toMatchObject({ state: 'integrated', integratedHead: a.head });
       expect(store.session(running.id).state).toBe('running');
       expect(git(repo, ['rev-parse', 'HEAD'])).toBe(a.head);
@@ -85,6 +88,7 @@ describe('persistent integration queue', () => {
       expect(existsSync(join(repo, 'navigation.txt'))).toBe(false);
       git(b.worktree.path, ['-c', 'user.name=Branchloom Test', '-c', 'user.email=branchloom-test@example.invalid', 'rebase', a.head]);
       expect(prepareIntegration(store, second.id).state).toBe('ready');
+      attestIntegrationReview(store, { cardId: second.id, confirm: true });
       expect(approveIntegration(store, { cardId: second.id, confirm: true }).state).toBe('integrated');
       expect(readFileSync(join(repo, 'login.txt'), 'utf8')).toBe('login.txt');
       expect(readFileSync(join(repo, 'navigation.txt'), 'utf8')).toBe('navigation.txt');
