@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, nativeImage, net, safeStorage, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, net, safeStorage, shell } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -26,7 +26,7 @@ import { createOutputErrorCard, previewOutputErrors } from './output-errors';
 import { BrowserSessionPersistence } from './browser-persistence';
 import { detectAgents, SessionRunner } from './cli';
 import { CommandTerminalRunner } from './command-terminal';
-import { ensureCardWorktree, mergeCardWorktree, previewCardWorktreeCleanup, reviewCardWorktree } from './git-worktree';
+import { ensureCardWorktree, mergeCardWorktree, previewCardWorktreeCleanup, reviewCardWorktree, verifiedCardWorktreePath } from './git-worktree';
 import { previewPrDraft } from './pr-draft';
 import { scanProjectComponents } from './component-catalog';
 import { checkoutMilestone, compareMilestone, createMilestone, createMilestoneWithPreview, listMilestones, milestonePreviewImage } from './milestones';
@@ -267,6 +267,12 @@ function installIpc(): void {
     queueEngine.onBoardChanged(card.projectId);
     return card;
   });
+  bind('copyCardId', async (input: { projectId: string; cardId: string }) => {
+    const card = db.card(input.cardId);
+    if (card.projectId !== input.projectId) throw new Error('Die Karte gehört nicht zum gewählten Projekt.');
+    await clipboard.writeText(card.id);
+    if (await clipboard.readText() !== card.id) throw new Error('Karten-ID konnte nicht kopiert werden.');
+  });
   bind('cardAttachments', (cardId: string) => db.cardAttachments(cardId));
   bind('chooseCardAttachments', async (cardId: string) => {
     if (db.card(cardId).archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
@@ -391,6 +397,12 @@ function installIpc(): void {
   bind('compareTrelloBoardIdea', async (input: Parameters<StudioAPI['compareTrelloBoardIdea']>[0]) => compareTrelloIdea(db, { projectId: input.projectId, sourceId: input.sourceId, json: await trello.boardJson(input.boardId) }));
   bind('applyTrelloBoardIdeaSource', async (input: Parameters<StudioAPI['applyTrelloBoardIdeaSource']>[0]) => applyTrelloIdeaSource(db, { projectId: input.projectId, sourceId: input.sourceId, fingerprint: input.fingerprint, localSignature: input.localSignature, copyTitle: input.copyTitle, copyBody: input.copyBody, json: await trello.boardJson(input.boardId) }));
   bind('reviewCardWorktree', (cardId: string) => reviewCardWorktree(db, cardId));
+  bind('openCardWorktree', async (input: { projectId: string; cardId: string }) => {
+    const path = verifiedCardWorktreePath(db, input);
+    if (!path) throw new Error('Für diese Karte gibt es keinen gespeicherten Git-Worktree.');
+    const error = await shell.openPath(path);
+    if (error) throw new Error(`Git-Worktree konnte nicht geöffnet werden: ${error}`);
+  });
   bind('previewCardWorktreeCleanup', (cardId: string) => previewCardWorktreeCleanup(db, cardId));
   bind('previewPrDraft', (cardId: string) => previewPrDraft(db, cardId));
   bind('previewCardDiff', (cardId: string) => previewCardDiff(db, cardId));
@@ -785,6 +797,40 @@ function createWindow(): void {
               if (${process.platform === 'win32'} && baselineSessions.filter((item) => item.cardId === bulkCard.id).length !== 1) throw new Error('Ursprünglicher lokaler Smoke-Lauf fehlt.');
               const keyboardCard = document.getElementById('board-card-' + bulkCard.id);
               if (!keyboardCard) throw new Error('Karten-Tastaturtest: Auslöser fehlt.');
+              const quickTrigger = keyboardCard.parentElement?.querySelector('.card-quick-trigger');
+              if (!(quickTrigger instanceof HTMLButtonElement)) throw new Error('Card quick-action trigger is missing.');
+              quickTrigger.click();
+              for (let attempt = 0; attempt < 100 && !keyboardCard.parentElement?.querySelector('.card-quick-actions'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const quickActions = keyboardCard.parentElement?.querySelector('.card-quick-actions');
+              const hasSavedSession = baselineSessions.some((item) => item.cardId === bulkCard.id);
+              if (!quickActions?.textContent?.includes('Karten-ID kopieren') || quickActions.textContent.includes('Worktree öffnen') || quickActions.textContent.includes('Sitzung ansehen') !== hasSavedSession) throw new Error('Card quick actions have the wrong options: ' + JSON.stringify({ text: quickActions?.textContent, hasSavedSession, cardId: bulkCard.id, sessions: baselineSessions.filter((item) => item.cardId === bulkCard.id).map((item) => ({ id: item.id, worktreePath: item.worktreePath })) }));
+              quickActions.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+              for (let attempt = 0; attempt < 100 && (document.querySelector('.card-quick-actions') || document.activeElement !== quickTrigger); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('.card-quick-actions') || document.activeElement !== quickTrigger) throw new Error('Card quick actions did not close on Escape and restore focus.');
+              quickTrigger.click();
+              for (let attempt = 0; attempt < 100 && !keyboardCard.parentElement?.querySelector('.card-quick-actions'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const copyAction = [...(keyboardCard.parentElement?.querySelectorAll('.card-quick-actions button') ?? [])].find((item) => item.textContent?.includes('Karten-ID kopieren'));
+              copyAction?.click();
+              for (let attempt = 0; attempt < 100 && keyboardCard.parentElement?.querySelector('.card-quick-actions'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (keyboardCard.parentElement?.querySelector('.card-quick-actions') || document.activeElement !== quickTrigger || !document.querySelector('.board-page p.sr-only[role="status"]')?.textContent?.includes('Karten-ID')) throw new Error('Card ID was not copied or focus was not restored: ' + JSON.stringify({ open: Boolean(keyboardCard.parentElement?.querySelector('.card-quick-actions')), focus: document.activeElement?.getAttribute('aria-label'), announcement: document.querySelector('.board-page p.sr-only[role="status"]')?.textContent, error: keyboardCard.parentElement?.querySelector('.card-quick-error')?.textContent }));
+              if (hasSavedSession) {
+                quickTrigger.click();
+                for (let attempt = 0; attempt < 100 && !keyboardCard.parentElement?.querySelector('.card-quick-actions'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+                const sessionAction = [...(keyboardCard.parentElement?.querySelectorAll('.card-quick-actions button') ?? [])].find((item) => item.textContent?.includes('Sitzung ansehen'));
+                sessionAction?.click();
+                for (let attempt = 0; attempt < 100 && !document.querySelector('.card-drawer'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+                if (![...document.querySelectorAll('.card-drawer .section-heading')].some((item) => item.textContent?.includes('Terminal')) || !document.querySelector('.card-drawer')?.contains(document.activeElement)) throw new Error('Quick action did not open the saved session in the card dialog.');
+                document.querySelector('.card-drawer button[aria-label="Karte schließen"]')?.click();
+                for (let attempt = 0; attempt < 100 && (document.querySelector('.card-drawer') || document.activeElement !== quickTrigger); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+                if (document.querySelector('.card-drawer') || document.activeElement !== quickTrigger) throw new Error('Closing the card dialog did not restore focus to the quick-action trigger.');
+              }
+              let foreignWorktreeBlocked = false;
+              try { await window.studio.openCardWorktree({ projectId: 'foreign-project', cardId: bulkCard.id }); }
+              catch (reason) { foreignWorktreeBlocked = String(reason).includes('gewählten Projekt'); }
+              let foreignCopyBlocked = false;
+              try { await window.studio.copyCardId({ projectId: 'foreign-project', cardId: bulkCard.id }); }
+              catch (reason) { foreignCopyBlocked = String(reason).includes('gewählten Projekt'); }
+              if (!foreignWorktreeBlocked || !foreignCopyBlocked || !(await sessionsUnchanged())) throw new Error('Cross-project card quick action was not rejected.');
               keyboardCard.focus();
               keyboardCard.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('.card-drawer[role="dialog"]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));

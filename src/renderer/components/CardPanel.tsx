@@ -27,9 +27,9 @@ import '../card-label-editor.css';
 const SessionTerminal = lazy(() => import('./SessionTerminal').then((module) => ({ default: module.SessionTerminal })));
 const ReviewDiffPanel = lazy(() => import('./ReviewDiffPanel').then((module) => ({ default: module.ReviewDiffPanel })));
 
-interface Props { card: Card; snapshot: ProjectSnapshot; mutate: Mutate; onClose: () => void; onOpenCard: (id: string) => void; onOpenDesign?: (cardId: string) => void; focusReviewComment?: { id: string; token: number } | null; focusQaReport?: { id: string; token: number } | null }
+interface Props { card: Card; snapshot: ProjectSnapshot; mutate: Mutate; onClose: () => void; onOpenCard: (id: string) => void; onOpenDesign?: (cardId: string) => void; focusSession?: boolean; focusReviewComment?: { id: string; token: number } | null; focusQaReport?: { id: string; token: number } | null }
 
-export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenDesign, focusReviewComment, focusQaReport }: Props) {
+export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenDesign, focusSession, focusReviewComment, focusQaReport }: Props) {
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description);
   const [priority, setPriority] = useState<CardPriority>(card.priority);
@@ -65,9 +65,15 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
   const streamRef = useRef<MediaStream | null>(null);
   const drawerRef = useRef<HTMLElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const sessionHeadingRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => { cleanupRequest.current += 1; setTitle(card.title); setDescription(card.description); setPriority(card.priority); setLabels(card.labels); setLabelDraft(''); setMetadataError(''); setPrompt(''); setMessage(''); setUseWorktree(false); setWorktreeReview(undefined); setCleanupPreview(undefined); setWorktreeBusy(false); setWorktreeError(''); setShowDiffReview(false); setCriterionQaFocus(null); setCriterionReviewFocus(null); setConflictRadar(null); setConflictError(''); }, [card.id]);
-  useEffect(() => { closeButtonRef.current?.focus(); }, [card.id]);
+  useEffect(() => {
+    if (focusSession && sessionHeadingRef.current) {
+      sessionHeadingRef.current.scrollIntoView({ block: 'start' });
+      sessionHeadingRef.current.focus();
+    } else closeButtonRef.current?.focus();
+  }, [card.id, focusSession]);
   useEffect(() => { if (focusReviewComment) setShowDiffReview(true); }, [card.id, focusReviewComment?.id, focusReviewComment?.token]);
   useEffect(() => { setCriterionReviewFocus(null); }, [focusReviewComment?.token]);
   useEffect(() => { setCriterionQaFocus(null); }, [focusQaReport?.token]);
@@ -287,7 +293,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
         {voiceError ? <p className="inline-error" role="alert">{voiceError}</p> : null}
         {enabledAgents.length === 0 ? <p className="inline-note">Noch kein Agent eingerichtet. Unter „Agenten“ kannst du installierte CLIs erkennen und einen Startbefehl speichern.</p> : null}
         <div className="drawer-divider" />
-        <div className="section-heading"><Terminal size={19} /><h3>Terminal</h3><span className={session?.state === 'running' ? 'session-state running' : 'session-state'}>{session?.state === 'running' ? 'Läuft' : session?.state === 'failed' ? 'Fehlgeschlagen' : session?.state === 'exited' ? 'Beendet' : session?.state === 'stopped' ? 'Gestoppt' : 'Kein Lauf'}</span></div>
+        <div ref={sessionHeadingRef} className="section-heading" tabIndex={-1}><Terminal size={19} /><h3>Terminal</h3><span className={session?.state === 'running' ? 'session-state running' : 'session-state'}>{session?.state === 'running' ? 'Läuft' : session?.state === 'failed' ? 'Fehlgeschlagen' : session?.state === 'exited' ? 'Beendet' : session?.state === 'stopped' ? 'Gestoppt' : 'Kein Lauf'}</span></div>
         {session ? <>
           <Suspense fallback={<div className="terminal-empty">Terminal wird geladen…</div>}><SessionTerminal key={session.id} session={session} /></Suspense>
           <SessionRecoveryPanel key={`recovery-${session.id}`} session={session} />

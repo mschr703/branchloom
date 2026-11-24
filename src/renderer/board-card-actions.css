@@ -1,0 +1,49 @@
+.board-card-wrap { position: relative; }
+.board-card-wrap > .task-card { padding-right: 42px; }
+.board-card-wrap > .task-card .task-card-grip { display: none; }
+.card-quick-trigger {
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.card-quick-trigger:hover,
+.card-quick-trigger[aria-expanded='true'] { background: var(--surface-2); color: var(--text); }
+.card-quick-trigger:focus-visible,
+.card-quick-actions button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.card-quick-actions {
+  display: grid;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.card-quick-actions button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 34px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.card-quick-actions button:hover { background: var(--surface-2); }
+.card-quick-actions button:disabled { opacity: .55; cursor: wait; }
+.card-quick-error { margin: 3px 7px 5px; color: var(--danger); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }

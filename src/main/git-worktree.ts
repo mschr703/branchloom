@@ -142,6 +142,20 @@ export function reviewCardWorktree(store: StudioStore, cardId: string): Worktree
   return { cardId, path: record.path, branch: record.branch, targetPath, targetBranch, sourceHead, targetHead, sourceStatus, targetStatus, uncommittedStat, committedStat, ahead, behind, canFastForward: blockers.length === 0 && ahead > 0, blockers, previewToken };
 }
 
+/** Return only an already saved checkout that still belongs to this project and card. */
+export function verifiedCardWorktreePath(store: StudioStore, input: { projectId: string; cardId: string }): string | null {
+  const card = store.card(input.cardId);
+  if (card.projectId !== input.projectId) throw new Error('Die Karte gehört nicht zum gewählten Projekt.');
+  const record = store.cardWorktree(card.id);
+  if (!record) return null;
+  if (record.projectId !== input.projectId) throw new Error('Der gespeicherte Worktree gehört zu einem anderen Projekt.');
+  const project = store.project(input.projectId);
+  const sourceRoot = gitRoot(project.path);
+  const expectedPath = join(store.worktreeBase, input.projectId, card.id);
+  verifyExisting(record, sourceRoot, expectedPath);
+  return realpathSync(record.path);
+}
+
 /** A fresh, read-only inventory for future cleanup. Never deletes user files or Git refs. */
 export function previewCardWorktreeCleanup(store: StudioStore, cardId: string): WorktreeCleanupPreview | null {
   const card = store.card(cardId);

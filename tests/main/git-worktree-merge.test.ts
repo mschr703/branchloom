@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
-import { ensureCardWorktree, mergeCardWorktree, reviewCardWorktree } from '../../src/main/git-worktree';
+import { ensureCardWorktree, mergeCardWorktree, reviewCardWorktree, verifiedCardWorktreePath } from '../../src/main/git-worktree';
 import { StudioStore } from '../../src/main/store';
 
 const roots: string[] = [];
@@ -38,6 +38,16 @@ function fixture() {
 }
 
 describe('reviewed worktree fast-forward', () => {
+  it('opens only a saved, verified checkout for the requested project and card', () => {
+    const { store, project, card } = fixture();
+    expect(verifiedCardWorktreePath(store, { projectId: project.id, cardId: card.id })).toBeNull();
+    const worktree = ensureCardWorktree(store, card.id);
+    expect(verifiedCardWorktreePath(store, { projectId: project.id, cardId: card.id })).toBe(worktree.path);
+    expect(() => verifiedCardWorktreePath(store, { projectId: 'unrelated-project', cardId: card.id })).toThrow('gewählten Projekt');
+    git(worktree.path, ['checkout', '--detach', '-q']);
+    expect(() => verifiedCardWorktreePath(store, { projectId: project.id, cardId: card.id })).toThrow('Karten-Branch');
+    store.close();
+  });
   it('reviews without creating a worktree, then shows uncommitted and committed changes', () => {
     const { store, card } = fixture();
     expect(reviewCardWorktree(store, card.id)).toBeNull();

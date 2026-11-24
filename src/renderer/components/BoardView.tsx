@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Archive, ArrowDown, ArrowRight, ArrowUp, FileJson2, GripVertical, MessageCircle, Pencil, Plus, Search, Terminal, X } from 'lucide-react';
+import { Archive, ArrowDown, ArrowRight, ArrowUp, Copy, FileJson2, FolderOpen, GripVertical, MessageCircle, MoreHorizontal, Pencil, Plus, Search, Terminal, X } from 'lucide-react';
 import type { Card, CardPriority, Column, ColumnEffort, ProjectSnapshot } from '../../shared/types';
 import { CARD_PRIORITIES } from '../../shared/card-metadata';
 import { COLUMN_EFFORTS } from '../../shared/column-settings';
@@ -17,6 +17,7 @@ import '../board-bulk.css';
 import '../column-order.css';
 import '../column-settings.css';
 import '../board-refine.css';
+import '../board-card-actions.css';
 
 interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openCard?: { id: string; token: number; reviewCommentId?: string; qaReportId?: string } | null; onOpenDesign?: (cardId: string) => void; onOpenQaReport?: (cardId: string, reportId: string) => void }
 
@@ -30,6 +31,7 @@ export function moveDestinations(columns: Column[], card: Card): Column[] {
 
 export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenQaReport }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [focusSession, setFocusSession] = useState(false);
   const [creatingIn, setCreatingIn] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [newColumn, setNewColumn] = useState('');
@@ -90,8 +92,9 @@ export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenQaRe
     if (created) { setCreatingIn(null); setTitle(''); openBoardCard(created.id); }
   }
 
-  function openBoardCard(cardId: string) {
+  function openBoardCard(cardId: string, showSession = false) {
     if (!selectedId) focusBeforeDrawer.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setFocusSession(showSession);
     setSelectedId(cardId);
   }
 
@@ -237,12 +240,12 @@ export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenQaRe
     {bulkNotice ? <p className="board-bulk-result" role="status">{bulkNotice}</p> : null}
     <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
     <div className="board-scroll"><div className="board-columns">
-      {visibleColumns.map((column) => <BoardColumn key={column.id} column={column} columns={columns} cards={visibleCards.filter((card) => card.columnId === column.id).sort(compareCardOrder)} snapshot={snapshot} onSelect={openBoardCard} onMove={moveCard} onReorder={reorderCard} onReorderColumn={reorderColumn} onDrop={onDrop} onCreate={() => { setCreatingIn(column.id); setTitle(''); }} canCreate={visibility !== 'archived'} mutate={mutate} bulkIds={bulkIds} onToggleBulk={toggleBulk}>
+      {visibleColumns.map((column) => <BoardColumn key={column.id} column={column} columns={columns} cards={visibleCards.filter((card) => card.columnId === column.id).sort(compareCardOrder)} snapshot={snapshot} onSelect={openBoardCard} onOpenSession={(id) => openBoardCard(id, true)} onAnnounce={setAnnouncement} onMove={moveCard} onReorder={reorderCard} onReorderColumn={reorderColumn} onDrop={onDrop} onCreate={() => { setCreatingIn(column.id); setTitle(''); }} canCreate={visibility !== 'archived'} mutate={mutate} bulkIds={bulkIds} onToggleBulk={toggleBulk}>
         {creatingIn === column.id && visibility !== 'archived' ? <form className="new-card-form" onSubmit={(event) => void addCard(event, column.id)}><input autoFocus required maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Aufgabe benennen…" aria-label="Neue Karte" /><div className="inline-actions"><button className="primary-button small" type="submit">Hinzufügen</button><button className="icon-button" type="button" onClick={() => setCreatingIn(null)} aria-label="Abbrechen"><X size={15} /></button></div></form> : null}
       </BoardColumn>)}
       {visibility !== 'archived' && !filterColumnId ? <form className="new-column-form" onSubmit={(event) => void addColumn(event)}><span><Plus size={17} /> Spalte hinzufügen</span><input value={newColumn} onChange={(event) => setNewColumn(event.target.value)} placeholder="Spaltenname" aria-label="Neue Spalte" maxLength={80} required /><button className="secondary-button small" type="submit">Erstellen</button></form> : null}
     </div></div>
-    {selected ? <CardPanel card={selected} snapshot={snapshot} mutate={mutate} onClose={closeBoardCard} onOpenCard={openBoardCard} onOpenDesign={onOpenDesign} focusReviewComment={openCard?.id === selected.id && openCard.reviewCommentId ? { id: openCard.reviewCommentId, token: openCard.token } : null} focusQaReport={openCard?.id === selected.id && openCard.qaReportId ? { id: openCard.qaReportId, token: openCard.token } : null} /> : null}
+    {selected ? <CardPanel card={selected} snapshot={snapshot} mutate={mutate} onClose={closeBoardCard} onOpenCard={openBoardCard} onOpenDesign={onOpenDesign} focusSession={focusSession} focusReviewComment={openCard?.id === selected.id && openCard.reviewCommentId ? { id: openCard.reviewCommentId, token: openCard.token } : null} focusQaReport={openCard?.id === selected.id && openCard.qaReportId ? { id: openCard.qaReportId, token: openCard.token } : null} /> : null}
     {showTaskDraft ? <TaskDraftAssistant key={snapshot.project.id} snapshot={snapshot} mutate={mutate} onClose={() => setShowTaskDraft(false)} onCreated={(card) => { setShowTaskDraft(false); openBoardCard(card.id); }} /> : null}
     {showImport ? <TrelloImportPanel key={snapshot.project.id} projectId={snapshot.project.id} columns={columns} mutate={mutate} onClose={() => setShowImport(false)} /> : null}
   </div>;
@@ -265,8 +268,8 @@ function compareCardOrder(a: Card, b: Card): number {
   return a.position - b.position || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
 }
 
-function BoardColumn({ column, columns, cards, snapshot, onSelect, onMove, onReorder, onReorderColumn, onDrop, onCreate, canCreate, mutate, bulkIds, onToggleBulk, children }: {
-  column: Column; columns: Column[]; cards: Card[]; snapshot: ProjectSnapshot; onSelect: (id: string) => void;
+function BoardColumn({ column, columns, cards, snapshot, onSelect, onOpenSession, onAnnounce, onMove, onReorder, onReorderColumn, onDrop, onCreate, canCreate, mutate, bulkIds, onToggleBulk, children }: {
+  column: Column; columns: Column[]; cards: Card[]; snapshot: ProjectSnapshot; onSelect: (id: string) => void; onOpenSession: (id: string) => void; onAnnounce: (message: string) => void;
   onMove: (card: Card, columnId: string) => Promise<boolean>;
   onReorder: (card: Card, direction: 'up' | 'down') => Promise<void>;
   onReorderColumn: (column: Column, direction: 'left' | 'right') => Promise<void>;
@@ -289,7 +292,7 @@ function BoardColumn({ column, columns, cards, snapshot, onSelect, onMove, onReo
     <div className="column-body">
       {cards.map((card) => {
         const index = activeOrder.findIndex((item) => item.id === card.id);
-        return <BoardCard key={card.id} card={card} column={column} columns={columns} snapshot={snapshot} onSelect={onSelect} onMove={onMove} onReorder={onReorder} bulkSelected={bulkIds.has(card.id)} onToggleBulk={onToggleBulk} previousTitle={index > 0 ? activeOrder[index - 1]?.title : undefined} nextTitle={index >= 0 ? activeOrder[index + 1]?.title : undefined} />;
+        return <BoardCard key={card.id} card={card} column={column} columns={columns} snapshot={snapshot} onSelect={onSelect} onOpenSession={onOpenSession} onAnnounce={onAnnounce} onMove={onMove} onReorder={onReorder} bulkSelected={bulkIds.has(card.id)} onToggleBulk={onToggleBulk} previousTitle={index > 0 ? activeOrder[index - 1]?.title : undefined} nextTitle={index >= 0 ? activeOrder[index + 1]?.title : undefined} />;
       })}
       {children}
       {cards.length === 0 && !children ? <p className="empty-column">Karten hierher ziehen</p> : null}
@@ -323,9 +326,9 @@ export function ColumnAgentSettings({ column, agents, mutate }: { column: Column
   </form>;
 }
 
-function BoardCard({ card, column, columns, snapshot, onSelect, onMove, onReorder, bulkSelected, onToggleBulk, previousTitle, nextTitle }: {
+function BoardCard({ card, column, columns, snapshot, onSelect, onOpenSession, onAnnounce, onMove, onReorder, bulkSelected, onToggleBulk, previousTitle, nextTitle }: {
   card: Card; column: Column; columns: Column[]; snapshot: ProjectSnapshot;
-  onSelect: (id: string) => void; onMove: (card: Card, columnId: string) => Promise<boolean>;
+  onSelect: (id: string) => void; onOpenSession: (id: string) => void; onAnnounce: (message: string) => void; onMove: (card: Card, columnId: string) => Promise<boolean>;
   onReorder: (card: Card, direction: 'up' | 'down') => Promise<void>;
   bulkSelected: boolean; onToggleBulk: (id: string) => void;
   previousTitle?: string; nextTitle?: string;
@@ -335,15 +338,30 @@ function BoardCard({ card, column, columns, snapshot, onSelect, onMove, onReorde
   const [destinationId, setDestinationId] = useState(destinations[0]?.id ?? '');
   const [moving, setMoving] = useState(false);
   const [reordering, setReordering] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionError, setActionError] = useState('');
   const cardButton = useRef<HTMLButtonElement>(null);
+  const actionsTrigger = useRef<HTMLButtonElement>(null);
+  const actionsPanel = useRef<HTMLDivElement>(null);
   const destinationSelect = useRef<HTMLSelectElement>(null);
   const sessions = snapshot.sessions.filter((session) => session.cardId === card.id);
+  const hasWorktree = sessions.some((session) => Boolean(session.worktreePath));
   const active = sessions.some((session) => session.state === 'running');
   const destination = destinations.find((item) => item.id === destinationId);
   const destinationAgent = snapshot.agents.find((item) => item.id === destination?.agentId);
   const priority = CARD_PRIORITIES.find((item) => item.value === card.priority);
 
   useEffect(() => { if (moveOpen) destinationSelect.current?.focus(); }, [moveOpen]);
+  useEffect(() => {
+    if (!actionsOpen) return;
+    const dismiss = (event: PointerEvent) => {
+      if (event.target instanceof Node && (actionsPanel.current?.contains(event.target) || actionsTrigger.current?.contains(event.target))) return;
+      setActionsOpen(false);
+    };
+    document.addEventListener('pointerdown', dismiss);
+    return () => document.removeEventListener('pointerdown', dismiss);
+  }, [actionsOpen]);
   useEffect(() => { if (destinations.length && !destinations.some((item) => item.id === destinationId)) setDestinationId(destinations[0]!.id); }, [columns, card.columnId, card.archivedAt, destinationId]);
 
   function closeMove() {
@@ -367,6 +385,36 @@ function BoardCard({ card, column, columns, snapshot, onSelect, onMove, onReorde
     finally { setReordering(false); }
   }
 
+  function closeActions() {
+    setActionsOpen(false);
+    setActionError('');
+    requestAnimationFrame(() => actionsTrigger.current?.focus());
+  }
+
+  async function copyCardId() {
+    setActionError('');
+    try {
+      await window.studio.copyCardId({ projectId: snapshot.project.id, cardId: card.id });
+      onAnnounce(`Karten-ID von „${card.title}“ kopiert.`);
+      closeActions();
+    } catch (reason) {
+      setActionError(`Karten-ID konnte nicht kopiert werden: ${reason instanceof Error ? reason.message : String(reason)}`);
+    }
+  }
+
+  async function openWorktree() {
+    if (!hasWorktree || actionBusy) return;
+    setActionError('');
+    setActionBusy(true);
+    try {
+      await window.studio.openCardWorktree({ projectId: snapshot.project.id, cardId: card.id });
+      onAnnounce(`Git-Worktree von „${card.title}“ geöffnet.`);
+      closeActions();
+    } catch (reason) {
+      setActionError(`Git-Worktree konnte nicht geöffnet werden: ${reason instanceof Error ? reason.message : String(reason)}`);
+    } finally { setActionBusy(false); }
+  }
+
   return <div className="board-card-wrap">
     {!card.archivedAt ? <label className="board-bulk-card-select"><input type="checkbox" checked={bulkSelected} onChange={() => onToggleBulk(card.id)} aria-label={`„${card.title}“ für Sammelaktion auswählen`} /> Auswählen</label> : null}
     <button ref={cardButton} id={`board-card-${card.id}`} type="button" draggable={!card.archivedAt} onDragStart={(event) => { if (!card.archivedAt) event.dataTransfer.setData('text/card-id', card.id); }} className={card.archivedAt ? 'task-card archived' : 'task-card'} aria-label={`Karte „${card.title}“ in „${column.name}“ öffnen${card.archivedAt ? ', archiviert' : ''}${active ? ', Agent läuft' : ''}`} aria-describedby={card.description ? `board-card-description-${card.id}` : undefined} aria-keyshortcuts={destinations.length ? 'M' : undefined} onKeyDown={(event) => { if (destinations.length && isMoveShortcut(event)) { event.preventDefault(); setMoveOpen(true); } }} onClick={() => onSelect(card.id)}>
@@ -381,6 +429,13 @@ function BoardCard({ card, column, columns, snapshot, onSelect, onMove, onReorde
       {card.description ? <span className="task-card-description" id={`board-card-description-${card.id}`}>{card.description}</span> : null}
       <span className="task-card-footer"><span>{active ? <><span className="live-dot" /> Agent läuft</> : sessions.length > 0 ? <><Terminal size={13} /> {sessions.length} Lauf{sessions.length === 1 ? '' : 'e'}</> : 'Noch kein Lauf'}</span><ArrowRight size={14} aria-hidden="true" /></span>
     </button>
+    <button ref={actionsTrigger} className="card-quick-trigger" type="button" aria-label={`Schnellaktionen für „${card.title}“`} aria-expanded={actionsOpen} aria-controls={actionsOpen ? `card-actions-${card.id}` : undefined} onKeyDown={(event) => { if (actionsOpen && event.key === 'Escape') { event.preventDefault(); closeActions(); } }} onClick={() => { setActionError(''); setActionsOpen((open) => !open); }}><MoreHorizontal size={18} aria-hidden="true" /></button>
+    {actionsOpen ? <div ref={actionsPanel} className="card-quick-actions" id={`card-actions-${card.id}`} role="group" aria-label={`Schnellaktionen für „${card.title}“`} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeActions(); } }}>
+      {sessions.length ? <button type="button" onClick={() => { setActionsOpen(false); onOpenSession(card.id); }}><Terminal size={15} aria-hidden="true" /> Sitzung ansehen</button> : null}
+      {hasWorktree ? <button type="button" disabled={actionBusy} onClick={() => void openWorktree()}><FolderOpen size={15} aria-hidden="true" /> Worktree öffnen</button> : null}
+      <button type="button" onClick={() => void copyCardId()}><Copy size={15} aria-hidden="true" /> Karten-ID kopieren</button>
+      {actionError ? <p className="card-quick-error" role="alert">{actionError}</p> : null}
+    </div> : null}
     {!card.archivedAt ? <div className="card-order-actions">
       <button type="button" disabled={!previousTitle || reordering} aria-label={`„${card.title}“ in „${column.name}“ nach oben setzen${previousTitle ? `, vor „${previousTitle}“` : ''}`} title={previousTitle ? `Vor „${previousTitle}“ setzen` : 'Bereits oben'} onClick={() => void submitReorder('up')}><ArrowUp size={14} aria-hidden="true" /></button>
       <button type="button" disabled={!nextTitle || reordering} aria-label={`„${card.title}“ in „${column.name}“ nach unten setzen${nextTitle ? `, hinter „${nextTitle}“` : ''}`} title={nextTitle ? `Hinter „${nextTitle}“ setzen` : 'Bereits unten'} onClick={() => void submitReorder('down')}><ArrowDown size={14} aria-hidden="true" /></button>

@@ -65,6 +65,8 @@ describe('board filters and archive visibility', () => {
     expect(html).toContain('aria-keyshortcuts="M"');
     expect(html).toContain('Verschieben');
     expect(html).toContain('Karte „Aktive Suche“ in „To Do“ öffnen');
+    expect(html).toContain('Schnellaktionen für „Aktive Suche“');
+    expect(html).toContain('aria-expanded="false"');
     const activePanel = renderToStaticMarkup(createElement(CardPanel, { card: cards[0]!, snapshot, mutate: async <T,>(action: () => Promise<T>) => action(), onClose: () => undefined }));
     expect(activePanel).toContain('aria-label="Neues Label"');
     expect(activePanel).toContain('aria-label="Label Kundenmail entfernen"');
@@ -75,6 +77,24 @@ describe('board filters and archive visibility', () => {
     expect(archived).toContain('Wiederherstellen');
     expect(archived).toContain('ARCHIVIERT');
     expect(archived).toContain('disabled=""');
+  });
+
+  it('keeps session controls in the card drawer instead of claiming a universal resume action', () => {
+    const snapshot: ProjectSnapshot = {
+      project: { id: 'p', name: 'Synthetic', path: 'C:\\test', createdAt: stamp },
+      columns: [{ id: 'todo', projectId: 'p', name: 'To Do', position: 0, autoStart: false, agentId: null, model: null, effort: null }],
+      cards: [cards[0]!],
+      agents: [{ id: 'agent', name: 'Codex', kind: 'codex', command: 'codex', args: [], model: null, enabled: true }],
+      sessions: [{ id: 'run', projectId: 'p', cardId: 'active', agentId: 'agent', state: 'exited', startedAt: stamp, endedAt: stamp, exitCode: 0, output: '', codexThreadId: 'thread', worktreePath: 'C:\\synthetic-worktree' }],
+      workflows: [], notes: [],
+      queue: { projectId: 'p', state: 'off', templateWorkflowId: null, activeWorkflowId: null, pauseReason: null, completedCount: 0, updatedAt: null },
+    };
+    const board = renderToStaticMarkup(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() }));
+    expect(board).toContain('Schnellaktionen für „Aktive Suche“');
+    expect(board).not.toContain('Resume Session');
+    const panel = renderToStaticMarkup(createElement(CardPanel, { card: cards[0]!, snapshot, mutate: async <T,>(action: () => Promise<T>) => action(), onClose: () => undefined, onOpenCard: () => undefined, focusSession: true }));
+    expect(panel).toContain('Dieses Gespräch fortsetzen');
+    expect(panel).toContain('tabindex="-1"');
   });
 
   it('keeps QA reachable in the toolbar and hides empty bulk controls', () => {

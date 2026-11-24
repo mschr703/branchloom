@@ -1,0 +1,9 @@
+# Schnellaktionen auf Board-Karten
+
+Der Drei-Punkte-Knopf einer Karte öffnet eine kleine Aktionsliste. **Karten-ID kopieren** schreibt die gespeicherte UUID in die Zwischenablage. **Sitzung ansehen** erscheint nur, wenn die Karte mindestens einen gespeicherten Agentenlauf hat; es öffnet den Kartenbereich mit dem neuesten beziehungsweise noch laufenden Sitzungsprotokoll. Ein echter Codex-Lauf kann dort unter den bestehenden Voraussetzungen ausdrücklich fortgesetzt werden. Die Schnellaktion selbst startet keinen Prozess und verspricht keine Wiederaufnahme anderer CLI-Agenten.
+
+**Worktree öffnen** erscheint nur, wenn ein gespeicherter Lauf einen Worktree-Pfad ausweist. Vor dem Öffnen prüft der Hauptprozess erneut Projekt und Karte, die gespeicherte Zuordnung, Repository-Identität, Ordner und Karten-Branch. Fehlt der Checkout oder wurde er verändert, bleibt der Dateimanager geschlossen und die Karte zeigt eine Fehlermeldung. Die Aktion legt keinen neuen Worktree an, bearbeitet keine Dateien und führt keinen Git-Merge aus.
+
+Die Liste unterstützt normale Tab-Navigation. Escape schließt sie und setzt den Fokus auf den Drei-Punkte-Knopf zurück; ein Klick außerhalb schließt sie ebenfalls. Nach dem Schließen des Kartendialogs kehrt der Fokus zur auslösenden Kartenaktion zurück.
+
+Geprüft wurden Renderer-Struktur und Codex-Dialogziel, die Worktree-Projektgrenze und der geänderte Branch mit einem synthetischen Git-Repository, Typprüfung, Produktionsbuild, Audit und öffentlicher Quellscan. Der Quell-Electron-Smoke bestand die neuen Board-Aktionen einschließlich tatsächlicher Zwischenablage-Kopie, Escape und Fokusrückgabe, Sitzungsöffnung sowie projektfremder IPC-Ablehnung. Er lief später im vorhandenen Design-Vorschau-Abschnitt nach 120 Sekunden in sein festes Zeitlimit; der Gesamtlauf ist deshalb nicht bestanden. Das tatsächliche Öffnen eines Windows-Dateimanagerfensters und die Zwischenablage auf einem paketierten Build sind noch nicht neu geprüft.

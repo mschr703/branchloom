@@ -180,6 +180,7 @@ export interface StudioAPI {
   bulkUpdateCards(input: BulkCardAction): Promise<Card[]>;
   reorderCard(input: { id: string; direction: 'up' | 'down' }): Promise<Card>;
   setCardArchived(input: { id: string; archived: boolean }): Promise<Card>;
+  copyCardId(input: { projectId: string; cardId: string }): Promise<void>;
   cardAttachments(cardId: string): Promise<CardAttachment[]>;
   chooseCardAttachments(cardId: string): Promise<CardAttachment[] | null>;
   openCardAttachment(input: { cardId: string; attachmentId: string }): Promise<void>;
@@ -258,6 +259,7 @@ export interface StudioAPI {
   previewTrelloBoard(input: { projectId: string; boardId: string }): Promise<TrelloImportPreview>;
   acceptTrelloBoard(input: { projectId: string; columnId: string; columnByListId?: Record<string, string>; boardId: string; fingerprint: string; sourceIds: string[] }): Promise<TrelloImportResult>;
   reviewCardWorktree(cardId: string): Promise<WorktreeReview | null>;
+  openCardWorktree(input: { projectId: string; cardId: string }): Promise<void>;
   previewCardWorktreeCleanup(cardId: string): Promise<import('./worktree-cleanup').WorktreeCleanupPreview | null>;
   previewPrDraft(cardId: string): Promise<PrDraftPreview | null>;
   previewCardDiff(cardId: string): Promise<CardDiffPreview | null>;
