@@ -23,6 +23,7 @@ import type { SaveWireframeComponentInput, WireframeComponent } from './wirefram
 import type { SessionRecoveryState } from './session-recovery';
 import type { CardRunGate } from './parallel-runs';
 import type { ProjectMemoryIndexStatus, ProjectMemorySearch, ProjectMemorySearchInput, ProjectMemorySourceDetail, ProjectMemorySourceInput } from './project-memory-index';
+import type { ReleaseUpdateState } from './release-update';
 
 export type SessionState = 'running' | 'exited' | 'failed' | 'stopped';
 export type WorkflowState = 'draft' | 'running' | 'paused' | 'done';
@@ -101,6 +102,10 @@ export interface WorktreeReview { cardId: string; path: string; branch: string; 
 export interface PrDraftPreview { cardId: string; sourceHead: string; targetHead: string; text: string; reportCount: number }
 
 export interface StudioAPI {
+  releaseUpdateState(): Promise<ReleaseUpdateState>;
+  installReleaseUpdate(): Promise<ReleaseUpdateState>;
+  laterReleaseUpdate(): Promise<ReleaseUpdateState>;
+  onReleaseUpdateState(callback: (state: ReleaseUpdateState) => void): () => void;
   agentCardMetadataEnabled(projectId: string): Promise<boolean>;
   agentCardMetadataAvailable(): Promise<boolean>;
   setAgentCardMetadataEnabled(input: { projectId: string; enabled: boolean }): Promise<boolean>;

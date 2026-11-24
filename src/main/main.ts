@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, nativeImage, net, safeStorage, shell } from 'electron';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { autoUpdater } from 'electron-updater';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
@@ -63,6 +64,7 @@ import { scanThemeTokens } from './theme-tokens';
 import { applyThemeTokenEdit, previewThemeTokenEdit } from './theme-token-edit';
 import { TrelloConnection } from './trello-connection';
 import { TrelloSignIn, trelloPublicAppKey } from './trello-sign-in';
+import { ReleaseUpdateController } from './release-updater';
 
 let window: BrowserWindow | null = null;
 let store: StudioStore | null = null;
@@ -74,6 +76,9 @@ let browser: StudioBrowser | null = null;
 let designInspector: DesignInspector | null = null;
 let trelloSignIn: TrelloSignIn | null = null;
 let agentCardMetadataBridge: AgentCardMetadataBridge | null = null;
+let releaseUpdater: ReleaseUpdateController;
+let releaseCheckTimer: NodeJS.Timeout | null = null;
+let releaseStartTimer: NodeJS.Timeout | null = null;
 let smokeQaServer: ReturnType<typeof createServer> | null = null;
 const smoke = process.argv.includes('--studio-smoke');
 const smokeDataDirectory = smoke ? mkdtempSync(join(tmpdir(), 'branchloom-smoke-')) : null;
@@ -150,6 +155,9 @@ function installIpc(): void {
       return (handler as (...values: unknown[]) => unknown)(...args);
     });
   };
+  bind('releaseUpdateState', () => releaseUpdater.snapshot());
+  bind('installReleaseUpdate', () => releaseUpdater.update());
+  bind('laterReleaseUpdate', () => releaseUpdater.later());
   bind('projects', () => db.projects());
   bind('projectOrganization', () => db.projectOrganization());
   bind('createProjectGroup', (name: string) => db.createProjectGroup(name));
@@ -3113,10 +3121,48 @@ function createWindow(): void {
   window.on('closed', () => { designInspector?.dispose(); designInspector = null; browser?.dispose(); browser = null; window = null; });
 }
 
+function configureReleaseUpdater(): void {
+  // Forge ZIPs and source runs have no NSIS update feed. Only an installed
+  // package containing electron-builder's update configuration can update.
+  const supported = process.platform === 'win32' && app.isPackaged && !smoke && !devDataDirectory
+    && existsSync(join(process.resourcesPath, 'app-update.yml'));
+  if (supported) {
+    autoUpdater.autoDownload = false;
+    autoUpdater.autoInstallOnAppQuit = false;
+    autoUpdater.allowPrerelease = false;
+    autoUpdater.allowDowngrade = false;
+    autoUpdater.disableWebInstaller = true;
+  }
+  releaseUpdater = new ReleaseUpdateController(supported ? {
+    check: async () => { await autoUpdater.checkForUpdates(); },
+    download: async () => { await autoUpdater.downloadUpdate(); },
+    install: () => autoUpdater.quitAndInstall(false, true),
+    onAvailable: (callback) => { autoUpdater.on('update-available', (info) => callback(info.version)); },
+    onCurrent: (callback) => { autoUpdater.on('update-not-available', callback); },
+    onProgress: (callback) => { autoUpdater.on('download-progress', (info) => callback(info.percent)); },
+    onError: (callback) => { autoUpdater.on('error', callback); },
+  } : null, app.getVersion(), (state) => {
+    if (window && !window.isDestroyed()) window.webContents.send('studio:release-update-state', state);
+  }, () => {
+    if (!store) return false;
+    return !store.db.prepare(`SELECT 1 FROM sessions WHERE state = 'running'
+      UNION ALL SELECT 1 FROM command_terminals WHERE state = 'running'
+      UNION ALL SELECT 1 FROM workflows WHERE state = 'running'
+      UNION ALL SELECT 1 FROM project_queues WHERE state = 'running' LIMIT 1`).get();
+  });
+  if (supported) {
+    releaseStartTimer = setTimeout(() => { void releaseUpdater.check(); }, 8_000);
+    releaseStartTimer.unref();
+    releaseCheckTimer = setInterval(() => { void releaseUpdater.check(); }, 6 * 60 * 60 * 1_000);
+    releaseCheckTimer.unref();
+  }
+}
+
 if (ownsSharedProfile) app.whenReady().then(async () => {
   const directory = app.getPath('userData');
   mkdirSync(directory, { recursive: true });
   store = new StudioStore(join(directory, 'studio.sqlite'));
+  configureReleaseUpdater();
   agentCardMetadataBridge = new AgentCardMetadataBridge(store, (sessionId, cardId) => {
     if (window && !window.isDestroyed()) window.webContents.send('studio:session-event', {
       sessionId, cardId, type: 'state', data: 'Card metadata updated', state: 'running',
@@ -3133,6 +3179,8 @@ if (ownsSharedProfile) app.whenReady().then(async () => {
 else app.quit();
 
 app.on('before-quit', () => {
+  if (releaseStartTimer) clearTimeout(releaseStartTimer);
+  if (releaseCheckTimer) clearInterval(releaseCheckTimer);
   trelloSignIn?.cancel();
   trelloSignIn = null;
   smokeQaServer?.close();

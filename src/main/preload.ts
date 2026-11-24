@@ -1,9 +1,18 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { StudioAPI, SessionEvent, CommandTerminalEvent, BrowserState } from '../shared/types';
+import type { ReleaseUpdateState } from '../shared/release-update';
 
 const invoke = <T>(name: keyof StudioAPI, ...args: unknown[]): Promise<T> => ipcRenderer.invoke(`studio:${String(name)}`, ...args) as Promise<T>;
 
 const studio: StudioAPI = {
+  releaseUpdateState: () => invoke('releaseUpdateState'),
+  installReleaseUpdate: () => invoke('installReleaseUpdate'),
+  laterReleaseUpdate: () => invoke('laterReleaseUpdate'),
+  onReleaseUpdateState: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, state: ReleaseUpdateState): void => callback(state);
+    ipcRenderer.on('studio:release-update-state', listener);
+    return () => ipcRenderer.removeListener('studio:release-update-state', listener);
+  },
   projects: () => invoke('projects'),
   projectOrganization: () => invoke('projectOrganization'),
   createProjectGroup: (name) => invoke('createProjectGroup', name),

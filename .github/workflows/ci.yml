@@ -42,3 +42,26 @@ jobs:
           name: branchloom-windows-portable
           path: out/make/zip/win32/x64/*.zip
           if-no-files-found: error
+
+  installer-windows:
+    needs: verify
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: windows-latest
+    env:
+      BRANCHLOOM_TRELLO_PUBLIC_KEY: ${{ vars.BRANCHLOOM_TRELLO_PUBLIC_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run make:installer
+      - run: node scripts/smoke-electron.mjs --executable out/installer/win-unpacked/Branchloom.exe
+      - run: node scripts/check-package.mjs out/installer/win-unpacked/resources/app
+      - run: node scripts/check-installer.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: branchloom-windows-installer
+          path: out/installer/Branchloom-Setup-*.exe
+          if-no-files-found: error

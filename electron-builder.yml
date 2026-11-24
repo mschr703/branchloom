@@ -1,0 +1,29 @@
+appId: de.mschr.branchloom
+productName: Branchloom
+directories:
+  output: out/installer
+files:
+  - package.json
+  - LICENSE
+  - dist/**/*
+  - dist-main/**/*
+  - assets/branchloom.ico
+  - scripts/setup-voice.ps1
+  - docs/COMMERCIAL_LICENSING.md
+  - trello-public-app.json
+  - '!**/*.map'
+asar: false
+win:
+  target: nsis
+  icon: assets/branchloom.ico
+  # Current community builds are unsigned. This is removed when code signing is set up.
+  verifyUpdateCodeSignature: false
+nsis:
+  oneClick: true
+  perMachine: false
+  allowElevation: false
+  artifactName: Branchloom-Setup-${version}.${ext}
+publish:
+  provider: github
+  owner: mschr703
+  repo: branchloom

@@ -1,0 +1,49 @@
+name: Windows release
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      BRANCHLOOM_TRELLO_PUBLIC_KEY: ${{ vars.BRANCHLOOM_TRELLO_PUBLIC_KEY }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Check release tag and branch
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          if ($env:GITHUB_REF_NAME -ne "v$version") { throw "Tag must match package version." }
+          git merge-base --is-ancestor HEAD origin/main
+          if ($LASTEXITCODE -ne 0) { throw "Release tag must point to a commit on main." }
+      - run: npm ci
+      - run: npm audit --audit-level=critical
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: node scripts/check-public.mjs
+      - run: npm run make:installer
+      - run: node scripts/smoke-electron.mjs --executable out/installer/win-unpacked/Branchloom.exe
+      - run: node scripts/check-package.mjs out/installer/win-unpacked/resources/app
+      - run: node scripts/check-installer.mjs
+      - name: Publish verified installer and update metadata
+        shell: pwsh
+        run: |
+          $setups = @(Get-ChildItem -Path out/installer -Filter 'Branchloom-Setup-*.exe' -File)
+          if ($setups.Count -ne 1) { throw "Expected one installer." }
+          $assets = @($setups[0].FullName, (Resolve-Path out/installer/latest.yml).Path)
+          $blockmap = "$($setups[0].FullName).blockmap"
+          if (Test-Path -LiteralPath $blockmap) { $assets += $blockmap }
+          gh release create $env:GITHUB_REF_NAME $assets --repo $env:GITHUB_REPOSITORY --verify-tag --title "Branchloom $env:GITHUB_REF_NAME" --generate-notes
