@@ -76,4 +76,17 @@ describe('board filters and archive visibility', () => {
     expect(archived).toContain('ARCHIVIERT');
     expect(archived).toContain('disabled=""');
   });
+
+  it('keeps QA reachable in the toolbar and hides empty bulk controls', () => {
+    const snapshot: ProjectSnapshot = {
+      project: { id: 'p', name: 'Empty', path: 'C:\\test', createdAt: stamp },
+      columns: [{ id: 'todo', projectId: 'p', name: 'To Do', position: 0, autoStart: false, agentId: null, model: null, effort: null }],
+      cards: [], agents: [], sessions: [], workflows: [], notes: [],
+    };
+    const html = renderToStaticMarkup(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() }));
+    expect(html).toMatch(/class="board-toolbar board-header-actions"[\s\S]*class="qa-coverage"/);
+    expect(html).toContain('UI-Prüfung');
+    expect(html).not.toContain('Sichtbare aktive Karten auswählen');
+    expect(html).not.toContain('class="board-bulk-actions"');
+  });
 });

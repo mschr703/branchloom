@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { ScanSearch } from 'lucide-react';
 import type { CardQaViewport, ProjectSnapshot } from '../../shared/types';
 import type { QaCoverageRoute } from '../../shared/qa-coverage';
 import { QaCoverageProjectGate } from '../qa-coverage-gate';
@@ -80,7 +81,7 @@ export function QaCoveragePanel({ snapshot, onOpenQaReport }: { snapshot: Projec
     setOpen(event.currentTarget.open);
     if (event.currentTarget.open && !busy) void reload();
   }}>
-    <summary>UI-Abdeckung · ausgewählte lokale Routen</summary>
+    <summary title="Ausgewählte Routen und QA-Berichte"><ScanSearch size={15} aria-hidden="true" /> UI-Prüfung</summary>
     <div className="qa-coverage-body">
       <div className="qa-coverage-intro"><p>Nur bewusst gewählte Karten, Routen und Größen. Jede Zelle zeigt den jüngsten gespeicherten QA-Bericht dieser Kombination; „veraltet“ bedeutet älter als sieben Tage. Keine Aussage über andere Seiten oder Zustände.</p><button className="secondary-button small" type="button" disabled={loading || Boolean(busy)} onClick={() => void reload()}>Berichte aktualisieren</button></div>
       <form className="qa-coverage-form" onSubmit={(event) => void save(event)}>

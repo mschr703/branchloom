@@ -24,6 +24,8 @@
 :root[data-theme] .nav-item.active { background: var(--surface-2); border-color: var(--border); box-shadow: none; color: var(--accent); }
 .nav-count { margin-left: auto; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
 .nav-other .nav-count { position: absolute; top: 2px; right: 4px; margin: 0; }
+.sidebar-status { flex: none; display: grid; gap: 3px; padding: 9px 5px 2px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; line-height: 1.3; font-variant-numeric: tabular-nums; }
+.sidebar-status strong { color: var(--text); font-weight: 650; }
 .topbar-title { display: flex; align-items: center; min-width: 0; }
 .topbar-title h1 { margin: 0; }
 
@@ -41,5 +43,6 @@
   .side-nav .nav-item, .side-nav .nav-item:not(.active) { flex: none; width: 40px; height: 40px; min-height: 40px; padding: 7px; }
   .side-nav .nav-label, .side-nav .nav-count { display: none; }
   .side-nav .nav-item svg { flex: none; }
+  .sidebar-status { display: none; }
   .topbar-title h1 { font-size: 17px; }
 }

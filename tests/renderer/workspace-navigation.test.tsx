@@ -1,7 +1,8 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { WorkspaceNavigation, views } from '../../src/renderer/components/WorkspaceNavigation';
+import type { ProjectSnapshot } from '../../src/shared/types';
+import { projectNavigationStatus, WorkspaceNavigation, views } from '../../src/renderer/components/WorkspaceNavigation';
 
 describe('compact workspace navigation', () => {
   it('keeps every view reachable by its full name with one current destination', () => {
@@ -18,5 +19,18 @@ describe('compact workspace navigation', () => {
     const html = renderToStaticMarkup(createElement(WorkspaceNavigation, { activeView: 'board', decisionCount: 3, onView: () => undefined }));
     expect(html).toContain('aria-label="Entscheidungen: 3 offen"');
     expect(html).toContain('class="nav-count" aria-hidden="true">3</span>');
+  });
+
+  it('uses only the current project snapshot for real sidebar counts', () => {
+    const snapshot = { project: { id: 'p' }, cards: [{ archivedAt: null }, { archivedAt: '2026-01-01' }], sessions: [{ state: 'running' }, { state: 'stopped' }] } as ProjectSnapshot;
+    expect(projectNavigationStatus(snapshot, 'other')).toBeNull();
+    expect(projectNavigationStatus(null, 'p')).toBeNull();
+    const status = projectNavigationStatus(snapshot, 'p');
+    expect(status).toEqual({ activeCards: 1, runningSessions: 1 });
+    const html = renderToStaticMarkup(createElement(WorkspaceNavigation, { activeView: 'board', decisionCount: 0, onView: () => undefined, status }));
+    expect(html).toContain('aria-label="Projektstatus"');
+    expect(html).toContain('1</strong> Agentenlauf aktiv');
+    expect(html).toContain('1</strong> aktive Karte');
+    expect(html).not.toContain('heute erledigt');
   });
 });

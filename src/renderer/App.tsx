@@ -19,7 +19,7 @@ import { decisionItems } from './decision-inbox';
 import type { ProjectConflictRadarResult } from '../shared/conflict-radar';
 import type { GlobalInboxItem } from '../shared/global-inbox';
 import { ProjectConflictBanner } from './components/ProjectConflictBanner';
-import { WorkspaceNavigation, views, type View } from './components/WorkspaceNavigation';
+import { projectNavigationStatus, WorkspaceNavigation, views, type View } from './components/WorkspaceNavigation';
 import { startConflictRadarRefresh } from './conflict-radar-schedule';
 import './theme.css';
 import './brand.css';
@@ -337,13 +337,13 @@ export function App() {
           <button type="button" disabled={!projectId} onClick={() => { if (projectMenuRef.current) projectMenuRef.current.open = false; void exportProjectPackage(); }}><Download size={15} aria-hidden="true" /> Projekt sichern</button>
         </div></details>
       </div>
-      <WorkspaceNavigation activeView={view} decisionCount={decisionCount} onView={setView} />
+      <WorkspaceNavigation activeView={view} decisionCount={decisionCount} onView={setView} status={projectNavigationStatus(snapshot, projectId)} />
     </aside>
 
     <main className="main-area">
       <header className="topbar">
         <div className="topbar-title"><h1>{activeView.name}</h1></div>
-        <div className="topbar-actions"><span className="topbar-meta">{snapshot ? `${snapshot.cards.length} ${snapshot.cards.length === 1 ? 'Karte' : 'Karten'} · ${snapshot.sessions.filter((session) => session.state === 'running').length} aktiv` : 'Bereit'}</span><div className={searchOpen ? 'topbar-search-slot is-open' : 'topbar-search-slot'}><button ref={searchButtonRef} className="search-trigger" type="button" title="Projekt durchsuchen (Strg+K)" aria-label="Projekt durchsuchen" aria-expanded={searchOpen} disabled={!snapshot || snapshot.project.id !== projectId} onClick={openSearch}><Search size={16} /><span>Projekt durchsuchen…</span><kbd>Strg K</kbd></button>{searchOpen && snapshot?.project.id === projectId ? <SearchPalette snapshot={snapshot} onClose={closeSearch} onNavigate={navigateToResult} /> : null}</div><button className="icon-button theme-toggle" type="button" title={themeToggleLabel(theme)} aria-label={themeToggleLabel(theme)} onClick={() => setTheme((previous) => previous === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}</button><button className="icon-button" type="button" title="Aktualisieren" aria-label="Aktualisieren" onClick={() => void refresh()}><RefreshCw size={17} /></button></div>
+        <div className="topbar-actions"><div className={searchOpen ? 'topbar-search-slot is-open' : 'topbar-search-slot'}><button ref={searchButtonRef} className="search-trigger" type="button" title="Projekt durchsuchen (Strg+K)" aria-label="Projekt durchsuchen" aria-expanded={searchOpen} disabled={!snapshot || snapshot.project.id !== projectId} onClick={openSearch}><Search size={16} /><span>Projekt durchsuchen…</span><kbd>Strg K</kbd></button>{searchOpen && snapshot?.project.id === projectId ? <SearchPalette snapshot={snapshot} onClose={closeSearch} onNavigate={navigateToResult} /> : null}</div><button className="icon-button theme-toggle" type="button" title={themeToggleLabel(theme)} aria-label={themeToggleLabel(theme)} onClick={() => setTheme((previous) => previous === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}</button><button className="icon-button" type="button" title="Aktualisieren" aria-label="Aktualisieren" onClick={() => void refresh()}><RefreshCw size={17} /></button></div>
       </header>
       <div className="mobile-workspace">
         <label className="sr-only" htmlFor="mobile-project-select">Projekt auswählen</label>

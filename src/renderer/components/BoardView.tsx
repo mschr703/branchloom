@@ -194,8 +194,7 @@ export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenQaRe
   }
 
   return <div className="board-page">
-    <div className="board-toolbar board-header-actions"><button className="secondary-button" type="button" onClick={() => setShowTaskDraft(true)} title="Mit einem Agenten aus einer Idee eine überprüfbare Aufgabe formulieren"><MessageCircle size={16} /> Aufgabe vorbereiten</button><button className="secondary-button" type="button" onClick={() => setShowImport(true)}><FileJson2 size={16} /> Trello importieren</button></div>
-    <QaCoveragePanel key={snapshot.project.id} snapshot={snapshot} onOpenQaReport={onOpenQaReport ?? ((cardId) => openBoardCard(cardId))} />
+    <div className="board-toolbar board-header-actions"><button className="secondary-button" type="button" onClick={() => setShowTaskDraft(true)} title="Mit einem Agenten aus einer Idee eine überprüfbare Aufgabe formulieren"><MessageCircle size={16} /> Aufgabe vorbereiten</button><button className="secondary-button" type="button" onClick={() => setShowImport(true)}><FileJson2 size={16} /> Trello importieren</button><QaCoveragePanel key={snapshot.project.id} snapshot={snapshot} onOpenQaReport={onOpenQaReport ?? ((cardId) => openBoardCard(cardId))} /></div>
     <div className="board-filters" role="search" aria-label="Board-Filter">
       <label className="board-search"><Search size={16} aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Karten suchen…" aria-label="Karten suchen" aria-describedby="board-filter-help" /></label>
       <label className="board-quick-filter"><span className="sr-only">Priorität filtern</span><select value={filterPriority} onChange={(event) => setFilterPriority(event.target.value as CardPriority | '')} aria-label="Priorität filtern"><option value="">Alle Prioritäten</option>{CARD_PRIORITIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
@@ -206,7 +205,7 @@ export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenQaRe
       <span className="board-filter-count" role="status" aria-live="polite">{visibleCards.length} Treffer</span>
       <span id="board-filter-help" className="sr-only">Karten mit Tab erreichen. Enter öffnet Details, M öffnet die Verschiebeauswahl. Pfeiltasten-Schaltflächen ändern die Reihenfolge innerhalb der vollständigen Spalte, auch wenn Karten ausgefiltert sind. Archivierte Karten bleiben an ihrem Platz.</span>
     </div>
-    <div className="board-bulk-actions" aria-label="Sammelaktionen">
+    {selectableCards.length > 0 || selectedBulkCards.length > 0 ? <div className="board-bulk-actions" aria-label="Sammelaktionen">
       <label className="board-bulk-all"><input type="checkbox" checked={selectableCards.length > 0 && selectedBulkCards.length === selectableCards.length} disabled={selectableCards.length === 0 || selectableCards.length > 100 || bulkBusy} onChange={(event) => { setConfirmBulkArchive(false); setConfirmBulkPriority(null); setBulkNotice(''); setBulkIds(event.target.checked ? new Set(selectableCards.map((card) => card.id)) : new Set()); }} /> Sichtbare aktive Karten auswählen</label>
       <strong>{selectedBulkCards.length} ausgewählt</strong>
       {selectedBulkCards.length ? <><button className="secondary-button small" type="button" onClick={() => { setBulkIds(new Set()); setConfirmBulkArchive(false); setConfirmBulkPriority(null); setBulkNotice(''); }}>Auswahl aufheben</button>
@@ -232,7 +231,7 @@ export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenQaRe
       {selectedBulkCards.length ? <span className="board-bulk-note">Sammelverschieben startet keine Spaltenagenten.</span> : null}
       {selectableCards.length > 100 ? <span role="status">Maximal 100 Karten pro Sammelaktion; bitte zuerst filtern.</span> : null}
       {snapshot.queue?.state === 'running' ? <span role="status">Warteschlange vor Sammelaktionen pausieren.</span> : null}
-    </div>
+    </div> : null}
     {confirmBulkArchive && selectedBulkCards.length ? <BulkArchiveConfirmation count={selectedBulkCards.length} busy={bulkBusy} onConfirm={() => void applyBulk('archive')} onCancel={() => setConfirmBulkArchive(false)} /> : null}
     {confirmBulkPriority ? <BulkPriorityConfirmation selectedCount={confirmBulkPriority.cardIds.length} changeCount={confirmBulkPriority.changeCount} priorityLabel={CARD_PRIORITIES.find((item) => item.value === confirmBulkPriority.priority)?.label ?? confirmBulkPriority.priority} busy={bulkBusy} onConfirm={() => void applyBulkPriority()} onCancel={() => setConfirmBulkPriority(null)} /> : null}
     {bulkNotice ? <p className="board-bulk-result" role="status">{bulkNotice}</p> : null}

@@ -1,4 +1,5 @@
 import { Activity, Bot, BrainCircuit, Columns3, GitBranch, GitCommitHorizontal, Globe2, History, Inbox, Lightbulb, MousePointer2, Network, TerminalSquare } from 'lucide-react';
+import type { ProjectSnapshot } from '../../shared/types';
 
 export type View = 'board' | 'ideas' | 'activity' | 'workflows' | 'decisions' | 'whiteboard' | 'memory' | 'milestones' | 'agents' | 'terminal' | 'browser' | 'design' | 'changelog';
 
@@ -26,10 +27,21 @@ interface Props {
   activeView: View;
   decisionCount: number;
   onView: (view: View) => void;
+  status?: ProjectNavigationStatus | null;
+}
+
+export interface ProjectNavigationStatus { activeCards: number; runningSessions: number }
+
+export function projectNavigationStatus(snapshot: ProjectSnapshot | null, projectId: string | null): ProjectNavigationStatus | null {
+  if (!snapshot || !projectId || snapshot.project.id !== projectId) return null;
+  return {
+    activeCards: snapshot.cards.filter((card) => !card.archivedAt).length,
+    runningSessions: snapshot.sessions.filter((session) => session.state === 'running').length,
+  };
 }
 
 /** Project context stays above this compact, fully labelled navigation. */
-export function WorkspaceNavigation({ activeView, decisionCount, onView }: Props) {
+export function WorkspaceNavigation({ activeView, decisionCount, onView, status }: Props) {
   const item = ({ id, name, icon: Icon }: typeof views[number]) =>
     <button key={id} type="button" className={activeView === id ? 'nav-item active' : 'nav-item'}
       onClick={() => onView(id)} aria-current={activeView === id ? 'page' : undefined}
@@ -37,8 +49,11 @@ export function WorkspaceNavigation({ activeView, decisionCount, onView }: Props
       <Icon size={18} aria-hidden="true" /><span className="nav-label">{name}</span>
       {id === 'decisions' && decisionCount ? <span className="nav-count" aria-hidden="true">{decisionCount}</span> : null}
     </button>;
-  return <nav className="side-nav" aria-label="Hauptnavigation">
+  return <><nav className="side-nav" aria-label="Hauptnavigation">
     <div className="nav-primary" role="group" aria-label="Planung">{primaryViews.map(item)}</div>
     <div className="nav-other" role="group" aria-label="Weitere Ansichten">{otherViews.map(item)}</div>
-  </nav>;
+  </nav>{status ? <div className="sidebar-status" aria-label="Projektstatus">
+    <span><strong>{status.runningSessions}</strong> {status.runningSessions === 1 ? 'Agentenlauf' : 'Agentenläufe'} aktiv</span>
+    <span><strong>{status.activeCards}</strong> aktive {status.activeCards === 1 ? 'Karte' : 'Karten'}</span>
+  </div> : null}</>;
 }
