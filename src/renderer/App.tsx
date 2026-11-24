@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Activity, Bot, BrainCircuit, Columns3, Download, GitBranch, GitCommitHorizontal, Globe2, History, Inbox, Lightbulb, Moon, MousePointer2, Network, Plus, RefreshCw, Search, Settings2, Sun, TerminalSquare, Upload } from 'lucide-react';
+import { Download, GitBranch, Moon, MoreHorizontal, Plus, RefreshCw, Search, Sun, Upload } from 'lucide-react';
 import type { Project, ProjectPackagePreview, ProjectSnapshot, Session } from '../shared/types';
 import { BoardView } from './components/BoardView';
 import { IdeasView } from './components/IdeasView';
@@ -11,7 +11,6 @@ import { ActivityView } from './components/ActivityView';
 import { DecisionInbox } from './components/DecisionInbox';
 import { ChangelogView } from './components/ChangelogView';
 import { ProjectPackageDialog } from './components/ProjectPackageDialog';
-import { ProjectImportChoice } from './components/ProjectImportChoice';
 import { BranchloomMark } from './components/BranchloomMark';
 import { sessionMemoryDraft } from './activity-transcript';
 import { viewForSearchKind, type ProjectSearchResult, type SearchKind } from './project-search';
@@ -20,6 +19,7 @@ import { decisionItems } from './decision-inbox';
 import type { ProjectConflictRadarResult } from '../shared/conflict-radar';
 import type { GlobalInboxItem } from '../shared/global-inbox';
 import { ProjectConflictBanner } from './components/ProjectConflictBanner';
+import { WorkspaceNavigation, views, type View } from './components/WorkspaceNavigation';
 import { startConflictRadarRefresh } from './conflict-radar-schedule';
 import './theme.css';
 import './brand.css';
@@ -30,24 +30,7 @@ const MemoryView = lazy(() => import('./components/MemoryView').then((module) =>
 const BrowserView = lazy(() => import('./components/BrowserView').then((module) => ({ default: module.BrowserView })));
 const DesignInspectionView = lazy(() => import('./components/DesignInspectionView').then((module) => ({ default: module.DesignInspectionView })));
 
-type View = 'board' | 'ideas' | 'activity' | 'workflows' | 'decisions' | 'whiteboard' | 'memory' | 'milestones' | 'agents' | 'terminal' | 'browser' | 'design' | 'changelog';
 type NavigationTarget = { kind: SearchKind; id: string; token: number; reviewCommentId?: string; qaReportId?: string };
-
-const views: { id: View; name: string; icon: typeof Columns3 }[] = [
-  { id: 'board', name: 'Board', icon: Columns3 },
-  { id: 'ideas', name: 'Ideenraum', icon: Lightbulb },
-  { id: 'activity', name: 'Aktivität', icon: Activity },
-  { id: 'changelog', name: 'Changelog', icon: GitCommitHorizontal },
-  { id: 'workflows', name: 'Workflows', icon: GitBranch },
-  { id: 'decisions', name: 'Entscheidungen', icon: Inbox },
-  { id: 'whiteboard', name: 'Whiteboard', icon: Network },
-  { id: 'memory', name: 'Memory', icon: BrainCircuit },
-  { id: 'milestones', name: 'Zeitmaschine', icon: History },
-  { id: 'agents', name: 'Agenten', icon: Bot },
-  { id: 'terminal', name: 'Terminal', icon: TerminalSquare },
-  { id: 'browser', name: 'Browser', icon: Globe2 },
-  { id: 'design', name: 'Design', icon: MousePointer2 },
-];
 
 export function App() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -58,9 +41,9 @@ export function App() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [creatingProject, setCreatingProject] = useState(false);
+  const projectMenuRef = useRef<HTMLDetailsElement>(null);
   const [newProject, setNewProject] = useState({ name: '', path: '' });
   const [importPreview, setImportPreview] = useState<ProjectPackagePreview | null>(null);
-  const [showProjectImportChoice, setShowProjectImportChoice] = useState(false);
   const [importTarget, setImportTarget] = useState({ name: '', path: '' });
   const [notice, setNotice] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -337,32 +320,30 @@ export function App() {
   }
 
   const activeView = views.find((item) => item.id === view)!;
-  const ViewIcon = activeView.icon;
   const decisionCount = snapshot?.project.id === projectId ? decisionItems(snapshot).length : 0;
 
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><span className="brand-mark"><BranchloomMark /></span><strong>Branchloom</strong></div>
-      <div className="side-section-title">Projekte</div>
-      <label className="sr-only" htmlFor="project-select">Projekt auswählen</label>
-      <select id="project-select" className="project-select" value={projectId ?? ''} onChange={(event) => { setPendingGlobalItem(null); setProjectId(event.target.value || null); }}>
-        {projects.length === 0 ? <option value="">Kein Projekt</option> : null}
-        {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-      </select>
-      <button className="sidebar-add" type="button" onClick={() => setCreatingProject(true)}><Plus size={15} /> Projekt hinzufügen</button>
-      <button className="sidebar-add sidebar-package" type="button" onClick={() => setShowProjectImportChoice(true)}><Upload size={15} /> Projekt importieren</button>
-      <button className="sidebar-add sidebar-package" type="button" disabled={!projectId} onClick={() => void exportProjectPackage()}><Download size={15} /> Projekt sichern</button>
-      <div className="side-section-title navigation-title">Navigation</div>
-      <nav className="side-nav" aria-label="Hauptnavigation">
-        {views.map(({ id, name, icon: Icon }) => <button key={id} type="button" className={view === id ? 'nav-item active' : 'nav-item'} onClick={() => setView(id)} aria-current={view === id ? 'page' : undefined} aria-label={id === 'decisions' && decisionCount ? `${name}: ${decisionCount} offen` : undefined}><Icon size={18} /> {name}{id === 'decisions' && decisionCount ? <span className="nav-count" aria-hidden="true">{decisionCount}</span> : null}</button>)}
-      </nav>
-      <div className="sidebar-bottom"><div className="status-dot" /><span>Lokaler Workspace</span><Settings2 size={16} /></div>
+      <div className="sidebar-projects">
+        <label className="side-section-title" htmlFor="project-select">Projekt</label>
+        <select id="project-select" className="project-select" value={projectId ?? ''} onChange={(event) => { setPendingGlobalItem(null); setProjectId(event.target.value || null); }}>
+          {projects.length === 0 ? <option value="">Kein Projekt</option> : null}
+          {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+        </select>
+        <details className="project-actions" ref={projectMenuRef}><summary><MoreHorizontal size={17} aria-hidden="true" /> Projektaktionen</summary><div className="project-actions-menu">
+          <button type="button" onClick={() => { projectMenuRef.current!.open = false; setCreatingProject(true); }}><Plus size={15} aria-hidden="true" /> Projekt hinzufügen</button>
+          <button type="button" onClick={() => { projectMenuRef.current!.open = false; void previewProjectPackage(); }}><Upload size={15} aria-hidden="true" /> Projekt importieren</button>
+          <button type="button" disabled={!projectId} onClick={() => { projectMenuRef.current!.open = false; void exportProjectPackage(); }}><Download size={15} aria-hidden="true" /> Projekt sichern</button>
+        </div></details>
+      </div>
+      <WorkspaceNavigation activeView={view} decisionCount={decisionCount} onView={setView} />
     </aside>
 
     <main className="main-area">
       <header className="topbar">
-        <div className="topbar-title"><span className="topbar-icon"><ViewIcon size={21} /></span><div><small>{snapshot?.project.name ?? 'Branchloom'}</small><h1>{activeView.name}</h1></div></div>
-        <div className="topbar-actions"><span className="topbar-meta">{snapshot ? `${snapshot.cards.length} ${snapshot.cards.length === 1 ? 'Karte' : 'Karten'} · ${snapshot.sessions.filter((session) => session.state === 'running').length} aktiv` : 'Bereit'}</span><div className={searchOpen ? 'topbar-search-slot is-open' : 'topbar-search-slot'}><button ref={searchButtonRef} className="search-trigger" type="button" title="Projekt durchsuchen (Strg+K)" aria-label="Projekt durchsuchen" aria-expanded={searchOpen} disabled={!snapshot || snapshot.project.id !== projectId} onClick={openSearch}><Search size={16} /><span>Suche</span><kbd>Strg K</kbd></button>{searchOpen && snapshot?.project.id === projectId ? <SearchPalette snapshot={snapshot} onClose={closeSearch} onNavigate={navigateToResult} /> : null}</div><button className="icon-button theme-toggle" type="button" title={themeToggleLabel(theme)} aria-label={themeToggleLabel(theme)} onClick={() => setTheme((previous) => previous === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}</button><button className="icon-button" type="button" title="Aktualisieren" aria-label="Aktualisieren" onClick={() => void refresh()}><RefreshCw size={17} /></button></div>
+        <div className="topbar-title"><h1>{activeView.name}</h1></div>
+        <div className="topbar-actions"><span className="topbar-meta">{snapshot ? `${snapshot.cards.length} ${snapshot.cards.length === 1 ? 'Karte' : 'Karten'} · ${snapshot.sessions.filter((session) => session.state === 'running').length} aktiv` : 'Bereit'}</span><div className={searchOpen ? 'topbar-search-slot is-open' : 'topbar-search-slot'}><button ref={searchButtonRef} className="search-trigger" type="button" title="Projekt durchsuchen (Strg+K)" aria-label="Projekt durchsuchen" aria-expanded={searchOpen} disabled={!snapshot || snapshot.project.id !== projectId} onClick={openSearch}><Search size={16} /><span>Projekt durchsuchen…</span><kbd>Strg K</kbd></button>{searchOpen && snapshot?.project.id === projectId ? <SearchPalette snapshot={snapshot} onClose={closeSearch} onNavigate={navigateToResult} /> : null}</div><button className="icon-button theme-toggle" type="button" title={themeToggleLabel(theme)} aria-label={themeToggleLabel(theme)} onClick={() => setTheme((previous) => previous === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}</button><button className="icon-button" type="button" title="Aktualisieren" aria-label="Aktualisieren" onClick={() => void refresh()}><RefreshCw size={17} /></button></div>
       </header>
       <div className="mobile-workspace">
         <label className="sr-only" htmlFor="mobile-project-select">Projekt auswählen</label>
@@ -371,7 +352,7 @@ export function App() {
           {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
         </select>
         <button className="icon-button" type="button" onClick={() => setCreatingProject(true)} aria-label="Projekt hinzufügen" title="Projekt hinzufügen"><Plus size={18} /></button>
-        <button className="icon-button" type="button" onClick={() => setShowProjectImportChoice(true)} aria-label="Projekt importieren" title="Projekt importieren"><Upload size={18} /></button>
+        <button className="icon-button" type="button" onClick={() => void previewProjectPackage()} aria-label="Projekt importieren" title="Projekt importieren"><Upload size={18} /></button>
         <button className="icon-button" type="button" disabled={!projectId} onClick={() => void exportProjectPackage()} aria-label="Projekt sichern" title="Projekt sichern"><Download size={18} /></button>
       </div>
 
@@ -398,8 +379,8 @@ export function App() {
     </main>
 
     {creatingProject ? <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setCreatingProject(false); }}><form className="dialog" onSubmit={(event) => void createProject(event)}><div className="dialog-heading"><div><small>Projekt</small><h2>Projekt hinzufügen</h2></div><button type="button" className="icon-button" onClick={() => setCreatingProject(false)} aria-label="Schließen">×</button></div><label>Name<input autoFocus required maxLength={80} value={newProject.name} onChange={(event) => setNewProject((old) => ({ ...old, name: event.target.value }))} placeholder="Mein Projekt" /></label><label>Absoluter Projektordner<input required value={newProject.path} onChange={(event) => setNewProject((old) => ({ ...old, path: event.target.value }))} placeholder="C:\\Projekte\\mein-projekt" /></label><p className="field-help">CLI-Agenten laufen in diesem Ordner und können Dateien verändern.</p><div className="dialog-actions"><button type="button" className="secondary-button" onClick={() => setCreatingProject(false)}>Abbrechen</button><button type="submit" className="primary-button">Projekt anlegen</button></div></form></div> : null}
-    {showProjectImportChoice ? <ProjectImportChoice onFolder={() => { setShowProjectImportChoice(false); setCreatingProject(true); }} onPackage={() => { setShowProjectImportChoice(false); void previewProjectPackage(); }} onClose={() => setShowProjectImportChoice(false)} /> : null}
     {importPreview ? <ProjectPackageDialog preview={importPreview} target={importTarget} onTarget={setImportTarget} onClose={() => setImportPreview(null)} onImport={(event) => void importProjectPackage(event)} /> : null}
+    {searchOpen && snapshot?.project.id === projectId ? <SearchPalette snapshot={snapshot} onClose={closeSearch} onNavigate={navigateToResult} /> : null}
   </div>;
 }
 

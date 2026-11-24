@@ -1,0 +1,44 @@
+/* A project header and a small view rail keep every destination reachable at laptop height. */
+.sidebar { width: 196px; padding: 14px 10px 10px; overflow: hidden; }
+:root[data-theme] .brand { flex: none; padding: 0 6px 14px; }
+.sidebar-projects { position: relative; z-index: 11; flex: none; padding: 0 2px 12px; border-bottom: 1px solid var(--border); }
+.sidebar-projects .side-section-title { display: block; margin: 0 0 6px; padding: 0 3px; font-size: 11px; }
+.sidebar-projects .project-select { min-height: 36px; padding: 6px 9px; font-size: 13px; }
+.project-actions { position: relative; margin-top: 4px; }
+.project-actions summary { display: flex; align-items: center; gap: 6px; min-height: 30px; padding: 4px 3px; list-style: none; color: var(--muted); font-size: 11px; cursor: pointer; }
+.project-actions summary::-webkit-details-marker { display: none; }
+.project-actions summary:hover, .project-actions[open] summary { color: var(--text); }
+.project-actions summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.project-actions-menu { position: absolute; top: 31px; left: -2px; width: 192px; display: grid; padding: 5px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 10px 28px #0002; }
+.project-actions-menu button { display: flex; align-items: center; gap: 8px; min-height: 35px; padding: 7px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--text); text-align: left; font-size: 12px; }
+.project-actions-menu button:hover { background: var(--surface-2); }
+
+.side-nav { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 2px 6px; scrollbar-width: thin; }
+.nav-primary { display: grid; gap: 3px; }
+.nav-other { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--border); }
+.nav-primary .nav-item { min-height: 36px; padding: 6px 9px; gap: 9px; font-size: 13px; }
+.nav-other .nav-item { position: relative; min-width: 0; min-height: 48px; display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 5px 3px; text-align: center; font-size: 10px; line-height: 1.15; }
+.nav-other .nav-label { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:root[data-theme] .nav-item { border-color: transparent; border-radius: 6px; }
+:root[data-theme] .nav-item.active { background: var(--surface-2); border-color: var(--border); box-shadow: none; color: var(--accent); }
+.nav-count { margin-left: auto; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.nav-other .nav-count { position: absolute; top: 2px; right: 4px; margin: 0; }
+.topbar-title { display: flex; align-items: center; min-width: 0; }
+.topbar-title h1 { margin: 0; }
+
+@media (max-width: 900px) and (min-width: 601px) {
+  .brand strong { display: block; }
+}
+
+@media (max-width: 600px) {
+  .sidebar { width: 100%; height: 56px; min-height: 56px; padding: 6px 8px; overflow: hidden; }
+  :root[data-theme] .brand { flex: none; padding: 0; margin-right: 8px; }
+  .brand strong, .sidebar-projects { display: none; }
+  .side-nav { display: flex; flex: 1; align-items: center; gap: 4px; overflow-x: auto; overflow-y: hidden; padding: 0; scrollbar-width: thin; }
+  .nav-primary, .nav-other { display: flex; flex: none; align-items: center; gap: 2px; padding: 0; margin: 0; border: 0; }
+  .nav-other { border-left: 1px solid var(--border); padding-left: 5px; }
+  .side-nav .nav-item, .side-nav .nav-item:not(.active) { flex: none; width: 40px; height: 40px; min-height: 40px; padding: 7px; }
+  .side-nav .nav-label, .side-nav .nav-count { display: none; }
+  .side-nav .nav-item svg { flex: none; }
+  .topbar-title h1 { font-size: 17px; }
+}

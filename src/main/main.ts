@@ -1671,7 +1671,8 @@ function createWindow(): void {
               for (let attempt = 0; attempt < 200 && (document.activeElement?.id !== 'workflow-plan-review' || !document.activeElement?.textContent?.includes('BRANCHLOOM_PLAN_REVIEW_SMOKE')); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (document.activeElement?.id !== 'workflow-plan-review' || !document.activeElement?.textContent?.includes('BRANCHLOOM_PLAN_REVIEW_SMOKE')) throw new Error('Globale Inbox öffnete den konkreten Plan nicht: ' + JSON.stringify({ active: document.activeElement?.outerHTML?.slice(0, 250), plan: document.querySelector('#workflow-plan-review')?.textContent?.slice(-300), view: document.querySelector('.topbar-title h1')?.textContent }));
               if (!(await sessionsUnchanged())) throw new Error('Globale Inbox startete einen Agenten.');
-              [...document.querySelectorAll('.sidebar-add')].find((item) => item.textContent?.includes('Projekt hinzufügen'))?.click();
+              document.querySelector('.project-actions summary')?.click();
+              [...document.querySelectorAll('.project-actions-menu button')].find((item) => item.textContent?.includes('Projekt hinzufügen'))?.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('.modal-backdrop form.dialog'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const form = document.querySelector('.modal-backdrop form.dialog');
               const inputs = form?.querySelectorAll('input');
@@ -2765,7 +2766,7 @@ function createWindow(): void {
               const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
               if (!setter) throw new Error('Projektauswahl kann nicht gesetzt werden.');
               setter.call(select, ${JSON.stringify(milestoneProjectId)}); select.dispatchEvent(new Event('change', { bubbles: true }));
-              for (let attempt = 0; attempt < 100 && !document.querySelector('.topbar-title')?.textContent?.includes('Meilenstein-Vorschau'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              for (let attempt = 0; attempt < 100 && !document.querySelector('#project-select option:checked')?.textContent?.includes('Meilenstein-Vorschau'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((button) => button.textContent?.trim() === 'Zeitmaschine')?.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('.milestones-item'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!document.querySelector('.milestones-item')?.textContent?.includes('Synthetische Vorschau')) throw new Error('Meilenstein fehlt in der Zeitmaschine.');
@@ -2816,7 +2817,7 @@ function createWindow(): void {
               const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
               if (!setter) throw new Error('Projektauswahl ist nicht bedienbar.');
               setter.call(select, ${JSON.stringify(milestoneProjectId)}); select.dispatchEvent(new Event('change', { bubbles: true }));
-              for (let attempt = 0; attempt < 100 && !document.querySelector('.topbar-title')?.textContent?.includes('Meilenstein-Vorschau'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              for (let attempt = 0; attempt < 100 && !document.querySelector('#project-select option:checked')?.textContent?.includes('Meilenstein-Vorschau'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((button) => button.textContent?.trim() === 'Memory')?.click();
               let note;
               for (let attempt = 0; attempt < 100; attempt++) {
@@ -2860,7 +2861,7 @@ function createWindow(): void {
               const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
               if (!(select instanceof HTMLSelectElement) || !setter) throw new Error('Projektauswahl fehlt nach Memory-Neustart.');
               setter.call(select, ${JSON.stringify(milestoneProjectId)}); select.dispatchEvent(new Event('change', { bubbles: true }));
-              for (let attempt = 0; attempt < 100 && !document.querySelector('.topbar-title')?.textContent?.includes('Meilenstein-Vorschau'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              for (let attempt = 0; attempt < 100 && !document.querySelector('#project-select option:checked')?.textContent?.includes('Meilenstein-Vorschau'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((button) => button.textContent?.trim() === 'Memory')?.click();
               let note;
               for (let attempt = 0; attempt < 100; attempt++) {
@@ -2886,7 +2887,7 @@ function createWindow(): void {
               const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
               if (!(select instanceof HTMLSelectElement) || !setter) throw new Error('Terminal-Worktree: Projektauswahl fehlt.');
               setter.call(select, ${JSON.stringify(milestoneProjectId)}); select.dispatchEvent(new Event('change', { bubbles: true }));
-              for (let attempt = 0; attempt < 100 && !document.querySelector('.topbar-title')?.textContent?.includes('Meilenstein-Vorschau'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              for (let attempt = 0; attempt < 100 && !document.querySelector('#project-select option:checked')?.textContent?.includes('Meilenstein-Vorschau'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((button) => button.textContent?.trim() === 'Terminal')?.click();
               let target;
               for (let attempt = 0; attempt < 100; attempt++) {
@@ -2943,7 +2944,7 @@ function createWindow(): void {
               const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
               if (!setter) throw new Error('Projektauswahl ist nicht bedienbar.');
               setter.call(select, ${JSON.stringify(milestoneProjectId)}); select.dispatchEvent(new Event('change', { bubbles: true }));
-              for (let attempt = 0; attempt < 100 && !document.querySelector('.topbar-title')?.textContent?.includes('Meilenstein-Vorschau'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              for (let attempt = 0; attempt < 100 && !document.querySelector('#project-select option:checked')?.textContent?.includes('Meilenstein-Vorschau'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((button) => button.textContent?.trim() === 'Board')?.click();
               let card;
               for (let attempt = 0; attempt < 100; attempt++) {
