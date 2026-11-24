@@ -20,6 +20,7 @@ import { PrDraftPanel } from './PrDraftPanel';
 import { OutputErrorPanel } from './OutputErrorPanel';
 import { ConflictRadarNotice } from './ConflictRadarNotice';
 import { IntegrationQueuePanel } from './IntegrationQueuePanel';
+import { CardDevEnvironmentPanel } from './CardDevEnvironmentPanel';
 import { startConflictRadarRefresh } from '../conflict-radar-schedule';
 import { parallelStartWarning } from '../parallel-run-gate';
 import { addCardLabel, labelSuggestions } from '../card-labels';
@@ -28,9 +29,9 @@ import '../card-label-editor.css';
 const SessionTerminal = lazy(() => import('./SessionTerminal').then((module) => ({ default: module.SessionTerminal })));
 const ReviewDiffPanel = lazy(() => import('./ReviewDiffPanel').then((module) => ({ default: module.ReviewDiffPanel })));
 
-interface Props { card: Card; snapshot: ProjectSnapshot; mutate: Mutate; onClose: () => void; onOpenCard: (id: string) => void; onOpenDesign?: (cardId: string) => void; focusSession?: boolean; focusReviewComment?: { id: string; token: number } | null; focusQaReport?: { id: string; token: number } | null }
+interface Props { card: Card; snapshot: ProjectSnapshot; mutate: Mutate; onClose: () => void; onOpenCard: (id: string) => void; onOpenDesign?: (cardId: string) => void; onOpenBrowser?: () => void; focusSession?: boolean; focusReviewComment?: { id: string; token: number } | null; focusQaReport?: { id: string; token: number } | null }
 
-export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenDesign, focusSession, focusReviewComment, focusQaReport }: Props) {
+export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenDesign, onOpenBrowser, focusSession, focusReviewComment, focusQaReport }: Props) {
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description);
   const [priority, setPriority] = useState<CardPriority>(card.priority);
@@ -294,6 +295,8 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
           <SessionEvidencePanel key={`run-evidence-${card.id}`} sessions={sessions} archived={Boolean(card.archivedAt)} onOpenQa={(reportId) => setCriterionQaFocus((old) => ({ id: reportId, token: (old?.token ?? 0) + 1 }))} />
           {session.state !== 'running' ? <OutputErrorPanel key={session.id} projectId={card.projectId} sourceKind="session" sourceId={session.id} columns={snapshot.columns} onCreated={async (created) => { await mutate(async () => created); onOpenCard(created.id); }} /> : null}
         </> : <div className="terminal-empty">Noch kein Agentenlauf für diese Karte.</div>}
+        <div className="drawer-divider" />
+        <CardDevEnvironmentPanel key={`dev-env-${card.id}`} cardId={card.id} projectId={card.projectId} archived={Boolean(card.archivedAt)} onOpenBrowser={() => { onClose(); onOpenBrowser?.(); }} />
         <div className="drawer-divider" />
         <CardQaPanel key={`qa-${card.id}`} card={card} focusReport={criterionQaFocus ?? focusQaReport} />
         <div className="drawer-divider" />

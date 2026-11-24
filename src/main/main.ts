@@ -58,6 +58,7 @@ import { AgentCardMetadataBridge } from './agent-card-metadata-bridge';
 import { agentBrowserPolicy, setAgentBrowserPolicy } from './agent-browser-policy';
 import { AgentBrowserBridge } from './agent-browser-bridge';
 import { inspectAgentBrowserPage } from './agent-browser-inspector';
+import { DevEnvironmentRunner, devEnvironmentProfile, saveDevEnvironmentProfile } from './dev-environment';
 import { proposeWorkflow } from './workflow-planner';
 import { discussTaskDraft } from './task-draft';
 import { discussProject } from './project-chat';
@@ -76,6 +77,7 @@ let window: BrowserWindow | null = null;
 let store: StudioStore | null = null;
 let runner: SessionRunner | null = null;
 let commandRunner: CommandTerminalRunner | null = null;
+let devEnvironmentRunner: DevEnvironmentRunner | null = null;
 let queueEngine: ProjectQueueEngine;
 let recoveryMonitor: SessionRecoveryMonitor | null = null;
 let browser: StudioBrowser | null = null;
@@ -155,6 +157,7 @@ function installIpc(): void {
   commandRunner = new CommandTerminalRunner(db, (event: CommandTerminalEvent) => {
     if (window && !window.isDestroyed()) window.webContents.send('studio:command-terminal-event', event);
   });
+  devEnvironmentRunner = new DevEnvironmentRunner(db);
 
   const bind = <K extends keyof StudioAPI>(name: K, handler: (...args: never[]) => unknown): void => {
     ipcMain.handle(`studio:${String(name)}`, (event, ...args: unknown[]) => {
@@ -268,6 +271,11 @@ function installIpc(): void {
     agentBrowserBridge?.revokeProject(input.projectId);
     return policy;
   });
+  bind('devEnvironmentProfile', (projectId: string) => devEnvironmentProfile(db, projectId));
+  bind('saveDevEnvironmentProfile', (input: Parameters<StudioAPI['saveDevEnvironmentProfile']>[0]) => saveDevEnvironmentProfile(db, input));
+  bind('cardDevEnvironment', (cardId: string) => devEnvironmentRunner?.card(cardId) ?? null);
+  bind('startCardDevEnvironment', (cardId: string) => devEnvironmentRunner?.start(cardId));
+  bind('stopCardDevEnvironment', (runId: string) => devEnvironmentRunner?.stop(runId));
   bind('cardSplitLinks', (cardId: string) => cardSplitLinks(db, cardId));
   bind('previewCardSplit', (input: Parameters<StudioAPI['previewCardSplit']>[0]) => previewCardSplit(db, input));
   bind('createCardSplit', (input: Parameters<StudioAPI['createCardSplit']>[0]) => createCardSplit(db, input));
@@ -3262,6 +3270,7 @@ function configureReleaseUpdater(): void {
     if (!store) return false;
     return !store.db.prepare(`SELECT 1 FROM sessions WHERE state = 'running'
       UNION ALL SELECT 1 FROM command_terminals WHERE state = 'running'
+      UNION ALL SELECT 1 FROM dev_environment_runs WHERE state IN ('starting','ready')
       UNION ALL SELECT 1 FROM workflows WHERE state = 'running'
       UNION ALL SELECT 1 FROM project_queues WHERE state = 'running' LIMIT 1`).get();
   });
@@ -3317,6 +3326,8 @@ app.on('before-quit', () => {
   agentBrowserBridge = null;
   commandRunner?.dispose();
   commandRunner = null;
+  devEnvironmentRunner?.dispose();
+  devEnvironmentRunner = null;
   store?.close();
   store = null;
 });

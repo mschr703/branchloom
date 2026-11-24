@@ -116,6 +116,11 @@ export interface StudioAPI {
   agentBrowserPolicy(projectId: string): Promise<import('./agent-browser').AgentBrowserPolicy>;
   agentBrowserAvailable(): Promise<boolean>;
   setAgentBrowserPolicy(input: import('./agent-browser').AgentBrowserPolicy): Promise<import('./agent-browser').AgentBrowserPolicy>;
+  devEnvironmentProfile(projectId: string): Promise<import('./dev-environment').DevEnvironmentProfile | null>;
+  saveDevEnvironmentProfile(input: import('./dev-environment').SaveDevEnvironmentProfile): Promise<import('./dev-environment').DevEnvironmentProfile>;
+  cardDevEnvironment(cardId: string): Promise<import('./dev-environment').CardDevEnvironment | null>;
+  startCardDevEnvironment(cardId: string): Promise<import('./dev-environment').CardDevEnvironment>;
+  stopCardDevEnvironment(runId: string): Promise<import('./dev-environment').CardDevEnvironment>;
   projects(): Promise<Project[]>;
   projectOrganization(): Promise<ProjectOrganization>;
   createProjectGroup(name: string): Promise<ProjectOrganization>;

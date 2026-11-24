@@ -21,6 +21,7 @@ import { parseProjectPackage, type ProjectPackage } from './project-package';
 import { installAgentHandoffs } from './agent-handoff';
 import { installAgentCardMetadata } from './agent-card-metadata';
 import { installAgentBrowserPolicy } from './agent-browser-policy';
+import { installDevEnvironments } from './dev-environment';
 import { attachmentAvailable, canOpenAttachment, checkedAttachmentPath, MAX_CARD_ATTACHMENTS } from './card-attachments';
 import { installWhiteboard } from './whiteboard';
 import { installReviewComments } from './diff-review';
@@ -172,6 +173,7 @@ export class StudioStore {
     installAgentHandoffs(this.db);
     installAgentCardMetadata(this.db);
     installAgentBrowserPolicy(this.db);
+    installDevEnvironments(this);
     installParallelRuns(this.db);
     const count = this.db.prepare('SELECT COUNT(*) AS count FROM agents').get() as { count: number };
     if (count.count === 0) {

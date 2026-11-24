@@ -1,0 +1,19 @@
+.card-dev-env { display: grid; gap: 12px; padding-top: 18px; border-top: 1px solid var(--border); }
+.card-dev-env-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.card-dev-env-heading h3 { margin: 0 0 4px; font-size: 15px; }
+.card-dev-env-heading p, .card-dev-env-form p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.card-dev-env-form { display: grid; gap: 11px; }
+.card-dev-env-form label { display: grid; gap: 5px; min-width: 0; font-size: 12px; font-weight: 600; }
+.card-dev-env-form input, .card-dev-env-form textarea { width: 100%; min-width: 0; resize: vertical; }
+.card-dev-env-fields { display: grid; grid-template-columns: minmax(100px, 1fr) minmax(160px, 2fr); gap: 10px; }
+.card-dev-env-form small { color: var(--muted); line-height: 1.5; }
+.card-dev-env-form > button { justify-self: start; }
+.card-dev-env-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+.card-dev-env-actions button { display: inline-flex; align-items: center; gap: 5px; }
+.card-dev-env-state { display: grid; gap: 4px; min-width: 0; font-size: 12px; }
+.card-dev-env-state > span { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.card-dev-env-state > small, .card-dev-env-state > p { margin: 0; color: var(--muted); overflow-wrap: anywhere; line-height: 1.45; }
+.card-dev-env-state summary { cursor: pointer; color: var(--muted); }
+.card-dev-env-state pre { max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 9px 0; color: var(--muted); font-size: 11px; }
+.card-dev-env :is(button, input, textarea):focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (max-width: 520px) { .card-dev-env-heading { align-items: start; flex-direction: column; } .card-dev-env-fields { grid-template-columns: 1fr; } }

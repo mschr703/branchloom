@@ -19,7 +19,7 @@ import '../column-settings.css';
 import '../board-refine.css';
 import '../board-card-actions.css';
 
-interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openCard?: { id: string; token: number; reviewCommentId?: string; qaReportId?: string } | null; onOpenDesign?: (cardId: string) => void; onOpenQaReport?: (cardId: string, reportId: string) => void }
+interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openCard?: { id: string; token: number; reviewCommentId?: string; qaReportId?: string } | null; onOpenDesign?: (cardId: string) => void; onOpenBrowser?: () => void; onOpenQaReport?: (cardId: string, reportId: string) => void }
 
 export function isMoveShortcut(event: Pick<React.KeyboardEvent, 'key' | 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey'>): boolean {
   return event.key.toLocaleLowerCase() === 'm' && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
@@ -29,7 +29,7 @@ export function moveDestinations(columns: Column[], card: Card): Column[] {
   return card.archivedAt ? [] : columns.filter((column) => column.id !== card.columnId);
 }
 
-export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenQaReport }: Props) {
+export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenBrowser, onOpenQaReport }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focusSession, setFocusSession] = useState(false);
   const [creatingIn, setCreatingIn] = useState<string | null>(null);
@@ -245,7 +245,7 @@ export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenQaRe
       </BoardColumn>)}
       {visibility !== 'archived' && !filterColumnId ? <form className="new-column-form" onSubmit={(event) => void addColumn(event)}><span><Plus size={17} /> Spalte hinzufügen</span><input value={newColumn} onChange={(event) => setNewColumn(event.target.value)} placeholder="Spaltenname" aria-label="Neue Spalte" maxLength={80} required /><button className="secondary-button small" type="submit">Erstellen</button></form> : null}
     </div></div>
-    {selected ? <CardPanel card={selected} snapshot={snapshot} mutate={mutate} onClose={closeBoardCard} onOpenCard={openBoardCard} onOpenDesign={onOpenDesign} focusSession={focusSession} focusReviewComment={openCard?.id === selected.id && openCard.reviewCommentId ? { id: openCard.reviewCommentId, token: openCard.token } : null} focusQaReport={openCard?.id === selected.id && openCard.qaReportId ? { id: openCard.qaReportId, token: openCard.token } : null} /> : null}
+    {selected ? <CardPanel card={selected} snapshot={snapshot} mutate={mutate} onClose={closeBoardCard} onOpenCard={openBoardCard} onOpenDesign={onOpenDesign} onOpenBrowser={onOpenBrowser} focusSession={focusSession} focusReviewComment={openCard?.id === selected.id && openCard.reviewCommentId ? { id: openCard.reviewCommentId, token: openCard.token } : null} focusQaReport={openCard?.id === selected.id && openCard.qaReportId ? { id: openCard.qaReportId, token: openCard.token } : null} /> : null}
     {showTaskDraft ? <TaskDraftAssistant key={snapshot.project.id} snapshot={snapshot} mutate={mutate} onClose={() => setShowTaskDraft(false)} onCreated={(card) => { setShowTaskDraft(false); openBoardCard(card.id); }} /> : null}
     {showImport ? <TrelloImportPanel key={snapshot.project.id} projectId={snapshot.project.id} columns={columns} mutate={mutate} onClose={() => setShowImport(false)} /> : null}
   </div>;
