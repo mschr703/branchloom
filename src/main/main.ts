@@ -151,6 +151,12 @@ function installIpc(): void {
     });
   };
   bind('projects', () => db.projects());
+  bind('projectOrganization', () => db.projectOrganization());
+  bind('createProjectGroup', (name: string) => db.createProjectGroup(name));
+  bind('renameProjectGroup', (input: { groupId: string; name: string }) => db.renameProjectGroup(input));
+  bind('deleteProjectGroup', (groupId: string) => db.deleteProjectGroup(groupId));
+  bind('assignProjectGroup', (input: { projectId: string; groupId: string | null }) => db.assignProjectGroup(input));
+  bind('setProjectSort', (sort: 'name' | 'newest') => db.setProjectSort(sort));
   bind('componentCatalog', (projectId: string) => scanProjectComponents(db.project(projectId).path));
   bind('createProject', (input: { name: string; path: string }) => db.createProject(input));
   bind('exportProjectPackage', async (projectId: string) => {
@@ -729,6 +735,35 @@ function createWindow(): void {
                 throw new Error('Gespeicherte Karte wurde nach Reload nicht im Board gerendert.');
               }
               const boardProject = (await window.studio.projects())[0];
+              const switcher = document.querySelector('.sidebar-projects .project-switcher-trigger');
+              if (!switcher || switcher.getAttribute('aria-label') !== 'Projekt auswählen: Smoke-Projekt') throw new Error('Visible project switcher is missing.');
+              switcher.click();
+              for (let attempt = 0; attempt < 20 && !document.querySelector('.project-switcher-panel'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const switcherPanel = document.querySelector('.project-switcher-panel');
+              if (!switcherPanel?.querySelector('input[aria-label="Projekte suchen"]')) throw new Error('Project switcher search is missing.');
+              switcherPanel.querySelector('.project-switcher-toolbar button')?.click();
+              for (let attempt = 0; attempt < 20 && !switcherPanel.querySelector('input[aria-label="Neue Gruppe"]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const groupInput = switcherPanel.querySelector('input[aria-label="Neue Gruppe"]');
+              const groupSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+              if (!groupInput || !groupSetter) throw new Error('Project group cannot be created.');
+              groupSetter.call(groupInput, 'Synthetic group'); groupInput.dispatchEvent(new Event('input', { bubbles: true }));
+              switcherPanel.querySelector('.project-switcher-organize form')?.requestSubmit();
+              let group;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                group = (await window.studio.projectOrganization()).groups.find((item) => item.name === 'Synthetic group');
+                if (group) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!group) throw new Error('Project group was not saved through the UI.');
+              for (let attempt = 0; attempt < 20 && !switcherPanel.querySelector('.project-switcher-place-trigger'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              switcherPanel.querySelector('.project-switcher-place-trigger')?.click();
+              for (let attempt = 0; attempt < 20 && !switcherPanel.querySelector('.project-switcher-place'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              [...switcherPanel.querySelectorAll('.project-switcher-place button')].find((item) => item.textContent === 'Synthetic group')?.click();
+              for (let attempt = 0; attempt < 100 && (await window.studio.projectOrganization()).assignments[boardProject.id] !== group.id; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if ((await window.studio.projectOrganization()).assignments[boardProject.id] !== group.id) throw new Error('Group assignment was not saved through the UI.');
+              document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+              for (let attempt = 0; attempt < 20 && document.querySelector('.project-switcher-panel'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('.project-switcher-panel')) throw new Error('Project switcher did not close on Escape.');
               const evidenceSessionId = ${JSON.stringify(evidenceSession.id)};
               const baselineSessions = (await window.studio.snapshot(boardProject.id)).sessions;
               if (!baselineSessions.some((item) => item.id === evidenceSessionId)) throw new Error('Synthetische Workflow-Sitzung fehlt nach Reload.');

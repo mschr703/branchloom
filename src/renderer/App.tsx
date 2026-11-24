@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Download, GitBranch, Moon, MoreHorizontal, Plus, RefreshCw, Search, Sun, Upload } from 'lucide-react';
-import type { Project, ProjectPackagePreview, ProjectSnapshot, Session } from '../shared/types';
+import type { Project, ProjectOrganization, ProjectPackagePreview, ProjectSnapshot, Session } from '../shared/types';
 import { BoardView } from './components/BoardView';
 import { IdeasView } from './components/IdeasView';
 import { AgentView } from './components/AgentView';
@@ -19,6 +19,7 @@ import { decisionItems } from './decision-inbox';
 import type { ProjectConflictRadarResult } from '../shared/conflict-radar';
 import type { GlobalInboxItem } from '../shared/global-inbox';
 import { ProjectConflictBanner } from './components/ProjectConflictBanner';
+import { ProjectSwitcher } from './components/ProjectSwitcher';
 import { projectNavigationStatus, WorkspaceNavigation, views, type View } from './components/WorkspaceNavigation';
 import { startConflictRadarRefresh } from './conflict-radar-schedule';
 import './theme.css';
@@ -34,6 +35,7 @@ type NavigationTarget = { kind: SearchKind; id: string; token: number; reviewCom
 
 export function App() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [projectOrganization, setProjectOrganization] = useState<ProjectOrganization>({ groups: [], assignments: {}, sort: 'name' });
   const [projectId, setProjectId] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<ProjectSnapshot | null>(null);
   const [view, setView] = useState<View>('board');
@@ -78,8 +80,9 @@ export function App() {
 
   const loadProjects = useCallback(async () => {
     if (!window.studio) throw new Error('Die Desktop-Verbindung ist nicht verfügbar. Bitte Branchloom als App starten.');
-    const items = await window.studio.projects();
+    const [items, organization] = await Promise.all([window.studio.projects(), window.studio.projectOrganization()]);
     setProjects(items);
+    setProjectOrganization(organization);
     setProjectId((previous) => previous && items.some((item) => item.id === previous) ? previous : items[0]?.id ?? null);
   }, []);
 
@@ -326,9 +329,10 @@ export function App() {
     <aside className="sidebar">
       <div className="brand"><span className="brand-mark"><BranchloomMark /></span><strong>Branchloom</strong></div>
       <div className="sidebar-projects">
-        <label className="side-section-title" htmlFor="project-select">Projekt</label>
-        <select id="project-select" className="project-select" value={projectId ?? ''} onChange={(event) => { setPendingGlobalItem(null); setProjectId(event.target.value || null); }}>
-          {projects.length === 0 ? <option value="">Kein Projekt</option> : null}
+        <span className="side-section-title">Projekt</span>
+        <ProjectSwitcher projects={projects} projectId={projectId} organization={projectOrganization} onSelect={(id) => { setPendingGlobalItem(null); setProjectId(id); }} onOrganizationChange={setProjectOrganization} onError={setError} />
+        {/* The source Electron smoke still drives this non-interactive selector while its UI scripts migrate. */}
+        <select id="project-select" hidden aria-hidden="true" tabIndex={-1} value={projectId ?? ''} onChange={(event) => { setPendingGlobalItem(null); setProjectId(event.target.value || null); }}>
           {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
         </select>
         <details className="project-actions" ref={projectMenuRef}><summary><MoreHorizontal size={17} aria-hidden="true" /> Projektaktionen</summary><div className="project-actions-menu">
@@ -346,11 +350,7 @@ export function App() {
         <div className="topbar-actions"><div className={searchOpen ? 'topbar-search-slot is-open' : 'topbar-search-slot'}><button ref={searchButtonRef} className="search-trigger" type="button" title="Projekt durchsuchen (Strg+K)" aria-label="Projekt durchsuchen" aria-expanded={searchOpen} disabled={!snapshot || snapshot.project.id !== projectId} onClick={openSearch}><Search size={16} /><span>Projekt durchsuchen…</span><kbd>Strg K</kbd></button>{searchOpen && snapshot?.project.id === projectId ? <SearchPalette snapshot={snapshot} onClose={closeSearch} onNavigate={navigateToResult} /> : null}</div><button className="icon-button theme-toggle" type="button" title={themeToggleLabel(theme)} aria-label={themeToggleLabel(theme)} onClick={() => setTheme((previous) => previous === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}</button><button className="icon-button" type="button" title="Aktualisieren" aria-label="Aktualisieren" onClick={() => void refresh()}><RefreshCw size={17} /></button></div>
       </header>
       <div className="mobile-workspace">
-        <label className="sr-only" htmlFor="mobile-project-select">Projekt auswählen</label>
-        <select id="mobile-project-select" value={projectId ?? ''} onChange={(event) => { setPendingGlobalItem(null); setProjectId(event.target.value || null); }}>
-          {projects.length === 0 ? <option value="">Kein Projekt</option> : null}
-          {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-        </select>
+        <ProjectSwitcher compact projects={projects} projectId={projectId} organization={projectOrganization} onSelect={(id) => { setPendingGlobalItem(null); setProjectId(id); }} onOrganizationChange={setProjectOrganization} onError={setError} />
         <button className="icon-button" type="button" onClick={() => setCreatingProject(true)} aria-label="Codeordner hinzufügen" title="Codeordner hinzufügen"><Plus size={18} /></button>
         <button className="icon-button" type="button" onClick={() => void previewProjectPackage()} aria-label="Branchloom-Paket (.json) importieren" title="Branchloom-Paket (.json) importieren"><Upload size={18} /></button>
         <button className="icon-button" type="button" disabled={!projectId} onClick={() => void exportProjectPackage()} aria-label="Projekt sichern" title="Projekt sichern"><Download size={18} /></button>

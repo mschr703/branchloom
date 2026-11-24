@@ -31,6 +31,9 @@ export type CardPriority = 'none' | 'low' | 'medium' | 'high' | 'urgent';
 export type ColumnEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra';
 
 export interface Project { id: string; name: string; path: string; createdAt: string }
+export interface ProjectGroup { id: string; name: string }
+export type ProjectSort = 'name' | 'newest';
+export interface ProjectOrganization { groups: ProjectGroup[]; assignments: Record<string, string>; sort: ProjectSort }
 export type WhiteboardReference = { kind: 'card'; cardId: string } | { kind: 'folder' | 'file'; path: string };
 export interface WhiteboardNode { id: string; projectId: string; title: string; description: string; x: number; y: number; reference: WhiteboardReference | null; createdAt: string; updatedAt: string }
 export interface WhiteboardEdge { id: string; projectId: string; sourceId: string; targetId: string; label: string; createdAt: string; cardId: string | null }
@@ -103,6 +106,12 @@ export interface StudioAPI {
   setAgentCardMetadataEnabled(input: { projectId: string; enabled: boolean }): Promise<boolean>;
   agentCardMetadataAudit(projectId: string): Promise<import('./agent-card-metadata').AgentCardMetadataAudit[]>;
   projects(): Promise<Project[]>;
+  projectOrganization(): Promise<ProjectOrganization>;
+  createProjectGroup(name: string): Promise<ProjectOrganization>;
+  renameProjectGroup(input: { groupId: string; name: string }): Promise<ProjectOrganization>;
+  deleteProjectGroup(groupId: string): Promise<ProjectOrganization>;
+  assignProjectGroup(input: { projectId: string; groupId: string | null }): Promise<ProjectOrganization>;
+  setProjectSort(sort: ProjectSort): Promise<ProjectOrganization>;
   componentCatalog(projectId: string): Promise<ComponentCatalog>;
   createProject(input: { name: string; path: string }): Promise<Project>;
   exportProjectPackage(projectId: string): Promise<ProjectPackageExportResult | null>;

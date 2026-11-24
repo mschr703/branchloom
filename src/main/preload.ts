@@ -5,6 +5,12 @@ const invoke = <T>(name: keyof StudioAPI, ...args: unknown[]): Promise<T> => ipc
 
 const studio: StudioAPI = {
   projects: () => invoke('projects'),
+  projectOrganization: () => invoke('projectOrganization'),
+  createProjectGroup: (name) => invoke('createProjectGroup', name),
+  renameProjectGroup: (input) => invoke('renameProjectGroup', input),
+  deleteProjectGroup: (groupId) => invoke('deleteProjectGroup', groupId),
+  assignProjectGroup: (input) => invoke('assignProjectGroup', input),
+  setProjectSort: (sort) => invoke('setProjectSort', sort),
   componentCatalog: (projectId) => invoke('componentCatalog', projectId),
   createProject: (input) => invoke('createProject', input),
   exportProjectPackage: (projectId) => invoke('exportProjectPackage', projectId),

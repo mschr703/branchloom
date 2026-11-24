@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
 import { realpathSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
-import type { AgentCapability, AgentCapabilityEvidence, AgentPreset, BulkCardAction, Card, CardAttachment, CardPriority, Column, ColumnEffort, CommandShell, CommandTerminal, InterruptedSessionReview, MemoryNote, Project, ProjectQueue, ProjectSnapshot, QueueState, Session, SessionSearchHit, SessionState, TrelloImportPreview, TrelloImportResult, Workflow, WorkflowAgentSettings, WorkflowProposal, WorkflowState, WorkflowStep } from '../shared/types';
+import type { AgentCapability, AgentCapabilityEvidence, AgentPreset, BulkCardAction, Card, CardAttachment, CardPriority, Column, ColumnEffort, CommandShell, CommandTerminal, InterruptedSessionReview, MemoryNote, Project, ProjectOrganization, ProjectQueue, ProjectSnapshot, ProjectSort, QueueState, Session, SessionSearchHit, SessionState, TrelloImportPreview, TrelloImportResult, Workflow, WorkflowAgentSettings, WorkflowProposal, WorkflowState, WorkflowStep } from '../shared/types';
 import { cardLabels, cardPriority } from '../shared/card-metadata';
 import { columnSettings } from '../shared/column-settings';
 import { normalizedWorkflowStep, workflowStepSettings } from '../shared/workflow-step-settings';
@@ -93,6 +93,9 @@ export class StudioStore {
     this.db.pragma('journal_mode = WAL');
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, path TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS project_groups (id TEXT PRIMARY KEY, name TEXT NOT NULL COLLATE NOCASE UNIQUE);
+      CREATE TABLE IF NOT EXISTS project_group_members (project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE, group_id TEXT NOT NULL REFERENCES project_groups(id) ON DELETE CASCADE);
+      CREATE TABLE IF NOT EXISTS project_navigation (id INTEGER PRIMARY KEY CHECK (id = 1), sort TEXT NOT NULL CHECK (sort IN ('name', 'newest')));
       CREATE TABLE IF NOT EXISTS agents (id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, command TEXT NOT NULL, args_json TEXT NOT NULL, model TEXT, enabled INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS columns (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, name TEXT NOT NULL, position INTEGER NOT NULL, auto_start INTEGER NOT NULL DEFAULT 0, agent_id TEXT REFERENCES agents(id), model TEXT, effort TEXT);
       CREATE TABLE IF NOT EXISTS cards (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, column_id TEXT NOT NULL REFERENCES columns(id), title TEXT NOT NULL, description TEXT NOT NULL, position INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived_at TEXT, priority TEXT NOT NULL DEFAULT 'none', labels_json TEXT NOT NULL DEFAULT '[]', wireframe_required INTEGER NOT NULL DEFAULT 0 CHECK (wireframe_required IN (0, 1)));
@@ -189,6 +192,45 @@ export class StudioStore {
 
   close(): void { this.db.close(); }
   projects(): Project[] { return (this.db.prepare('SELECT * FROM projects ORDER BY created_at DESC').all() as ProjectRow[]).map(project); }
+  projectOrganization(): ProjectOrganization {
+    const groups = this.db.prepare('SELECT id, name FROM project_groups ORDER BY name COLLATE NOCASE, id').all() as Array<{ id: string; name: string }>;
+    const members = this.db.prepare('SELECT project_id, group_id FROM project_group_members').all() as Array<{ project_id: string; group_id: string }>;
+    const setting = this.db.prepare('SELECT sort FROM project_navigation WHERE id = 1').get() as { sort: ProjectSort } | undefined;
+    return { groups, assignments: Object.fromEntries(members.map(({ project_id, group_id }) => [project_id, group_id])), sort: setting?.sort ?? 'name' };
+  }
+  createProjectGroup(name: string): ProjectOrganization {
+    const value = trimmed(name, 'Group name', 60);
+    if (this.db.prepare('SELECT 1 FROM project_groups WHERE name = ? COLLATE NOCASE').get(value)) throw new Error('Project group name already exists');
+    this.db.prepare('INSERT INTO project_groups (id, name) VALUES (?, ?)').run(randomUUID(), value);
+    return this.projectOrganization();
+  }
+  renameProjectGroup(input: { groupId: string; name: string }): ProjectOrganization {
+    const value = trimmed(input.name, 'Group name', 60);
+    if (this.db.prepare('SELECT 1 FROM project_groups WHERE name = ? COLLATE NOCASE AND id != ?').get(value, input.groupId)) throw new Error('Project group name already exists');
+    const result = this.db.prepare('UPDATE project_groups SET name = ? WHERE id = ?').run(value, input.groupId);
+    if (!result.changes) throw new Error('Project group not found');
+    return this.projectOrganization();
+  }
+  deleteProjectGroup(groupId: string): ProjectOrganization {
+    const result = this.db.prepare('DELETE FROM project_groups WHERE id = ?').run(groupId);
+    if (!result.changes) throw new Error('Project group not found');
+    return this.projectOrganization();
+  }
+  assignProjectGroup(input: { projectId: string; groupId: string | null }): ProjectOrganization {
+    this.project(input.projectId);
+    if (input.groupId === null) this.db.prepare('DELETE FROM project_group_members WHERE project_id = ?').run(input.projectId);
+    else {
+      const exists = this.db.prepare('SELECT 1 FROM project_groups WHERE id = ?').get(input.groupId);
+      if (!exists) throw new Error('Project group not found');
+      this.db.prepare('INSERT INTO project_group_members (project_id, group_id) VALUES (?, ?) ON CONFLICT(project_id) DO UPDATE SET group_id = excluded.group_id').run(input.projectId, input.groupId);
+    }
+    return this.projectOrganization();
+  }
+  setProjectSort(sort: ProjectSort): ProjectOrganization {
+    if (sort !== 'name' && sort !== 'newest') throw new Error('Invalid project sort');
+    this.db.prepare('INSERT INTO project_navigation (id, sort) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET sort = excluded.sort').run(sort);
+    return this.projectOrganization();
+  }
   project(id: string): Project { return project(required(this.db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as ProjectRow | undefined, 'Project not found')); }
   createProject(input: { name: string; path: string }): Project {
     const name = trimmed(input.name, 'Project name');

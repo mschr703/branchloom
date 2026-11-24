@@ -22,6 +22,8 @@ Das kleine Branchloom-Zeichen ist als [SVG und Windows-Icon](docs/BRAND_ASSETS.m
 
 ## Erste Arbeitsschritte
 
+Oben in der linken Leiste öffnet der Projektname die durchsuchbare Projektwahl. **Organisieren** erlaubt lokale Gruppen, ihre Umbenennung und Entfernung sowie die Zuordnung einzelner Projekte. Die Sortierung **A–Z** oder **Neueste** bleibt nach einem Neustart gespeichert. Beim Entfernen einer Gruppe bleiben alle Projekte erhalten und erscheinen ohne Gruppe. Die bestehenden **Projektaktionen** für Codeordner, JSON-Import und Sicherung stehen direkt darunter; auf schmalen Fenstern bleibt die Projektwahl in der mobilen Leiste.
+
 Im Kartendialog lassen sich [Abnahmekriterien mit konkreten QA- oder Review-Verweisen](docs/CARD_ACCEPTANCE.md) speichern. Fehlende Prüfquellen bleiben sichtbar; ein Verweis ist keine automatische Freigabe.
 Nach einem beendeten Kartenlauf lässt sich für einen anderen CLI-Agenten ein [quellmarkiertes Kontextpaket](docs/AGENT_HANDOFF.md) als Vorschau auswählen und bearbeiten. Erst eine ausdrückliche Bestätigung startet den Zielagenten; die Auswahl erhält einen lokalen Übergabebeleg.
 Im selben Dialog lassen sich [zwei bis acht Teilkarten mit Vorgängern](docs/CARD_SPLITS.md) zuerst bearbeiten und prüfen. Ein weiterer Klick legt sie gemeinsam in einer manuellen Spalte an; die Beziehungen bleiben nach Neustart sichtbar. Im Kartenbereich **Parallele Läufe** stellst du pro Projekt ein Limit von ein bis vier Agenten ein. Zwei gleichzeitig gestartete Karten brauchen getrennte Git-Worktrees. Eine Teilkarte mit Vorgänger darf erst nach einem aktuellen belegten Workflow-Ergebnis oder einer begründeten Freigabe eines bestandenen QA-Berichts starten. [Ablauf und Grenzen](docs/PARALLEL_RUNS.md).
