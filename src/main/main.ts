@@ -1995,7 +1995,7 @@ function createWindow(): void {
               if (!setter) throw new Error('Changelog-Quellwahl ist nicht bedienbar.');
               setter.call(source, 'saved-worktrees'); source.dispatchEvent(new Event('change', { bubbles: true }));
               for (let attempt = 0; attempt < 100 && !document.querySelector('.changelog-worktree-summary'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              if (!document.querySelector('.changelog-worktree-summary')?.textContent?.includes('0 gespeicherte') || !document.querySelector('.changelog-groups')?.textContent?.includes('Synthetic smoke theme')) throw new Error('Changelog-Worktree-Ansicht zeigte den geprüften Commit nicht.');
+              if (!document.querySelector('.changelog-worktree-summary')?.textContent?.includes('0 gespeicherte') || !document.querySelector('.changelog-groups')?.textContent?.includes('Synthetic smoke theme') || !document.querySelector('.changelog-timeline')?.textContent?.includes('Synthetic smoke theme')) throw new Error('Changelog-Worktree-Ansicht zeigte den geprüften Commit nicht im zeitlichen Überblick.');
               return true;
             })()`);
             await smokeWindow.webContents.executeJavaScript(`(async () => {

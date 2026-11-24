@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Clipboard, RefreshCw } from 'lucide-react';
 import type { ChangelogCommit, ChangelogPeriod, ChangelogScope, ChangelogSource, ProjectChangelog } from '../../shared/changelog';
+import { changelogDigest } from '../changelog-digest';
 import './changelog.css';
 
 function displayTime(value: string): string {
@@ -41,6 +42,7 @@ const checkoutStatus = { clean: 'sauberer Checkout', dirty: 'Checkout mit Änder
 export function changelogMarkdown(changelog: ProjectChangelog): string {
   const period = changelog.period === 'day' ? 'Letzte 24 Stunden' : 'Letzte 7 Tage';
   const overview = changelogOverview(changelog);
+  const digest = changelogDigest(changelog);
   const lines = [
     `# Changelog · ${period}`,
     '',
@@ -51,6 +53,13 @@ export function changelogMarkdown(changelog: ProjectChangelog): string {
     `- ${overview.head.length} sichtbare Commits im Projekt-HEAD${changelog.moreAvailable ? ' (begrenzt)' : ''}.`,
     ...(changelog.scope === 'saved-worktrees' ? [`- ${overview.worktreeOnly.length} sichtbare Commits nur in geprüften Karten-Worktrees (${overview.cards.length} Karten).`] : []),
     `- ${changelog.qaTotal} gespeicherte lokale Browser-QA-Berichte und ${changelog.reviewTotal} Diff-Review-Kommentare im Zeitraum; keine Commit-Freigaben.`,
+    '',
+    '## Zeitlicher Verlauf',
+    ...(digest.days.length ? digest.days.flatMap((day) => [
+      `### ${markdownText(day.day)}`,
+      ...day.entries.map((entry) => `- ${markdownText(entry.at)} · ${entry.kind === 'head' ? 'Projekt-HEAD' : entry.kind === 'worktree' ? 'Karten-Branch' : entry.kind === 'qa' ? 'Browser-QA' : 'Diff-Review'} · ${markdownText(entry.title)} — ${markdownText(entry.detail)} (${markdownText(entry.source)})`),
+    ]) : ['Keine Änderungen oder lokalen Prüfspuren in den gewählten Quellen.']),
+    ...(digest.hidden ? [`${digest.hidden} weitere Einträge nicht einzeln aufgeführt.`] : []),
     '',
     '## Git-Details',
   ];
@@ -93,26 +102,23 @@ function byLocalDay(commits: ChangelogCommit[]): Array<{ day: string; commits: C
 
 export function ChangelogReport({ result }: { result: ProjectChangelog }) {
   const overview = changelogOverview(result);
+  const digest = changelogDigest(result);
   const headCount = overview.head.length;
   const worktreeCount = overview.worktreeOnly.length;
-  const visibleQa = result.qaObservations.slice(0, 5);
-  const visibleReviews = result.reviewActivity.slice(0, 5);
   return <div className="changelog-report">
     <div className="changelog-source"><span>Erfasst: <time dateTime={result.checkedAt}>{displayTime(result.checkedAt)}</time></span><span>Git HEAD: <code>{result.head?.slice(0, 12) ?? 'nicht vorhanden'}</code></span>{result.moreAvailable ? <span>Git-Historie begrenzt</span> : null}</div>
     {result.issues.length ? <div className="changelog-issues" role="status"><strong>Quellen nur teilweise verfügbar</strong><ul>{result.issues.map((issue, index) => <li key={`${issue.cardId ?? 'all'}:${index}`}><span>{issue.cardTitle || issue.cardId || 'Weitere Karten-Worktrees'}:</span> {issue.reason}</li>)}</ul></div> : null}
-    <section className="changelog-overview" aria-label="Überblick über den Zeitraum">
-      <h3>Was sich im Zeitraum getan hat</h3>
-      <p>{headCount ? `${headCount} sichtbare ${headCount === 1 ? 'Commit ist' : 'Commits sind'} im aktuellen Projekt-HEAD erreichbar.` : 'Im aktuellen Projekt-HEAD liegt für diesen Zeitraum kein sichtbarer Commit.'}{result.scope === 'saved-worktrees' && worktreeCount ? ` ${worktreeCount} weitere sichtbare ${worktreeCount === 1 ? 'Commit liegt' : 'Commits liegen'} nur in geprüften Karten-Worktrees.` : ''}</p>
-      <div className="changelog-evidence-line"><span><strong>{headCount}</strong> Projekt-HEAD</span>{result.scope === 'saved-worktrees' ? <span><strong>{worktreeCount}</strong> nur Karten-Worktrees</span> : null}<span><strong>{result.qaTotal}</strong> lokale Browser-QA</span><span><strong>{result.reviewTotal}</strong> Diff-Kommentare</span></div>
+    <section className="changelog-digest" aria-label="Zeitlicher Projektüberblick">
+      <header><h3>{result.period === 'day' ? 'Die letzten 24 Stunden' : 'Die letzten sieben Tage'}</h3><p>{headCount} {headCount === 1 ? 'Commit' : 'Commits'} im Projekt-HEAD{result.scope === 'saved-worktrees' ? ` · ${worktreeCount} nur in Karten-Worktrees` : ''} · {result.qaTotal} lokale Browser-QA · {result.reviewTotal} Diff-Kommentare</p></header>
+      {digest.days.length ? <ol className="changelog-timeline">{digest.days.map((day) => <li key={day.day} className="changelog-day"><h4>{day.day}</h4><ol>{day.entries.map((entry) => <li key={entry.id} className={`changelog-event changelog-event-${entry.kind}${entry.status ? ` changelog-event-${entry.status}` : ''}`}><time dateTime={entry.at}>{new Date(entry.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</time><div><span className="changelog-event-kind">{entry.kind === 'head' ? 'Projekt-HEAD' : entry.kind === 'worktree' ? 'Karten-Branch' : entry.kind === 'qa' ? 'Browser-QA' : 'Diff-Review'}</span><strong>{entry.title}</strong><p>{entry.detail}</p><small>{entry.source}</small></div></li>)}</ol></li>)}</ol> : <p className="changelog-empty">{result.state === 'no-repository' ? 'Der Projektordner ist kein Git-Repository.' : result.state === 'no-commits' ? 'Dieses Git-Repository hat noch keinen Commit.' : 'Für diesen Zeitraum liegen in den gewählten Quellen keine Änderungen oder lokalen Prüfspuren vor.'}</p>}
+      {digest.hidden ? <p className="changelog-limit">{digest.hidden} weitere Einträge sind in diesem Überblick nicht einzeln aufgeführt.</p> : null}
+      {result.qaTotal > result.qaObservations.length || result.reviewTotal > result.reviewActivity.reduce((sum, item) => sum + item.count, 0) ? <p className="changelog-limit">Weitere QA- oder Review-Einträge liegen außerhalb der begrenzten Detailabfrage.</p> : null}
     </section>
-    {overview.head.length ? <section className="changelog-editorial" aria-label="Letzte Änderungen im Projekt-HEAD"><h3>Im Projekt-HEAD</h3><ol>{overview.head.slice(0, 4).map((commit) => <li key={commit.hash}><span>{commit.subject}</span><code title={commit.hash}>{commit.hash.slice(0, 8)}</code></li>)}</ol>{overview.head.length > 4 ? <p>{overview.head.length - 4} weitere im Git-Detail.</p> : null}</section> : null}
-    {result.scope === 'saved-worktrees' ? <section className="changelog-editorial" aria-label="Arbeit in Karten-Worktrees"><h3>Auf Karten-Branches</h3>{overview.cards.length ? <><p>Diese Commits sind im geprüften Projekt-HEAD nicht enthalten.</p><ol>{overview.cards.slice(0, 8).map((card) => <li key={card.id}><span><strong>{card.title}</strong><small>{card.commits[0]?.subject}</small></span><span className="changelog-count">{card.commits.length} {card.commits.length === 1 ? 'Commit' : 'Commits'}</span></li>)}</ol>{overview.cards.length > 8 ? <p>{overview.cards.length - 8} weitere Karten im Git-Detail.</p> : null}</> : <p>Kein zusätzlicher Commit in den geprüften Karten-Worktrees.</p>}<p className="changelog-worktree-summary">{result.checkedWorktrees} gespeicherte Karten-Worktrees geprüft.</p></section> : null}
-    {(result.qaTotal || result.reviewTotal) ? <section className="changelog-evidence" aria-label="Gespeicherte Prüf- und Review-Spuren"><h3>Prüf- und Review-Spuren</h3><p>Lokale Beobachtungen zu Karten; keine Freigabe eines Git-Commits.</p>{visibleQa.length ? <div className="changelog-evidence-group"><h4>Browser-QA</h4><ol>{visibleQa.map((report) => <li key={report.id}><span className={`changelog-qa-status changelog-qa-${report.status}`}>{qaStatus[report.status]}</span><span><strong>{report.cardTitle}</strong><small><time dateTime={report.endedAt}>{displayTime(report.endedAt)}</time> · {checkoutStatus[report.checkoutState]}{report.checkoutHead ? ` ${report.checkoutHead.slice(0, 8)}` : ''}</small></span></li>)}</ol>{result.qaTotal > visibleQa.length ? <p>Weitere Berichte sind im Überblick gezählt; Markdown führt höchstens 20 einzeln auf.</p> : null}</div> : null}{visibleReviews.length ? <div className="changelog-evidence-group"><h4>Diff-Kommentare</h4><ol>{visibleReviews.map((item) => <li key={item.cardId}><span><strong>{item.cardTitle}</strong><small>Zuletzt <time dateTime={item.lastAt}>{displayTime(item.lastAt)}</time></small></span><span className="changelog-count">{item.count} {item.count === 1 ? 'Kommentar' : 'Kommentare'}</span></li>)}</ol>{result.reviewActivity.length > visibleReviews.length ? <p>Weitere Karten sind im Markdown aufgeführt, höchstens zehn einzeln.</p> : null}</div> : null}</section> : null}
-    {result.state === 'no-repository' ? <p className="changelog-empty">Der Projektordner ist kein Git-Repository.</p>
-      : result.state === 'no-commits' ? <p className="changelog-empty">Dieses Git-Repository hat noch keinen Commit.</p>
-      : result.commits.length === 0 ? <p className="changelog-empty">{result.scope === 'head' ? 'In diesem Zeitraum ist kein Commit in HEAD erreichbar.' : 'In diesem Zeitraum wurde in den geprüften Quellen kein Commit gefunden.'}</p>
-      : <details className="changelog-detail"><summary>Git-Details: {result.commits.length} {result.commits.length === 1 ? 'Commit' : 'Commits'} ansehen</summary><div className="changelog-groups">{byLocalDay(result.commits).map((group, index) => <section key={`${group.day}:${index}`} aria-label={group.day}><h3>{group.day}</h3><ol>{group.commits.map((commit) => <li key={commit.hash}><div className="changelog-subject">{commit.subject}</div><div className="changelog-commit-meta"><time dateTime={commit.committedAt}>{displayTime(commit.committedAt)}</time><code title={commit.hash}>{commit.hash}</code></div>{result.scope === 'saved-worktrees' ? <div className="changelog-provenance" aria-label="Commit-Quellen">{(commit.sources ?? []).map((source, sourceIndex) => <span key={`${source.kind}:${source.cardId ?? ''}:${sourceIndex}`}>{sourceName(source)}</span>)}</div> : null}</li>)}</ol></section>)}</div></details>}
+    {result.state === 'no-repository' && digest.days.length ? <p className="changelog-empty">Der Projektordner ist kein Git-Repository.</p>
+      : result.state === 'no-commits' && digest.days.length ? <p className="changelog-empty">Dieses Git-Repository hat noch keinen Commit.</p>
+      : result.commits.length ? <details className="changelog-detail"><summary>Git-Details: {result.commits.length} {result.commits.length === 1 ? 'Commit' : 'Commits'} ansehen</summary><div className="changelog-groups">{byLocalDay(result.commits).map((group, index) => <section key={`${group.day}:${index}`} aria-label={group.day}><h3>{group.day}</h3><ol>{group.commits.map((commit) => <li key={commit.hash}><div className="changelog-subject">{commit.subject}</div><div className="changelog-commit-meta"><time dateTime={commit.committedAt}>{displayTime(commit.committedAt)}</time><code title={commit.hash}>{commit.hash}</code></div>{result.scope === 'saved-worktrees' ? <div className="changelog-provenance" aria-label="Commit-Quellen">{(commit.sources ?? []).map((source, sourceIndex) => <span key={`${source.kind}:${source.cardId ?? ''}:${sourceIndex}`}>{sourceName(source)}</span>)}</div> : null}</li>)}</ol></section>)}</div></details> : null}
     {result.moreAvailable ? <p className="changelog-limit">Weitere Commits sind vorhanden. Die Ansicht zeigt höchstens 100.</p> : null}
+    {result.scope === 'saved-worktrees' ? <p className="changelog-worktree-summary changelog-limit">{result.checkedWorktrees} gespeicherte Karten-Worktrees geprüft.</p> : null}
     <p className="changelog-scope">QA beobachtet eine lokale Vorschau; der vom Dev-Server ausgelieferte Code ist keinem Commit nachgewiesen zugeordnet. Diff-Kommentare sind keine Review-Freigabe. Unversionierte Änderungen{result.scope === 'head' ? ' und andere Branches' : ' und nicht gespeicherte Branches'} sind nicht enthalten.</p>
   </div>;
 }

@@ -5,6 +5,21 @@
 .changelog-controls button { display: inline-flex; align-items: center; gap: 7px; }
 .changelog-source { display: flex; flex-wrap: wrap; gap: 8px 20px; color: var(--muted); font-size: 12px; border-bottom: 1px solid var(--border); padding-bottom: 13px; }
 .changelog-source code, .changelog-commit-meta code, .changelog-editorial code { font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; font-variant-numeric: tabular-nums; color: var(--soft); }
+.changelog-digest { padding: 24px 0 12px; border-bottom: 1px solid var(--border); }
+.changelog-digest > header { margin-bottom: 22px; }
+.changelog-digest > header h3 { margin: 0 0 6px; font-size: clamp(20px, 2vw, 26px); letter-spacing: -.025em; }
+.changelog-digest > header p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.changelog-timeline, .changelog-day > ol { list-style: none; margin: 0; padding: 0; }
+.changelog-day { display: grid; grid-template-columns: minmax(130px, 180px) minmax(0, 1fr); gap: 24px; padding: 17px 0 8px; border-top: 1px solid var(--border); }
+.changelog-day h4 { margin: 0; color: var(--muted); font-size: 12px; font-weight: 600; }
+.changelog-event { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 12px; padding: 0 0 17px; }
+.changelog-event > time { padding-top: 2px; color: var(--muted); font: 11px ui-monospace, 'Cascadia Code', Consolas, monospace; font-variant-numeric: tabular-nums; }
+.changelog-event > div { min-width: 0; padding-left: 13px; border-left: 2px solid var(--border); }
+.changelog-event-head > div { border-left-color: var(--accent); }
+.changelog-event-failed > div, .changelog-event-error > div { border-left-color: var(--danger); }
+.changelog-event-kind { display: block; margin-bottom: 3px; color: var(--muted); font-size: 11px; }
+.changelog-event strong { display: block; font-size: 14px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.changelog-event p, .changelog-event small { display: block; margin: 3px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
 .changelog-overview { padding: 24px 0 20px; border-bottom: 1px solid var(--border); }
 .changelog-overview h3 { font-size: clamp(19px, 2vw, 25px); letter-spacing: -.025em; margin: 0 0 9px; }
 .changelog-overview p { margin: 0; max-width: 72ch; line-height: 1.55; color: var(--soft); }
@@ -49,6 +64,8 @@
 .changelog-error { color: var(--danger); }
 .changelog-scope, .changelog-limit { color: var(--muted); font-size: 12px; line-height: 1.5; max-width: 75ch; }
 @media (max-width: 700px) {
+  .changelog-day { display: block; }
+  .changelog-day h4 { margin-bottom: 14px; }
   .changelog-editorial, .changelog-evidence { display: block; }
   .changelog-editorial h3, .changelog-evidence h3 { margin-bottom: 12px; }
   .changelog-evidence-line span { padding: 0 10px; }
