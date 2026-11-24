@@ -11,7 +11,14 @@ import { StudioStore } from '../../src/main/store';
 const roots: string[] = [];
 afterEach(async () => {
   await new Promise((resolve) => setTimeout(resolve, 200));
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+  for (const root of roots.splice(0)) {
+    try { rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 }); }
+    catch (error) {
+      // ConPTY can retain the working directory handle briefly after kill on Windows.
+      const code = (error as NodeJS.ErrnoException).code;
+      if (process.platform !== 'win32' || !['EPERM', 'EBUSY', 'ENOTEMPTY'].includes(code ?? '')) throw error;
+    }
+  }
 });
 
 function fixture() {
