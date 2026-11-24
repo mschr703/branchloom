@@ -269,6 +269,7 @@
 :root[data-theme] .agent-metadata-history li small { color: var(--muted); }
 :root[data-theme] .agent-metadata-history li p { flex-basis: 100%; margin: 0; }
 :root[data-theme] .agent-metadata-empty { margin: 12px 0 0; color: var(--muted); font-size: 12px; }
+:root[data-theme] .agent-metadata-unavailable { margin: 12px 0 0; color: var(--warning, var(--text)); font-size: 12px; line-height: 1.5; }
 @media (max-width: 700px) { :root[data-theme] .agent-metadata-policy-head { flex-direction: column; gap: 12px; } }
 :root[data-theme] .agent-capability-panel .panel-subtitle { margin-bottom: 12px; max-width: 75ch; }
 :root[data-theme] .agent-capability-select { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }

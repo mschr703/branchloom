@@ -56,6 +56,7 @@ const studio: StudioAPI = {
   createCardFromDesignRequest: (input) => invoke('createCardFromDesignRequest', input),
   updateCard: (input) => invoke('updateCard', input),
   agentCardMetadataEnabled: (projectId) => invoke('agentCardMetadataEnabled', projectId),
+  agentCardMetadataAvailable: () => invoke('agentCardMetadataAvailable'),
   setAgentCardMetadataEnabled: (input) => invoke('setAgentCardMetadataEnabled', input),
   agentCardMetadataAudit: (projectId) => invoke('agentCardMetadataAudit', projectId),
   cardSplitLinks: (cardId) => invoke('cardSplitLinks', cardId),

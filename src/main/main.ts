@@ -232,6 +232,7 @@ function installIpc(): void {
   bind('createCardFromDesignRequest', (input: Parameters<StudioAPI['createCardFromDesignRequest']>[0]) => createCardFromDesignRequest(db, input));
   bind('updateCard', (input: Parameters<StudioAPI['updateCard']>[0]) => db.updateCard(input));
   bind('agentCardMetadataEnabled', (projectId: string) => agentCardMetadataEnabled(db, projectId));
+  bind('agentCardMetadataAvailable', () => agentCardMetadataBridge?.available === true);
   bind('setAgentCardMetadataEnabled', (input: Parameters<StudioAPI['setAgentCardMetadataEnabled']>[0]) => {
     const enabled = setAgentCardMetadataEnabled(db, input);
     if (!enabled) agentCardMetadataBridge?.revokeProject(input.projectId);
@@ -3085,8 +3086,8 @@ if (ownsSharedProfile) app.whenReady().then(async () => {
     if (window && !window.isDestroyed()) window.webContents.send('studio:session-event', {
       sessionId, cardId, type: 'state', data: 'Card metadata updated', state: 'running',
     } satisfies SessionEvent);
-  });
-  await agentCardMetadataBridge.start();
+  }, 0, (error) => console.error('[Branchloom] optional agent card metadata bridge unavailable', error));
+  void agentCardMetadataBridge.start().catch(() => undefined);
   installIpc();
   createWindow();
   app.on('activate', () => { if (!window) createWindow(); });

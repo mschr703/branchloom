@@ -99,6 +99,7 @@ export interface PrDraftPreview { cardId: string; sourceHead: string; targetHead
 
 export interface StudioAPI {
   agentCardMetadataEnabled(projectId: string): Promise<boolean>;
+  agentCardMetadataAvailable(): Promise<boolean>;
   setAgentCardMetadataEnabled(input: { projectId: string; enabled: boolean }): Promise<boolean>;
   agentCardMetadataAudit(projectId: string): Promise<import('./agent-card-metadata').AgentCardMetadataAudit[]>;
   projects(): Promise<Project[]>;

@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AgentCardMetadataBridge } from '../../src/main/agent-card-metadata-bridge';
 import { agentCardMetadataAudit, agentCardMetadataEnabled, setAgentCardMetadataEnabled } from '../../src/main/agent-card-metadata';
@@ -32,6 +34,46 @@ function request(url: string, token: string, value: unknown): Promise<Response> 
 }
 
 describe('agent card metadata capability', () => {
+  it('fails closed on a blocked loopback port and does not block the store', async () => {
+    const { store, project, card, agent } = fixture();
+    const session = store.createSession({ cardId: card.id, agentId: agent.id });
+    setAgentCardMetadataEnabled(store, { projectId: project.id, enabled: true });
+    const occupied = createServer();
+    await new Promise<void>((resolve) => occupied.listen(0, '127.0.0.1', resolve));
+    const port = (occupied.address() as AddressInfo).port;
+    const errors: string[] = [];
+    const bridge = new AgentCardMetadataBridge(store, () => undefined, port, (error) => errors.push(error.message));
+    try {
+      await expect(bridge.start()).rejects.toMatchObject({ code: 'EADDRINUSE' });
+      expect(bridge.available).toBe(false);
+      expect(bridge.instructions(project.id)).toBe('');
+      expect(bridge.environment(session.id)).toEqual({});
+      expect(errors).toHaveLength(1);
+      expect(store.card(card.id).priority).toBe('none');
+    } finally {
+      bridge.close();
+      await new Promise<void>((resolve) => occupied.close(() => resolve()));
+      store.close();
+    }
+  });
+
+  it('revokes live capabilities if the listener fails after startup', async () => {
+    const { store, project, card, agent } = fixture();
+    const session = store.createSession({ cardId: card.id, agentId: agent.id });
+    setAgentCardMetadataEnabled(store, { projectId: project.id, enabled: true });
+    const errors: string[] = [];
+    const bridge = new AgentCardMetadataBridge(store, () => undefined, 0, (error) => errors.push(error.message));
+    await bridge.start();
+    const capability = bridge.environment(session.id);
+    const listener = (bridge as unknown as { server: Server }).server;
+    listener.emit('error', new Error('Synthetic listener failure'));
+    expect(bridge.available).toBe(false);
+    expect(bridge.environment(session.id)).toEqual({});
+    expect(errors).toEqual(['Synthetic listener failure']);
+    const response = await fetch(capability.BRANCHLOOM_CARD_METADATA_URL!, { headers: { Authorization: `Bearer ${capability.BRANCHLOOM_CARD_METADATA_TOKEN}` } }).catch(() => null);
+    expect(response?.status).not.toBe(200);
+    bridge.close(); store.close();
+  });
   it('requires project opt-in and a live, card-scoped capability with fresh state', async () => {
     const { file, store, project, card, other, agent } = fixture();
     const session = store.createSession({ cardId: card.id, agentId: agent.id });

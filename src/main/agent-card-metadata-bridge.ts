@@ -38,19 +38,51 @@ export class AgentCardMetadataBridge {
   private port = 0;
   private readonly sessions = new Map<string, string>();
 
-  constructor(private readonly store: StudioStore, private readonly changed: (sessionId: string, cardId: string) => void) {}
+  constructor(
+    private readonly store: StudioStore,
+    private readonly changed: (sessionId: string, cardId: string) => void,
+    private readonly listenPort = 0,
+    private readonly unavailable: (error: Error) => void = () => undefined,
+  ) {}
+
+  get available(): boolean { return this.server?.listening === true && this.port > 0; }
 
   async start(): Promise<void> {
     if (this.server) throw new Error('Agent card metadata bridge is already running.');
     const server = createServer((request, response) => { void this.handle(request, response); });
-    await new Promise<void>((resolve, reject) => {
-      server.once('error', reject);
-      server.listen(0, '127.0.0.1', () => { server.off('error', reject); resolve(); });
-    });
-    const address = server.address();
-    if (!address || typeof address === 'string') { server.close(); throw new Error('Agent card metadata bridge has no local port.'); }
     this.server = server;
-    this.port = address.port;
+    const failClosed = (error: Error) => {
+      if (this.server !== server) return;
+      this.sessions.clear();
+      this.server = null;
+      this.port = 0;
+      try { this.unavailable(error); } catch { /* A diagnostic callback cannot revive the capability. */ }
+      try { server.close(); } catch { /* A failed bind has no active listener. */ }
+    };
+    server.on('error', failClosed);
+    server.on('close', () => {
+      if (this.server === server) {
+        this.sessions.clear(); this.server = null; this.port = 0;
+        try { this.unavailable(new Error('Agent card metadata bridge closed.')); } catch { /* Keep the bridge closed. */ }
+      }
+    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const onError = (error: Error) => { server.off('listening', onListening); reject(error); };
+        const onListening = () => { server.off('error', onError); resolve(); };
+        server.once('error', onError);
+        server.once('listening', onListening);
+        try { server.listen(this.listenPort, '127.0.0.1'); }
+        catch (error) { server.off('error', onError); server.off('listening', onListening); reject(error); }
+      });
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('Agent card metadata bridge has no local port.');
+      if (this.server !== server) throw new Error('Agent card metadata bridge closed during startup.');
+      this.port = address.port;
+    } catch (error) {
+      failClosed(error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    }
   }
 
   close(): void {
@@ -61,7 +93,7 @@ export class AgentCardMetadataBridge {
   }
 
   instructions(projectId: string): string {
-    if (!this.server || !agentCardMetadataEnabled(this.store, projectId)) return '';
+    if (!this.available || !agentCardMetadataEnabled(this.store, projectId)) return '';
     return `\n\nCard metadata tool (only for this running Branchloom card):
 The user enabled agent edits to priority and labels for this project. Make an actual local HTTP tool call; mentioning metadata in your answer changes nothing. Use BRANCHLOOM_CARD_METADATA_URL and BRANCHLOOM_CARD_METADATA_TOKEN from your process environment. Never print the token or include it in a commit.
 Read the token inside a child process (for example Node's process.env); never expand it into shell command arguments, logs, or project files.
@@ -69,7 +101,7 @@ GET the URL with Authorization: Bearer <token> to read the current priority, lab
   }
 
   environment(sessionId: string): Record<string, string> {
-    if (!this.server) throw new Error('Agent card metadata bridge is not ready.');
+    if (!this.available) return {};
     const session = this.store.session(sessionId);
     if (session.state !== 'running' || !agentCardMetadataEnabled(this.store, session.projectId)) return {};
     this.revoke(sessionId);
@@ -90,7 +122,7 @@ GET the URL with Authorization: Bearer <token> to read the current priority, lab
   }
 
   private async handle(request: IncomingMessage, response: ServerResponse): Promise<void> {
-    if (!this.server || request.headers.host !== `127.0.0.1:${this.port}` || request.headers.origin || request.url !== '/v1/card-metadata') {
+    if (!this.available || request.headers.host !== `127.0.0.1:${this.port}` || request.headers.origin || request.url !== '/v1/card-metadata') {
       respond(response, 403, { error: 'Forbidden.' }); return;
     }
     if (request.method !== 'GET' && request.method !== 'POST') { respond(response, 405, { error: 'Method not allowed.' }); return; }
