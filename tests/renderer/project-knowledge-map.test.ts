@@ -58,5 +58,18 @@ describe('project knowledge map', () => {
     const flow = knowledgeMapFlow(map.groups, [], '');
     expect(flow.nodes.filter((node) => node.id === 'source:file:src/shared.ts')).toHaveLength(1);
     expect(flow.edges.filter((edge) => edge.target === 'source:file:src/shared.ts').map((edge) => edge.source).sort()).toEqual(['task:a', 'task:b']);
+    const source = flow.nodes.find((node) => node.id === 'source:file:src/shared.ts')!;
+    const tasks = flow.nodes.filter((node) => node.id.startsWith('task:'));
+    expect(source.position.x).toBeGreaterThan(Math.min(...tasks.map((node) => node.position.x)));
+    expect(source.position.x).toBeLessThan(Math.max(...tasks.map((node) => node.position.x)));
+    expect(source.position.y).toBeGreaterThan(tasks[0]!.position.y);
+  });
+
+  it('keeps multiple saved file nodes from covering one another', () => {
+    const snapshot = { project, cards: [card('a')], sessions: [] };
+    const map = projectKnowledgeMapPage(snapshot, 0, [reference('1', 'a', 'src/one.ts'), reference('2', 'a', 'src/two.ts')]);
+    const sources = knowledgeMapFlow(map.groups, [], '').nodes.filter((node) => node.id.startsWith('source:'));
+    expect(sources).toHaveLength(2);
+    expect(Math.abs(sources[0]!.position.x - sources[1]!.position.x)).toBeGreaterThanOrEqual(238);
   });
 });

@@ -14,6 +14,8 @@ Der Codeindex beschränkt sich auf höchstens 180 geeignete getrackte Dateien bi
 
 Die Position im Diagramm ist eine lesbare Anordnung, keine berechnete Themen- oder semantische Nähe. Commit-Historie und indizierte Codepassagen stehen weiterhin unter **Quellen durchsuchen**; ein angehefteter Pfad ist nicht automatisch ein Beleg für den Commit oder die indizierte Passage. Das Whiteboard bleibt der editierbare Ort für geplante Architektur. Eine gemeinsame automatisch belegte Karte von Commits, Codeänderungen, Gesprächen und Whiteboard-Boxen ist noch offen.
 
+Wenn Dateibezüge nach dem Öffnen geladen werden, richtet sich die Ansicht auf die hinzugekommenen Knoten neu aus. Eine von mehreren Aufgaben genutzte Datei steht zwischen den Aufgaben; mehrere Dateien derselben Reihe überdecken einander nicht.
+
 Memory speichert Notizen pro Projekt in der lokalen SQLite-Datenbank der App. Der Projektordner bekommt keine Memory-Dateien. Notizen lassen sich mit `[[Notiztitel]]` verbinden; Klicks in der Vorschau und im Graph öffnen die verknüpfte Notiz.
 
 ## Schreiben und ansehen

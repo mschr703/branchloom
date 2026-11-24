@@ -25,6 +25,7 @@ export function knowledgeMapFlow(groups: ReturnType<typeof projectKnowledgeMapPa
   const edges: Edge[] = [];
   const seenSources = new Set<string>();
   const sourceCounts = new Map<string, number>();
+  const sourceAnchors = new Map<string, { taskCenters: number[]; rowY: number }>();
   for (const group of groups) for (const reference of group.references) {
     const id = referenceNodeId(reference);
     sourceCounts.set(id, (sourceCounts.get(id) ?? 0) + 1);
@@ -44,6 +45,10 @@ export function knowledgeMapFlow(groups: ReturnType<typeof projectKnowledgeMapPa
     }
     for (const [referenceIndex, reference] of group.references.entries()) {
       const sourceId = referenceNodeId(reference);
+      const anchor = sourceAnchors.get(sourceId) ?? { taskCenters: [], rowY: y + 224 };
+      anchor.taskCenters.push(x + 251);
+      anchor.rowY = Math.max(anchor.rowY, y + 224);
+      sourceAnchors.set(sourceId, anchor);
       if (!seenSources.has(sourceId)) {
         seenSources.add(sourceId);
         nodes.push({ id: sourceId, position: { x: x + referenceIndex * 238, y: y + 224 },
@@ -53,6 +58,19 @@ export function knowledgeMapFlow(groups: ReturnType<typeof projectKnowledgeMapPa
       }
       edges.push({ id: `${taskId}-${sourceId}`, source: taskId, target: sourceId, type: 'smoothstep', className: `knowledge-map-link source${!reference.available ? ' unavailable' : ''}` });
     }
+  }
+  const sourceRows = new Map<number, Node[]>();
+  for (const node of nodes) {
+    const anchor = sourceAnchors.get(node.id);
+    if (!anchor) continue;
+    node.position = { x: anchor.taskCenters.reduce((sum, center) => sum + center, 0) / anchor.taskCenters.length - 105, y: anchor.rowY };
+    const row = sourceRows.get(anchor.rowY) ?? [];
+    row.push(node);
+    sourceRows.set(anchor.rowY, row);
+  }
+  for (const row of sourceRows.values()) {
+    row.sort((a, b) => a.position.x - b.position.x || a.id.localeCompare(b.id));
+    for (let index = 1; index < row.length; index++) row[index]!.position.x = Math.max(row[index]!.position.x, row[index - 1]!.position.x + 238);
   }
   return { nodes, edges };
 }
@@ -82,6 +100,7 @@ export function ProjectKnowledgeMap({ snapshot, onOpenCard, onOpenSession }: Pro
   const references = referenceState?.key === referenceKey ? referenceState.references : [];
   const map = useMemo(() => projectKnowledgeMapPage(snapshot, page, references), [snapshot, page, references]);
   const { nodes, edges } = useMemo(() => knowledgeMapFlow(map.groups, snapshot.agents, selectedId), [map.groups, snapshot.agents, selectedId]);
+  const layoutKey = `${snapshot.project.id}:${map.page}:${nodes.map((node) => node.id).join('|')}`;
   const selectedCard = selectedId.startsWith('task:') ? map.groups.find((group) => group.card.id === selectedId.slice(5))?.card : null;
   const selectedRun = selectedId.startsWith('conversation:') ? map.groups.flatMap((group) => group.sessions.map((session) => ({ session, card: group.card })))
     .find((item) => item.session.id === selectedId.slice('conversation:'.length)) : null;
@@ -93,11 +112,11 @@ export function ProjectKnowledgeMap({ snapshot, onOpenCard, onOpenSession }: Pro
   function changePage(next: number) { setPage(next); setSelectedId(''); }
 
   return <div className="knowledge-map-view">
-    <div className="knowledge-map-summary"><p>Linien zeigen gespeicherte Kartenbezüge: abgeschlossene Agentenläufe sowie bewusst angeheftete Projektdateien und Ordner. Eine gemeinsame Datei verbindet dadurch mehrere Aufgaben. Positionen zeigen keine semantische Nähe.</p><span>{map.totalCards} Aufgaben · {map.totalSessions} belegte Läufe{referenceState?.key === referenceKey ? ` · ${map.totalReferences} Dateibezüge` : ''}</span></div>
+    <div className="knowledge-map-summary"><p>Karten, Agentenläufe und angeheftete Dateien. Linien zeigen gespeicherte Bezüge, keine Themenähnlichkeit.</p><span>{map.totalCards} Aufgaben · {map.totalSessions} belegte Läufe{referenceState?.key === referenceKey ? ` · ${map.totalReferences} Dateibezüge` : ''}</span></div>
     {referenceState?.key !== referenceKey ? <p className="knowledge-map-source-status" role="status">Dateibezüge werden gelesen…</p> : referenceState.failed ? <p className="knowledge-map-source-status" role="status">{referenceState.failed} Kartenbezüge konnten nicht gelesen werden; die Karte ist unvollständig.</p> : null}
     {map.groups.length ? <div className="knowledge-map-layout">
       <div className="knowledge-map-canvas" role="region" aria-label="Beziehungskarte aus Aufgaben und Agentenläufen">
-        <ReactFlow key={`${snapshot.project.id}:${map.page}`} nodes={nodes} edges={edges} fitView fitViewOptions={{ padding: .14, maxZoom: 1.2 }}
+        <ReactFlow key={layoutKey} nodes={nodes} edges={edges} fitView fitViewOptions={{ padding: .14, maxZoom: 1.2 }}
           nodesDraggable={false} nodesConnectable={false} edgesFocusable={false}
           onNodeClick={(_, node) => setSelectedId(node.id)} onNodeDoubleClick={(_, node) => {
             if (node.id.startsWith('task:')) onOpenCard?.(node.id.slice(5));
