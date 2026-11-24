@@ -4,6 +4,7 @@ import type { AgentCapability, AgentCapabilityEvidence, AgentDetection, AgentPre
 import type { AgentCardMetadataAudit } from '../../shared/agent-card-metadata';
 import { CARD_PRIORITIES } from '../../shared/card-metadata';
 import { AgentBrowserSettings } from './AgentBrowserSettings';
+import { ApiContractPanel } from './ApiContractPanel';
 import type { Mutate } from './shared';
 
 interface Props { snapshot: ProjectSnapshot; mutate: Mutate }
@@ -139,6 +140,7 @@ export function AgentView({ snapshot, mutate }: Props) {
       {metadataAudit.length > 0 ? <details className="agent-metadata-history"><summary>Agentenänderungen · {metadataAudit.length}</summary><ol>{metadataAudit.slice(0, 10).map((item) => <li key={item.id}><time dateTime={item.changedAt}>{new Date(item.changedAt).toLocaleString('de-DE')}</time><strong>{item.agentName}</strong><span>{snapshot.cards.find((card) => card.id === item.cardId)?.title ?? 'Karte'}</span><small>Priorität: {CARD_PRIORITIES.find((entry) => entry.value === item.beforePriority)?.label} → {CARD_PRIORITIES.find((entry) => entry.value === item.afterPriority)?.label}; Labels: {item.beforeLabels.join(', ') || 'keine'} → {item.afterLabels.join(', ') || 'keine'}</small><p>{item.reason}</p><small>Sitzung {item.sessionId}</small></li>)}</ol></details> : <p className="agent-metadata-empty">Noch keine Agentenänderungen an Priorität oder Labels.</p>}
     </section>
     <AgentBrowserSettings projectId={snapshot.project.id} />
+    <ApiContractPanel projectId={snapshot.project.id} cards={snapshot.cards} />
     <section className="panel agent-capability-panel">
       <div className="panel-heading"><div><Radar size={18} /><h3>Fähigkeitsbelege</h3></div></div>
       <p className="panel-subtitle">Aus echten lokalen Kartensitzungen. Ein PTY-Start oder gesendete Eingabe beweist keine Anmeldung, Modellantwort oder erfolgreiche Gesprächsfortsetzung. Alte Läufe ohne Aufzeichnung bleiben offen.</p>

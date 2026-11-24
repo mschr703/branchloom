@@ -5,6 +5,11 @@ import type { ReleaseUpdateState } from '../shared/release-update';
 const invoke = <T>(name: keyof StudioAPI, ...args: unknown[]): Promise<T> => ipcRenderer.invoke(`studio:${String(name)}`, ...args) as Promise<T>;
 
 const studio: StudioAPI = {
+  apiContractOverview: (projectId) => invoke('apiContractOverview', projectId),
+  previewApiContract: (input) => invoke('previewApiContract', input),
+  saveApiContract: (input) => invoke('saveApiContract', input),
+  bindCardApiContract: (input) => invoke('bindCardApiContract', input),
+  checkApiContractResponse: (input) => invoke('checkApiContractResponse', input),
   releaseUpdateState: () => invoke('releaseUpdateState'),
   installReleaseUpdate: () => invoke('installReleaseUpdate'),
   laterReleaseUpdate: () => invoke('laterReleaseUpdate'),

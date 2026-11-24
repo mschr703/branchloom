@@ -107,6 +107,11 @@ export interface WorktreeReview { cardId: string; path: string; branch: string; 
 export interface PrDraftPreview { cardId: string; sourceHead: string; targetHead: string; text: string; reportCount: number }
 
 export interface StudioAPI {
+  apiContractOverview(projectId: string): Promise<import('./api-contract').ApiContractOverview>;
+  previewApiContract(input: { projectId: string; draft: import('./api-contract').ApiContractDraft }): Promise<import('./api-contract').ApiContractPreview>;
+  saveApiContract(input: { projectId: string; draft: import('./api-contract').ApiContractDraft; fingerprint: string; expectedLatestRevision: number }): Promise<import('./api-contract').ApiContractVersion>;
+  bindCardApiContract(input: { projectId: string; cardId: string; revision: number | null; expectedContentRevision: number }): Promise<import('./api-contract').ApiContractOverview>;
+  checkApiContractResponse(input: { projectId: string; revision: number; status: number; responseText: string }): Promise<import('./api-contract').ApiContractCheck>;
   releaseUpdateState(): Promise<ReleaseUpdateState>;
   installReleaseUpdate(): Promise<ReleaseUpdateState>;
   laterReleaseUpdate(): Promise<ReleaseUpdateState>;

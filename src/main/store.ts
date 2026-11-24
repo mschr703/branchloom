@@ -13,6 +13,7 @@ import { installSessionSearch, searchSessionTranscripts } from './session-search
 import { installProjectMemoryIndex } from './project-memory-index';
 import { installSessionRecovery } from './session-recovery';
 import { installActiveCardIndex, installParallelRuns } from './parallel-runs';
+import { installApiContracts } from './api-contract';
 import { installIntegrationQueue } from './integration-queue';
 import { installIntegrationEvidence } from './integration-evidence';
 import { installProjectRunPause, projectRunPause } from './project-pause';
@@ -177,6 +178,7 @@ export class StudioStore {
     installDevEnvironments(this);
     installParallelRuns(this.db);
     installProjectRunPause(this.db);
+    installApiContracts(this.db);
     const count = this.db.prepare('SELECT COUNT(*) AS count FROM agents').get() as { count: number };
     if (count.count === 0) {
       for (const preset of [
