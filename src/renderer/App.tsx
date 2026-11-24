@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Download, GitBranch, Moon, MoreHorizontal, Plus, RefreshCw, Search, Sun, Upload } from 'lucide-react';
+import { Download, GitBranch, MessageCircle, Moon, MoreHorizontal, Plus, RefreshCw, Search, Sun, Upload, X } from 'lucide-react';
 import type { Project, ProjectOrganization, ProjectPackagePreview, ProjectSnapshot, Session } from '../shared/types';
 import { BoardView } from './components/BoardView';
 import { IdeasView } from './components/IdeasView';
@@ -24,6 +24,7 @@ import { projectNavigationStatus, WorkspaceNavigation, views, type View } from '
 import { startConflictRadarRefresh } from './conflict-radar-schedule';
 import './theme.css';
 import './brand.css';
+import './project-chat-dock.css';
 
 const WhiteboardView = lazy(() => import('./components/WhiteboardView').then((module) => ({ default: module.WhiteboardView })));
 const WorkflowView = lazy(() => import('./components/WorkflowView').then((module) => ({ default: module.WorkflowView })));
@@ -40,6 +41,7 @@ export function App() {
   const [projectId, setProjectId] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<ProjectSnapshot | null>(null);
   const [view, setView] = useState<View>('board');
+  const [chatDockOpen, setChatDockOpen] = useState(false);
   const [designCardId, setDesignCardId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -348,7 +350,7 @@ export function App() {
     <main className="main-area">
       <header className="topbar">
         <div className="topbar-title"><h1>{activeView.name}</h1></div>
-        <div className="topbar-actions"><div className={searchOpen ? 'topbar-search-slot is-open' : 'topbar-search-slot'}><button ref={searchButtonRef} className="search-trigger" type="button" title="Projekt durchsuchen (Strg+K)" aria-label="Projekt durchsuchen" aria-expanded={searchOpen} disabled={!snapshot || snapshot.project.id !== projectId} onClick={openSearch}><Search size={16} /><span>Projekt durchsuchen…</span><kbd>Strg K</kbd></button>{searchOpen && snapshot?.project.id === projectId ? <SearchPalette snapshot={snapshot} onClose={closeSearch} onNavigate={navigateToResult} /> : null}</div><button className="icon-button theme-toggle" type="button" title={themeToggleLabel(theme)} aria-label={themeToggleLabel(theme)} onClick={() => setTheme((previous) => previous === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}</button><button className="icon-button" type="button" title="Aktualisieren" aria-label="Aktualisieren" onClick={() => void refresh()}><RefreshCw size={17} /></button></div>
+        <div className="topbar-actions"><div className={searchOpen ? 'topbar-search-slot is-open' : 'topbar-search-slot'}><button ref={searchButtonRef} className="search-trigger" type="button" title="Projekt durchsuchen (Strg+K)" aria-label="Projekt durchsuchen" aria-expanded={searchOpen} disabled={!snapshot || snapshot.project.id !== projectId} onClick={openSearch}><Search size={16} /><span>Projekt durchsuchen…</span><kbd>Strg K</kbd></button>{searchOpen && snapshot?.project.id === projectId ? <SearchPalette snapshot={snapshot} onClose={closeSearch} onNavigate={navigateToResult} /> : null}</div><button className="icon-button" type="button" title="Projektgespräch als Seitenleiste" aria-label="Projektgespräch als Seitenleiste" aria-expanded={view === 'chat' || chatDockOpen} disabled={!snapshot || snapshot.project.id !== projectId} onClick={() => { if (view === 'chat') { setView('board'); setChatDockOpen(true); } else setChatDockOpen((open) => !open); }}><MessageCircle size={17} aria-hidden="true" /></button><button className="icon-button theme-toggle" type="button" title={themeToggleLabel(theme)} aria-label={themeToggleLabel(theme)} onClick={() => setTheme((previous) => previous === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}</button><button className="icon-button" type="button" title="Aktualisieren" aria-label="Aktualisieren" onClick={() => void refresh()}><RefreshCw size={17} /></button></div>
       </header>
       <div className="mobile-workspace">
         <ProjectSwitcher compact projects={projects} projectId={projectId} organization={projectOrganization} onSelect={(id) => { setPendingGlobalItem(null); setProjectId(id); }} onOrganizationChange={setProjectOrganization} onError={setError} />
@@ -365,13 +367,6 @@ export function App() {
         <Suspense fallback={<div className="content-message" role="status">{activeView.name} wird geladen…</div>}>
         {view === 'board' ? <BoardView snapshot={snapshot} mutate={mutate} openCard={navigationTarget?.kind === 'card' ? navigationTarget : null} onOpenDesign={(cardId) => { setDesignCardId(cardId); setView('design'); }} onOpenQaReport={navigateToQaReport} /> : null}
         {view === 'ideas' ? <IdeasView key={snapshot.project.id} snapshot={snapshot} mutate={mutate} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
-        {view === 'chat' ? <ProjectChat key={snapshot.project.id} snapshot={snapshot} onOpenCard={(id) => navigateToEntity('card', id)} onOpenSession={(id) => void openSessionFromMemory(id)} onSaveTask={async (title, description) => {
-          const column = snapshot.columns.find((item) => item.name.trim().toLocaleLowerCase() === 'to do') ?? snapshot.columns[0];
-          if (!column) throw new Error('Dieses Projekt hat keine Boardspalte.');
-          const card = await window.studio.createCard({ projectId: snapshot.project.id, columnId: column.id, title, description });
-          await refresh();
-          navigateToEntity('card', card.id);
-        }} /> : null}
         {view === 'activity' ? <ActivityView snapshot={snapshot} openSession={navigationTarget?.kind === 'session' ? navigationTarget : null} onSessionClosed={() => setNavigationTarget((old) => old?.kind === 'session' ? null : old)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onSaveSessionAsNote={saveSessionAsNote} /> : null}
         {view === 'changelog' ? <ChangelogView key={snapshot.project.id} projectId={snapshot.project.id} /> : null}
         {view === 'workflows' ? <WorkflowView snapshot={snapshot} mutate={mutate} openWorkflow={navigationTarget?.kind === 'workflow' ? navigationTarget : null} openPlan={openPlan} onOpenCard={(id) => navigateToEntity('card', id)} onOpenSession={(id) => void openSessionFromMemory(id)} /> : null}
@@ -384,6 +379,17 @@ export function App() {
         {view === 'design' ? <DesignInspectionView key={snapshot.project.id} projectId={snapshot.project.id} active={!creatingProject && !searchOpen} cards={snapshot.cards} startCardId={designCardId} columns={snapshot.columns} queueState={snapshot.queue.state} onOpenCard={async (id) => { await refresh(); navigateToEntity('card', id); }} onCreated={refresh} /> : null}
         </Suspense>
       </div>}
+      {snapshot?.project.id === projectId ? <div className={`project-chat-host ${view === 'chat' ? 'page' : 'dock'}`} hidden={view !== 'chat' && !chatDockOpen}>
+        {view !== 'chat' && chatDockOpen ? <button type="button" className="project-chat-close icon-button" aria-label="Projektgespräch schließen" title="Projektgespräch schließen" onClick={() => setChatDockOpen(false)}><X size={17} aria-hidden="true" /></button> : null}
+        <Suspense fallback={<div className="content-message" role="status">Projektgespräch wird geladen…</div>}><ProjectChat key={snapshot.project.id} snapshot={snapshot} onOpenCard={(id) => { setChatDockOpen(false); navigateToEntity('card', id); }} onOpenSession={(id) => { setChatDockOpen(false); void openSessionFromMemory(id); }} onSaveTask={async (title, description) => {
+          const column = snapshot.columns.find((item) => item.name.trim().toLocaleLowerCase() === 'to do') ?? snapshot.columns[0];
+          if (!column) throw new Error('Dieses Projekt hat keine Boardspalte.');
+          const card = await window.studio.createCard({ projectId: snapshot.project.id, columnId: column.id, title, description });
+          await refresh();
+          setChatDockOpen(false);
+          navigateToEntity('card', card.id);
+        }} /></Suspense>
+      </div> : null}
     </main>
 
     {creatingProject ? <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setCreatingProject(false); }}><form className="dialog" onSubmit={(event) => void createProject(event)}><div className="dialog-heading"><div><small>Projekt</small><h2>Codeordner hinzufügen</h2></div><button type="button" className="icon-button" onClick={() => setCreatingProject(false)} aria-label="Schließen">×</button></div><label>Name<input autoFocus required maxLength={80} value={newProject.name} onChange={(event) => setNewProject((old) => ({ ...old, name: event.target.value }))} placeholder="Mein Projekt" /></label><label>Absoluter Pfad zum vorhandenen Codeordner<input required value={newProject.path} onChange={(event) => setNewProject((old) => ({ ...old, path: event.target.value }))} placeholder="C:\\Projekte\\mein-projekt" /></label><p className="field-help">Branchloom verknüpft den Ordner, ohne Dateien zu kopieren. CLI-Agenten laufen dort und können Dateien verändern.</p><div className="dialog-actions"><button type="button" className="secondary-button" onClick={() => setCreatingProject(false)}>Abbrechen</button><button type="submit" className="primary-button">Codeordner hinzufügen</button></div></form></div> : null}

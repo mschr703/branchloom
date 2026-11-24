@@ -1,0 +1,22 @@
+.main-area:has(.project-chat-host.page) > .view-area { display: none; }
+.project-chat-host[hidden] { display: none; }
+.project-chat-host.page { flex: 1; min-height: 0; overflow: auto; }
+.project-chat-host.dock {
+  position: fixed;
+  inset: 0 0 0 auto;
+  z-index: 60;
+  width: min(560px, 100vw);
+  overflow: auto;
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  box-shadow: -12px 0 30px rgb(0 0 0 / 9%);
+}
+.project-chat-close { position: sticky; top: 14px; left: calc(100% - 48px); z-index: 1; margin: 14px 14px -46px auto; background: var(--bg); }
+.project-chat-host.dock .project-chat { padding-top: 64px; }
+.project-chat-host.dock .project-chat-layout { grid-template-columns: 1fr; gap: 20px; }
+.project-chat-host.dock .project-chat-main { min-height: 300px; }
+.project-chat-host.dock .project-chat-transcript { min-height: 120px; }
+.project-chat-host.dock .project-chat-evidence { border-left: 0; border-top: 1px solid var(--border); padding: 20px 0 0; }
+@media (max-width: 600px) {
+  .project-chat-host.dock { width: 100vw; border-left: 0; box-shadow: none; }
+}

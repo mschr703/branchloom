@@ -1022,9 +1022,18 @@ function createWindow(): void {
               projectChatNav.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('.project-chat textarea'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!document.querySelector('.project-chat[aria-label="Projektgespräch"] textarea') || !(await sessionsUnchanged())) throw new Error('Projektgespräch wurde nicht als lesende Arbeitsfläche geöffnet.');
+              const conversationField = document.querySelector('.project-chat textarea');
+              document.querySelector('button[aria-label="Projektgespräch als Seitenleiste"]')?.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.project-chat-host.dock:not([hidden])'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.project-chat-host.dock:not([hidden])') || !conversationField?.isConnected || !(await sessionsUnchanged())) throw new Error('Projektgespräch blieb beim Wechsel in die Seitenleiste nicht erhalten.');
               const whiteboardNav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Whiteboard'));
               if (!whiteboardNav) throw new Error('Whiteboard-Navigation fehlt.');
               whiteboardNav.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.wb-view'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.project-chat-host.dock:not([hidden])') || !conversationField?.isConnected) throw new Error('Projektgespräch ging beim Wechsel zum Whiteboard verloren.');
+              document.querySelector('button[aria-label="Projektgespräch schließen"]')?.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.project-chat-host.dock[hidden]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.project-chat-host.dock[hidden]') || !conversationField?.isConnected) throw new Error('Projektgespräch wurde beim Schließen unerwartet gelöscht: hidden=' + Boolean(document.querySelector('.project-chat-host.dock[hidden]')) + ', connected=' + conversationField?.isConnected + '.');
               let whiteboardReady = false;
               for (let attempt = 0; attempt < 300; attempt++) {
                 whiteboardReady = Boolean(document.querySelector('.wb-canvas') && document.querySelector('.wb-inspector') && document.querySelector('.wb-node'));
