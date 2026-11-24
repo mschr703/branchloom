@@ -31,9 +31,11 @@ describe('project search', () => {
     expect(projectSearchResults(snapshot, '', 2)).toHaveLength(2);
   });
 
-  it('renders a focusable search dialog with escaped source titles', () => {
+  it('renders an inline search and results without a modal, with escaped source titles', () => {
     const html = renderToStaticMarkup(createElement(SearchPalette, { snapshot, onClose: () => undefined, onNavigate: () => undefined }));
-    expect(html).toContain('role="dialog"');
+    expect(html).toContain('class="search-inline"');
+    expect(html).toContain('role="search"');
+    expect(html).not.toContain('role="dialog"');
     expect(html).toContain('role="combobox"');
     expect(html).toContain('role="listbox"');
     expect(html).toContain('&lt;b&gt;Entscheidung&lt;/b&gt;');
@@ -43,7 +45,7 @@ describe('project search', () => {
     const result = sessionSearchResult({ sessionId: 'specific-run', cardId: 'c', cardTitle: 'E-Mails prüfen', agentName: 'Codex', startedAt: date, snippet: 'Wichtige Frist' });
     expect(result).toMatchObject({ kind: 'session', id: 'specific-run', title: 'E-Mails prüfen', snippet: 'Wichtige Frist' });
     expect(viewForSearchKind(result.kind)).toBe('activity');
-    expect(renderToStaticMarkup(createElement(SearchPalette, { snapshot, onClose: () => undefined, onNavigate: () => undefined }))).toContain('Agentenverläufe suchen');
+    expect(renderToStaticMarkup(createElement(SearchPalette, { snapshot, onClose: () => undefined, onNavigate: () => undefined }))).toContain('Karten, Notizen, Abläufe suchen');
   });
 });
 

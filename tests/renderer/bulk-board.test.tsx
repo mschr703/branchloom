@@ -19,12 +19,12 @@ const base: ProjectSnapshot = {
 const mutate = async <T,>(action: () => Promise<T>) => action();
 
 describe('bulk board controls', () => {
-  it('offers selection only for visible active cards and explains agent behavior', () => {
+  it('offers selection only for visible active cards without an empty bulk-action notice', () => {
     const html = renderToStaticMarkup(createElement(BoardView, { snapshot: base, mutate }));
     expect(html).toContain('Sichtbare aktive Karten auswählen');
     expect(html).toContain('„Active“ für Sammelaktion auswählen');
     expect(html).not.toContain('„Archived“ für Sammelaktion auswählen');
-    expect(html).toContain('Sammelverschieben startet keine Spaltenagenten.');
+    expect(html).not.toContain('Sammelverschieben startet keine Spaltenagenten.');
     expect(html).not.toContain('Archivierung bestätigen');
   });
 

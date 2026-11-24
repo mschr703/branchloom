@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { ProjectSnapshot, WorkflowProposal } from '../../src/shared/types';
 import { ProposalPreview, WorkflowPlanner } from '../../src/renderer/components/WorkflowPlanner';
+import { WorkflowView } from '../../src/renderer/components/WorkflowView';
 
 const snapshot: ProjectSnapshot = {
   project: { id: 'p', name: 'Test', path: 'C:\\test', createdAt: '2026-01-01T00:00:00Z' },
@@ -14,9 +15,22 @@ const snapshot: ProjectSnapshot = {
 };
 
 describe('workflow planner', () => {
+  it('explains the workflow route and queue before any run can start', () => {
+    const html = renderToStaticMarkup(createElement(WorkflowView, {
+      snapshot: { ...snapshot, queue: { projectId: 'p', state: 'off', templateWorkflowId: null, activeWorkflowId: null, pauseReason: null, completedCount: 0, updatedAt: null } },
+      mutate: async <T,>(action: () => Promise<T>) => action(),
+    }));
+    expect(html).toContain('Ein Workflow ist die Route einer Karte');
+    expect(html).toContain('Route selbst erstellen');
+    expect(html).toContain('Route mit einem Agenten entwerfen');
+    expect(html).toContain('Automatische Warteschlange');
+    expect(html).toContain('Branchloom nimmt dann freie To-Do-Karten nacheinander auf');
+  });
+
   it('shows the global agent and requires an actual agent before planning', () => {
     const html = renderToStaticMarkup(createElement(WorkflowPlanner, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() }));
-    expect(html).toContain('GLOBALER WORKFLOW-AGENT');
+    expect(html).toContain('Route mit einem Agenten entwerfen');
+    expect(html).toContain('Welche Projektdaten sieht der Agent?');
     expect(html).toContain('Agent auswählen');
     expect(html).toContain('Effort');
     expect(html).toContain('Projekt-README');

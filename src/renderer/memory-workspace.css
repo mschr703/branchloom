@@ -1,0 +1,115 @@
+.memory-page .memory-header-actions { gap: 6px; }
+.memory-page .memory-header-actions .secondary-button { font-size: 12px; }
+.memory-transfer { position: relative; }
+.memory-transfer > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  cursor: pointer;
+  list-style: none;
+  font-size: 12px;
+}
+.memory-transfer > summary::-webkit-details-marker { display: none; }
+.memory-transfer > summary::after { content: '⌄'; margin-left: 10px; color: var(--muted); }
+.memory-transfer[open] > summary::after { transform: rotate(180deg); }
+.memory-transfer > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.memory-transfer > div {
+  position: absolute;
+  z-index: 15;
+  right: 0;
+  top: calc(100% + 5px);
+  display: grid;
+  gap: 5px;
+  width: 230px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .14);
+}
+.memory-transfer > div .secondary-button { justify-content: flex-start; white-space: normal; }
+.memory-page .memory-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(380px, 1.2fr) minmax(310px, .8fr);
+  gap: 0;
+  min-height: 580px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  overflow: hidden;
+  background: var(--surface);
+}
+:root[data-theme] .memory-page .memory-list,
+:root[data-theme] .memory-page .graph-panel,
+:root[data-theme] .memory-page .memory-main {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+:root[data-theme] .memory-page .memory-list { border-right: 1px solid var(--border); }
+:root[data-theme] .memory-page .memory-main { border-left: 1px solid var(--border); }
+.memory-page .memory-list-items { max-height: min(70vh, 720px); }
+.memory-page .graph-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+}
+.memory-page .graph-header { gap: 12px; align-items: flex-start; }
+.memory-page .graph-header > div:first-child { display: grid; gap: 3px; }
+.memory-page .graph-header h3 { font-size: 14px; font-weight: 650; }
+.memory-page .graph-header span { font-size: 11px; color: var(--muted); }
+.graph-modes { display: inline-flex; align-items: center; flex: none; gap: 2px; }
+.graph-modes button {
+  min-height: 30px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  padding: 5px 9px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.graph-modes button[aria-pressed='true'] { background: var(--surface-2); color: var(--text); }
+.graph-modes button:disabled { opacity: .45; cursor: not-allowed; }
+.graph-modes button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+:root[data-theme] .memory-page .memory-graph {
+  height: min(62vh, 610px);
+  min-height: 390px;
+  margin: auto 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+:root[data-theme] .memory-page .graph-edge { stroke: var(--muted); stroke-width: 1.15; opacity: .55; }
+:root[data-theme] .memory-page .graph-node circle { fill: var(--surface-2); stroke: var(--accent); stroke-width: 1.5; }
+:root[data-theme] .memory-page .graph-node.selected circle,
+:root[data-theme] .memory-page .graph-node:hover circle { fill: var(--accent); stroke: var(--text); }
+:root[data-theme] .memory-page .graph-node text { fill: var(--text); font-size: 10px; }
+.memory-page .memory-graph.dense .graph-node text { opacity: 0; }
+.memory-page .memory-graph.dense .graph-node:hover text,
+.memory-page .memory-graph.dense .graph-node:focus-visible text,
+.memory-page .memory-graph.dense .graph-node.selected text { opacity: 1; }
+.memory-page .graph-caption { margin: 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
+.memory-page .graph-caption code { color: var(--text); }
+.memory-page .memory-modebar { letter-spacing: 0; font-size: 11px; color: var(--muted); }
+.memory-page .memory-item { border-radius: 4px; }
+:root[data-theme] .memory-page .memory-item.selected { border-color: transparent; box-shadow: inset 3px 0 var(--accent); }
+@media (max-width: 1220px) {
+  .memory-page .memory-layout { grid-template-columns: 220px minmax(0, 1fr); }
+  :root[data-theme] .memory-page .memory-main { grid-column: 1 / -1; border-top: 1px solid var(--border); border-left: 0; }
+}
+@media (max-width: 760px) {
+  .memory-page .memory-layout { grid-template-columns: 1fr; }
+  :root[data-theme] .memory-page .memory-list { border-right: 0; border-bottom: 1px solid var(--border); }
+  .memory-page .memory-list-items { max-height: 190px; }
+  .memory-page .graph-panel { min-height: 390px; }
+  :root[data-theme] .memory-page .memory-graph { min-height: 320px; height: 320px; }
+  .memory-page .memory-main { grid-column: 1; }
+}

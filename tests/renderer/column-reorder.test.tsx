@@ -24,6 +24,9 @@ describe('board column order controls', () => {
     expect(html).toContain('title="Erste Spalte"');
     expect(html).toContain('title="Letzte Spalte"');
     expect(html).toContain('aria-label="Spalte Zuerst umbenennen"');
+    expect(html).toContain('aria-label="Spalte Zuerst einstellen"');
+    expect(html).toContain('aria-label="Karte in Zuerst hinzufügen"');
+    expect(html).toContain('Aufgabe hinzufügen');
   });
 
   it('disables the To-Do rename control while the queue is paused', () => {
@@ -48,5 +51,13 @@ describe('board column order controls', () => {
     expect(html).toContain('aria-label="Agent für Zuerst"');
     expect(html).toContain('Agent automatisch starten');
     expect(html).not.toContain('<details class="column-agent-details" open=""');
+  });
+
+  it('keeps advanced board filters available behind one disclosure', () => {
+    const html = renderToStaticMarkup(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() }));
+    expect(html).toContain('<details class="board-filter-options"><summary>Filter</summary>');
+    expect(html).toContain('aria-label="Spalte filtern"');
+    expect(html).toContain('aria-label="Archivstatus filtern"');
+    expect(html).toContain('Aufgabe vorbereiten');
   });
 });

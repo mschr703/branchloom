@@ -1,7 +1,8 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { IdeasView } from '../../src/renderer/components/IdeasView';
+import { IdeasView, ideaFromDrop, noteExcerpt, titleFromNote } from '../../src/renderer/components/IdeasView';
+import type { Idea } from '../../src/shared/ideas';
 import { IdeaMatchPanel } from '../../src/renderer/components/IdeaMatchPanel';
 import type { ProjectSnapshot } from '../../src/shared/types';
 
@@ -13,15 +14,35 @@ const snapshot = {
 } satisfies ProjectSnapshot;
 
 describe('ideas room surface', () => {
-  it('shows the manual save, disclosed agent context and explicit board conversion', () => {
+  it('starts with one note field and keeps model transfer explicit', () => {
     const html = renderToStaticMarkup(createElement(IdeasView, { snapshot, mutate: async () => null, onOpenCard: () => undefined }));
     expect(html).toContain('Ideenraum');
-    expect(html).toContain('Idee speichern');
+    expect(html).toContain('Notiz festhalten');
+    expect(html).toContain('Kurztitel optional');
+    expect(html).toContain('Bereich der Notiz');
+    expect(html).toContain('Zieh eine Notiz hierher');
     expect(html).toContain('Projekt-README (maximal 12 KB)');
     expect(html).toContain('Antworten ändern nichts automatisch');
-    expect(html).toContain('Karte anlegen');
+    expect(html).not.toContain('Karte anlegen');
+    expect(html).not.toContain('input required');
     expect(html).toContain('disabled');
     expect(html).toContain('Roadmap');
+  });
+
+  it('derives a useful title from the first non-empty line and does not duplicate it on the note', () => {
+    expect(titleFromNote(' \n  Navigation auf kleinen Bildschirmen\n Menü reagiert spät')).toBe('Navigation auf kleinen Bildschirmen');
+    expect(titleFromNote('   ')).toBe('');
+    expect(titleFromNote('x'.repeat(180))).toHaveLength(100);
+    expect(noteExcerpt({ title: 'Navigation auf kleinen Bildschirmen', body: 'Navigation auf kleinen Bildschirmen\nMenü reagiert spät' })).toBe('Menü reagiert spät');
+    expect(noteExcerpt({ title: 'Eigener Titel', body: 'Navigation auf kleinen Bildschirmen' })).toBe('Navigation auf kleinen Bildschirmen');
+  });
+
+  it('accepts a dragged note only from the currently selected project', () => {
+    const item: Idea = { id: 'a', projectId: 'synthetic-project', title: 'Note', body: 'Body', category: 'idea', turns: [], cardId: null,
+      mergedIntoIdeaId: null, createdAt: '', updatedAt: '' };
+    expect(ideaFromDrop([item], 'synthetic-project', 'a')).toBe(item);
+    expect(ideaFromDrop([item], 'other-project', 'a')).toBeNull();
+    expect(ideaFromDrop([item], 'synthetic-project', 'missing')).toBeNull();
   });
 
   it('discloses the local comparison and requires a saved idea before checking', () => {

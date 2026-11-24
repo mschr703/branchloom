@@ -59,6 +59,7 @@ import { projectChangelog } from './changelog';
 import { scanThemeTokens } from './theme-tokens';
 import { applyThemeTokenEdit, previewThemeTokenEdit } from './theme-token-edit';
 import { TrelloConnection } from './trello-connection';
+import { TrelloSignIn, trelloPublicAppKey } from './trello-sign-in';
 
 let window: BrowserWindow | null = null;
 let store: StudioStore | null = null;
@@ -68,6 +69,7 @@ let queueEngine: ProjectQueueEngine;
 let recoveryMonitor: SessionRecoveryMonitor | null = null;
 let browser: StudioBrowser | null = null;
 let designInspector: DesignInspector | null = null;
+let trelloSignIn: TrelloSignIn | null = null;
 let smokeQaServer: ReturnType<typeof createServer> | null = null;
 const smoke = process.argv.includes('--studio-smoke');
 const smokeDataDirectory = smoke ? mkdtempSync(join(tmpdir(), 'branchloom-smoke-')) : null;
@@ -114,6 +116,7 @@ function mustStore(): StudioStore {
 function installIpc(): void {
   const db = mustStore();
   const trello = new TrelloConnection(app.getPath('userData'), safeStorage);
+  trelloSignIn = new TrelloSignIn(trello, trelloPublicAppKey(app.getAppPath()), (url) => shell.openExternal(url));
   let workflowEngine: WorkflowEngine;
   let previewedPackage: { file: string; fingerprint: string } | null = null;
   let previewedVault: { projectId: string; root: string; fingerprint: string; token: string } | null = null;
@@ -344,6 +347,9 @@ function installIpc(): void {
   bind('previewTrelloImport', (input: { projectId: string; json: string }) => db.previewTrelloImport(input));
   bind('acceptTrelloImport', (input: Parameters<StudioAPI['acceptTrelloImport']>[0]) => db.acceptTrelloImport(input));
   bind('trelloConnectionStatus', () => trello.status());
+  bind('trelloSignInAvailable', () => trelloSignIn?.available() ?? false);
+  bind('signInWithTrello', () => trelloSignIn!.run());
+  bind('cancelTrelloSignIn', () => trelloSignIn?.cancel());
   bind('openTrelloAppAdmin', async () => { await shell.openExternal('https://trello.com/apps/admin'); });
   bind('openTrelloAuthorization', async (key: string) => { await shell.openExternal(trello.authorizationUrl(key)); });
   bind('connectTrello', (input: { key: string; token: string }) => trello.connect(input));
@@ -785,10 +791,23 @@ function createWindow(): void {
               const ideasNavAfterReload = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Ideenraum'));
               if (!ideasNavAfterReload) throw new Error('Ideenraum-Navigation fehlt.');
               ideasNavAfterReload.click();
-              for (let attempt = 0; attempt < 100 && !document.querySelector('.ideas-list-item'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              if (![...document.querySelectorAll('.ideas-list-item')].some((item) => item.textContent?.includes('Smoke-Idee'))) throw new Error('Gespeicherte Idee wurde nach Reload nicht angezeigt.');
-              const ideaImport = [...document.querySelectorAll('.ideas-heading-actions button')].find((item) => item.textContent?.includes('Aus Trello vormerken'));
-              const selectedTrelloIdea = [...document.querySelectorAll('.ideas-list-item')].find((item) => item.textContent?.includes('Trello-Idee aktualisiert'));
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.ideas-note-open'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (![...document.querySelectorAll('.ideas-note-open')].some((item) => item.textContent?.includes('Smoke-Idee'))) throw new Error('Gespeicherte Idee wurde nach Reload nicht angezeigt.');
+              const smokeNote = [...document.querySelectorAll('.ideas-note')].find((item) => item.textContent?.includes('Smoke-Idee'));
+              const discussNote = smokeNote?.querySelector('.ideas-note-foot button');
+              if (!(discussNote instanceof HTMLButtonElement)) throw new Error('Tastaturweg zum Weiterdenken fehlt.');
+              discussNote.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.ideas-conversation-subject')?.textContent?.includes('Smoke-Idee'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('.ideas-ask textarea')?.disabled || !(await sessionsUnchanged())) throw new Error('Weiterdenken öffnete nicht nur die gespeicherte Notiz.');
+              const dragData = new DataTransfer();
+              smokeNote.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dragData }));
+              const discussionDrop = document.querySelector('.ideas-conversation');
+              discussionDrop?.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dragData }));
+              discussionDrop?.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dragData }));
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.ideas-conversation-subject')?.textContent?.includes('Smoke-Idee'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.ideas-conversation-subject')?.textContent?.includes('Smoke-Idee') || !(await sessionsUnchanged())) throw new Error('Notiz-Drop öffnete keine lokale Diskussion oder startete einen Agenten.');
+              const ideaImport = [...document.querySelectorAll('.ideas-heading > button')].find((item) => item.textContent?.includes('Aus Trello vormerken'));
+              const selectedTrelloIdea = [...document.querySelectorAll('.ideas-note-open')].find((item) => item.textContent?.includes('Trello-Idee aktualisiert'));
               if (!(ideaImport instanceof HTMLButtonElement) || !(selectedTrelloIdea instanceof HTMLButtonElement)) throw new Error('Aktualisierte Trello-Idee oder Import-Einstieg fehlt im Ideenraum.');
               selectedTrelloIdea.click();
               for (let attempt = 0; attempt < 100 && document.querySelector('.ideas-editor input')?.value !== 'Trello-Idee aktualisiert'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
@@ -834,13 +853,14 @@ function createWindow(): void {
               ideaDialog.querySelector('button[aria-label="Schließen"]')?.click();
               for (let attempt = 0; attempt < 100 && document.querySelector('.trello-import-dialog'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (document.querySelector('.trello-import-dialog') || (await window.studio.ideas(boardProject.id)).length !== 2) throw new Error('Abbruch im Trello-Ideen-Dialog veränderte den Ideenraum.');
-              const localIdeaButton = [...document.querySelectorAll('.ideas-list-item')].find((item) => item.textContent?.includes('Smoke-Idee'));
+              const localIdeaButton = [...document.querySelectorAll('.ideas-note-open')].find((item) => item.textContent?.includes('Smoke-Idee'));
               if (!(localIdeaButton instanceof HTMLButtonElement)) throw new Error('Lokale Idee für Duplikatvergleich fehlt.');
               const localIdea = (await window.studio.ideas(boardProject.id)).find((item) => item.title === 'Smoke-Idee');
               if (!localIdea) throw new Error('Gespeicherte Vergleichsidee fehlt.');
               await window.studio.updateCard({ id: bulkCard.id, title: 'Smoke-Idee', description: 'Smoke-Karte als Vergleichsquelle' });
               localIdeaButton.click();
               for (let attempt = 0; attempt < 100 && document.querySelector('.ideas-editor input')?.value !== 'Smoke-Idee'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              document.querySelector('.ideas-similar > summary')?.click();
               const matchCheck = [...document.querySelectorAll('.idea-match-panel button')].find((item) => item.textContent?.includes('Vorschläge prüfen'));
               if (!(matchCheck instanceof HTMLButtonElement) || matchCheck.disabled) throw new Error('Ähnlichkeitsprüfung ist nicht bewusst startbar.');
               matchCheck.click();
@@ -860,7 +880,7 @@ function createWindow(): void {
               await window.studio.updateCard({ id: bulkCard.id, title: 'Smoke-Karte', description: bulkCard.description });
               [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Board')?.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('.task-card'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              const discussion = [...document.querySelectorAll('.board-header-actions button')].find((item) => item.textContent?.includes('Aufgabe besprechen'));
+              const discussion = [...document.querySelectorAll('.board-header-actions button')].find((item) => item.textContent?.includes('Aufgabe vorbereiten'));
               if (!discussion) throw new Error('Aufgabenklärung fehlt im Board.');
               discussion.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('[role="dialog"][aria-label="Aufgabe besprechen"]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
@@ -3015,6 +3035,8 @@ if (ownsSharedProfile) app.whenReady().then(() => {
 else app.quit();
 
 app.on('before-quit', () => {
+  trelloSignIn?.cancel();
+  trelloSignIn = null;
   smokeQaServer?.close();
   smokeQaServer = null;
   queueEngine?.dispose();

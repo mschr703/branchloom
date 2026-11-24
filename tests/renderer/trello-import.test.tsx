@@ -39,6 +39,9 @@ describe('Trello import UI', () => {
     expect(html).toContain('Karten aus Trello');
     expect(html).toContain('Trello verbinden');
     expect(html).toContain('JSON-Datei');
+    expect(html).toContain('Mit Trello anmelden');
+    expect(html).toContain('Eigener API-Key (erweitert)');
+    expect(html.indexOf('Mit Trello anmelden')).toBeLessThan(html.indexOf('Eigener API-Key (erweitert)'));
     expect(html).toContain('Trello-API-Key');
     expect(html).toContain('Lesefreigabe im Browser öffnen');
     expect(html).toContain('type="password"');

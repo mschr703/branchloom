@@ -43,6 +43,7 @@ export function TrelloImportPanel({ projectId, columns, mutate, onClose, destina
   const fileRequestId = useRef(0);
   const [mode, setMode] = useState<'live' | 'file'>('live');
   const [connection, setConnection] = useState<TrelloConnectionStatus | null>(null);
+  const [signInAvailable, setSignInAvailable] = useState(false);
   const [key, setKey] = useState('');
   const [token, setToken] = useState('');
   const [boards, setBoards] = useState<TrelloBoardSummary[]>([]);
@@ -57,7 +58,7 @@ export function TrelloImportPanel({ projectId, columns, mutate, onClose, destina
   const [columnByListId, setColumnByListId] = useState<Record<string, string> | null>(null);
   const [category, setCategory] = useState<IdeaCategory>('backlog');
   const [filter, setFilter] = useState('');
-  const [busy, setBusy] = useState<'status' | 'read' | 'connect' | 'boards' | 'preview' | 'accept' | 'compare' | 'reconcile' | null>('status');
+  const [busy, setBusy] = useState<'status' | 'signin' | 'read' | 'connect' | 'boards' | 'preview' | 'accept' | 'compare' | 'reconcile' | null>('status');
   const [error, setError] = useState('');
   const [result, setResult] = useState<TrelloImportResult | TrelloIdeaImportResult | null>(null);
   const [comparison, setComparison] = useState<TrelloIdeaComparison | null>(null);
@@ -77,8 +78,9 @@ export function TrelloImportPanel({ projectId, columns, mutate, onClose, destina
 
   useEffect(() => {
     let current = true;
-    void window.studio.trelloConnectionStatus().then(async (saved) => {
+    void Promise.all([window.studio.trelloConnectionStatus(), window.studio.trelloSignInAvailable()]).then(async ([saved, available]) => {
       if (!current) return;
+      setSignInAvailable(available);
       setConnection(saved);
       if (saved.connected) {
         const next = await window.studio.trelloBoards();
@@ -90,6 +92,23 @@ export function TrelloImportPanel({ projectId, columns, mutate, onClose, destina
   }, []);
 
   function clearPreview() { setPreview(null); setSelectedIds([]); setColumnByListId(null); setResult(null); setComparison(null); setReconciled(false); setPreviewBoardId(''); setPreviewMode(null); setError(''); }
+
+  async function signIn() {
+    clearPreview(); setBusy('signin');
+    try {
+      const saved = await window.studio.signInWithTrello();
+      setConnection(saved);
+      const next = await window.studio.trelloBoards();
+      setBoards(next); setBoardId(next[0]?.id ?? '');
+    } catch (reason) {
+      if (!messageOf(reason).includes('abgebrochen')) setError(messageOf(reason));
+    } finally { setBusy(null); }
+  }
+
+  async function cancelSignIn() {
+    try { await window.studio.cancelTrelloSignIn(); }
+    catch (reason) { setError(messageOf(reason)); }
+  }
 
   async function openAuthorization() {
     setError('');
@@ -216,7 +235,7 @@ export function TrelloImportPanel({ projectId, columns, mutate, onClose, destina
       <p className="field-help">Verbinde Trello einmalig und wähle ein Board. Branchloom liest Karten nur nach deinem Klick; Benachrichtigungen, Mitglieder, Kommentare und Anhänge werden nicht importiert.</p>
       <div className="trello-source-tabs" role="group" aria-label="Trello-Quelle"><button type="button" className={mode === 'live' ? 'secondary-button active' : 'secondary-button'} aria-pressed={mode === 'live'} disabled={busy !== null} onClick={() => { setMode('live'); clearPreview(); }}>Trello verbinden</button><button type="button" className={mode === 'file' ? 'secondary-button active' : 'secondary-button'} aria-pressed={mode === 'file'} disabled={busy !== null} onClick={() => { setMode('file'); clearPreview(); }}>JSON-Datei</button></div>
       {mode === 'live' ? connection?.connected ? <div className="trello-live-source"><div className="trello-account-row"><span>Verbunden: <strong>{connection.memberName}</strong></span><button className="text-button" type="button" disabled={busy !== null} onClick={() => void disconnect()}>Verbindung trennen</button></div><label>Board auswählen<select value={boardId} disabled={busy !== null || boards.length === 0} onChange={(event) => { setBoardId(event.target.value); clearPreview(); }}>{boards.length ? boards.map((board) => <option key={board.id} value={board.id}>{board.name}</option>) : <option value="">Keine offenen Boards</option>}</select></label><div className="trello-source-actions"><button className="secondary-button" type="button" disabled={busy !== null} onClick={() => void refreshBoards()}>Boards aktualisieren</button><button className="primary-button" type="button" disabled={busy !== null || !boardId} onClick={() => void inspect()}>{busy === 'preview' ? <LoaderCircle size={15} className="spin" /> : <Upload size={15} />} Board prüfen</button></div></div>
-        : <div className="trello-live-source"><p className="field-help">Für die erste Verbindung brauchst du einen eigenen Trello-API-Key. Erstelle ihn in Trellos App-Verwaltung; öffne dann die Lesefreigabe und füge den angezeigten Token hier ein. Der Token bleibt verschlüsselt im lokalen App-Profil.</p><button className="text-button" type="button" disabled={busy !== null} onClick={() => void openAppAdmin()}>Trello-App-Verwaltung öffnen</button><label>Trello-API-Key<input autoFocus value={key} onChange={(event) => setKey(event.target.value)} autoComplete="off" spellCheck={false} disabled={busy !== null} /></label><button className="secondary-button" type="button" disabled={busy !== null || !key.trim()} onClick={() => void openAuthorization()}>Lesefreigabe im Browser öffnen</button><label>Trello-Token<input type="password" value={token} onChange={(event) => setToken(event.target.value)} autoComplete="off" spellCheck={false} disabled={busy !== null} /></label><button className="primary-button" type="button" disabled={busy !== null || !key.trim() || !token.trim()} onClick={() => void connect()}>{busy === 'connect' ? <LoaderCircle size={15} className="spin" /> : null} Verbindung prüfen und speichern</button></div>
+        : <div className="trello-live-source"><p className="field-help">Melde dich in deinem Browser bei Trello an und bestätige den lesenden Zugriff für Branchloom. Danach erscheinen deine Boards hier.</p><div className="trello-signin-actions"><button className="primary-button" type="button" disabled={!signInAvailable || busy !== null} onClick={() => void signIn()}>{busy === 'signin' ? <LoaderCircle size={15} className="spin" /> : null} Mit Trello anmelden</button>{busy === 'signin' ? <button className="secondary-button" type="button" onClick={() => void cancelSignIn()}>Anmeldung abbrechen</button> : null}</div>{!signInAvailable ? <p className="field-help" role="status">Für die direkte Anmeldung fehlt diesem Build noch der registrierte Branchloom-Trello-App-Key. Der eigene Schlüsselweg unten funktioniert weiterhin.</p> : null}<details className="trello-advanced"><summary>Eigener API-Key (erweitert)</summary><div className="trello-advanced-body"><p className="field-help">Falls du eine eigene Trello-App verwendest: API-Key eintragen, Lesefreigabe öffnen und den angezeigten Token hier einsetzen. Der Token bleibt verschlüsselt im lokalen App-Profil.</p><button className="text-button" type="button" disabled={busy !== null} onClick={() => void openAppAdmin()}>Trello-App-Verwaltung öffnen</button><label>Trello-API-Key<input value={key} onChange={(event) => setKey(event.target.value)} autoComplete="off" spellCheck={false} disabled={busy !== null} /></label><button className="secondary-button" type="button" disabled={busy !== null || !key.trim()} onClick={() => void openAuthorization()}>Lesefreigabe im Browser öffnen</button><label>Trello-Token<input type="password" value={token} onChange={(event) => setToken(event.target.value)} autoComplete="off" spellCheck={false} disabled={busy !== null} /></label><button className="secondary-button" type="button" disabled={busy !== null || !key.trim() || !token.trim()} onClick={() => void connect()}>{busy === 'connect' ? <LoaderCircle size={15} className="spin" /> : null} Verbindung prüfen und speichern</button></div></details></div>
       : <div className="trello-live-source"><p className="field-help">Offline-Alternative: Wähle den JSON-Export eines einzelnen Trello-Boards. Die Datei wird nur im Arbeitsspeicher gelesen.</p><label className="trello-file-label"><FileJson2 size={19} /> JSON-Datei auswählen<input type="file" accept=".json,application/json" onChange={(event) => void readFile(event)} disabled={busy !== null} /></label>{fileName ? <p className="trello-file-name">{fileName} · maximal 8 MiB und 5.000 Karten</p> : null}<button className="secondary-button" type="button" disabled={!json || busy !== null} onClick={() => void inspect()}>{busy === 'preview' ? <LoaderCircle size={15} className="spin" /> : <Upload size={15} />} Datei prüfen</button></div>}
       {error ? <p className="inline-error" role="alert">{error}</p> : null}
       {preview ? <div className="trello-preview">

@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { MemoryNote, ProjectSnapshot } from '../../src/shared/types';
-import { backlinks, layoutNotes, linkedIdsForBody, noteEdges } from '../../src/renderer/memory-graph';
+import { backlinks, graphScope, layoutFocusedNotes, layoutNetworkNotes, layoutNotes, linkedIdsForBody, noteEdges } from '../../src/renderer/memory-graph';
 import { BoardView } from '../../src/renderer/components/BoardView';
+import { MemoryView } from '../../src/renderer/components/MemoryView';
 
 function note(id: string, title: string, body = '', links: string[] = []): MemoryNote {
   return { id, projectId: 'p', title, body, links, tags: [], createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
@@ -25,6 +26,51 @@ describe('memory graph', () => {
       expect(node.y).toBeGreaterThan(0);
       expect(node.y).toBeLessThan(300);
     }
+  });
+
+  it('shows only existing direct relationships around a selected note', () => {
+    const notes = [note('a', 'Alpha', '[[Beta]]'), note('b', 'Beta'), note('c', 'Gamma', '[[Alpha]]'), note('d', 'Unrelated')];
+    const focused = graphScope(notes, 'a', 'focus');
+    expect(focused.focused).toBe(true);
+    expect(focused.notes.map((item) => item.id)).toEqual(['a', 'b', 'c']);
+    expect(focused.edges).toEqual([{ from: 'a', to: 'b' }, { from: 'c', to: 'a' }]);
+    expect(graphScope(notes, 'missing', 'focus').notes).toHaveLength(4);
+    expect(graphScope(notes, 'a', 'all').notes).toHaveLength(4);
+    expect(layoutFocusedNotes(focused.notes)[0]).toMatchObject({ id: 'a', x: 320, y: 200 });
+  });
+
+  it('bounds crowded focus views and keeps the selected note visible', () => {
+    const notes = [note('center', 'Center'), ...Array.from({ length: 30 }, (_, index) => note(`n${index}`, `Note ${index}`, '[[Center]]'))];
+    const focused = graphScope(notes, 'center', 'focus');
+    expect(focused.notes).toHaveLength(24);
+    expect(focused.hiddenCount).toBe(7);
+    expect(focused.notes[0]?.id).toBe('center');
+    expect(layoutFocusedNotes(focused.notes).every((item) => item.x > 0 && item.x < 640 && item.y > 0 && item.y < 400)).toBe(true);
+  });
+
+  it('lays out the overview deterministically within the graph bounds', () => {
+    const notes = [note('a', 'Alpha', '[[Beta]]'), note('b', 'Beta'), note('c', 'Gamma'), note('d', 'Delta')];
+    const first = layoutNetworkNotes(notes, noteEdges(notes));
+    expect(layoutNetworkNotes(notes, noteEdges(notes))).toEqual(first);
+    expect(first.every((item) => Number.isFinite(item.x) && Number.isFinite(item.y) && item.x >= 45 && item.x <= 595 && item.y >= 45 && item.y <= 355)).toBe(true);
+  });
+});
+
+describe('memory workspace', () => {
+  it('places the graph beside the note list and exposes keyboard-reachable graph nodes', () => {
+    const snapshot: ProjectSnapshot = {
+      project: { id: 'p', name: 'Test', path: 'C:\\test', createdAt: '2026-01-01T00:00:00Z' },
+      columns: [], cards: [], agents: [], sessions: [], workflows: [],
+      notes: [note('a', 'Alpha', '[[Beta]]'), note('b', 'Beta')],
+    };
+    const html = renderToStaticMarkup(createElement(MemoryView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() }));
+    expect(html.indexOf('class="memory-list"')).toBeLessThan(html.indexOf('class="graph-panel"'));
+    expect(html.indexOf('class="graph-panel"')).toBeLessThan(html.indexOf('class="memory-main"'));
+    expect(html).toContain('aria-label="Graphansicht"');
+    expect(html).toContain('aria-label="Notiz Alpha öffnen"');
+    expect(html).toContain('tabindex="0"');
+    expect(html).toContain('1 Verweise');
+    expect(html).toContain('<details class="memory-transfer"><summary>Import &amp; Export</summary>');
   });
 });
 

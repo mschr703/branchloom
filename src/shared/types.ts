@@ -225,6 +225,9 @@ export interface StudioAPI {
   previewTrelloImport(input: { projectId: string; json: string }): Promise<TrelloImportPreview>;
   acceptTrelloImport(input: { projectId: string; columnId: string; columnByListId?: Record<string, string>; json: string; fingerprint: string; sourceIds: string[] }): Promise<TrelloImportResult>;
   trelloConnectionStatus(): Promise<TrelloConnectionStatus>;
+  trelloSignInAvailable(): Promise<boolean>;
+  signInWithTrello(): Promise<TrelloConnectionStatus>;
+  cancelTrelloSignIn(): Promise<void>;
   openTrelloAppAdmin(): Promise<void>;
   openTrelloAuthorization(key: string): Promise<void>;
   connectTrello(input: { key: string; token: string }): Promise<TrelloConnectionStatus>;

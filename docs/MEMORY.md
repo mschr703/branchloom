@@ -9,6 +9,12 @@ Memory speichert Notizen pro Projekt in der lokalen SQLite-Datenbank der App. De
 3. **Bearbeiten** und **Vorschau** wechseln zwischen Editor und Ansicht. Die Vorschau unterstützt Überschriften, Listen, Zitate, Codeblöcke, Inline-Code, Fettdruck und Wiki-Links. Rohes HTML wird nur als Text angezeigt.
 4. Die Pfeile über einer Notiz springen durch den zuletzt besuchten Notizverlauf. Tags über der Liste filtern Notizen; die Suche berücksichtigt Titel, Text und Tags.
 
+## Verknüpfungen erkunden
+
+Liste, Graph und geöffnete Notiz stehen auf breiten Fenstern nebeneinander; bei schmalen Fenstern folgen sie untereinander. **Alle** zeigt bis zu 50 gespeicherte Notizen als Netz. Echte `[[Titel]]`- und gespeicherte ID-Verweise ziehen zusammengehörige Notizen näher zueinander; nicht verbundene Notizen bleiben sichtbar. Bei vielen Knoten erscheinen Titel beim Überfahren oder Tastaturfokus, damit die Fläche lesbar bleibt.
+
+Wähle eine Notiz in der Liste oder im Graph: **Umgebung** rückt diese Notiz in die Mitte und zeigt bis zu 23 direkt verknüpfte Nachbarn. Die Anzeige nennt weitere ausgeblendete Nachbarn. Mit **Alle** kommst du zur Übersicht zurück. Graphknoten sind per Tab und Enter/Leertaste erreichbar. Der Graph zeigt ausschließlich lokal gespeicherte Notizen und vorhandene Verweise; er indiziert keine fremden Dateien und erfindet keine Verbindungen. Eine freie Zoom-/Pan-Fläche und automatische semantische Verknüpfungen sind noch offen.
+
 ## Git-Commit als Notizquelle
 
 Bei einer gespeicherten Notiz kannst du unter **Git-Quelle → Commit auswählen** einen der letzten 20 Commits aus der aktuellen HEAD-Historie des registrierten Projekt-Repositories wählen. Erst **Quelle verknüpfen** speichert den vollständigen Commit-Hash, Betreff und Commit-Zeitpunkt in der lokalen SQLite-Datenbank. Die App prüft vor dem Speichern erneut, ob der Commit noch zu dieser Historie gehört. Pro Notiz ist eine Git-Quelle möglich; ein Ersatz und das Entfernen verlangen eine gesonderte Bestätigung.
@@ -17,7 +23,7 @@ Beim erneuten Öffnen oder über **Erneut prüfen** fragt Branchloom Git nochmal
 
 ## Markdown austauschen
 
-- **Markdown importieren** öffnet eine einzelne `.md`-Datei bis 500 KB als neuen, noch ungespeicherten Entwurf. Titel und Tags aus einem von Branchloom erzeugten Export werden erkannt. Der Import überschreibt keine vorhandene Notiz; erst **Notiz speichern** schreibt in die Datenbank.
+- Unter **Import & Export → Markdown importieren** öffnest du eine einzelne `.md`-Datei bis 500 KB als neuen, noch ungespeicherten Entwurf. Titel und Tags aus einem von Branchloom erzeugten Export werden erkannt. Der Import überschreibt keine vorhandene Notiz; erst **Notiz speichern** schreibt in die Datenbank.
 - **.md** bei einer gespeicherten Notiz lädt sie als Markdown-Datei herunter. Der Dateiname wird für Windows bereinigt. Tags stehen als YAML-Frontmatter; der Titel ist die erste Überschrift. Die Datei kann in einem Markdown-Vault geöffnet werden.
 - **Alle Notizen exportieren** öffnet eine Ordnerauswahl und legt darin einen neuen Unterordner `Jarvis-Memory-<Projekt>-<Zufall>` an. Jede gespeicherte Notiz des aktiven Projekts wird dort als `.md` geschrieben. Vorhandene Dateien im gewählten Ordner werden nicht angerührt; ein wiederholter Export erzeugt einen weiteren Unterordner. Gleichnamige oder unter Windows unzulässige Titel erhalten sichere Dateinamen. Nach Abschluss zeigt Memory den tatsächlichen Zielpfad an.
 - **Vault-Ordner importieren** öffnet einen lokalen Ordner. Vor dem Speichern zeigt Branchloom alle gefundenen Markdown-Dateien, erkannte Titel/Tags, bereits vorhandene oder im Ordner doppelte Titel und nicht importierbare Dateien. Du kannst einzelne neue Notizen abwählen und startest den Import ausdrücklich. Der Import legt nur neue Notizen an; er überschreibt keine bestehenden. `[[Titel]]`-Links bleiben im Text und werden, soweit ein eindeutiger lokaler Titel vorhanden ist, auch als Verknüpfungen gespeichert. Dateien mit anderem Frontmatter bleiben als Text erhalten. Wenn sich eine Datei zwischen Vorschau und Import ändert, muss der Ordner neu ausgewählt werden.

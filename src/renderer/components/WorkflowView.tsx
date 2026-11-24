@@ -6,6 +6,7 @@ import { WorkflowPlanner } from './WorkflowPlanner';
 import { WorkflowStepRows } from './WorkflowStepRows';
 import { WorkflowRunEvidencePanel } from './WorkflowRunEvidencePanel';
 import '../queue-preview.css';
+import './workflow-workbench.css';
 
 interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openWorkflow?: { id: string; token: number } | null; openPlan?: { id: string; token: number } | null; onOpenCard?: (cardId: string) => void; onOpenSession?: (sessionId: string) => void }
 
@@ -155,8 +156,8 @@ export function WorkflowView({ snapshot, mutate, openWorkflow, openPlan, onOpenC
     if (result) setDeleteWorkflowId(null);
   }
 
-  return <div className="standard-page">
-    <div className="view-header"><div><h2>Workflows</h2><p>Beschreibe dein Ziel dem Workflow-Agenten oder lege einen Ablauf selbst an.</p></div><button className="secondary-button" type="button" onClick={newDraft}><Plus size={17} /> Manuell anlegen</button></div>
+  return <div className="standard-page workflow-workbench">
+    <div className="view-header"><div><h2>Workflows</h2><p>Ein Workflow ist die Route einer Karte: Spalten in Reihenfolge, jeweils mit Agent oder manuellem Schritt. Ein Entwurf startet noch nichts.</p></div><button className="secondary-button" type="button" onClick={newDraft}><Plus size={17} /> Route selbst erstellen</button></div>
 
     <WorkflowPlanner snapshot={snapshot} mutate={mutate} openPlan={openPlan} />
 
@@ -164,7 +165,7 @@ export function WorkflowView({ snapshot, mutate, openWorkflow, openPlan, onOpenC
     {deleteWorkflow ? <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setDeleteWorkflowId(null); }}><div className="dialog" role="dialog" aria-modal="true" aria-label="Workflow-Entwurf löschen"><div className="dialog-heading"><div><small>ENTWURF ENTFERNEN</small><h2>Workflow-Entwurf löschen?</h2></div><button className="icon-button" type="button" onClick={() => setDeleteWorkflowId(null)} aria-label="Schließen">×</button></div><p><strong>{deleteWorkflow.name}</strong></p><p>Nur dieser ungestartete Ablauf wird entfernt. Seine Karten und Dateien bleiben erhalten. Freie To-Do-Karten können danach wieder von der Warteschlange aufgenommen werden.</p><div className="dialog-actions"><button className="secondary-button" type="button" onClick={() => setDeleteWorkflowId(null)}>Abbrechen</button><button className="danger-button" type="button" onClick={() => void deleteDraftWorkflow()}>Entwurf endgültig löschen</button></div></div></div> : null}
 
     <section className="workflow-card" aria-label="Automatische Warteschlange">
-      <div className="workflow-card-top"><div><span className="workflow-kicker">WARTESCHLANGE</span><h3>To-Do-Karten nacheinander bearbeiten</h3><p>Eine bestehende Route dient als Vorlage. Pro Projekt läuft höchstens ein Agent.</p></div><span className={`state-badge ${snapshot.queue.state === 'off' ? 'draft' : snapshot.queue.state}`}>{snapshot.queue.state === 'running' ? 'Aktiv' : snapshot.queue.state === 'paused' ? 'Pausiert' : 'Aus'}</span></div>
+      <div className="workflow-card-top"><div><h3>Automatische Warteschlange</h3><p>Wähle eine gespeicherte Route. Branchloom nimmt dann freie To-Do-Karten nacheinander auf; du kannst jederzeit pausieren.</p></div><span className={`state-badge ${snapshot.queue.state === 'off' ? 'draft' : snapshot.queue.state}`}>{snapshot.queue.state === 'running' ? 'Aktiv' : snapshot.queue.state === 'paused' ? 'Pausiert' : 'Aus'}</span></div>
       <label className="field-label">Workflow-Route<select value={queueTemplateId} disabled={snapshot.queue.state === 'running' || Boolean(snapshot.queue.activeWorkflowId)} onChange={(event) => setQueueTemplateId(event.target.value)}><option value="">Route wählen</option>{snapshot.workflows.filter((workflow) => workflow.id !== snapshot.queue.activeWorkflowId).map((workflow) => <option key={workflow.id} value={workflow.id}>{workflow.name}</option>)}</select></label>
       <p className="section-copy">{snapshot.queue.completedCount} Karten abgeschlossen. Die Queue startet nur freie, nicht archivierte To-Do-Karten ohne bestehenden Workflow. Beim Pausieren wird der laufende Agent gestoppt; Arbeit und Protokoll bleiben erhalten. CLI-Agenten laufen mit deinen Benutzerrechten im Projektordner; die App selbst pusht keine Git-Änderungen.</p>
       <QueuePreview cards={queuePreview?.projectId === snapshot.project.id ? queuePreview.cards : []} loading={queuePreview?.projectId !== snapshot.project.id} error={queuePreview?.projectId === snapshot.project.id ? queuePreview.error : null} />
