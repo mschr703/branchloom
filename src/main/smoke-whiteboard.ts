@@ -115,6 +115,20 @@ export async function runWhiteboardVisibleSmoke(window: BrowserWindow, store: St
     throw new Error('Drag rectangle did not select a saved box.');
   })()`);
   await window.webContents.executeJavaScript(`(async () => {
+    document.querySelector('.wb-area-list summary')?.click();
+    const box = document.querySelector('.wb-area-list input[type=checkbox]');
+    if (!box?.checked) throw new Error('Keyboard selection list does not reflect the drag selection.');
+    box.click();
+    for (let attempt = 0; attempt < 100 && !document.querySelector('.wb-discussion h4')?.textContent?.endsWith('0'); attempt++)
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    if (!document.querySelector('.wb-discussion h4')?.textContent?.endsWith('0')) throw new Error('Keyboard list did not remove selection.');
+    document.querySelector('.wb-area-list input[type=checkbox]')?.click();
+    for (let attempt = 0; attempt < 100 && !document.querySelector('.wb-discussion h4')?.textContent?.endsWith('1'); attempt++)
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    if (!document.querySelector('.wb-discussion h4')?.textContent?.endsWith('1')) throw new Error('Keyboard list did not restore selection.');
+    return true;
+  })()`);
+  await window.webContents.executeJavaScript(`(async () => {
     const findButton = (label) => [...document.querySelectorAll('.wb-heading-actions button, .wb-inspector button')].find((item) => item.textContent?.includes(label));
     findButton('Box entwerfen')?.click();
     for (let attempt = 0; attempt < 100; attempt++) {

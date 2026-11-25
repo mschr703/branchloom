@@ -53,6 +53,8 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
   const [connectTargetId, setConnectTargetId] = useState('');
   const [selectArea, setSelectArea] = useState(false);
   const [areaIds, setAreaIds] = useState<string[]>([]);
+  const [areaOmitted, setAreaOmitted] = useState(0);
+  const [areaFilter, setAreaFilter] = useState('');
   const [areaQuestion, setAreaQuestion] = useState('Wie hängen diese Boxen zusammen, und was ist noch offen?');
   const [areaReply, setAreaReply] = useState<WhiteboardDiscussionReply | null>(null);
   const [areaBusy, setAreaBusy] = useState(false);
@@ -99,7 +101,7 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
     setSelected(null);
     setSelectedEdge(null);
     setCardDraft(null);
-    setNewNodeDraft(null); setNewEdgeDraft(null); setMoveDraft(null); setSelectArea(false); setAreaIds([]); setAreaReply(null); setAreaError(''); setAreaBusy(false); areaRequest.current++; activeAreaRequest.current = null; areaSelectionKey.current = '';
+    setNewNodeDraft(null); setNewEdgeDraft(null); setMoveDraft(null); setSelectArea(false); setAreaIds([]); setAreaOmitted(0); setAreaFilter(''); setAreaReply(null); setAreaError(''); setAreaBusy(false); areaRequest.current++; activeAreaRequest.current = null; areaSelectionKey.current = '';
     setBoard({ nodes: [], edges: [] });
     setMapProposal(null); setMapError(''); setMapResult(null); setMapBusy(false);
     setCanvasMode('board');
@@ -257,6 +259,27 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
     setAutomaticProposal(null); setAutomaticProposalProjectId(null); setSelectedProposal(null);
   }
 
+  function clearAreaSelection() {
+    setAreaIds([]); setAreaOmitted(0);
+    setFlowNodes((nodes) => nodes.map((node) => ({ ...node, selected: false })));
+    areaSelectionKey.current = ''; areaRequest.current++;
+    setAreaReply(null); setAreaError('');
+  }
+
+  function switchCanvasMode() {
+    discardMoveDraft();
+    setCanvasMode(canvasMode === 'repository' ? 'board' : 'repository');
+    setSelected(null); setSelectedEdge(null); setSelectedProposal(null); setSelectArea(false);
+    clearAreaSelection();
+  }
+
+  function toggleAreaMode() {
+    discardMoveDraft();
+    setSelectArea((value) => !value);
+    setSelected(null); setSelectedEdge(null);
+    clearAreaSelection();
+  }
+
   function connect(connection: Connection) {
     if (!connection.source || !connection.target || connection.source === connection.target || showRepository) return;
     if (!board.nodes.some((node) => node.id === connection.source) || !board.nodes.some((node) => node.id === connection.target)) return;
@@ -286,7 +309,7 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
   }
 
   async function explainArea(draft: WhiteboardDiscussionDraft | null = null) {
-    if (activeAreaRequest.current !== null || areaIds.length === 0) return;
+    if (activeAreaRequest.current !== null || areaIds.length === 0 || areaOmitted > 0) return;
     const ids = [...areaIds];
     const request = ++areaRequest.current;
     activeAreaRequest.current = request;
@@ -296,6 +319,14 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
       if (latestProjectId.current === projectId && request === areaRequest.current) setAreaReply(reply);
     } catch (reason) { if (latestProjectId.current === projectId && request === areaRequest.current) setAreaError(message(reason)); }
     finally { if (activeAreaRequest.current === request) { activeAreaRequest.current = null; if (latestProjectId.current === projectId) setAreaBusy(false); } }
+  }
+
+  function toggleAreaNode(id: string, checked: boolean) {
+    const next = checked ? [...areaIds, id] : areaIds.filter((item) => item !== id);
+    if (next.length > 12) return;
+    areaSelectionKey.current = [...next].sort().join('|'); areaRequest.current++;
+    setAreaIds(next); setAreaOmitted(0); setAreaReply(null); setAreaError('');
+    setFlowNodes((nodes) => nodes.map((node) => ({ ...node, selected: next.includes(node.id) })));
   }
 
   function saveNode() {
@@ -348,8 +379,10 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
       <h4>Ausgewählte Quellen · {areaIds.length}</h4>
       {areaIds.length ? <ol>{areaIds.map((id) => { const node = board.nodes.find((item) => item.id === id); return <li key={id}><strong>{node?.title ?? 'Nicht mehr vorhanden'}</strong><small>{node?.reference ? referenceSummary(node, snapshot) : 'Gespeicherte Box'}</small></li>; })}</ol>
         : <p>„Bereich wählen“ einschalten und auf der Arbeitsfläche ein Rechteck um gespeicherte Boxen ziehen.</p>}
+      {areaOmitted > 0 ? <p className="wb-impact-error" role="alert">{areaOmitted} weitere Boxen im Rechteck. Bitte den Bereich auf höchstens 12 Boxen eingrenzen.</p> : null}
+      {selectArea && !pending ? <details className="wb-area-list"><summary>Boxen per Tastatur wählen</summary><label>Box suchen<input value={areaFilter} onChange={(event) => setAreaFilter(event.target.value)} placeholder="Titel filtern" /></label><div role="group" aria-label="Gespeicherte Boxen">{board.nodes.filter((node) => node.title.toLocaleLowerCase().includes(areaFilter.trim().toLocaleLowerCase())).slice(0, 40).map((node) => <label key={node.id}><input type="checkbox" checked={areaIds.includes(node.id)} disabled={!areaIds.includes(node.id) && areaIds.length >= 12} onChange={(event) => toggleAreaNode(node.id, event.target.checked)} />{node.title}</label>)}</div><small>Bis zu 40 Treffer sichtbar; die Suche filtert alle gespeicherten Boxen.</small></details> : null}
       <label>Frage an den Projektagenten<textarea rows={3} maxLength={2000} value={areaQuestion} onChange={(event) => setAreaQuestion(event.target.value)} /></label>
-      <button className="secondary-button" type="button" disabled={areaBusy || !areaIds.length || !areaQuestion.trim() || areaIds.length > 12}
+      <button className="secondary-button" type="button" disabled={areaBusy || !areaIds.length || !areaQuestion.trim() || areaOmitted > 0}
         onClick={() => void explainArea(pending)}>{areaBusy ? 'Erklärt…' : pending ? 'Entwurf besprechen' : 'Diesen Bereich erklären'}</button>
       <small>Der Agent erhält diese gespeicherten Boxen, ihre Verbindungen, bis zu vier Projektindex-Treffer und den klar als ungespeichert markierten Entwurf.</small>
       {areaError ? <p className="wb-impact-error" role="alert">{areaError}</p> : null}
@@ -362,7 +395,11 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
 
   return <div className="wb-view">
     <div className="view-header wb-heading"><div><h2>Architektur</h2><p>Skizze bearbeiten, Bereich besprechen, gespeicherte Bezüge in Kartenläufe mitnehmen.</p></div>
-      <div className="wb-heading-actions">{board.nodes.length > 0 ? <button className="secondary-button" type="button" disabled={loading} onClick={() => { discardMoveDraft(); setCanvasMode(canvasMode === 'repository' ? 'board' : 'repository'); setSelected(null); setSelectedEdge(null); setSelectedProposal(null); setSelectArea(false); setAreaIds([]); areaSelectionKey.current = ''; areaRequest.current++; }}><FolderTree size={16} /> {canvasMode === 'repository' ? 'Arbeitsfläche ansehen' : 'Git-Struktur ansehen'}</button> : null}{!showRepository && board.nodes.length ? <button className={selectArea ? 'secondary-button wb-select-active' : 'secondary-button'} type="button" aria-pressed={selectArea} onClick={() => { discardMoveDraft(); setSelectArea((value) => !value); setAreaIds([]); areaSelectionKey.current = ''; areaRequest.current++; setAreaReply(null); setAreaError(''); setSelected(null); setSelectedEdge(null); }}><MousePointer2 size={16} /> {selectArea ? 'Auswahl beenden' : 'Bereich wählen'}</button> : null}<button className="primary-button" type="button" disabled={busy || loading || Boolean(newNodeDraft)} onClick={addNode}><Plus size={16} /> Box entwerfen</button></div></div>
+      <div className="wb-heading-actions">
+        {board.nodes.length > 0 ? <button className="secondary-button" type="button" disabled={loading} onClick={switchCanvasMode}><FolderTree size={16} /> {canvasMode === 'repository' ? 'Arbeitsfläche ansehen' : 'Git-Struktur ansehen'}</button> : null}
+        {!showRepository && board.nodes.length ? <button className={selectArea ? 'secondary-button wb-select-active' : 'secondary-button'} type="button" aria-pressed={selectArea} onClick={toggleAreaMode}><MousePointer2 size={16} /> {selectArea ? 'Auswahl beenden' : 'Bereich wählen'}</button> : null}
+        <button className="primary-button" type="button" disabled={busy || loading || Boolean(newNodeDraft)} onClick={addNode}><Plus size={16} /> Box entwerfen</button>
+      </div></div>
     {error ? <div className="error-banner" role="alert"><span>{error}</span><button type="button" aria-label="Fehler schließen" onClick={() => setError('')}>×</button></div> : null}
     {mapResult ? <p className="wb-import-result" role="status">Repo-Struktur übernommen: {mapResult.createdNodes} neue Boxen, {mapResult.reusedNodes} vorhandene Boxen, {mapResult.createdEdges} neue Verbindungen.</p> : null}
     <div className={`wb-workspace${inspectorVisible ? '' : ' wb-workspace-full'}`}>
@@ -374,7 +411,7 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
           onNodeClick={(_event, node) => { if (overview) setSelectedProposal(node.id); else if (node.id !== 'whiteboard-unsaved-draft' && !selectArea) { if (moveDraft?.id !== node.id) discardMoveDraft(); setSelected(node.id); } setSelectedEdge(null); setCardDraft(null); }}
           onEdgeClick={(_event, clicked) => { if (overview) return; discardMoveDraft(); setSelectedEdge(clicked.id); setSelected(null); setCardDraft(null); }}
           onPaneClick={() => { if (!selectArea) { discardMoveDraft(); setSelected(null); setSelectedEdge(null); setSelectedProposal(null); setCardDraft(null); } }}
-          onSelectionChange={({ nodes }) => { if (!selectArea || showRepository) return; const ids = nodes.map((node) => node.id).filter((id) => id !== 'whiteboard-unsaved-draft').slice(0, 12); const key = [...ids].sort().join('|'); if (key === areaSelectionKey.current) return; areaSelectionKey.current = key; areaRequest.current++; setAreaIds(ids); setAreaReply(null); setAreaError(''); }}
+          onSelectionChange={({ nodes }) => { if (!selectArea || showRepository) return; const saved = nodes.map((node) => node.id).filter((id) => id !== 'whiteboard-unsaved-draft'); const ids = saved.slice(0, 12); const omitted = saved.length - ids.length; const key = `${[...ids].sort().join('|')}+${omitted}`; if (key === areaSelectionKey.current) return; areaSelectionKey.current = key; areaRequest.current++; setAreaIds(ids); setAreaOmitted(omitted); setAreaReply(null); setAreaError(''); }}
           nodesConnectable={!busy && !showRepository && !selectArea} nodesDraggable={!busy && !showRepository && !selectArea} fitView fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
           selectionOnDrag={selectArea} selectionMode={SelectionMode.Partial} panOnDrag={selectArea ? [1, 2] : true}
           deleteKeyCode={null} selectionKeyCode={selectArea ? null : 'Shift'} attributionPosition="bottom-left">

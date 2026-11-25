@@ -96,6 +96,13 @@
 .wb-discussion-answer details { font-size: 12px; }
 .wb-discussion-answer summary { cursor: pointer; }
 .wb-discussion-answer li span { color: var(--muted); overflow-wrap: anywhere; }
+.wb-area-list { font-size: 12px; }
+.wb-area-list summary { cursor: pointer; padding: 4px 0; }
+.wb-area-list > label { margin-top: 9px; }
+.wb-area-list > div { display: grid; max-height: 200px; overflow-y: auto; margin-top: 7px; border-top: 1px solid var(--border); }
+.wb-area-list > div label { display: flex; flex-direction: row; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 400; }
+.wb-area-list > div input { width: 16px; height: 16px; flex: none; margin: 0; }
+.wb-area-list > small { color: var(--muted); }
 .wb-view .react-flow__edge.selected .react-flow__edge-path { stroke: var(--accent); stroke-width: 3; }
 .wb-view .react-flow__controls { border: 1px solid var(--border); border-radius: 5px; box-shadow: none; overflow: hidden; }
 .wb-view .react-flow__controls-button { background: var(--surface); color: var(--text); border-color: var(--border); }
