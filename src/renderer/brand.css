@@ -1,46 +1,46 @@
-/* Branchloom: neutral work surfaces, a quiet evergreen accent, no decorative gradients.
+/* Branchloom: quiet paper surfaces, restrained ink, and color only for actual state.
    Keep the old storage keys and browser partition so existing projects survive the rename. */
 :root,
 :root[data-theme='light'] {
   font-family: 'IBM Plex Sans Variable', 'Segoe UI', sans-serif;
-  color: #202a24;
-  background: #f6f7f5;
-  --text: #202a24;
-  --bg: #f6f7f5;
-  --sidebar: #e9eeea;
+  color: #25262a;
+  background: #f6f5f2;
+  --text: #25262a;
+  --bg: #f6f5f2;
+  --sidebar: #eeece7;
   --surface: #ffffff;
-  --surface-2: #f0f3f0;
-  --surface-3: #e3eae4;
-  --border: #c7d0c8;
-  --muted: #56645b;
-  --soft: #495a50;
-  --accent: #275d48;
-  --accent-2: #1d4c39;
+  --surface-2: #f5f4f1;
+  --surface-3: #e9e7e2;
+  --border: #d8d5ce;
+  --muted: #66645f;
+  --soft: #4f4d49;
+  --accent: #373b46;
+  --accent-2: #242831;
   --danger: #a33d38;
-  --focus: #1e6b4d;
-  --positive: #276b45;
-  --positive-bg: #e4f1e8;
+  --focus: #365fba;
+  --positive: #3b6953;
+  --positive-bg: #e8f0e9;
   --warning: #785320;
   --warning-bg: #f7edda;
   --danger-bg: #f8e8e5;
 }
 
 :root[data-theme='dark'] {
-  color: #eef3ee;
-  background: #191e1b;
-  --text: #eef3ee;
-  --bg: #191e1b;
-  --sidebar: #151b17;
-  --surface: #222a25;
-  --surface-2: #2a352e;
-  --surface-3: #354239;
-  --border: #4e5e52;
-  --muted: #b5c3b8;
-  --soft: #cbd7cd;
-  --accent: #8bcaa7;
-  --accent-2: #a6dfbd;
+  color: #eeece9;
+  background: #1d1d1f;
+  --text: #eeece9;
+  --bg: #1d1d1f;
+  --sidebar: #19191b;
+  --surface: #28282b;
+  --surface-2: #303034;
+  --surface-3: #3b3b40;
+  --border: #505055;
+  --muted: #bab8b3;
+  --soft: #d0cec9;
+  --accent: #dedddd;
+  --accent-2: #ffffff;
   --danger: #e39b92;
-  --focus: #8bcaa7;
+  --focus: #8faeff;
   --positive: #aad3ac;
   --positive-bg: #263d30;
   --warning: #e4c18d;
@@ -195,7 +195,7 @@
   color: #ffffff;
   box-shadow: none;
 }
-:root[data-theme='dark'] .primary-button { color: #14251a; }
+:root[data-theme='dark'] .primary-button { color: #202124; }
 :root[data-theme] .primary-button:hover { background: var(--accent-2); border-color: var(--accent-2); }
 :root[data-theme] .secondary-button {
   background: var(--surface);
@@ -600,8 +600,8 @@
 :root[data-theme] .column-footer { padding-block: 5px; }
 
 @media (prefers-contrast: more) {
-  :root[data-theme='light'] { --border: #64776a; --muted: #33483b; --soft: #33483b; --accent: #19553d; }
-  :root[data-theme='dark'] { --border: #9eb6a3; --muted: #e0eae0; --soft: #e0eae0; --accent: #b2ecc5; }
+  :root[data-theme='light'] { --border: #696963; --muted: #393a37; --soft: #393a37; --accent: #20232b; }
+  :root[data-theme='dark'] { --border: #afafb3; --muted: #e0e0e2; --soft: #e0e0e2; --accent: #ffffff; }
 }
 
 @media (max-width: 600px) {

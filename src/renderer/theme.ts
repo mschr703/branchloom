@@ -5,14 +5,14 @@ export const THEME_STORAGE_KEY = 'jarvis-studio:theme';
 
 type ThemeStorage = Pick<Storage, 'getItem' | 'setItem'>;
 
-export function readThemePreference(storage: Pick<ThemeStorage, 'getItem'> | null, prefersLight: boolean): ThemePreference {
+export function readThemePreference(storage: Pick<ThemeStorage, 'getItem'> | null): ThemePreference {
   try {
     const saved = storage?.getItem(THEME_STORAGE_KEY);
     if (saved === 'dark' || saved === 'light') return saved;
   } catch {
     // Storage can be unavailable in restricted desktop/browser contexts.
   }
-  return prefersLight ? 'light' : 'dark';
+  return 'light';
 }
 
 export function writeThemePreference(storage: Pick<ThemeStorage, 'setItem'> | null, theme: ThemePreference): void {
@@ -24,11 +24,10 @@ export function writeThemePreference(storage: Pick<ThemeStorage, 'setItem'> | nu
 }
 
 export function currentTheme(): ThemePreference {
-  if (typeof window === 'undefined') return 'dark';
+  if (typeof window === 'undefined') return 'light';
   let storage: Pick<ThemeStorage, 'getItem'> | null = null;
   try { storage = window.localStorage; } catch { /* Browser storage may be blocked. */ }
-  const prefersLight = window.matchMedia?.('(prefers-color-scheme: light)').matches ?? false;
-  return readThemePreference(storage, prefersLight);
+  return readThemePreference(storage);
 }
 
 export function persistTheme(theme: ThemePreference): void {

@@ -791,8 +791,8 @@ async function runF06VisibleSmoke(smokeWindow: BrowserWindow, smokeStore: Studio
     };
     const project = await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger:not(.is-compact)'), 'project picker');
     project.click();
-    const choice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project button')]
-      .find((item) => item.textContent?.trim() === 'Meilenstein-Vorschau'), 'milestone project');
+    const choice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project > button:first-child')]
+      .find((item) => item.getAttribute('aria-label') === 'Meilenstein-Vorschau auswählen'), 'milestone project');
     choice.click();
     await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger')?.getAttribute('aria-label') === 'Projekt auswählen: Meilenstein-Vorschau', 'selected project');
     const nav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')]
@@ -857,8 +857,8 @@ async function runF06VisibleSmoke(smokeWindow: BrowserWindow, smokeStore: Studio
     };
     const picker = await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger:not(.is-compact)'), 'project picker');
     picker.click();
-    const choice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project button')]
-      .find((item) => item.textContent?.trim() === 'Meilenstein-Vorschau'), 'milestone project');
+    const choice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project > button:first-child')]
+      .find((item) => item.getAttribute('aria-label') === 'Meilenstein-Vorschau auswählen'), 'milestone project');
     choice.click();
     await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger')?.getAttribute('aria-label') === 'Projekt auswählen: Meilenstein-Vorschau', 'selected project');
     const nav = await wait(() => [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')]
@@ -896,8 +896,8 @@ async function runF06VisibleSmoke(smokeWindow: BrowserWindow, smokeStore: Studio
     };
     const picker = await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger:not(.is-compact)'), 'project picker');
     picker.click();
-    const choice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project button')]
-      .find((item) => item.textContent?.trim() === 'Meilenstein-Vorschau'), 'milestone project');
+    const choice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project > button:first-child')]
+      .find((item) => item.getAttribute('aria-label') === 'Meilenstein-Vorschau auswählen'), 'milestone project');
     choice.click();
     await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger')?.getAttribute('aria-label') === 'Projekt auswählen: Meilenstein-Vorschau', 'selected project');
     const nav = await wait(() => [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')]
@@ -4063,7 +4063,10 @@ http.createServer((_request,response)=>{response.writeHead(200,{'Content-Type':'
               const panel = () => document.querySelector('.card-drawer .dev-account-panel');
               if (!panel()) throw new Error('F08 account panel is missing for protected-login action.');
               const button = (label) => [...(panel()?.querySelectorAll('button') ?? [])].find((item) => item.textContent?.trim() === label);
-              button('Zugang prüfen')?.click();
+              for (let attempt = 0; attempt < 200 && button('Zugang prüfen')?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const probe = button('Zugang prüfen');
+              if (!probe || probe.disabled) throw new Error('F08 identity-check button did not become ready after login.');
+              probe.click();
               for (let attempt = 0; attempt < 200 && !panel()?.textContent?.includes('Konto und Rolle bestätigt'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const save = button('Anmeldung für Neustart speichern');
               if (!save || save.disabled) throw new Error('F08 protected-login opt-in did not become available after identity verification: ' + panel()?.textContent?.slice(0, 500));
@@ -4193,7 +4196,7 @@ http.createServer((_request,response)=>{response.writeHead(200,{'Content-Type':'
               };
               const trigger = await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger:not(.is-compact)'), 'visible project picker');
               trigger.click();
-              const projectChoice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project button')].find((item) => item.textContent?.trim() === 'Smoke-Projekt'), 'project picker choice');
+              const projectChoice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project > button:first-child')].find((item) => item.getAttribute('aria-label') === 'Smoke-Projekt auswählen'), 'project picker choice');
               projectChoice.click();
               await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger')?.getAttribute('aria-label') === 'Projekt auswählen: Smoke-Projekt', 'selected project');
               const nav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Board');
@@ -4242,7 +4245,7 @@ http.createServer((_request,response)=>{response.writeHead(200,{'Content-Type':'
               const wait = async (predicate, label) => { for (let i = 0; i < 300; i++) { const result = await predicate(); if (result) return result; await new Promise((resolve) => setTimeout(resolve, 50)); } throw new Error('F10 library UI smoke timed out: ' + label); };
               const picker = await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger:not(.is-compact)'), 'project picker');
               picker.click();
-              const project = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project button')].find((item) => item.textContent?.trim() === 'Smoke-Projekt'), 'project');
+              const project = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project > button:first-child')].find((item) => item.getAttribute('aria-label') === 'Smoke-Projekt auswählen'), 'project');
               project.click();
               await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger')?.getAttribute('aria-label') === 'Projekt auswählen: Smoke-Projekt', 'selected project');
               const nav = await wait(() => [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Board'), 'board navigation');
@@ -4293,7 +4296,7 @@ http.createServer((_request,response)=>{response.writeHead(200,{'Content-Type':'
               const wait = async (predicate, label) => { for (let i = 0; i < 300; i++) { const result = await predicate(); if (result) return result; await new Promise((resolve) => setTimeout(resolve, 50)); } throw new Error('F04 UI smoke timed out: ' + label); };
               const picker = await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger:not(.is-compact)'), 'visible project picker');
               picker.click();
-              const project = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project button')].find((item) => item.textContent?.trim() === 'Smoke-Projekt'), 'project');
+              const project = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project > button:first-child')].find((item) => item.getAttribute('aria-label') === 'Smoke-Projekt auswählen'), 'project');
               project.click();
               await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger')?.getAttribute('aria-label') === 'Projekt auswählen: Smoke-Projekt', 'selected project');
               const nav = await wait(() => [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.querySelector('.nav-label')?.textContent?.trim() === 'Entscheidungen'), 'decisions navigation');
@@ -4373,7 +4376,7 @@ http.createServer((_request,response)=>{response.writeHead(200,{'Content-Type':'
               };
               const picker = await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger:not(.is-compact)'), 'project picker');
               picker.click();
-              const choice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project button')].find((item) => item.textContent?.trim() === 'F05 Fragenprojekt'), 'question project');
+              const choice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project > button:first-child')].find((item) => item.getAttribute('aria-label') === 'F05 Fragenprojekt auswählen'), 'question project');
               choice.click();
               await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger')?.getAttribute('aria-label') === 'Projekt auswählen: F05 Fragenprojekt', 'selected question project');
               const nav = await wait(() => [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.querySelector('.nav-label')?.textContent?.trim() === 'Entscheidungen'), 'Decisions navigation');

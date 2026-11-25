@@ -115,7 +115,7 @@ describe('board filters and archive visibility', () => {
   it('guides only the first empty column and distinguishes filtered empty results', () => {
     expect(boardEmptyMessage(0, false, false)).toContain('erste Aufgabe');
     expect(boardEmptyMessage(1, false, false)).toBeNull();
-    expect(boardEmptyMessage(0, true, false)).toBe('Karten hierher ziehen');
+    expect(boardEmptyMessage(0, true, false)).toBeNull();
     expect(boardEmptyMessage(0, false, true)).toBe('Keine passenden Karten');
   });
 });
