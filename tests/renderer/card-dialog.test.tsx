@@ -21,6 +21,8 @@ describe('card dialog accessibility', () => {
     expect(html).toContain('aria-labelledby="card-dialog-title-synthetic-card"');
     expect(html).toContain('<h2 id="card-dialog-title-synthetic-card">Accessible card</h2>');
     expect(html).toContain('aria-label="Karte schließen"');
+    expect(html).toContain('Fehlerabläufe ansehen</button>');
+    expect(html).toContain('aria-label="Gespeicherte Fehlerabläufe" tabindex="-1"');
     expect(html).toContain('aria-label="Integrationswarteschlange"');
     expect(html).toContain('Integrationsliste wird geladen');
     expect(html).not.toContain('Fast-Forward bestätigt übernehmen');

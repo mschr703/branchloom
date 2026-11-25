@@ -32,6 +32,7 @@ it('shows the saved expectation and requires a second explicit click before repl
   try {
     await act(async () => { root.render(<CardBugReplayPanel cardId="card-1" archived={false} />); });
     expect(mount.textContent).toContain('Startseite (/)');
+    expect(mount.textContent).toContain('1 Schritt ·');
     expect(mount.textContent).toContain('data-testid „filter“ sichtbar');
     const prepare = [...mount.querySelectorAll('button')].find((button) => button.textContent === 'Prüfung vorbereiten')!;
     await act(async () => { prepare.click(); });

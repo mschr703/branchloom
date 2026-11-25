@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type Ref } from 'react';
 import type { BugReplayResult, BugScenario } from '../../shared/bug-replay';
 import './card-bug-replay.css';
 
@@ -6,7 +6,7 @@ const messageOf = (reason: unknown): string => reason instanceof Error ? reason.
 const targetName = (target: BugScenario['expectation']['target']): string => `${target.kind === 'test-id' ? 'data-testid' : 'ID'} „${target.value}“`;
 const yesNoUnknown = (value: boolean | null): string => value === null ? 'Unbekannt' : value ? 'Ja' : 'Nein';
 
-export function CardBugReplayPanel({ cardId, archived }: { cardId: string; archived: boolean }) {
+export function CardBugReplayPanel({ cardId, archived, sectionRef }: { cardId: string; archived: boolean; sectionRef?: Ref<HTMLElement> }) {
   const [scenarios, setScenarios] = useState<BugScenario[]>([]);
   const [runs, setRuns] = useState<Record<string, BugReplayResult[]>>({});
   const [loading, setLoading] = useState(true);
@@ -36,12 +36,12 @@ export function CardBugReplayPanel({ cardId, archived }: { cardId: string; archi
     finally { setBusy(null); }
   }
 
-  return <section className="card-bug-replay" aria-label="Gespeicherte Fehlerabläufe">
+  return <section ref={sectionRef} className="card-bug-replay" aria-label="Gespeicherte Fehlerabläufe" tabIndex={-1}>
     <div className="section-heading"><h3>Fehlerabläufe</h3></div>
     <p className="section-copy">Im Browser aufgenommene lokale Klicks und markierte Größenwechsel liegen hier mit einer überprüfbaren Erwartung. Jeder neue Lauf braucht einen eigenen Klick und die zugehörige bereite Karten-Vorschau.</p>
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
     {loading ? <p className="section-copy" role="status">Abläufe werden geladen…</p> : scenarios.length === 0 ? <p className="section-copy">Noch kein Ablauf. Öffne eine lokale Karten-Vorschau im Browser und wähle dort „Fehlerablauf aufnehmen“.</p> : scenarios.map((scenario) => <details key={scenario.id} className="card-bug-scenario">
-      <summary><strong>{new URL(scenario.url).pathname === '/' ? 'Startseite (/)' : new URL(scenario.url).pathname}</strong><span>{scenario.actions.length} Schritte · {new Date(scenario.createdAt).toLocaleString('de-DE')}</span></summary>
+      <summary><strong>{new URL(scenario.url).pathname === '/' ? 'Startseite (/)' : new URL(scenario.url).pathname}</strong><span>{scenario.actions.length} {scenario.actions.length === 1 ? 'Schritt' : 'Schritte'} · {new Date(scenario.createdAt).toLocaleString('de-DE')}</span></summary>
       <p>Start: {scenario.width} × {scenario.height} px · Erwartung: {targetName(scenario.expectation.target)} {scenario.expectation.state === 'visible' ? 'sichtbar' : 'verborgen'}.</p>
       <ol>{scenario.actions.map((step, index) => <li key={index}>{step.kind === 'click' ? `Klick auf ${targetName(step.target)}` : `Größe auf ${step.width} × ${step.height} px`}</li>)}</ol>
       <p>{scenario.diagnostics.length ? `${scenario.diagnostics.length} Fehlerhinweis${scenario.diagnostics.length === 1 ? '' : 'e'} während der Aufnahme: ${scenario.diagnostics.map((item) => `${item.category}${item.line ? ` (Zeile ${item.line})` : ''}`).join(', ')}.` : 'Keine zusätzlichen Konsolen- oder Ladefehler während der Aufnahme.'} Originalmeldungen wurden nicht gespeichert.</p>

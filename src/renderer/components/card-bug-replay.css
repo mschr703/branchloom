@@ -1,4 +1,6 @@
 .card-bug-replay { display: grid; gap: 8px; }
+.card-bug-replay:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.drawer-header .card-replay-jump { padding: 0; margin-top: 7px; min-height: 24px; font-size: 12px; }
 .card-bug-replay .section-heading, .card-bug-replay .section-copy { margin: 0; }
 .card-bug-scenario { border-top: 1px solid var(--border); padding: 8px 0; font-size: 12px; }
 .card-bug-scenario summary { display: flex; flex-wrap: wrap; gap: 4px 12px; cursor: pointer; }

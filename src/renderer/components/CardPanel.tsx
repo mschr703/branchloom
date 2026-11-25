@@ -74,6 +74,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
   const drawerRef = useRef<HTMLElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const sessionHeadingRef = useRef<HTMLDivElement | null>(null);
+  const bugReplayRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => { cleanupRequest.current += 1; setTitle(card.title); setDescription(card.description); setPriority(card.priority); setLabels(card.labels); setLabelDraft(''); setMetadataError(''); setPrompt(''); setMessage(''); setUseWorktree(false); setWorktreeReview(undefined); setCleanupPreview(undefined); setWorktreeBusy(false); setWorktreeError(''); setShowDiffReview(false); setCriterionQaFocus(null); setCriterionReviewFocus(null); setConflictRadar(null); setConflictError(''); }, [card.id]);
   useEffect(() => {
@@ -247,7 +248,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
       if (!first || !last) return;
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-    }}><header className="drawer-header"><div><small>KARTE · {snapshot.columns.find((column) => column.id === card.columnId)?.name}{card.archivedAt ? ' · ARCHIVIERT' : ''}</small><h2 id={`card-dialog-title-${card.id}`}>{card.title}</h2></div><button ref={closeButtonRef} className="icon-button" type="button" aria-label="Karte schließen" onClick={onClose}><X size={19} /></button></header>
+    }}><header className="drawer-header"><div><small>KARTE · {snapshot.columns.find((column) => column.id === card.columnId)?.name}{card.archivedAt ? ' · ARCHIVIERT' : ''}</small><h2 id={`card-dialog-title-${card.id}`}>{card.title}</h2><button className="text-button card-replay-jump" type="button" onClick={() => { bugReplayRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }); bugReplayRef.current?.focus({ preventScroll: true }); }}>Fehlerabläufe ansehen</button></div><button ref={closeButtonRef} className="icon-button" type="button" aria-label="Karte schließen" onClick={onClose}><X size={19} /></button></header>
       <div className="drawer-content">
         <form className="stacked-form" onSubmit={(event) => void saveCard(event)}><fieldset className="archive-fieldset" disabled={Boolean(card.archivedAt)}>
           <label>Titel<input value={title} required maxLength={160} onChange={(event) => setTitle(event.target.value)} /></label>
@@ -312,7 +313,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
         <DevAccountPanel key={`dev-account-${card.id}`} cardId={card.id} projectId={card.projectId} />
         <div className="drawer-divider" />
         <CardQaPanel key={`qa-${card.id}`} card={card} focusReport={criterionQaFocus ?? focusQaReport} />
-        <CardBugReplayPanel key={`bug-replay-${card.id}`} cardId={card.id} archived={Boolean(card.archivedAt)} />
+        <CardBugReplayPanel key={`bug-replay-${card.id}`} cardId={card.id} archived={Boolean(card.archivedAt)} sectionRef={bugReplayRef} />
         <div className="drawer-divider" />
         <div className="section-heading"><h3>Git-Worktree prüfen</h3></div>
         <p className="section-copy">Status und Änderungsumfang lokal prüfen. Die App übernimmt nur committete Änderungen per Fast-Forward; bei divergierten Branches bleibt alles unangetastet.</p>
