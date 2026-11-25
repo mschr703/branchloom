@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight, ArrowUpRight, Search } from 'lucide-react';
 import type { Card, CardContextReference, ProjectSnapshot, Session } from '../../shared/types';
 import type { ProjectMemoryMapSources, ProjectMemorySourceDetail } from '../../shared/project-memory-index';
 import { projectKnowledgeMapPage, visibleKnowledgeCodeFiles } from '../project-knowledge-map';
-import { layoutKnowledgeNetwork } from '../knowledge-network-layout';
+import { initialKnowledgeNetworkViewport, layoutKnowledgeNetwork } from '../knowledge-network-layout';
 import '@xyflow/react/dist/style.css';
 import './project-knowledge-map.css';
 
@@ -110,11 +110,13 @@ export function knowledgeMapFlow(groups: ReturnType<typeof projectKnowledgeMapPa
       node.position = positions.get(node.id) ?? node.position;
       node.className = `${node.className ?? ''} network`;
     }
+    for (const edge of edges) edge.type = 'default';
   }
   return { nodes, edges, shownCodeFiles };
 }
 
 export function ProjectKnowledgeMap({ snapshot, indexRevision, onOpenCard, onOpenSession }: Props) {
+  const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
   const [page, setPage] = useState(0);
   const [selectedId, setSelectedId] = useState('');
   const [layer, setLayer] = useState<KnowledgeMapLayer>('work');
@@ -128,6 +130,11 @@ export function ProjectKnowledgeMap({ snapshot, indexRevision, onOpenCard, onOpe
   const [referenceState, setReferenceState] = useState<{ key: string; references: CardContextReference[]; failed: number } | null>(null);
   const sourceListRef = useRef<HTMLDetailsElement>(null);
   useEffect(() => { setPage(0); setSelectedId(''); setLayer('work'); setFileQuery(''); setIndexed(null); setIndexLoading(true); setIndexError(''); setReferenceState(null); }, [snapshot.project.id]);
+  useEffect(() => {
+    const updateWidth = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
   useEffect(() => {
     if (window.matchMedia?.('(max-width: 860px)')?.matches && sourceListRef.current) sourceListRef.current.open = true;
   }, []);
@@ -157,7 +164,12 @@ export function ProjectKnowledgeMap({ snapshot, indexRevision, onOpenCard, onOpe
   }, [snapshot.project.id, indexRevision]);
   const { nodes, edges, shownCodeFiles } = useMemo(() => knowledgeMapFlow(map.groups, snapshot.agents, selectedId, indexed, layer, fileQuery, arrangement),
     [map.groups, snapshot.agents, selectedId, indexed, layer, fileQuery, arrangement]);
-  const layoutKey = `${snapshot.project.id}:${map.page}:${layer}:${arrangement}:${fileQuery}:${nodes.map((node) => node.id).join('|')}`;
+  const layoutKey = `${snapshot.project.id}:${map.page}:${layer}:${arrangement}:${fileQuery}:${viewportWidth <= 860 ? 'narrow' : 'wide'}:${nodes.map((node) => node.id).join('|')}`;
+  const narrowNetwork = arrangement === 'network' && viewportWidth <= 860;
+  const initialViewport = narrowNetwork
+    ? initialKnowledgeNetworkViewport(nodes.map((node) => ({ id: node.id, x: node.position.x, y: node.position.y,
+      width: node.id.startsWith('task:') ? 174 : 146, height: 42 })), edges, Math.max(280, viewportWidth - 32))
+    : { x: 18, y: 12, zoom: 1 };
   const selectedCard = selectedId.startsWith('task:') ? map.groups.find((group) => group.card.id === selectedId.slice(5))?.card : null;
   const selectedRun = selectedId.startsWith('conversation:') ? map.groups.flatMap((group) => group.sessions.map((session) => ({ session, card: group.card })))
     .find((item) => item.session.id === selectedId.slice('conversation:'.length)) : null;
@@ -223,7 +235,7 @@ export function ProjectKnowledgeMap({ snapshot, indexRevision, onOpenCard, onOpe
     {indexError ? <p className="knowledge-map-source-status error" role="alert">Git-Quellen konnten nicht gelesen werden: {indexError}</p> : null}
     {nodes.length ? <div className={`knowledge-map-layout ${arrangement}`}>
       <div className="knowledge-map-canvas" role="region" aria-label="Beziehungskarte aus Aufgaben, Agentenläufen und Git-Quellen">
-        <ReactFlow key={layoutKey} nodes={nodes} edges={edges} fitView fitViewOptions={{ padding: .14, maxZoom: 1.2 }}
+        <ReactFlow key={layoutKey} nodes={nodes} edges={edges} defaultViewport={initialViewport} fitView={arrangement === 'structure'} fitViewOptions={{ padding: .14, maxZoom: 1.2 }}
           nodesDraggable={false} nodesConnectable={false} edgesFocusable={false}
           onNodeClick={(_, node) => setSelectedId(node.id)} onNodeDoubleClick={(_, node) => {
             if (node.id.startsWith('task:')) onOpenCard?.(node.id.slice(5));

@@ -2,23 +2,43 @@ interface NetworkNode { id: string; width: number; height: number }
 interface NetworkEdge { source: string; target: string }
 interface Point { x: number; y: number }
 
+/** Focus one task and a directly connected run on narrow canvases. */
+export function initialKnowledgeNetworkViewport(nodes: readonly (NetworkNode & Point)[], edges: readonly NetworkEdge[], canvasWidth: number) {
+  const focus = nodes.find((node) => node.id.startsWith('task:')) ?? nodes[0];
+  if (!focus) return { x: 18, y: 12, zoom: 1 };
+  const runs = edges.filter((edge) => edge.source === focus.id && edge.target.startsWith('conversation:'))
+    .map((edge) => nodes.find((node) => node.id === edge.target))
+    .filter((node): node is NetworkNode & Point => Boolean(node));
+  const peer = runs.sort((a, b) => b.x - a.x)[0];
+  const cluster = peer ? [focus, peer] : [focus];
+  const left = Math.min(...cluster.map((node) => node.x));
+  const right = Math.max(...cluster.map((node) => node.x + node.width));
+  const top = Math.min(...cluster.map((node) => node.y));
+  const zoom = Math.min(1, (canvasWidth - 24) / (right - left));
+  return {
+    x: Math.round((canvasWidth - (right - left) * zoom) / 2 - left * zoom),
+    y: Math.round(85 - top * zoom),
+    zoom,
+  };
+}
+
 /** A stable, bounded layout for already verified links. It never derives new edges. */
 export function layoutKnowledgeNetwork(nodes: readonly NetworkNode[], edges: readonly NetworkEdge[]): Map<string, Point> {
   const ordered = [...nodes].sort((a, b) => a.id.localeCompare(b.id));
   const orderedEdges = [...edges].sort((a, b) => a.source.localeCompare(b.source) || a.target.localeCompare(b.target));
   const points = ordered.map((node, index) => {
     const angle = index * 2.399963229728653;
-    const radius = Math.sqrt(index) * 122;
+    const radius = Math.sqrt(index) * 76;
     return { id: node.id, width: node.width, height: node.height, x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
   });
   const indexById = new Map(points.map((node, index) => [node.id, index]));
-  for (let step = 0; step < 110; step++) {
-    const forces = points.map((node) => ({ x: -node.x * .0025, y: -node.y * .0025 }));
+  for (let step = 0; step < 80; step++) {
+    const forces = points.map((node) => ({ x: -node.x * .012, y: -node.y * .012 }));
     for (let left = 0; left < points.length; left++) for (let right = left + 1; right < points.length; right++) {
       const dx = points[left]!.x - points[right]!.x;
       const dy = points[left]!.y - points[right]!.y;
       const distanceSquared = Math.max(400, dx * dx + dy * dy);
-      const force = 2400 / distanceSquared;
+      const force = 150 / distanceSquared;
       forces[left]!.x += dx * force;
       forces[left]!.y += dy * force;
       forces[right]!.x -= dx * force;
@@ -31,7 +51,7 @@ export function layoutKnowledgeNetwork(nodes: readonly NetworkNode[], edges: rea
       const dx = points[to]!.x - points[from]!.x;
       const dy = points[to]!.y - points[from]!.y;
       const distance = Math.max(1, Math.hypot(dx, dy));
-      const pull = Math.max(-3, Math.min(3, (distance - 180) * .015));
+      const pull = Math.max(-2, Math.min(2, (distance - 155) * .018));
       forces[from]!.x += dx / distance * pull;
       forces[from]!.y += dy / distance * pull;
       forces[to]!.x -= dx / distance * pull;
