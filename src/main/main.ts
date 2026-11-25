@@ -3477,11 +3477,17 @@ http.createServer((_request,response)=>{response.writeHead(200,{'Content-Type':'
             devAccountBrowser!.closeAll();
             await new Promise<void>((resolve) => { smokeWindow.webContents.once('did-finish-load', () => resolve()); smokeWindow.webContents.reload(); });
             await smokeWindow.webContents.executeJavaScript(`(async () => {
-              for (let attempt = 0; attempt < 100 && !document.querySelector('#project-select'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              const select = document.querySelector('#project-select');
-              const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
-              if (!(select instanceof HTMLSelectElement) || !setter) throw new Error('F01 guided project picker is missing.');
-              setter.call(select, ${JSON.stringify(milestoneProjectId)}); select.dispatchEvent(new Event('change', { bubbles: true }));
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.project-switcher-trigger:not(.is-compact)'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const trigger = document.querySelector('.project-switcher-trigger:not(.is-compact)');
+              if (!(trigger instanceof HTMLButtonElement)) throw new Error('F01 guided project picker is missing.');
+              trigger.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.project-switcher-panel'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const projectButton = [...document.querySelectorAll('.project-switcher-panel .project-switcher-project > button:first-child')]
+                .find((item) => item.textContent?.includes('Meilenstein-Vorschau'));
+              if (!(projectButton instanceof HTMLButtonElement)) throw new Error('F01 guided project is missing from the visible picker.');
+              projectButton.click();
+              for (let attempt = 0; attempt < 100 && document.querySelector('#project-select')?.value !== ${JSON.stringify(milestoneProjectId)}; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('#project-select')?.value !== ${JSON.stringify(milestoneProjectId)}) throw new Error('F01 visible project switch did not select the target project.');
               [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Board')?.click();
               let card;
               for (let attempt = 0; attempt < 100 && !card; attempt++) {
@@ -3489,7 +3495,7 @@ http.createServer((_request,response)=>{response.writeHead(200,{'Content-Type':'
                 if (!card) await new Promise((resolve) => setTimeout(resolve, 50));
               }
               if (!(card instanceof HTMLElement)) throw new Error('F01 guided card is not visible: ' + JSON.stringify({
-                project: select.value, tasks: [...document.querySelectorAll('.task-card')].slice(0, 8).map((item) => item.textContent?.slice(0, 80)),
+                project: document.querySelector('#project-select')?.value, tasks: [...document.querySelectorAll('.task-card')].slice(0, 8).map((item) => item.textContent?.slice(0, 80)),
                 board: document.querySelector('.board-view')?.textContent?.slice(0, 300),
               }));
               card.click();
