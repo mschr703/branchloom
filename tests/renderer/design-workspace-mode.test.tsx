@@ -26,16 +26,19 @@ it('keeps an unsaved draft mounted while inspecting the running app and hides na
   const previousIntersection = globalThis.IntersectionObserver;
   const previousFrame = globalThis.requestAnimationFrame;
   const previousCancelFrame = globalThis.cancelAnimationFrame;
+  const previousScrollIntoView = Element.prototype.scrollIntoView;
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   globalThis.ResizeObserver = class { observe() {} disconnect() {} unobserve() {} } as typeof ResizeObserver;
   globalThis.IntersectionObserver = class { observe() {} disconnect() {} unobserve() {} } as typeof IntersectionObserver;
   globalThis.requestAnimationFrame = () => 1;
   globalThis.cancelAnimationFrame = () => undefined;
+  Element.prototype.scrollIntoView = () => undefined;
   const setBounds = vi.fn(async () => undefined);
   const setVisible = vi.fn(async () => ({ projectId: null, sourceUrl: null, ready: false, armed: false, themePreview: null }));
   Object.defineProperty(window, 'studio', { configurable: true, value: {
     designSelections: async () => [], onDesignSelection: () => () => undefined,
     designInspectionSetBounds: setBounds, designInspectionSetVisible: setVisible,
+    designInspectionStart: async () => ({ projectId: 'synthetic-project', sourceUrl: 'http://127.0.0.1:5173/', ready: true, armed: false, themePreview: null, elementPreview: null }),
   } });
   try {
     await act(async () => { root.render(<DesignInspectionView projectId="synthetic-project" active cards={[]} columns={[]} queueState="off" onOpenCard={() => undefined} onCreated={() => undefined} />); });
@@ -50,6 +53,16 @@ it('keeps an unsaved draft mounted while inspecting the running app and hides na
     expect(mount.querySelector('.design-workspace-draft')?.hasAttribute('hidden')).toBe(true);
     expect(mount.querySelector('.design-inspection-tools')?.hasAttribute('hidden')).toBe(false);
     expect(setVisible).not.toHaveBeenCalledWith(false);
+
+    const url = mount.querySelector<HTMLInputElement>('.design-inspection-toolbar input[type="url"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(url, 'http://127.0.0.1:5173/');
+      url.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => { mount.querySelector<HTMLButtonElement>('.design-inspection-toolbar button')!.click(); });
+    expect(mount.querySelector<HTMLButtonElement>('.design-inspection-toolbar button')!.textContent).toBe('Öffne…');
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 400)); });
+    expect(mount.querySelector<HTMLButtonElement>('.design-inspection-toolbar button')!.textContent).toBe('Vorschau öffnen');
 
     await act(async () => { buttons[0]!.click(); });
     expect(mount.querySelector('input[aria-label="Synthetic draft"]')).toBe(draft);
@@ -82,5 +95,6 @@ it('keeps an unsaved draft mounted while inspecting the running app and hides na
     globalThis.IntersectionObserver = previousIntersection;
     globalThis.requestAnimationFrame = previousFrame;
     globalThis.cancelAnimationFrame = previousCancelFrame;
+    Element.prototype.scrollIntoView = previousScrollIntoView;
   }
 });

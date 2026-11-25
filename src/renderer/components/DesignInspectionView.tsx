@@ -15,6 +15,13 @@ import './design-inspection.css';
 
 const emptyState: DesignInspectionState = { projectId: null, sourceUrl: null, ready: false, armed: false, themePreview: null };
 const messageOf = (reason: unknown): string => reason instanceof Error ? reason.message : String(reason);
+const nextFrameOrTimeout = (): Promise<void> => new Promise((resolve) => {
+  let done = false;
+  let frame = 0;
+  const finish = () => { if (done) return; done = true; clearTimeout(timer); cancelAnimationFrame(frame); resolve(); };
+  const timer = setTimeout(finish, 150);
+  frame = requestAnimationFrame(finish);
+});
 
 export function DesignInspectionView({ projectId, active, cards, startCardId, columns, queueState, onOpenCard, onCreated }: { projectId: string; active: boolean; cards: Card[]; startCardId?: string | null; columns: Column[]; queueState: QueueState; onOpenCard: (cardId: string) => void | Promise<void>; onCreated: () => void | Promise<void> }) {
   const [url, setUrl] = useState('');
@@ -120,9 +127,9 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
     setPreviewRevision((value) => value + 1);
     try {
       setState(await window.studio.designInspectionStart({ projectId, url }));
-      await new Promise((resolve) => requestAnimationFrame(resolve));
+      await nextFrameOrTimeout();
       viewport.current?.scrollIntoView({ block: 'nearest' });
-      await new Promise((resolve) => requestAnimationFrame(resolve));
+      await nextFrameOrTimeout();
       await syncBounds();
     }
     catch (reason) { setState(emptyState); setError(messageOf(reason)); }
@@ -147,7 +154,7 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
     setError('');
     try {
       viewport.current?.scrollIntoView({ block: 'nearest' });
-      await new Promise((resolve) => requestAnimationFrame(resolve));
+      await nextFrameOrTimeout();
       const rect = viewport.current?.getBoundingClientRect();
       if (!rect) throw new Error('Die Vorschau ist nicht sichtbar.');
       await window.studio.designInspectionSetBounds({ x: rect.x, y: rect.y, width: rect.width, height: rect.height });

@@ -34,17 +34,25 @@ vi.mock('electron', async () => {
       if (script.includes('root.style.setProperty')) return { original: '', priority: '', applied: '#aabbcc' };
       if (script.includes('root.style.removeProperty')) return true;
       if (script.includes('node.style.getPropertyValue')) {
+        const canonical = (name: string, value: string) => {
+          if ((name === 'color' || name === 'background-color') && /^#[a-f\d]{6}$/i.test(value)) {
+            const hex = value.slice(1);
+            return `rgb(${[0, 2, 4].map((index) => parseInt(hex.slice(index, index + 2), 16)).join(', ')})`;
+          }
+          return value;
+        };
+        const makeStyle = (record: Record<string, { value: string; priority: string }>) => ({
+          getPropertyValue: (name: string) => record[name]?.value ?? '',
+          getPropertyPriority: (name: string) => record[name]?.priority ?? '',
+          setProperty: (name: string, value: string, priority = '') => { record[name] = { value: canonical(name, value), priority }; },
+          removeProperty: (name: string) => { delete record[name]; },
+        });
         const node = fake.nodePresent ? {
           tagName: fake.nodeTag,
           textContent: fake.nodeText,
-          style: {
-            getPropertyValue: (name: string) => fake.inline[name]?.value ?? '',
-            getPropertyPriority: (name: string) => fake.inline[name]?.priority ?? '',
-            setProperty: (name: string, value: string, priority = '') => { fake.inline[name] = { value, priority }; },
-            removeProperty: (name: string) => { delete fake.inline[name]; },
-          },
+          style: makeStyle(fake.inline),
         } : null;
-        return runInNewContext(script, { document: { querySelector: () => node } });
+        return runInNewContext(script, { document: { querySelector: () => node, createElement: () => ({ style: makeStyle({}) }) } });
       }
       return fake.nullSelection ? null : { selector: 'button#save', tag: 'button', text: 'Save', styles: { color: 'rgb(1, 2, 3)' }, tokens: [{ name: '--ink', value: '#010203' }] };
     }
@@ -86,13 +94,13 @@ describe('isolated design browser', () => {
     contents.url = 'http://127.0.0.1:5173/other';
     await expect(inspector.applyElementPreview(input)).rejects.toThrow('anderen Route');
     contents.url = 'http://127.0.0.1:5173/page';
-    fake.inline.color = { value: '#010203', priority: 'important' };
+    fake.inline.color = { value: 'rgb(1, 2, 3)', priority: 'important' };
     expect((await inspector.applyElementPreview(input)).elementPreview).toMatchObject({ selectionId: selection.id, style: input.style });
-    expect(fake.inline.color).toEqual({ value: '#aabbcc', priority: '' });
+    expect(fake.inline.color).toEqual({ value: 'rgb(170, 187, 204)', priority: '' });
     expect(fake.inline['border-radius']).toEqual({ value: '8px', priority: '' });
     await expect(inspector.applyElementPreview(input)).rejects.toThrow('Setze zuerst');
     expect((await inspector.resetElementPreview(project.id)).elementPreview).toBeNull();
-    expect(fake.inline.color).toEqual({ value: '#010203', priority: 'important' });
+    expect(fake.inline.color).toEqual({ value: 'rgb(1, 2, 3)', priority: 'important' });
     expect(fake.inline['border-radius']).toBeUndefined();
     expect(designSelections(store, project.id)).toHaveLength(1);
     expect((await inspector.applyElementPreview(input)).elementPreview).not.toBeNull();

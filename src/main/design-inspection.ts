@@ -124,7 +124,7 @@ export class DesignInspector {
   private elementBusy = false;
   private viewportCapture: AbortController | null = null;
   private themePreview: { name: string; value: string; path: string; line: number; original: string; priority: string } | null = null;
-  private elementPreview: { selectionId: string; selector: string; tag: string; text: string; sourceUrl: string; generation: number; values: DesignElementStyle; originals: Record<string, { value: string; priority: string }> } | null = null;
+  private elementPreview: { selectionId: string; selector: string; tag: string; text: string; sourceUrl: string; generation: number; values: DesignElementStyle; applied: Record<string, string>; originals: Record<string, { value: string; priority: string }> } | null = null;
   private readonly preventDownload = (event: Electron.Event): void => event.preventDefault();
   private readonly resize = (): void => this.layout();
 
@@ -242,10 +242,17 @@ export class DesignInspector {
         if (${JSON.stringify(selection.text)} && text !== ${JSON.stringify(selection.text)}) return { error: 'changed' };
         const entries = ${JSON.stringify(entries)};
         const originals = {};
+        const probe = document.createElement('div').style;
+        const expected = {};
+        for (const [name, value] of entries) {
+          probe.setProperty(name, value);
+          expected[name] = probe.getPropertyValue(name);
+          if (!expected[name]) return { error: 'rejected' };
+        }
         for (const [name, value] of entries) originals[name] = { value: node.style.getPropertyValue(name), priority: node.style.getPropertyPriority(name) };
         for (const [name, value] of entries) node.style.setProperty(name, value);
         const applied = Object.fromEntries(entries.map(([name]) => [name, node.style.getPropertyValue(name)]));
-        if (entries.some(([name, value]) => applied[name] !== value)) {
+        if (entries.some(([name]) => applied[name] !== expected[name])) {
           for (const [name] of entries) {
             const before = originals[name];
             if (before.value) node.style.setProperty(name, before.value, before.priority);
@@ -258,8 +265,8 @@ export class DesignInspector {
       const result = await contents.executeJavaScript(script, false) as { error?: string; originals?: Record<string, { value: string; priority: string }>; applied?: Record<string, string> };
       if (this.view !== view || contents.isDestroyed() || this.projectId !== input.projectId || this.pageGeneration !== generation || contents.getURL() !== pageUrl) throw new Error('Die Vorschau hat sich während der Änderung geändert. Wähle das Element erneut.');
       if (result?.error === 'changed') throw new Error('Der Inhalt des ausgewählten Elements hat sich geändert. Wähle es erneut.');
-      if (result?.error || !result?.originals || !result.applied || entries.some(([name, value]) => result.applied?.[name] !== value)) throw new Error('Das ausgewählte Element ist nicht mehr erreichbar. Wähle es erneut.');
-      this.elementPreview = { selectionId: selection.id, selector: selection.selector, tag: selection.tag, text: selection.text, sourceUrl: selection.sourceUrl, generation, values: style, originals: result.originals };
+      if (result?.error || !result?.originals || !result.applied || entries.some(([name]) => !result.applied?.[name])) throw new Error('Das ausgewählte Element ist nicht mehr erreichbar. Wähle es erneut.');
+      this.elementPreview = { selectionId: selection.id, selector: selection.selector, tag: selection.tag, text: selection.text, sourceUrl: selection.sourceUrl, generation, values: style, applied: result.applied, originals: result.originals };
       return this.state();
     } finally { this.elementBusy = false; }
   }
@@ -277,7 +284,7 @@ export class DesignInspector {
         this.elementPreview = null;
         throw new Error('Die Seite hat sich geändert. Der flüchtige Entwurf ist nicht mehr aktiv.');
       }
-      const entries = Object.entries(active.values).map(([key, value]): [string, string] => [key === 'backgroundColor' ? 'background-color' : key === 'borderRadius' ? 'border-radius' : key === 'fontSize' ? 'font-size' : key, value!]);
+      const entries = Object.entries(active.applied);
       const script = `(() => {
         let node; try { node = document.querySelector(${JSON.stringify(active.selector)}); } catch { return false; }
         if (!node || node.tagName.toLowerCase() !== ${JSON.stringify(active.tag)}) return false;
