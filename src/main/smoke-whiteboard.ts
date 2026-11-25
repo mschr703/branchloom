@@ -106,9 +106,16 @@ export async function runWhiteboardVisibleSmoke(window: BrowserWindow, store: St
       if (!node || !pane) throw new Error('Selection fixture is missing.');
       const box = node.getBoundingClientRect();
       const canvas = pane.getBoundingClientRect();
+      // The inspector changes the Flow pane width after returning from the
+      // repository view. A stable node at the pane edge may still jump when
+      // Flow's deferred fitView runs, so wait for the single fixture node to
+      // settle near the center before using screen coordinates for the drag.
+      const centered = Math.abs(box.left + box.width / 2 - (canvas.left + canvas.width / 2)) < 32
+        && Math.abs(box.top + box.height / 2 - (canvas.top + canvas.height / 2)) < 32;
+      if (!centered && attempt > 0 && attempt % 25 === 0) document.querySelector('.react-flow__controls-fitview')?.click();
       const rect = { x1: Math.round(Math.max(canvas.left + 8, box.left - 24)), y1: Math.round(Math.max(canvas.top + 8, box.top - 24)),
         x2: Math.round(Math.min(canvas.right - 8, box.right + 24)), y2: Math.round(Math.min(canvas.bottom - 8, box.bottom + 24)) };
-      const valid = rect.x1 < box.left - 2 && rect.y1 < box.top - 2 && rect.x2 > box.right + 2 && rect.y2 > box.bottom + 2
+      const valid = centered && rect.x1 < box.left - 2 && rect.y1 < box.top - 2 && rect.x2 > box.right + 2 && rect.y2 > box.bottom + 2
         && rect.x1 < rect.x2 && rect.y1 < rect.y2;
       const key = JSON.stringify({ rect, viewport: document.querySelector('.react-flow__viewport')?.getAttribute('style') });
       if (key !== previous || !valid) stableSince = Date.now();
