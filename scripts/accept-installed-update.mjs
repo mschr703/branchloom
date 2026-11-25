@@ -21,9 +21,9 @@ if (process.argv.includes('--help')) {
 }
 if (process.argv.includes('--test-process-query')) {
   if (process.platform !== 'win32') fail('The process-query check requires Windows.');
-  const present = matchingProcesses('powershell', 'branchloom-acceptance-no-match-');
+  const present = matchingProcesses('powershell*', 'powershell', 'branchloom-acceptance-no-match-');
   if (!present.some((item) => item.name.toLowerCase() === 'powershell')) fail('The process query missed its own PowerShell process.');
-  if (matchingProcesses('branchloom-acceptance-no-match', 'branchloom-acceptance-no-match-').length) {
+  if (matchingProcesses('branchloom-acceptance-no-match-*', 'branchloom-acceptance-no-match', 'branchloom-acceptance-no-match-').length) {
     fail('The process query returned an unexpected match.');
   }
   process.stdout.write('INSTALLED_UPDATE_PROCESS_QUERY_OK\n');
@@ -258,14 +258,15 @@ function cachedSetups() {
   return visit(root, 0);
 }
 
-function matchingProcesses(exactName, prefix) {
+function matchingProcesses(pattern, exactName, prefix) {
   // The installed-update path runs only on the guarded runner. The explicit
   // CLI self-test performs this one read-only query on a local Windows host.
-  // Filtering after Get-Process avoids PowerShell's exit status 1 when one
-  // requested -Name pattern is absent but another pattern has a match.
-  const query = "$ErrorActionPreference = 'Stop'; Get-Process | Select-Object ProcessName,Id | ConvertTo-Json -Compress";
+  // Query only the relevant names: a full process inventory can stall on a
+  // busy Windows runner. No match is a normal state during app relaunch.
+  if (!/^[A-Za-z0-9.*-]+$/.test(pattern)) fail('Invalid process query pattern.');
+  const query = `$ErrorActionPreference = 'Stop'; Get-Process -Name '${pattern}' | Select-Object ProcessName,Id | ConvertTo-Json -Compress`;
   const output = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', query], {
-    encoding: 'utf8', windowsHide: true, timeout: 10_000,
+    encoding: 'utf8', windowsHide: true, timeout: 30_000,
   }).trim();
   if (!output) return [];
   const parsed = JSON.parse(output);
@@ -277,7 +278,7 @@ function matchingProcesses(exactName, prefix) {
 }
 
 function branchloomProcesses() {
-  return matchingProcesses('Branchloom', 'Branchloom-Setup-');
+  return matchingProcesses('Branchloom*', 'Branchloom', 'Branchloom-Setup-');
 }
 
 async function waitForUpdaterInstaller() {
