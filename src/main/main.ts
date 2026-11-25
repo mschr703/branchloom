@@ -343,6 +343,8 @@ function installIpc(): void {
   bind('adviseDevEnvironment', (input: Parameters<StudioAPI['adviseDevEnvironment']>[0]) => devGuide.advise(input));
   bind('applyGuidedDevEnvironment', (input: Parameters<StudioAPI['applyGuidedDevEnvironment']>[0]) => devGuide.apply(input));
   bind('cardDevEnvironment', (cardId: string) => devEnvironmentRunner?.card(cardId) ?? null);
+  bind('verifyCardDevEnvironment', (input: Parameters<StudioAPI['verifyCardDevEnvironment']>[0]) =>
+    devRunner.verifyCurrentPreview(input.cardId, input.expectedRunId));
   bind('startCardDevEnvironment', async (input: Parameters<StudioAPI['startCardDevEnvironment']>[0]) => {
     const run = await startApprovedDevEnvironment(db, devRunner, input);
     if (run) devAccountBrowser?.closeCard(input.cardId);

@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
 import type { CardDevEnvironment, DevEnvironmentAuditEvent, DevEnvironmentProfile, DevEnvironmentState, SaveDevEnvironmentProfile } from '../shared/dev-environment';
 import { ensureCardWorktree } from './git-worktree';
+import { previewListenerOwnership } from './preview-listener';
 import type { StudioStore } from './store';
 
 interface ProfileRow { project_id: string; executable: string; args_json: string; health_path: string; health_marker: string; updated_at: string }
@@ -207,6 +208,18 @@ export class DevEnvironmentRunner {
     return row ? rowToRun(this.reconcile(row), this.children.has(row.id)) : null;
   }
 
+  /** The browser may open only the same live run and, on Windows, its own listener. */
+  verifyCurrentPreview(cardId: string, expectedRunId: string): CardDevEnvironment {
+    const run = this.card(cardId);
+    const child = run && this.children.get(run.id);
+    if (!run || run.id !== expectedRunId || run.state !== 'ready' || !run.managed || !child?.pid)
+      throw new Error('The card preview is no longer managed and ready. Refresh its status.');
+    const ownership = previewListenerOwnership(run.port, child.pid);
+    if (ownership === 'foreign') throw new Error('Another process owns this preview port. Stop this preview and inspect the port before retrying.');
+    if (ownership === 'unverified') throw new Error('The preview port owner could not be verified. Refresh the preview status before retrying.');
+    return run;
+  }
+
   private update(id: string, state: DevEnvironmentState, exitCode: number | null = null): CardDevEnvironment {
     this.store.db.prepare('UPDATE dev_environment_runs SET state = ?, ended_at = ?, exit_code = ? WHERE id = ?').run(state, stamp(), exitCode, id);
     return rowToRun(this.row(id), this.children.has(id));
@@ -218,16 +231,33 @@ export class DevEnvironmentRunner {
 
   private async waitReady(id: string, child: ChildProcessWithoutNullStreams, profile: DevEnvironmentProfile, port: number): Promise<void> {
     const deadline = Date.now() + START_TIMEOUT_MS;
+    let listenerUnverified = false;
     while (!this.disposed && this.children.get(id) === child && Date.now() < deadline) {
       if (await pageHasMarker(port, profile.healthPath, profile.healthMarker)) {
         if (this.children.get(id) !== child || this.row(id).state !== 'starting') return;
+        const ownership = previewListenerOwnership(port, child.pid!);
+        if (ownership === 'unverified') { listenerUnverified = true; await new Promise((resolve) => setTimeout(resolve, 300)); continue; }
+        if (ownership === 'foreign') {
+          this.append(id, '\n[Another process owns the preview listener; the matching HTTP text is not proof of this card server.]\n');
+          try {
+            terminateOwnedTree(child);
+            this.update(id, 'failed');
+            this.children.delete(id);
+          } catch {
+            this.uncertainTermination.add(id);
+            this.append(id, '[Owned process tree could not be stopped. Inspect it in Task Manager.]\n');
+          }
+          return;
+        }
         this.store.db.prepare("UPDATE dev_environment_runs SET state = 'ready', ready_at = ? WHERE id = ? AND state = 'starting'").run(stamp(), id);
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, 300));
     }
     if (this.children.get(id) === child && this.row(id).state === 'starting') {
-      this.append(id, '\n[Readiness marker was not found within 20 seconds.]\n');
+      this.append(id, listenerUnverified
+        ? '\n[The HTTP marker was found, but the preview listener owner could not be verified within 20 seconds.]\n'
+        : '\n[Readiness marker was not found within 20 seconds.]\n');
       try {
         terminateOwnedTree(child);
         this.update(id, 'failed');

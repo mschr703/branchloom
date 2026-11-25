@@ -112,6 +112,7 @@ const studio: StudioAPI = {
   adviseDevEnvironment: (input) => invoke('adviseDevEnvironment', input),
   applyGuidedDevEnvironment: (input) => invoke('applyGuidedDevEnvironment', input),
   cardDevEnvironment: (cardId) => invoke('cardDevEnvironment', cardId),
+  verifyCardDevEnvironment: (input) => invoke('verifyCardDevEnvironment', input),
   startCardDevEnvironment: (input) => invoke('startCardDevEnvironment', input),
   stopCardDevEnvironment: (runId) => invoke('stopCardDevEnvironment', runId),
   devAccountOverview: (input) => invoke('devAccountOverview', input),

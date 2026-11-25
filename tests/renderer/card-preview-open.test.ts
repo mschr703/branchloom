@@ -10,7 +10,9 @@ const run: CardDevEnvironment = { id: 'run-1', projectId: 'project', cardId: 'ca
 function browser(current: CardDevEnvironment | null) {
   const calls: string[] = [];
   const api = {
-    cardDevEnvironment: vi.fn(async (cardId: string) => { calls.push(`read:${cardId}`); return current; }),
+    verifyCardDevEnvironment: vi.fn(async (input: { cardId: string; expectedRunId: string }) => {
+      calls.push(`verify:${input.cardId}:${input.expectedRunId}`); return current!;
+    }),
     browserNewTab: vi.fn(async () => { calls.push('tab'); return {} as Awaited<ReturnType<CardPreviewBrowser['browserNewTab']>>; }),
     browserNavigate: vi.fn(async (url: string) => { calls.push(`navigate:${url}`); return {} as Awaited<ReturnType<CardPreviewBrowser['browserNavigate']>>; }),
   } satisfies CardPreviewBrowser;
@@ -21,7 +23,7 @@ describe('opening a card development preview', () => {
   it('rechecks the same managed ready run before opening its current address', async () => {
     const { api, calls } = browser(run);
     expect(await openCurrentCardPreview(api, 'card-1', run)).toEqual(run);
-    expect(calls).toEqual(['read:card-1', 'tab', 'navigate:http://127.0.0.1:43123/']);
+    expect(calls).toEqual(['verify:card-1:run-1', 'tab', 'navigate:http://127.0.0.1:43123/']);
   });
 
   it.each([
@@ -33,6 +35,13 @@ describe('opening a card development preview', () => {
   ])('refuses a %s without creating a browser tab', async (_name, current) => {
     const { api, calls } = browser(current);
     await expect(openCurrentCardPreview(api, 'card-1', run)).rejects.toThrow('nicht mehr bereit');
-    expect(calls).toEqual(['read:card-1']);
+    expect(calls).toEqual(['verify:card-1:run-1']);
+  });
+
+  it('does not open a tab when the main process rejects listener ownership', async () => {
+    const { api, calls } = browser(run);
+    api.verifyCardDevEnvironment.mockRejectedValueOnce(new Error('Another process owns this preview port.'));
+    await expect(openCurrentCardPreview(api, 'card-1', run)).rejects.toThrow('Another process');
+    expect(calls).toEqual([]);
   });
 });

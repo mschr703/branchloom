@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
+import { createServer as createHttpServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -82,10 +83,13 @@ describe('manual card development environments', () => {
     const [a, b] = await Promise.all([ready(runner, first.id), ready(runner, second.id)]);
     expect(a?.state).toBe('ready'); expect(b?.state).toBe('ready');
     expect(runner.card(first.id)?.output).toContain('synthetic server listening');
+    expect(runner.verifyCurrentPreview(first.id, a!.id)).toMatchObject({ id: a!.id, state: 'ready' });
+    expect(() => runner.verifyCurrentPreview(first.id, b!.id)).toThrow('no longer managed');
     expect(await (await fetch(a!.url)).text()).toBe('READY:A');
     expect(await (await fetch(b!.url)).text()).toBe('READY:B');
     await expect(runner.start(first.id)).rejects.toThrow('already has');
     expect(runner.stop(a!.id).state).toBe('stopped');
+    expect(() => runner.verifyCurrentPreview(first.id, a!.id)).toThrow('no longer managed');
     expect(await (await fetch(b!.url)).text()).toBe('READY:B');
     expect(runner.stop(b!.id).state).toBe('stopped');
   });
@@ -96,6 +100,7 @@ describe('manual card development environments', () => {
     const runner = new DevEnvironmentRunner(store); runners.push(runner);
     const started = await runner.start(first.id);
     expect((await ready(runner, first.id))?.state).toBe('ready');
+    expect(runner.verifyCurrentPreview(first.id, started.id).state).toBe('ready');
     expect(await (await fetch(started.url)).text()).toBe('READY:grandchild');
     expect(runner.stop(started.id).state).toBe('stopped');
     let portReleased = false;
@@ -125,6 +130,59 @@ describe('manual card development environments', () => {
       await expect(runner.start(first.id)).rejects.toThrow('Restore the card');
       expect(devEnvironmentProfile(store, project.id)).not.toBeNull();
     } finally { await new Promise<void>((resolve) => server.close(() => resolve())); }
+  });
+
+  it('rejects a foreign server that races into the chosen port with the expected marker', async () => {
+    const { store, first, profile } = fixture();
+    const worktree = ensureCardWorktree(store, first.id);
+    writeFileSync(join(worktree.cwd, 'idle-server.js'), 'setInterval(() => {}, 1000);');
+    saveDevEnvironmentProfile(store, { ...profile, args: ['idle-server.js', '--host', '127.0.0.1', '--port', '{port}'] });
+    const runner = new DevEnvironmentRunner(store); runners.push(runner);
+    const launched = await runner.start(first.id);
+    const foreign = createHttpServer((_request, response) => response.end('READY:foreign'));
+    try {
+      await new Promise<void>((resolve) => foreign.listen(launched.port, '127.0.0.1', resolve));
+      if (process.platform === 'win32') {
+        const result = await ready(runner, first.id);
+        expect(result?.state).toBe('failed');
+        expect(result?.output).toContain('Another process owns');
+        expect(await (await fetch(launched.url)).text()).toBe('READY:foreign');
+      }
+    } finally { await new Promise<void>((resolve) => foreign.close(() => resolve())); }
+  });
+
+  if (process.platform === 'win32') it('rejects opening a ready run after its child listener is replaced by a foreign server', async () => {
+    const { store, first, profile } = fixture();
+    const worktree = ensureCardWorktree(store, first.id);
+    writeFileSync(join(worktree.cwd, 'parent-with-pid.js'), `const { spawn } = require('node:child_process');
+      const fs = require('node:fs');
+      const child = spawn(process.execPath, ['grandchild-server.js', process.argv[process.argv.indexOf('--port') + 1]], { stdio: 'ignore' });
+      fs.writeFileSync('child.pid', String(child.pid));
+      setInterval(() => {}, 1000);`);
+    saveDevEnvironmentProfile(store, { ...profile, args: ['parent-with-pid.js', '--host', '127.0.0.1', '--port', '{port}'], healthMarker: 'READY:grandchild' });
+    const runner = new DevEnvironmentRunner(store); runners.push(runner);
+    const launched = await runner.start(first.id);
+    expect((await ready(runner, first.id))?.state).toBe('ready');
+    const childPid = Number(readFileSync(join(worktree.cwd, 'child.pid'), 'utf8'));
+    expect(Number.isSafeInteger(childPid)).toBe(true);
+    process.kill(childPid, 'SIGTERM');
+    const foreign = createHttpServer((_request, response) => response.end('READY:foreign'));
+    try {
+      let bound = false;
+      for (let attempt = 0; attempt < 30 && !bound; attempt++) {
+        bound = await new Promise<boolean>((resolve) => {
+          foreign.once('error', () => resolve(false));
+          foreign.listen(launched.port, '127.0.0.1', () => resolve(true));
+        });
+        if (!bound) await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      expect(bound).toBe(true);
+      expect(runner.card(first.id)?.state).toBe('ready');
+      expect(() => runner.verifyCurrentPreview(first.id, launched.id)).toThrow('Another process owns');
+      expect(await (await fetch(launched.url)).text()).toBe('READY:foreign');
+      runner.stop(launched.id);
+      expect(await (await fetch(launched.url)).text()).toBe('READY:foreign');
+    } finally { if (foreign.listening) await new Promise<void>((resolve) => foreign.close(() => resolve())); }
   });
 
   it('retains a failed start, never replays it and keeps the profile after restart', async () => {

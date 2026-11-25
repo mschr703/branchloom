@@ -145,6 +145,7 @@ export interface StudioAPI {
   adviseDevEnvironment(input: { projectId: string; cardId: string }): Promise<import('./dev-environment').GuidedDevEnvironmentAdvice>;
   applyGuidedDevEnvironment(input: { adviceId: string; projectId: string; cardId: string }): Promise<import('./dev-environment').DevEnvironmentProfile>;
   cardDevEnvironment(cardId: string): Promise<import('./dev-environment').CardDevEnvironment | null>;
+  verifyCardDevEnvironment(input: { cardId: string; expectedRunId: string }): Promise<import('./dev-environment').CardDevEnvironment>;
   startCardDevEnvironment(input: { cardId: string; expectedProfileFingerprint: string }): Promise<import('./dev-environment').CardDevEnvironment>;
   stopCardDevEnvironment(runId: string): Promise<import('./dev-environment').CardDevEnvironment>;
   devAccountOverview(input: { projectId: string; cardId: string }): Promise<import('./dev-account').DevAccountOverview>;
