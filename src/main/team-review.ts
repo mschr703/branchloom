@@ -1,8 +1,9 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type Database from 'better-sqlite3';
 import type { QaGitEvidence } from '../shared/qa-git-evidence';
-import type { CreatedTeamReviewInvite, CreatedTeamReviewRoom, TeamReviewComment, TeamReviewInvite, TeamReviewRoom } from '../shared/team-review';
+import type { CreatedTeamReviewInvite, CreatedTeamReviewRoom, TeamReviewComment, TeamReviewInvite, TeamReviewRevision, TeamReviewRoom } from '../shared/team-review';
 import type { StudioStore } from './store';
+import { qaGitPoint } from './qa-git-evidence';
 
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 const MAX_ROOMS_PER_PROJECT = 30;
@@ -119,6 +120,21 @@ export function createTeamReviewRoom(store: StudioStore, input: { projectId: str
 }
 
 export function teamReviewRoom(store: StudioStore, roomId: string): TeamReviewRoom { return asRoom(requiredRoom(store, roomId)); }
+
+/** A fresh checkout comparison, not proof of the preview server's served revision. */
+export async function teamReviewRevision(store: StudioStore, roomId: string): Promise<TeamReviewRevision> {
+  const room = teamReviewRoom(store, roomId);
+  const current = await qaGitPoint(store, store.card(room.cardId));
+  const observed = room.checkoutObservation;
+  let status: TeamReviewRevision['status'] = 'unavailable';
+  if (observed?.state === 'clean' && observed.endHead && current.head && current.dirty !== null) {
+    if (current.scope !== observed.scope) status = 'checkout-changed';
+    else if (current.head !== observed.endHead) status = 'different-head';
+    else if (current.dirty) status = 'working-tree-dirty';
+    else status = 'same-clean-head';
+  }
+  return { status, currentHead: current.head, checkedAt: new Date().toISOString() };
+}
 
 export function createTeamReviewInvite(store: StudioStore, input: { roomId: string; reviewerName: string }): CreatedTeamReviewInvite {
   const room = requiredRoom(store, input.roomId);

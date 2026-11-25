@@ -98,7 +98,9 @@ it('serves one scoped review snapshot and denies agent actions to a reviewer', a
     expect(await page.text()).toContain('Shared review');
     const data = await fetch(`${base}/api/r/${created.reviewerSecret}`);
     expect(data.status).toBe(200);
-    expect((await data.json()).room.imageSha256).toBe(created.room.imageSha256);
+    const review = await data.json();
+    expect(review.room.imageSha256).toBe(created.room.imageSha256);
+    expect(review.revision.status).toBe('unavailable');
     const screenshot = await fetch(`${base}/api/r/${created.reviewerSecret}/image`);
     expect(Buffer.from(await screenshot.arrayBuffer())).toEqual(image);
     const body = JSON.stringify({ clientMutationId: 'http-comment-001', body: 'Improve this label', x: 0.2, y: 0.3 });

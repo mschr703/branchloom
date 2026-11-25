@@ -75,8 +75,17 @@ export const teamReviewJs = `(() => {
       room = value.room;
       scenario.textContent = room.scenario;
       const observation = room.checkoutObservation;
-      source.textContent = observation && observation.endHead ? 'Checkout observed: ' + observation.endHead.slice(0, 12) + ' · Image: ' + room.imageSha256.slice(0, 12)
-        : 'Checkout version unavailable · Image: ' + room.imageSha256.slice(0, 12);
+      const revision = value.revision;
+      const comparison = {
+        'same-clean-head': 'Checkout unchanged since QA',
+        'different-head': 'Git HEAD changed since QA',
+        'working-tree-dirty': 'Uncommitted checkout changes',
+        'checkout-changed': 'Card now uses another checkout',
+        unavailable: 'Checkout comparison unavailable',
+      }[revision?.status] || 'Checkout comparison unavailable';
+      source.textContent = 'QA ' + (observation?.endHead?.slice(0, 12) || 'unknown')
+        + ' · Current ' + (revision?.currentHead?.slice(0, 12) || 'unknown')
+        + ' · ' + comparison + ' · Image ' + room.imageSha256.slice(0, 12);
       state.textContent = room.closedAt ? 'Closed · read only' : 'Open for review';
       if (image.getAttribute('src') !== endpoint + '/image') image.src = endpoint + '/image';
       showComments(value.comments);
@@ -87,6 +96,7 @@ export const teamReviewJs = `(() => {
       notice.textContent = error.message || String(error);
       if (error.status === 403) {
         room = null;
+        source.textContent = '';
         image.removeAttribute('src');
         showComments([]);
         state.textContent = 'Invitation unavailable';

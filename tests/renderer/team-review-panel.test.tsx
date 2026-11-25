@@ -23,6 +23,7 @@ it('creates a room only after a click and keeps the scoped link visible for the 
   Object.defineProperty(window, 'studio', { configurable: true, value: {
     teamReviewRooms: vi.fn().mockResolvedValue([]), teamReviewInvites: vi.fn().mockResolvedValue([]),
     teamReviewComments: vi.fn().mockResolvedValue([]), teamReviewImage: vi.fn().mockResolvedValue('data:image/png;base64,AA=='),
+    teamReviewRevision: vi.fn().mockResolvedValue({ status: 'different-head', currentHead: 'b'.repeat(40), checkedAt: '2026-01-01T10:00:00Z' }),
     startTeamReviewRoom, copyTeamReviewInvite, newTailnetTeamReviewInvite,
   } });
   try {
@@ -41,6 +42,7 @@ it('creates a room only after a click and keeps the scoped link visible for the 
     await act(async () => { host.querySelector<HTMLFormElement>('.team-review-form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); });
     expect(startTeamReviewRoom).toHaveBeenCalledWith({ projectId: 'project', cardId: 'card', qaReportId: 'report', scenario: 'Signed out settings', reviewerName: 'Alex' });
     expect(host.querySelector<HTMLInputElement>('.team-review-share input')?.value).toBe('http://127.0.0.1:1234/r/secret');
+    expect(host.querySelector('.team-review-revision')?.textContent).toContain('Git-HEAD seit QA geändert');
     await act(async () => { [...host.querySelectorAll<HTMLButtonElement>('.team-review-share button')].find((button) => button.textContent === 'Link kopieren')!.click(); });
     expect(copyTeamReviewInvite).toHaveBeenCalledWith({ secret: 'secret', transport: 'local' });
     const nextReviewer = host.querySelector<HTMLInputElement>('.team-review-current .team-review-form input')!;

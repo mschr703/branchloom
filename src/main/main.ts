@@ -11,7 +11,7 @@ import { StudioBrowser } from './browser';
 import { projectMemoryMapSources, readProjectMemorySource, refreshProjectMemoryIndex, searchProjectMemoryIndex } from './project-memory-index';
 import { createDiagnosticCard } from './error-catcher';
 import { cardQaReports, cardQaScreenshot, runCardQa, runCardQaBatch } from './card-qa';
-import { closeTeamReviewRoom, createTeamReviewInvite, createTeamReviewRoom, resolveTeamReviewInvite, revokeTeamReviewInvite, teamReviewComments, teamReviewImage, teamReviewInvites, teamReviewRooms } from './team-review';
+import { closeTeamReviewRoom, createTeamReviewInvite, createTeamReviewRoom, resolveTeamReviewInvite, revokeTeamReviewInvite, teamReviewComments, teamReviewImage, teamReviewInvites, teamReviewRevision, teamReviewRooms } from './team-review';
 import { TeamReviewHttp } from './team-review-http';
 import { activeTailnetIPv4 } from './team-review-tailnet';
 import { bugScenarios, bugScenarioRuns, runBugScenario, saveBugScenario } from './bug-replay';
@@ -714,6 +714,7 @@ function installIpc(): void {
   bind('teamReviewRooms', (cardId: string) => teamReviewRooms(db, cardId));
   bind('teamReviewInvites', (roomId: string) => teamReviewInvites(db, roomId));
   bind('teamReviewComments', (roomId: string) => teamReviewComments(db, roomId));
+  bind('teamReviewRevision', (roomId: string) => teamReviewRevision(db, roomId));
   bind('teamReviewImage', (roomId: string) => `data:image/png;base64,${teamReviewImage(db, roomId).toString('base64')}`);
   bind('newTeamReviewInvite', async (input: Parameters<StudioAPI['newTeamReviewInvite']>[0]) => {
     teamReviewHttp ??= new TeamReviewHttp(db);

@@ -413,6 +413,7 @@ export interface StudioAPI {
   teamReviewRooms(cardId: string): Promise<import('./team-review').TeamReviewRoom[]>;
   teamReviewInvites(roomId: string): Promise<import('./team-review').TeamReviewInvite[]>;
   teamReviewComments(roomId: string): Promise<import('./team-review').TeamReviewComment[]>;
+  teamReviewRevision(roomId: string): Promise<import('./team-review').TeamReviewRevision>;
   teamReviewImage(roomId: string): Promise<string>;
   newTeamReviewInvite(input: { roomId: string; reviewerName: string }): Promise<{ invite: import('./team-review').TeamReviewInvite; reviewerSecret: string; url: string }>;
   newTailnetTeamReviewInvite(input: { roomId: string; reviewerName: string }): Promise<{ invite: import('./team-review').TeamReviewInvite; reviewerSecret: string; url: string }>;

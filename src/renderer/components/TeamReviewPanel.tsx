@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react';
 import type { Card, CardQaReport } from '../../shared/types';
-import type { TeamReviewComment, TeamReviewInvite, TeamReviewRoom } from '../../shared/team-review';
+import type { TeamReviewComment, TeamReviewInvite, TeamReviewRevision, TeamReviewRoom } from '../../shared/team-review';
 import './team-review.css';
 
 const messageOf = (error: unknown) => error instanceof Error ? error.message : String(error);
+const revisionLabel = (status: TeamReviewRevision['status']) => ({
+  'same-clean-head': 'Git-Checkout seit QA unverändert',
+  'different-head': 'Git-HEAD seit QA geändert',
+  'working-tree-dirty': 'Ungespeicherte Änderungen im Checkout',
+  'checkout-changed': 'Karte nutzt jetzt einen anderen Checkout',
+  unavailable: 'Git-Vergleich nicht möglich',
+})[status];
 
 export function TeamReviewPanel({ card, report }: { card: Card; report: CardQaReport }) {
   const [rooms, setRooms] = useState<TeamReviewRoom[]>([]);
@@ -11,6 +18,7 @@ export function TeamReviewPanel({ card, report }: { card: Card; report: CardQaRe
   const [invites, setInvites] = useState<TeamReviewInvite[]>([]);
   const [comments, setComments] = useState<TeamReviewComment[]>([]);
   const [image, setImage] = useState('');
+  const [revision, setRevision] = useState<TeamReviewRevision | null>(null);
   const [scenario, setScenario] = useState('');
   const [reviewerName, setReviewerName] = useState('');
   const [share, setShare] = useState<{ url: string; secret: string; transport: 'local' | 'tailnet' } | null>(null);
@@ -39,6 +47,18 @@ export function TeamReviewPanel({ card, report }: { card: Card; report: CardQaRe
       if (document.hidden) return;
       void window.studio.teamReviewComments(selectedId).then((items) => { if (live) setComments(items); }).catch(() => undefined);
     }, 5000);
+    return () => { live = false; clearInterval(timer); };
+  }, [selectedId]);
+
+  useEffect(() => {
+    let live = true;
+    setRevision(null);
+    if (!selectedId) return;
+    const refresh = () => { void window.studio.teamReviewRevision(selectedId)
+      .then((value) => { if (live) setRevision(value); })
+      .catch(() => { if (live) setRevision({ status: 'unavailable', currentHead: null, checkedAt: new Date().toISOString() }); }); };
+    refresh();
+    const timer = setInterval(() => { if (!document.hidden) refresh(); }, 20_000);
     return () => { live = false; clearInterval(timer); };
   }, [selectedId]);
 
@@ -109,7 +129,11 @@ export function TeamReviewPanel({ card, report }: { card: Card; report: CardQaRe
     {reportRooms.length ? <label>Reviewstand <select aria-label="Reviewstand wählen" value={selectedId} onChange={(event) => { setSelectedId(event.target.value); setShare(null); }}><option value="">Reviewstand wählen</option>{reportRooms.map((room) => <option value={room.id} key={room.id}>{room.scenario} · {new Date(room.createdAt).toLocaleString('de-DE')}{room.closedAt ? ' · geschlossen' : ''}</option>)}</select></label> : null}
     {selected ? <section className="team-review-current" aria-label={`Reviewstand ${selected.scenario}`}>
       <div className="team-review-heading"><strong>{selected.scenario}</strong><span>{selected.closedAt ? 'Geschlossen' : 'Offen'} · Bild {selected.imageSha256.slice(0, 12)}</span></div>
-      <p>Checkout-Beobachtung: {selected.checkoutObservation?.endHead?.slice(0, 12) ?? 'unbekannt'}. Dies belegt nicht, welche Dateien der Dev-Server ausgeliefert hat.</p>
+      <p className={`team-review-revision ${revision && ['different-head', 'working-tree-dirty', 'checkout-changed'].includes(revision.status) ? 'team-review-revision-attention' : ''}`}>
+        <strong>{revision ? revisionLabel(revision.status) : 'Git-Checkout wird geprüft'}</strong>
+        <span>QA {selected.checkoutObservation?.endHead?.slice(0, 12) ?? 'unbekannt'} · jetzt {revision?.currentHead?.slice(0, 12) ?? 'unbekannt'}</span>
+      </p>
+      <p>Der Git-Vergleich belegt nicht, welche Dateien der Dev-Server ausgeliefert hat.</p>
       {image ? <div className="team-review-image"><img src={image} alt={`Gespeicherter Screenshot für ${selected.scenario}`} />{comments.map((comment, index) => <span key={comment.id} style={{ left: `${comment.x * 100}%`, top: `${comment.y * 100}%` }} title={`${comment.displayName}: ${comment.body}`} aria-hidden="true">{index + 1}</span>)}</div> : null}
       <ol className="team-review-comments">{comments.map((comment, index) => <li key={comment.id}><b>{index + 1} · {comment.displayName}</b><span>{comment.body}</span></li>)}</ol>
       <div className="team-review-invites"><strong>Einladungen</strong>{invites.map((invite) => <div key={invite.id}><span>{invite.displayName} · {invite.revokedAt ? 'widerrufen' : 'Review-Recht'}</span>{!invite.revokedAt && !selected.closedAt ? <button type="button" disabled={busy} onClick={() => void revoke(invite.id)}>Widerrufen</button> : null}</div>)}</div>
