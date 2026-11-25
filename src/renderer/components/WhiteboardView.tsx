@@ -15,9 +15,9 @@ import './whiteboard.css';
 type EditDraft = { title: string; description: string; referenceKind: 'none' | 'card' | 'folder' | 'file'; cardId: string; folderPath: string };
 type CardDraft = { title: string; description: string; columnId: string };
 type ImpactCardDraft = CardDraft & { site: WhiteboardDirectImporter; nodeId: string; referencePath: string };
-type NewNodeDraft = EditDraft & { x: number; y: number };
-type NewEdgeDraft = { sourceId: string; targetId: string; label: string; expectedSourceUpdatedAt: string; expectedTargetUpdatedAt: string };
-type MoveDraft = { id: string; x: number; y: number; expectedUpdatedAt: string };
+type NewNodeDraft = EditDraft & { projectId: string; x: number; y: number };
+type NewEdgeDraft = { projectId: string; sourceId: string; targetId: string; label: string; expectedSourceUpdatedAt: string; expectedTargetUpdatedAt: string };
+type MoveDraft = { projectId: string; id: string; x: number; y: number; expectedUpdatedAt: string };
 const emptyDraft = (): EditDraft => ({ title: '', description: '', referenceKind: 'none', cardId: '', folderPath: '' });
 const message = (error: unknown): string => error instanceof Error ? error.message : String(error);
 const referenceSummary = (node: WhiteboardNode | undefined, snapshot: ProjectSnapshot): string => {
@@ -254,7 +254,7 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
 
   function addNode() {
     const index = board.nodes.length;
-    setNewNodeDraft({ ...emptyDraft(), title: 'Neue Box', x: (index % 3) * 260, y: Math.floor(index / 3) * 180 });
+    setNewNodeDraft({ ...emptyDraft(), projectId, title: 'Neue Box', x: (index % 3) * 260, y: Math.floor(index / 3) * 180 });
     discardMoveDraft(); setCanvasMode('board'); setSelected(null); setSelectedEdge(null); setCardDraft(null); setSelectArea(false); setAreaReply(null); setAreaError('');
     setAutomaticProposal(null); setAutomaticProposalProjectId(null); setSelectedProposal(null);
   }
@@ -285,12 +285,12 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
     if (!board.nodes.some((node) => node.id === connection.source) || !board.nodes.some((node) => node.id === connection.target)) return;
     const source = board.nodes.find((node) => node.id === connection.source)!;
     const target = board.nodes.find((node) => node.id === connection.target)!;
-    setNewEdgeDraft({ sourceId: source.id, targetId: target.id, label: '', expectedSourceUpdatedAt: source.updatedAt, expectedTargetUpdatedAt: target.updatedAt });
+    setNewEdgeDraft({ projectId, sourceId: source.id, targetId: target.id, label: '', expectedSourceUpdatedAt: source.updatedAt, expectedTargetUpdatedAt: target.updatedAt });
     setNewNodeDraft(null); setSelected(null); setSelectedEdge(null); setAreaIds([connection.source, connection.target]); setAreaReply(null); setAreaError('');
   }
 
   async function saveNewNode() {
-    if (!newNodeDraft || busy) return;
+    if (!newNodeDraft || newNodeDraft.projectId !== projectId || busy) return;
     const pending = newNodeDraft;
     await run(async () => {
       const created = await window.studio.createWhiteboardNode({ projectId, title: pending.title, description: pending.description,
@@ -300,10 +300,11 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
   }
 
   async function saveNewEdge() {
-    if (!newEdgeDraft || busy) return;
+    if (!newEdgeDraft || newEdgeDraft.projectId !== projectId || busy) return;
     const pending = newEdgeDraft;
     await run(async () => {
-      const created = await window.studio.createWhiteboardEdge({ projectId, ...pending });
+      const created = await window.studio.createWhiteboardEdge({ projectId, sourceId: pending.sourceId, targetId: pending.targetId,
+        label: pending.label, expectedSourceUpdatedAt: pending.expectedSourceUpdatedAt, expectedTargetUpdatedAt: pending.expectedTargetUpdatedAt });
       if (latestProjectId.current === projectId) { setNewEdgeDraft(null); setSelectedEdge(created.id); setAreaIds([]); }
     });
   }
@@ -407,7 +408,7 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
         {loading ? <div className="wb-loading">Whiteboard wird geladen…</div> : <ReactFlow nodes={canvasNodes} edges={flowEdges} onNodesChange={onNodesChange} onConnect={connect}
           onInit={(instance) => { flowApi.current = instance; }}
           onNodeDragStop={(_event, node) => { if (node.id === 'whiteboard-unsaved-draft') setNewNodeDraft((current) => current ? { ...current, x: node.position.x, y: node.position.y } : null);
-            else if (!showRepository) { const original = board.nodes.find((item) => item.id === node.id); if (original) { if (moveDraft?.id !== node.id) discardMoveDraft(); setSelected(node.id); setMoveDraft({ id: node.id, x: node.position.x, y: node.position.y, expectedUpdatedAt: original.updatedAt }); } } }}
+            else if (!showRepository) { const original = board.nodes.find((item) => item.id === node.id); if (original) { if (moveDraft?.id !== node.id) discardMoveDraft(); setSelected(node.id); setMoveDraft({ projectId, id: node.id, x: node.position.x, y: node.position.y, expectedUpdatedAt: original.updatedAt }); } } }}
           onNodeClick={(_event, node) => { if (overview) setSelectedProposal(node.id); else if (node.id !== 'whiteboard-unsaved-draft' && !selectArea) { if (moveDraft?.id !== node.id) discardMoveDraft(); setSelected(node.id); } setSelectedEdge(null); setCardDraft(null); }}
           onEdgeClick={(_event, clicked) => { if (overview) return; discardMoveDraft(); setSelectedEdge(clicked.id); setSelected(null); setCardDraft(null); }}
           onPaneClick={() => { if (!selectArea) { discardMoveDraft(); setSelected(null); setSelectedEdge(null); setSelectedProposal(null); setCardDraft(null); } }}
@@ -444,7 +445,7 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
           {discussionPanel({ kind: 'edge', sourceId: newEdgeDraft.sourceId, targetId: newEdgeDraft.targetId, label: newEdgeDraft.label })}
           <div className="wb-actions"><button className="primary-button" type="button" disabled={busy} onClick={() => void saveNewEdge()}>Verbindung übernehmen</button><button className="text-button" type="button" onClick={() => { setNewEdgeDraft(null); setAreaIds([]); }}>Entwurf verwerfen</button></div></>
         : selectArea ? <><h3>Bereich auswählen</h3><p>Ziehe auf der freien Fläche ein Rechteck um die Boxen. Die Auswahl ist noch keine Freigabe oder Änderung.</p>{discussionPanel(null)}</>
-        : selectedNode ? <><h3>Box bearbeiten</h3>{moveDraft?.id === selectedNode.id ? <div className="wb-move-draft" role="status"><p>Neue Position ist ein Entwurf. Erst übernehmen speichert sie.</p><div className="wb-actions"><button className="secondary-button" type="button" disabled={busy} onClick={() => void run(async () => { await window.studio.updateWhiteboardNode({ projectId, id: moveDraft.id, x: moveDraft.x, y: moveDraft.y, expectedUpdatedAt: moveDraft.expectedUpdatedAt }); setMoveDraft(null); })}>Position übernehmen</button><button className="text-button" type="button" onClick={discardMoveDraft}>Verwerfen</button></div></div> : null}<label>Titel<input maxLength={120} value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label>
+        : selectedNode ? <><h3>Box bearbeiten</h3>{moveDraft?.id === selectedNode.id ? <div className="wb-move-draft" role="status"><p>Neue Position ist ein Entwurf. Erst übernehmen speichert sie.</p><div className="wb-actions"><button className="secondary-button" type="button" disabled={busy || moveDraft.projectId !== projectId} onClick={() => void run(async () => { await window.studio.updateWhiteboardNode({ projectId, id: moveDraft.id, x: moveDraft.x, y: moveDraft.y, expectedUpdatedAt: moveDraft.expectedUpdatedAt }); setMoveDraft(null); })}>Position übernehmen</button><button className="text-button" type="button" onClick={discardMoveDraft}>Verwerfen</button></div></div> : null}<label>Titel<input maxLength={120} value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label>
           <label>Beschreibung<textarea maxLength={2000} rows={4} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
           <label>Verknüpfung<select value={draft.referenceKind} onChange={(event) => setDraft({ ...draft, referenceKind: event.target.value as EditDraft['referenceKind'] })}><option value="none">Keine</option><option value="card">Karte</option><option value="folder">Projektordner</option><option value="file">Projektdatei</option></select></label>
           {draft.referenceKind === 'card' ? <label>Karte<select value={draft.cardId} onChange={(event) => setDraft({ ...draft, cardId: event.target.value })}><option value="">Karte auswählen</option>{snapshot.cards.map((card) => <option key={card.id} value={card.id}>{card.title}</option>)}</select></label> : null}
