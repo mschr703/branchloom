@@ -5,6 +5,7 @@ Stand: 25.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollst�
 ## Gemeinsame Abnahme und nächste Windows-Version
 
 - Nach Übernahme von Memory-Pfadkorrektur, G02-Integrations-Worktree, Usage und Changelog bestand der vollständige Quell-Electron-Smoke mit temporärem Projekt und isoliertem Datenprofil. Für Version 0.1.1 folgen erneute Windows-CI und Paketabnahme; ein neueres Desktop-Paket und ein zweites Release gelten erst nach grünen Jobs als geprüft. Der vorbereitende G02-Merge erhält jetzt eine nur für den `--no-commit`-Befehl gesetzte neutrale Git-Identität, weil [CI 45553599258](https://github.com/mschr703/branchloom/actions/runs/45553599258) auf einem frischen Runner ohne globale Git-Identität drei G02-Tests stoppte. Der dort ebenfalls fehlgeschlagene Memory-Monorepo-Pfad ist separat in 776ca73 korrigiert. Vier gezielte G02-Tests bestanden lokal mit ausdrücklich deaktivierter globaler Git-Konfiguration; die vollständige gemeinsame CI steht aus.
+- Der Release-Integritätscheck lehnt in zwei synthetischen Tests einen manipulierten Installer, fehlende Update-Metadaten und eine nicht zur Paketversion passende Release-Datei ab; zusammen mit fünf Update-Controller-Tests bestanden sieben gezielte R01-Tests. Das prüft den Erstellungs-Gate und die lokale Klicklogik, noch keinen realen installierten Versionswechsel.
 
 ## Aussagekräftigerer Changelog
 
