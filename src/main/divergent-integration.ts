@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, realpathSync, rmdirSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, realpathSync, rmdirSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
 import type { DivergentIntegration } from '../shared/divergent-integration';
@@ -32,9 +32,12 @@ function inside(parent: string, child: string): boolean {
 }
 
 function samePath(first: string, second: string): boolean {
-  const left = realpathSync(first);
-  const right = realpathSync(second);
-  return process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right;
+  const left = statSync(first, { bigint: true });
+  const right = statSync(second, { bigint: true });
+  if (left.ino !== 0n && right.ino !== 0n) return left.dev === right.dev && left.ino === right.ino;
+  const a = realpathSync.native(first);
+  const b = realpathSync.native(second);
+  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
 }
 
 function rowForCard(store: StudioStore, cardId: string): AttemptRow | undefined {
@@ -73,11 +76,13 @@ export function divergentIntegration(store: StudioStore, cardId: string): Diverg
   if (!existsSync(row.path)) return missing('The assigned integration worktree is missing. No Git action was retried.');
   if (lstatSync(row.path).isSymbolicLink()) return missing('The assigned integration path was replaced by a link.');
   try {
-    if ((process.platform === 'win32' ? realpathSync(row.path).toLowerCase() !== row.path.toLowerCase() : realpathSync(row.path) !== row.path)
-      || !samePath(git(row.path, ['rev-parse', '--show-toplevel']).output, row.path)
-      || worktreeRepositoryKey(row.path) !== row.repository_key
-      || git(row.path, ['symbolic-ref', '--quiet', '--short', 'HEAD']).output !== row.branch)
-      return missing('The assigned worktree no longer matches its saved repository and branch.');
+    if (!inside(base, realpathSync(row.path))) return missing('The assigned worktree resolves outside the app-owned directory.');
+    if (!samePath(git(row.path, ['rev-parse', '--show-toplevel']).output, row.path))
+      return missing('The assigned worktree no longer matches its saved Git root.');
+    if (worktreeRepositoryKey(row.path) !== row.repository_key)
+      return missing('The assigned worktree no longer belongs to the saved repository.');
+    if (git(row.path, ['symbolic-ref', '--quiet', '--short', 'HEAD']).output !== row.branch)
+      return missing('The assigned worktree no longer points to its saved branch.');
     const head = git(row.path, ['rev-parse', 'HEAD']).output;
     const savedItem = store.db.prepare('SELECT state, integrated_head FROM integration_items WHERE id = ?').get(row.item_id) as
       { state: string; integrated_head: string | null } | undefined;

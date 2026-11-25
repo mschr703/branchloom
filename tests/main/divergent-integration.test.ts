@@ -115,6 +115,7 @@ describe('divergent integration worktree', () => {
         if (originalCommitterEmail === undefined) delete process.env.GIT_COMMITTER_EMAIL;
         else process.env.GIT_COMMITTER_EMAIL = originalCommitterEmail;
       }
+      expect(attempt.state, attempt.reason ?? 'No reason given').toBe('merging');
       expect(attempt).toMatchObject({ state: 'merging', originalSourceHead: b.head, targetHead: a.head, conflicts: [] });
       expect(existsSync(attempt.path)).toBe(true);
       expect(git(repo, ['rev-parse', 'HEAD'])).toBe(a.head);
@@ -156,6 +157,7 @@ describe('divergent integration worktree', () => {
       prepareIntegration(store, second.id);
       writeFileSync(join(repo, '.git', 'hooks', 'post-checkout'), '#!/bin/sh\nprintf hook > hook-called\n');
       const attempt = startDivergentIntegration(store, second.id);
+      expect(attempt.state, attempt.reason ?? 'No reason given').toBe('merging');
       expect(existsSync(join(attempt.path, 'hook-called'))).toBe(false);
       expect(attempt).toMatchObject({ state: 'merging', conflicts: ['shared.txt'] });
       expect(git(repo, ['rev-parse', 'HEAD'])).toBe(a.head);
@@ -185,6 +187,7 @@ describe('divergent integration worktree', () => {
       prepareIntegration(store, second.id);
       writeFileSync(join(repo, '.git', 'hooks', 'post-checkout'), '#!/bin/sh\nprintf hook > hook-called\n');
       const attempt = startDivergentIntegration(store, second.id);
+      expect(attempt.state, attempt.reason ?? 'No reason given').toBe('merging');
       expect(() => retryMissingDivergentIntegration(store, second.id)).toThrow('not safely retryable');
       git(attempt.path, ['-c', 'user.name=Branchloom Test', '-c', 'user.email=branchloom-test@example.invalid', 'commit', '-qm', 'Merge reviewed changes']);
       commit(attempt.path, ' leading.txt', 'new result file');
