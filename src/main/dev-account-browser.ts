@@ -23,6 +23,7 @@ export class DevAccountBrowser {
   private readonly restoredLogins = new Map<string, 'saved' | 'restored' | 'unavailable'>();
   private readonly restoringLogins = new Map<string, Promise<void>>();
   private readonly loginGenerations = new Map<string, number>();
+  private readonly requestOwnershipChecks = new Map<string, Promise<boolean>>();
 
   constructor(private readonly store: StudioStore, private readonly environments: DevEnvironmentRunner,
     private readonly parentWindow: () => BrowserWindow | null) {}
@@ -32,15 +33,39 @@ export class DevAccountBrowser {
     if (!run || run.state !== 'ready' || !run.managed || !isLocalDevUrl(run.url)) {
       throw new Error('Start a ready, app-managed card preview before using a development account.');
     }
-    return run;
+    // Account cookies must never be restored or sent to an unrelated listener
+    // that took over a previously ready card port.
+    return this.environments.verifyCurrentPreview(cardId, run.id);
   }
 
   private stillAllowed(cardId: string, accountId: string, runId: string, origin: string): boolean {
     try {
-      if (cardDevAccountGrant(this.store, cardId).id !== accountId) return false;
+      if (!this.stillAssigned(cardId, accountId, runId, origin)) return false;
       const current = this.ready(cardId);
       return current.id === runId && new URL(current.url).origin === origin;
     } catch { return false; }
+  }
+
+  private stillAssigned(cardId: string, accountId: string, runId: string, origin: string): boolean {
+    try {
+      if (cardDevAccountGrant(this.store, cardId).id !== accountId) return false;
+      const current = this.environments.card(cardId);
+      return current?.id === runId && current.state === 'ready' && current.managed && new URL(current.url).origin === origin;
+    } catch { return false; }
+  }
+
+  private async requestOwned(target: AccountTarget, accountId: string): Promise<boolean> {
+    if (!this.stillAssigned(target.cardId, accountId, target.runId, target.origin)) return false;
+    const key = `${target.cardId}\0${target.runId}\0${target.origin}`;
+    let pending = this.requestOwnershipChecks.get(key);
+    if (!pending) {
+      pending = this.environments.verifyCurrentPreviewAsync(target.cardId, target.runId)
+        .then((run) => run.state === 'ready' && run.managed && new URL(run.url).origin === target.origin)
+        .catch(() => false)
+        .finally(() => { if (this.requestOwnershipChecks.get(key) === pending) this.requestOwnershipChecks.delete(key); });
+      this.requestOwnershipChecks.set(key, pending);
+    }
+    return await pending && this.stillAssigned(target.cardId, accountId, target.runId, target.origin);
   }
 
   private browserSession(accountId: string): Session {
@@ -51,18 +76,19 @@ export class DevAccountBrowser {
     ses.setPermissionCheckHandler(() => false);
     ses.on('will-download', (event) => event.preventDefault());
     ses.webRequest.onBeforeRequest((details, callback) => {
-      let allowed = false;
+      let targets: AccountTarget[] = [];
       try {
         const origin = new URL(details.url).origin;
-        const targets: AccountTarget[] = [
+        targets = [
           ...[...this.windows].filter(([, entry]) => entry.accountId === accountId && !entry.window.isDestroyed())
             .map(([cardId, entry]) => ({ cardId, origin: entry.origin, runId: entry.runId })),
           ...(this.probes.get(accountId) ?? []),
-        ];
-        allowed = targets.some((target) => target.origin === origin && this.stillAllowed(target.cardId, accountId, target.runId, origin));
+        ].filter((target) => target.origin === origin);
       }
       catch { /* A malformed URL never receives this account's browser session. */ }
-      callback({ cancel: !allowed });
+      if (!targets.length) { callback({ cancel: true }); return; }
+      void Promise.all(targets.map((target) => this.requestOwned(target, accountId)))
+        .then((results) => callback({ cancel: !results.some(Boolean) }), () => callback({ cancel: true }));
     });
     this.sessions.set(accountId, ses);
     return ses;
@@ -94,7 +120,7 @@ export class DevAccountBrowser {
         if (!cookies.length) throw new Error('Saved login has expired.');
         const ses = this.browserSession(accountId);
         for (const cookie of cookies) {
-          if ((this.loginGenerations.get(accountId) ?? 0) !== generation || !this.stillAllowed(cardId, accountId, runId, origin)) return;
+          if ((this.loginGenerations.get(accountId) ?? 0) !== generation || !this.stillAssigned(cardId, accountId, runId, origin)) return;
           await ses.cookies.set(cookie);
         }
         if ((this.loginGenerations.get(accountId) ?? 0) !== generation || !this.stillAllowed(cardId, accountId, runId, origin)) return;
@@ -297,5 +323,5 @@ export class DevAccountBrowser {
   }
 
   closeAll(): void { for (const cardId of [...this.windows.keys()]) this.closeCard(cardId); }
-  dispose(): void { this.closeAll(); this.sessions.clear(); this.probes.clear(); this.seedTickets.clear(); this.restoredLogins.clear(); }
+  dispose(): void { this.closeAll(); this.sessions.clear(); this.probes.clear(); this.seedTickets.clear(); this.restoredLogins.clear(); this.requestOwnershipChecks.clear(); }
 }

@@ -1,6 +1,6 @@
 import { createServer } from 'node:net';
 import { describe, expect, it } from 'vitest';
-import { previewListenerOwnership, windowsLoopbackListenerPid, windowsProcessDescendsFrom } from '../../src/main/preview-listener';
+import { previewListenerOwnership, previewListenerOwnershipAsync, windowsLoopbackListenerPid, windowsProcessDescendsFrom } from '../../src/main/preview-listener';
 
 describe('Windows preview listener ownership', () => {
   it('accepts only a unique loopback listening socket for the requested port', () => {
@@ -26,6 +26,8 @@ describe('Windows preview listener ownership', () => {
       if (!address || typeof address === 'string') throw new Error('Missing local port');
       expect(previewListenerOwnership(address.port, process.pid)).toBe('owned');
       expect(previewListenerOwnership(address.port, Number.MAX_SAFE_INTEGER)).toBe('foreign');
+      expect(await previewListenerOwnershipAsync(address.port, process.pid)).toBe('owned');
+      expect(await previewListenerOwnershipAsync(address.port, Number.MAX_SAFE_INTEGER)).toBe('foreign');
     } finally { await new Promise<void>((resolve) => server.close(() => resolve())); }
   });
 });

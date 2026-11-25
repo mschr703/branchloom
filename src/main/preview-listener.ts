@@ -1,6 +1,8 @@
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
+import { promisify } from 'node:util';
 
 export type PreviewListenerOwnership = 'owned' | 'foreign' | 'unverified' | 'unsupported';
+const execFileAsync = promisify(execFile);
 
 /** netstat's zero remote endpoint identifies a listening IPv4 socket independent of UI language. */
 export function windowsLoopbackListenerPid(output: string, port: number): number | null {
@@ -47,5 +49,27 @@ export function previewListenerOwnership(port: number, rootPid: number): Preview
       encoding: 'utf8', timeout: 6000, windowsHide: true, maxBuffer: 2_000_000,
     });
     return windowsProcessDescendsFrom(processes, listenerPid, rootPid) ? 'owned' : 'foreign';
+  } catch { return 'unverified'; }
+}
+
+/** Asynchronous form for Electron's network interception; never blocks the main event loop on CIM. */
+export async function previewListenerOwnershipAsync(port: number, rootPid: number): Promise<PreviewListenerOwnership> {
+  if (process.platform !== 'win32') return 'unsupported';
+  try {
+    const { stdout: sockets } = await execFileAsync('netstat.exe', ['-ano', '-p', 'tcp'], {
+      encoding: 'utf8', timeout: 2500, windowsHide: true, maxBuffer: 2_000_000,
+    });
+    const listenerPid = windowsLoopbackListenerPid(sockets, port);
+    if (!listenerPid) return 'unverified';
+    if (listenerPid === rootPid) return 'owned';
+    const { stdout: processes } = await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+      "Get-CimInstance Win32_Process | ForEach-Object { '{0},{1}' -f $_.ProcessId,$_.ParentProcessId }"], {
+      encoding: 'utf8', timeout: 6000, windowsHide: true, maxBuffer: 2_000_000,
+    });
+    if (!windowsProcessDescendsFrom(processes, listenerPid, rootPid)) return 'foreign';
+    const { stdout: latestSockets } = await execFileAsync('netstat.exe', ['-ano', '-p', 'tcp'], {
+      encoding: 'utf8', timeout: 2500, windowsHide: true, maxBuffer: 2_000_000,
+    });
+    return windowsLoopbackListenerPid(latestSockets, port) === listenerPid ? 'owned' : 'unverified';
   } catch { return 'unverified'; }
 }

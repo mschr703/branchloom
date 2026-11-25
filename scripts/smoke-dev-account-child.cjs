@@ -35,7 +35,19 @@ app.whenReady().then(async () => {
 
     const runs = new Map([[state.adminCardId, 'admin-run'], [state.userCardId, 'user-run']].map(([cardId, id]) =>
       [cardId, { id, cardId, projectId: state.projectId, url: `http://127.0.0.1:${port}/`, port, state: 'ready', managed: true }]));
-    const environments = { card: (cardId) => runs.get(cardId) ?? null };
+    const environments = {
+      card: (cardId) => runs.get(cardId) ?? null,
+      verifyCurrentPreview: (cardId, expectedRunId) => {
+        const run = runs.get(cardId);
+        if (!run || run.id !== expectedRunId) throw new Error('Preview changed before account use.');
+        return run;
+      },
+      verifyCurrentPreviewAsync: async (cardId, expectedRunId) => {
+        const run = runs.get(cardId);
+        if (!run || run.id !== expectedRunId) throw new Error('Preview changed before account use.');
+        return run;
+      },
+    };
     parent = new BrowserWindow({ show: false, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false } });
     browser = new DevAccountBrowser(store, environments, () => parent);
 

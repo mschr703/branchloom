@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
 import type { CardDevEnvironment, DevEnvironmentAuditEvent, DevEnvironmentProfile, DevEnvironmentState, SaveDevEnvironmentProfile } from '../shared/dev-environment';
 import { ensureCardWorktree } from './git-worktree';
-import { previewListenerOwnership } from './preview-listener';
+import { previewListenerOwnership, previewListenerOwnershipAsync } from './preview-listener';
 import type { StudioStore } from './store';
 
 interface ProfileRow { project_id: string; executable: string; args_json: string; health_path: string; health_marker: string; updated_at: string }
@@ -215,6 +215,21 @@ export class DevEnvironmentRunner {
     if (!run || run.id !== expectedRunId || run.state !== 'ready' || !run.managed || !child?.pid)
       throw new Error('The card preview is no longer managed and ready. Refresh its status.');
     const ownership = previewListenerOwnership(run.port, child.pid);
+    if (ownership === 'foreign') throw new Error('Another process owns this preview port. Stop this preview and inspect the port before retrying.');
+    if (ownership === 'unverified') throw new Error('The preview port owner could not be verified. Refresh the preview status before retrying.');
+    return run;
+  }
+
+  /** Network interception waits for OS ownership without blocking Electron's main event loop. */
+  async verifyCurrentPreviewAsync(cardId: string, expectedRunId: string): Promise<CardDevEnvironment> {
+    const run = this.card(cardId);
+    const child = run && this.children.get(run.id);
+    if (!run || run.id !== expectedRunId || run.state !== 'ready' || !run.managed || !child?.pid)
+      throw new Error('The card preview is no longer managed and ready. Refresh its status.');
+    const ownership = await previewListenerOwnershipAsync(run.port, child.pid);
+    const current = this.card(cardId);
+    if (this.children.get(run.id) !== child || current?.id !== run.id || current.state !== 'ready' || !current.managed)
+      throw new Error('The card preview changed during listener verification.');
     if (ownership === 'foreign') throw new Error('Another process owns this preview port. Stop this preview and inspect the port before retrying.');
     if (ownership === 'unverified') throw new Error('The preview port owner could not be verified. Refresh the preview status before retrying.');
     return run;

@@ -101,15 +101,76 @@ function fixture() {
   for (const [card, account] of [[first, admin], [second, user]] as const) assignDevAccount(store, { projectId: project.id, cardId: card.id, accountId: account.id,
     expectedCardRevision: devAccountOverview(store, { projectId: project.id, cardId: card.id }).cardRevision });
   const runs = new Map<string, CardDevEnvironment>();
+  const foreign = new Set<string>();
   for (const [card, port] of [[first, 55101], [second, 55102]] as const) runs.set(card.id, { id: `run-${port}`, cardId: card.id, projectId: project.id,
     url: `http://127.0.0.1:${port}/`, port, state: 'ready', managed: true } as CardDevEnvironment);
-  const environment = { card: (id: string) => runs.get(id) ?? null } as unknown as DevEnvironmentRunner;
+  const environment = {
+    card: (id: string) => runs.get(id) ?? null,
+    verifyCurrentPreview: (cardId: string, expectedRunId: string) => {
+      const run = runs.get(cardId);
+      if (!run || run.id !== expectedRunId || foreign.has(cardId)) throw new Error('Another process owns this preview port.');
+      return run;
+    },
+    verifyCurrentPreviewAsync: async (cardId: string, expectedRunId: string) => {
+      const run = runs.get(cardId);
+      if (!run || run.id !== expectedRunId || foreign.has(cardId)) throw new Error('Another process owns this preview port.');
+      return run;
+    },
+  } as unknown as DevEnvironmentRunner;
   const parent = { isDestroyed: () => false } as unknown as BrowserWindow;
   const browser = new DevAccountBrowser(store, environment, () => parent);
-  return { root, store, project, first, second, admin, user, runs, environment, parent, browser };
+  return { root, store, project, first, second, admin, user, runs, foreign, environment, parent, browser };
+}
+
+function requestCancelled(session: { requestHandler: ((details: { url: string }, callback: (result: { cancel: boolean }) => void) => void) | null }, url: string): Promise<boolean> {
+  return new Promise((resolve) => session.requestHandler!({ url }, (result) => resolve(result.cancel)));
 }
 
 describe('isolated development account windows', () => {
+  it('blocks saved-cookie restoration, account requests and seed writes after a foreign listener takes a ready port', async () => {
+    const f = fixture();
+    f.browser.saveSeedConfig({ cardId: f.first.id, path: '/__branchloom/accounts' });
+    await f.browser.open(f.first.id);
+    const adminSession = mocked.sessions.get(`branchloom-dev-account-${f.admin.id}`)!;
+    adminSession.identity = { subject: f.admin.subject, role: f.admin.role };
+    await adminSession.cookies.set({ url: f.runs.get(f.first.id)!.url, name: 'f08', value: 'admin' });
+    expect((await f.browser.probe(f.first.id)).state).toBe('verified');
+    expect((await f.browser.saveLogin(f.first.id)).state).toBe('saved');
+    const before = adminSession.fetches.length;
+    f.foreign.add(f.first.id);
+    expect(await requestCancelled(adminSession, f.runs.get(f.first.id)!.url + 'api/me')).toBe(true);
+    await expect(f.browser.open(f.first.id)).rejects.toThrow('Another process owns');
+    await expect(f.browser.probe(f.first.id)).rejects.toThrow('Another process owns');
+    await expect(f.browser.checkSeed(f.first.id, f.user.id)).rejects.toThrow('Another process owns');
+    await expect(f.browser.saveLogin(f.first.id)).rejects.toThrow('Another process owns');
+    expect(adminSession.fetches).toHaveLength(before);
+    expect(adminSession.seedPosts).toBe(0);
+    f.browser.dispose(); mocked.sessions.clear();
+    const restarted = new DevAccountBrowser(f.store, f.environment, () => f.parent);
+    await expect(restarted.probe(f.first.id)).rejects.toThrow('Another process owns');
+    expect(mocked.sessions.has(`branchloom-dev-account-${f.admin.id}`)).toBe(false);
+    restarted.dispose();
+  });
+
+  it('coalesces concurrent listener checks and rechecks a revoked grant before releasing requests', async () => {
+    const f = fixture();
+    await f.browser.open(f.first.id);
+    const adminSession = mocked.sessions.get(`branchloom-dev-account-${f.admin.id}`)!;
+    const run = f.runs.get(f.first.id)!;
+    let release: ((value: CardDevEnvironment) => void) | undefined;
+    const check = vi.fn(() => new Promise<CardDevEnvironment>((resolve) => { release = resolve; }));
+    f.environment.verifyCurrentPreviewAsync = check;
+    const first = requestCancelled(adminSession, run.url + 'api/me');
+    const second = requestCancelled(adminSession, run.url + 'style.css');
+    expect(check).toHaveBeenCalledTimes(1);
+    assignDevAccount(f.store, { projectId: f.project.id, cardId: f.first.id, accountId: null,
+      expectedCardRevision: devAccountOverview(f.store, { projectId: f.project.id, cardId: f.first.id }).cardRevision });
+    release!(run);
+    expect(await first).toBe(true);
+    expect(await second).toBe(true);
+    f.browser.dispose();
+  });
+
   it('uses separate memory-only browser partitions for two cards and probes their own identities', async () => {
     const f = fixture();
     expect(await f.browser.open(f.first.id)).toBe('http://127.0.0.1:55101/');
@@ -119,10 +180,9 @@ describe('isolated development account windows', () => {
     const userSession = mocked.sessions.get(`branchloom-dev-account-${f.user.id}`)!;
     expect(adminSession).not.toBe(userSession);
     expect([...mocked.sessions.keys()].every((name) => !name.startsWith('persist:'))).toBe(true);
-    const checkRequest = (ses: typeof adminSession, url: string) => { let cancelled: boolean | null = null; ses.requestHandler!({ url }, (result) => { cancelled = result.cancel; }); return cancelled; };
-    expect(checkRequest(adminSession, 'http://127.0.0.1:55101/api/me')).toBe(false);
-    expect(checkRequest(adminSession, 'https://external.example/collect')).toBe(true);
-    expect(checkRequest(adminSession, 'http://127.0.0.1:55102/api/me')).toBe(true);
+    expect(await requestCancelled(adminSession, 'http://127.0.0.1:55101/api/me')).toBe(false);
+    expect(await requestCancelled(adminSession, 'https://external.example/collect')).toBe(true);
+    expect(await requestCancelled(adminSession, 'http://127.0.0.1:55102/api/me')).toBe(true);
     adminSession.identity = { subject: f.admin.subject, role: f.admin.role };
     userSession.identity = { subject: f.user.subject, role: f.user.role };
     expect((await f.browser.probe(f.first.id)).state).toBe('verified');
@@ -136,9 +196,7 @@ describe('isolated development account windows', () => {
     const ses = mocked.sessions.get(`branchloom-dev-account-${f.admin.id}`)!;
     ses.identity = { subject: f.admin.subject, role: f.admin.role };
     f.runs.set(f.first.id, { ...f.runs.get(f.first.id)!, id: 'new-run', port: 55200, url: 'http://127.0.0.1:55200/' });
-    let staleCancelled = false;
-    ses.requestHandler!({ url: 'http://127.0.0.1:55101/api/me' }, (result) => { staleCancelled = result.cancel; });
-    expect(staleCancelled).toBe(true);
+    expect(await requestCancelled(ses, 'http://127.0.0.1:55101/api/me')).toBe(true);
     expect((await f.browser.probe(f.first.id)).state).toBe('verified');
     expect(mocked.windows[0]?.destroyed).toBe(true);
     await f.browser.forget(f.admin.id);
@@ -170,7 +228,12 @@ describe('isolated development account windows', () => {
     await expect(f.browser.createSeed(f.first.id, f.user.id, check.id!)).rejects.toThrow('expired');
     expect((await f.browser.checkSeed(f.first.id, f.user.id)).state).toBe('exists');
     ses.seedRows.clear(); // The target app reset its own database.
-    expect((await f.browser.checkSeed(f.first.id, f.user.id)).state).toBe('missing');
+    const afterReset = await f.browser.checkSeed(f.first.id, f.user.id);
+    expect(afterReset.state).toBe('missing');
+    expect(ses.seedPosts).toBe(1); // A missing result alone never writes.
+    expect((await f.browser.createSeed(f.first.id, f.user.id, afterReset.id!)).state).toBe('created');
+    expect(ses.seedPosts).toBe(2);
+    expect((await f.browser.checkSeed(f.first.id, f.user.id)).state).toBe('exists');
     f.browser.dispose();
   });
 
