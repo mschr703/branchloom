@@ -10,12 +10,12 @@ const preview: ManualMergePreview = {
     appliedAt: null, appliedHash: null },
   sourceHead: 'source', targetHead: 'head', base: 'title=Old\n', manual: 'title=Maxim\n', agent: 'title=Agent\n',
   combined: '', hasConflicts: true,
-  conflicts: [{ id: 'conflict', base: 'title=Old\n', manual: 'title=Maxim\n', agent: 'title=Agent\n', choice: null, chosenAt: null }],
+  conflicts: [{ id: 'conflict', base: 'title=Old\n', manual: 'title=Maxim\n', agent: 'title=Agent\n', choice: null, customText: null, chosenAt: null }],
   resolvedCombined: null, resolutionToken: 'resolution', staleReason: null, previewToken: 'preview',
 };
 
 describe('manual conflict choice view', () => {
-  it('shows each version and two explicit options for an unresolved conflict', () => {
+  it('shows each version and an explicit editor for an unresolved conflict', () => {
     const html = renderToStaticMarkup(createElement(ManualConflictChoices, { preview, busy: false, onChoose: () => {} }));
     expect(html).toContain('Überschneidung 1 von 1 · Entscheidung offen');
     expect(html).toContain('title=Old');
@@ -23,7 +23,23 @@ describe('manual conflict choice view', () => {
     expect(html).toContain('title=Agent');
     expect(html).toContain('Manuelle Fassung übernehmen');
     expect(html).toContain('Agentenfassung übernehmen');
+    expect(html).toContain('Eigene Fassung schreiben');
     expect(html).not.toContain('checked=""');
+  });
+
+  it('shows a bounded text editor separately from the persisted custom choice', () => {
+    const html = renderToStaticMarkup(createElement(ManualConflictChoices, { preview, busy: false,
+      editingConflictId: 'conflict', editedText: 'title=Both\n', onChoose: () => {}, onEdit: () => {},
+      onEditText: () => {}, onCancelEdit: () => {} }));
+    expect(html).toContain('Eigene Fassung für diesen Konfliktblock');
+    expect(html).toContain('title=Both');
+    expect(html).toContain('maxLength="32768"');
+    expect(html).toContain('Auswahl speichern');
+    const saved = renderToStaticMarkup(createElement(ManualConflictChoices, { preview: {
+      ...preview, conflicts: [{ ...preview.conflicts[0]!, choice: 'custom', customText: 'title=Both\n' }],
+    }, busy: false, onChoose: () => {} }));
+    expect(saved).toContain('Gespeicherte eigene Fassung');
+    expect(saved).toContain('title=Both');
   });
 
   it('shows the persisted choice and disables inputs when the preview is stale', () => {

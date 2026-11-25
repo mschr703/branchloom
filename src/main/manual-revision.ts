@@ -8,6 +8,7 @@ import { reviewCardWorktree } from './git-worktree';
 import type { StudioStore } from './store';
 
 const MAX_TEXT = 128 * 1024;
+const MAX_CONFLICT_EDIT = 32 * 1024;
 const hash = (value: Buffer | string): string => createHash('sha256').update(value).digest('hex');
 const stamp = (): string => new Date().toISOString();
 
@@ -34,6 +35,12 @@ export function installManualRevisions(store: StudioStore): void {
     choice TEXT NOT NULL CHECK (choice IN ('manual', 'agent')),
     decision_id TEXT NOT NULL,
     chosen_at TEXT NOT NULL,
+    PRIMARY KEY (revision_id, preview_token, conflict_id)
+  );`);
+  store.db.exec(`CREATE TABLE IF NOT EXISTS manual_revision_conflict_edits (
+    revision_id TEXT NOT NULL REFERENCES manual_file_revisions(id) ON DELETE CASCADE,
+    preview_token TEXT NOT NULL, conflict_id TEXT NOT NULL,
+    custom_text TEXT NOT NULL, decision_id TEXT NOT NULL, chosen_at TEXT NOT NULL,
     PRIMARY KEY (revision_id, preview_token, conflict_id)
   );`);
 }
@@ -94,14 +101,27 @@ function conflictBlocks(combined: string, expectedCount: number): ConflictBlock[
   return blocks;
 }
 
-function resolveBlocks(combined: string, blocks: ConflictBlock[], choices: Map<string, 'manual' | 'agent'>): string | null {
+type Resolution = { choice: 'manual' | 'agent' | 'custom'; customText: string | null };
+function resolveBlocks(combined: string, blocks: ConflictBlock[], choices: Map<string, Resolution>): string | null {
   if (blocks.some((block) => !choices.has(block.id))) return null;
   let result = ''; let position = 0;
   for (const block of blocks) {
-    result += combined.slice(position, block.start) + (choices.get(block.id) === 'manual' ? block.manual : block.agent);
+    const selected = choices.get(block.id)!;
+    result += combined.slice(position, block.start)
+      + (selected.choice === 'custom' ? selected.customText! : selected.choice === 'manual' ? block.manual : block.agent);
     position = block.end;
   }
-  return result + combined.slice(position);
+  result += combined.slice(position);
+  textFile(Buffer.from(result, 'utf8'));
+  return result;
+}
+
+function customConflictText(value: unknown): string {
+  if (typeof value !== 'string') throw new Error('Enter the edited conflict text.');
+  const bytes = Buffer.from(value, 'utf8');
+  if (bytes.length > MAX_CONFLICT_EDIT || textFile(bytes) !== value)
+    throw new Error('The edited conflict must be valid UTF-8 text up to 32 KiB.');
+  return value;
 }
 
 function compareText(base: string, manual: string, agent: string): { combined: string; hasConflicts: boolean; blocks: ConflictBlock[] } {
@@ -181,30 +201,53 @@ export function previewManualRevision(store: StudioStore, id: string): ManualMer
     review.sourceHead, hash(comparison.combined), staleReason]));
   const savedChoices = store.db.prepare('SELECT conflict_id, choice, chosen_at, decision_id FROM manual_revision_conflict_choices WHERE revision_id = ? AND preview_token = ?')
     .all(saved.id, previewToken) as Array<{ conflict_id: string; choice: 'manual' | 'agent'; chosen_at: string; decision_id: string }>;
-  const byId = new Map(savedChoices.map((choice) => [choice.conflict_id, choice]));
+  const savedEdits = store.db.prepare('SELECT conflict_id, custom_text, chosen_at, decision_id FROM manual_revision_conflict_edits WHERE revision_id = ? AND preview_token = ?')
+    .all(saved.id, previewToken) as Array<{ conflict_id: string; custom_text: string; chosen_at: string; decision_id: string }>;
+  const byId = new Map<string, { choice: Resolution['choice']; customText: string | null; chosenAt: string; decisionId: string }>([
+    ...savedChoices.map((selected) => [selected.conflict_id, { choice: selected.choice, customText: null,
+      chosenAt: selected.chosen_at, decisionId: selected.decision_id }] as const),
+    ...savedEdits.map((selected) => [selected.conflict_id, { choice: 'custom' as const, customText: selected.custom_text,
+      chosenAt: selected.chosen_at, decisionId: selected.decision_id }] as const),
+  ]);
   const conflicts = comparison.blocks.map((block) => ({ id: block.id, base: block.base, manual: block.manual, agent: block.agent,
-    choice: byId.get(block.id)?.choice ?? null, chosenAt: byId.get(block.id)?.chosen_at ?? null }));
-  const chosen = new Map(conflicts.filter((conflict) => conflict.choice !== null).map((conflict) => [conflict.id, conflict.choice!]));
+    choice: byId.get(block.id)?.choice ?? null, customText: byId.get(block.id)?.customText ?? null,
+    chosenAt: byId.get(block.id)?.chosenAt ?? null }));
+  const chosen = new Map(conflicts.filter((conflict) => conflict.choice !== null).map((conflict) => [conflict.id,
+    { choice: conflict.choice!, customText: conflict.customText }]));
   const resolvedCombined = resolveBlocks(comparison.combined, comparison.blocks, chosen);
   const resolutionToken = hash(JSON.stringify([previewToken, conflicts.map((conflict) => [conflict.id, conflict.choice,
-    byId.get(conflict.id)?.decision_id ?? null])]));
+    byId.get(conflict.id)?.decisionId ?? null])]));
   return { revision: publicRow(saved), sourceHead: review.sourceHead, targetHead: review.targetHead,
     base: saved.base_text, manual: saved.manual_text, agent, combined: comparison.combined, hasConflicts: comparison.hasConflicts,
     conflicts, resolvedCombined, resolutionToken, staleReason, previewToken };
 }
 
-export function setManualRevisionConflictChoice(store: StudioStore, input: { revisionId: string; previewToken: string; conflictId: string; choice: 'manual' | 'agent' | null }): ManualMergePreview {
+export function setManualRevisionConflictChoice(store: StudioStore, input: { revisionId: string; previewToken: string; conflictId: string;
+  choice: 'manual' | 'agent' | 'custom' | null; customText?: string }): ManualMergePreview {
   return store.db.transaction(() => {
     const preview = previewManualRevision(store, input.revisionId);
     if (preview.previewToken !== input.previewToken || preview.staleReason) throw new Error('The comparison is stale. Refresh it before choosing a conflict result.');
     if (!preview.conflicts.some((conflict) => conflict.id === input.conflictId)) throw new Error('Conflict no longer belongs to this comparison.');
-    if (input.choice !== null && input.choice !== 'manual' && input.choice !== 'agent') throw new Error('Choose the manual or agent version.');
-    if (input.choice === null) store.db.prepare('DELETE FROM manual_revision_conflict_choices WHERE revision_id = ? AND preview_token = ? AND conflict_id = ?')
-      .run(input.revisionId, input.previewToken, input.conflictId);
-    else store.db.prepare(`INSERT INTO manual_revision_conflict_choices (revision_id, preview_token, conflict_id, choice, decision_id, chosen_at)
+    if (input.choice !== null && input.choice !== 'manual' && input.choice !== 'agent' && input.choice !== 'custom')
+      throw new Error('Choose a manual, agent or edited conflict result.');
+    if (input.choice === 'custom') {
+      const edited = customConflictText(input.customText);
+      store.db.prepare('DELETE FROM manual_revision_conflict_choices WHERE revision_id = ? AND preview_token = ? AND conflict_id = ?')
+        .run(input.revisionId, input.previewToken, input.conflictId);
+      store.db.prepare(`INSERT INTO manual_revision_conflict_edits (revision_id, preview_token, conflict_id, custom_text, decision_id, chosen_at)
+        VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(revision_id, preview_token, conflict_id)
+        DO UPDATE SET custom_text=excluded.custom_text, decision_id=excluded.decision_id, chosen_at=excluded.chosen_at`)
+        .run(input.revisionId, input.previewToken, input.conflictId, edited, randomUUID(), stamp());
+    } else {
+      store.db.prepare('DELETE FROM manual_revision_conflict_edits WHERE revision_id = ? AND preview_token = ? AND conflict_id = ?')
+        .run(input.revisionId, input.previewToken, input.conflictId);
+      if (input.choice === null) store.db.prepare('DELETE FROM manual_revision_conflict_choices WHERE revision_id = ? AND preview_token = ? AND conflict_id = ?')
+        .run(input.revisionId, input.previewToken, input.conflictId);
+      else store.db.prepare(`INSERT INTO manual_revision_conflict_choices (revision_id, preview_token, conflict_id, choice, decision_id, chosen_at)
       VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(revision_id, preview_token, conflict_id)
       DO UPDATE SET choice=excluded.choice, decision_id=excluded.decision_id, chosen_at=excluded.chosen_at`)
-      .run(input.revisionId, input.previewToken, input.conflictId, input.choice, randomUUID(), stamp());
+        .run(input.revisionId, input.previewToken, input.conflictId, input.choice, randomUUID(), stamp());
+    }
     return previewManualRevision(store, input.revisionId);
   }).immediate();
 }

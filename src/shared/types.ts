@@ -352,7 +352,8 @@ export interface StudioAPI {
   manualRevisions(cardId: string): Promise<import('./manual-revision').ManualRevision[]>;
   captureManualRevision(input: { cardId: string; path: string }): Promise<import('./manual-revision').ManualRevision>;
   previewManualRevision(id: string): Promise<import('./manual-revision').ManualMergePreview>;
-  setManualRevisionConflictChoice(input: { revisionId: string; previewToken: string; conflictId: string; choice: 'manual' | 'agent' | null }): Promise<import('./manual-revision').ManualMergePreview>;
+  setManualRevisionConflictChoice(input: { revisionId: string; previewToken: string; conflictId: string;
+    choice: 'manual' | 'agent' | 'custom' | null; customText?: string }): Promise<import('./manual-revision').ManualMergePreview>;
   applyManualRevision(input: { revisionId: string; previewToken: string; resolutionToken?: string; confirm: boolean }): Promise<import('./manual-revision').ManualRevision>;
   enqueueIntegration(cardId: string): Promise<IntegrationItem>;
   prepareIntegration(cardId: string): Promise<IntegrationItem>;

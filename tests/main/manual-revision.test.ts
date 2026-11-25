@@ -126,6 +126,52 @@ describe('manual file revisions', () => {
     expect(reviewCardWorktree(reopened, card.id)?.targetStatus).toContain(' M form.txt');
   });
 
+  it('persists an edited conflict block and preserves the agent edit outside it', () => {
+    const { store, card, repo, worktree, dbPath, base } = fixture();
+    commitAgent(worktree.path, base.replace('title=Old', 'title=Agent').replace('validation=none', 'validation=required'));
+    const manual = base.replace('title=Old', 'title=Maxim');
+    writeFileSync(join(repo, 'form.txt'), manual);
+    const revision = captureManualRevision(store, { cardId: card.id, path: 'form.txt' });
+    const original = previewManualRevision(store, revision.id);
+    const edited = 'title=Maxim + Agent\n';
+    const chosen = setManualRevisionConflictChoice(store, { revisionId: revision.id, previewToken: original.previewToken,
+      conflictId: original.conflicts[0]!.id, choice: 'custom', customText: edited });
+    expect(chosen.conflicts[0]).toMatchObject({ choice: 'custom', customText: edited });
+    expect(chosen.resolvedCombined).toBe(base.replace('title=Old\n', edited).replace('validation=none', 'validation=required'));
+    expect(() => applyManualRevision(store, { revisionId: revision.id, previewToken: chosen.previewToken,
+      resolutionToken: original.resolutionToken, confirm: true })).toThrow('choices changed');
+    store.close(); stores.splice(stores.indexOf(store), 1);
+    const reopened = new StudioStore(dbPath); stores.push(reopened);
+    const restored = previewManualRevision(reopened, revision.id);
+    expect(restored.conflicts[0]).toMatchObject({ choice: 'custom', customText: edited });
+    expect(restored.resolutionToken).toBe(chosen.resolutionToken);
+    applyManualRevision(reopened, { revisionId: revision.id, previewToken: restored.previewToken,
+      resolutionToken: restored.resolutionToken, confirm: true });
+    expect(readFileSync(join(repo, 'form.txt'), 'utf8')).toBe(chosen.resolvedCombined);
+  });
+
+  it('rejects invalid or stale edited conflict text without changing the stored choice or target', () => {
+    const { store, card, repo, worktree, base } = fixture();
+    commitAgent(worktree.path, base.replace('title=Old', 'title=Agent'));
+    const manual = base.replace('title=Old', 'title=Maxim');
+    writeFileSync(join(repo, 'form.txt'), manual);
+    const revision = captureManualRevision(store, { cardId: card.id, path: 'form.txt' });
+    const original = previewManualRevision(store, revision.id);
+    const input = { revisionId: revision.id, previewToken: original.previewToken, conflictId: original.conflicts[0]!.id };
+    expect(() => setManualRevisionConflictChoice(store, { ...input, choice: 'custom' })).toThrow('Enter');
+    expect(() => setManualRevisionConflictChoice(store, { ...input, choice: 'custom', customText: 'a'.repeat(33 * 1024) })).toThrow('32 KiB');
+    expect(() => setManualRevisionConflictChoice(store, { ...input, choice: 'custom', customText: 'bad\0text' })).toThrow('UTF-8');
+    expect(() => setManualRevisionConflictChoice(store, { ...input, choice: 'custom', customText: '\ud800' })).toThrow('32 KiB');
+    expect(previewManualRevision(store, revision.id).conflicts[0]?.choice).toBeNull();
+    const chosen = setManualRevisionConflictChoice(store, { ...input, choice: 'custom', customText: 'title=Both\n' });
+    const newer = manual.replace('spacing=8', 'spacing=10');
+    writeFileSync(join(repo, 'form.txt'), newer);
+    expect(() => setManualRevisionConflictChoice(store, { ...input, choice: 'custom', customText: 'title=Different\n' })).toThrow('stale');
+    expect(() => applyManualRevision(store, { revisionId: revision.id, previewToken: chosen.previewToken,
+      resolutionToken: chosen.resolutionToken, confirm: true })).toThrow('stale');
+    expect(readFileSync(join(repo, 'form.txt'), 'utf8')).toBe(newer);
+  });
+
   it('requires a choice for each separate overlap and rejects stale selections', () => {
     const { store, card, repo, worktree, base } = fixture();
     commitAgent(worktree.path, base.replace('title=Old', 'title=Agent').replace('validation=none', 'validation=agent'));

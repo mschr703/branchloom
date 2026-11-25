@@ -16,10 +16,17 @@
 .manual-revision-conflicts legend { padding-right: 8px; font-size: 12px; font-weight: 700; }
 .manual-revision-choices { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 10px 0 4px; }
 .manual-revision-choices label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; }
+.manual-revision-choices button { padding: 0; font-size: 12px; }
+.manual-revision-editor { display: grid; gap: 7px; max-width: 100%; margin: 10px 0; }
+.manual-revision-editor label, .manual-revision-custom h4 { font-size: 12px; font-weight: 650; }
+.manual-revision-editor textarea { width: 100%; min-height: 128px; padding: 10px; resize: vertical; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text); font: 12px/1.5 var(--mono, ui-monospace, monospace); }
+.manual-revision-editor-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.manual-revision-custom { display: grid; gap: 5px; margin: 8px 0; }
+.manual-revision-custom h4 { margin: 0; }
 .manual-revision-conflicts small { color: var(--muted); }
 .manual-revision-variants h4 { margin: 0 0 5px; font-size: 12px; }
 .manual-revision-result pre { max-height: 180px; margin: 0; padding: 10px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--border); border-radius: 5px; font-size: 11px; line-height: 1.45; }
 .manual-revision-result summary { cursor: pointer; font-size: 12px; }
 .manual-revision-result > button { justify-self: start; }
-.manual-revision :is(button, select, input):focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.manual-revision :is(button, select, input, textarea):focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 @media (max-width: 720px) { .manual-revision-variants { grid-template-columns: 1fr; } }
