@@ -39,4 +39,16 @@
 .api-contract__history { margin-top: 20px; font-size: 12px; color: var(--muted); }
 .api-contract__history p { margin: 8px 0; }
 .api-contract__empty { margin-top: 20px; font-size: 12px; color: var(--muted); }
+.api-contract__http { border-top: 1px solid var(--border); padding-top: 20px; }
+.api-contract__http-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; max-width: 620px; margin: 14px 0 6px; }
+.api-contract__http-row > div { display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+.api-contract__http-row small, .api-contract__http-result small { color: var(--muted); }
+.api-contract__http-address { line-height: 1.6; overflow-wrap: anywhere; }
+.api-contract__http-address button { margin-left: 8px; }
+.api-contract__http-check { display: flex; align-items: end; gap: 10px; max-width: 620px; margin: 16px 0; }
+.api-contract__http-check label { flex: 1; display: grid; gap: 5px; font-size: 12px; font-weight: 600; }
+.api-contract__http-result { border-left: 2px solid var(--border); padding: 3px 0 3px 12px; font-size: 12px; }
+.api-contract__http-result strong, .api-contract__http-result small { display: block; margin: 2px 0; }
+.api-contract__http-result p { margin: 4px 0; overflow-wrap: anywhere; }
+@media (max-width: 540px) { .api-contract__http-check { align-items: stretch; flex-direction: column; } .api-contract__http-check button { align-self: flex-start; } }
 @media (max-width: 720px) { .api-contract__editor, .api-contract__preview, .api-contract__error-case, .api-contract__sample { display: block; } .api-contract__editor > *, .api-contract__error-case > *, .api-contract__sample > * { margin-top: 10px; } .api-contract__field { grid-template-columns: minmax(100px, 1fr) 100px 74px 30px; gap: 4px; } .api-contract__cards > div { grid-template-columns: 1fr auto; } .api-contract__cards small { grid-column: 1; } }

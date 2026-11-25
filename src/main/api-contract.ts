@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type Database from 'better-sqlite3';
-import type { ApiContractCardBinding, ApiContractCheck, ApiContractDraft, ApiContractField, ApiContractMismatch, ApiContractOverview, ApiContractPreview, ApiContractVersion } from '../shared/api-contract';
+import type { ApiContractCardBinding, ApiContractCheck, ApiContractDraft, ApiContractField, ApiContractLiveCheck, ApiContractMismatch, ApiContractOverview, ApiContractPreview, ApiContractVersion } from '../shared/api-contract';
 import type { StudioStore } from './store';
 
 interface VersionRow { project_id: string; revision: number; fingerprint: string; draft_json: string; example_json: string; error_json: string; created_at: string }
@@ -26,6 +26,14 @@ export function installApiContracts(db: Database.Database): void {
     session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
     project_id TEXT NOT NULL, revision INTEGER NOT NULL, fingerprint TEXT NOT NULL
   );`);
+  db.exec(`CREATE TABLE IF NOT EXISTS api_contract_live_checks (
+    id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    revision INTEGER NOT NULL, fingerprint TEXT NOT NULL, url TEXT NOT NULL,
+    checked_at TEXT NOT NULL, status INTEGER, valid INTEGER NOT NULL,
+    mismatches_json TEXT NOT NULL,
+    FOREIGN KEY(project_id, revision) REFERENCES api_contract_versions(project_id, revision) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_api_contract_live_checks_project ON api_contract_live_checks(project_id, checked_at DESC);`);
 }
 
 function normalizedDraft(input: ApiContractDraft): ApiContractDraft {
@@ -64,6 +72,38 @@ function checkedVersion(store: StudioStore, projectId: string, revision: number)
   const row = store.db.prepare('SELECT * FROM api_contract_versions WHERE project_id = ? AND revision = ?').get(projectId, revision) as VersionRow | undefined;
   if (!row) throw new Error('API contract revision not found in this project.');
   return version(row);
+}
+export function latestApiContractVersion(store: StudioStore, projectId: string): ApiContractVersion | null {
+  const latest = latestRevision(store, projectId);
+  return latest ? checkedVersion(store, projectId, latest) : null;
+}
+
+export function apiContractLiveChecks(store: StudioStore, projectId: string): ApiContractLiveCheck[] {
+  store.project(projectId);
+  const latest = latestRevision(store, projectId);
+  const rows = store.db.prepare('SELECT * FROM api_contract_live_checks WHERE project_id = ? ORDER BY checked_at DESC, rowid DESC LIMIT 20').all(projectId) as Array<{
+    id: string; project_id: string; revision: number; fingerprint: string; url: string; checked_at: string;
+    status: number | null; valid: number; mismatches_json: string;
+  }>;
+  return rows.map((row) => ({ id: row.id, projectId: row.project_id, revision: row.revision, fingerprint: row.fingerprint,
+    url: row.url, checkedAt: row.checked_at, status: row.status, valid: Boolean(row.valid), current: row.revision === latest,
+    mismatches: JSON.parse(row.mismatches_json) as ApiContractMismatch[] }));
+}
+
+export function saveApiContractLiveCheck(store: StudioStore, check: Omit<ApiContractLiveCheck, 'current'>): ApiContractLiveCheck {
+  store.db.transaction(() => {
+    const contract = checkedVersion(store, check.projectId, check.revision);
+    if (contract.fingerprint !== check.fingerprint) throw new Error('API contract fingerprint changed.');
+    store.db.prepare(`INSERT INTO api_contract_live_checks
+      (id, project_id, revision, fingerprint, url, checked_at, status, valid, mismatches_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(check.id, check.projectId, check.revision, check.fingerprint, check.url, check.checkedAt, check.status,
+        check.valid ? 1 : 0, JSON.stringify(check.mismatches.slice(0, 50)));
+    store.db.prepare(`DELETE FROM api_contract_live_checks WHERE project_id = ? AND id NOT IN
+      (SELECT id FROM api_contract_live_checks WHERE project_id = ? ORDER BY checked_at DESC, rowid DESC LIMIT 200)`)
+      .run(check.projectId, check.projectId);
+  })();
+  return { ...check, current: check.revision === latestRevision(store, check.projectId) };
 }
 
 export function previewApiContract(store: StudioStore, input: { projectId: string; draft: ApiContractDraft }): ApiContractPreview {

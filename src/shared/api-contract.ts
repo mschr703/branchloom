@@ -39,3 +39,25 @@ export interface ApiContractCheck {
   valid: boolean;
   mismatches: ApiContractMismatch[];
 }
+export interface ApiContractMockState {
+  projectId: string;
+  running: boolean;
+  revision: number | null;
+  fingerprint: string | null;
+  url: string | null;
+  errorUrl: string | null;
+  startedAt: string | null;
+  current: boolean;
+}
+export interface ApiContractLiveCheck {
+  id: string;
+  projectId: string;
+  revision: number;
+  fingerprint: string;
+  url: string;
+  checkedAt: string;
+  status: number | null;
+  valid: boolean;
+  current: boolean;
+  mismatches: ApiContractMismatch[];
+}

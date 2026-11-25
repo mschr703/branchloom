@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ApiContractCheck, ApiContractDraft, ApiContractOverview, ApiContractPreview } from '../../shared/api-contract';
 import type { Card } from '../../shared/types';
+import { ApiContractHttpPanel } from './ApiContractHttpPanel';
 import './api-contract-panel.css';
 
 const INITIAL: ApiContractDraft = {
@@ -73,6 +74,7 @@ export function ApiContractPanel({ projectId, cards }: Props) {
     {preview ? <div className="api-contract__preview"><div><strong>Lokale Beispielantwort · 200</strong><pre>{JSON.stringify(preview.example, null, 2)}</pre></div><div><strong>Fehler · {preview.draft.error.status}</strong><pre>{JSON.stringify(preview.errorExample, null, 2)}</pre></div><small>SHA-256 {preview.fingerprint.slice(0, 16)}… · Statisches Beispiel, kein laufender Server.</small></div> : null}
     {latest ? <><div className="api-contract__section"><h4>Karten mit dieser Revision</h4><p>Gebundene Karten erhalten denselben Vertrag im Agentenauftrag. Alte Bindungen blockieren neue Starts.</p><div className="api-contract__cards">{cards.filter((card) => !card.archivedAt).map((card) => { const binding = overview?.bindings.find((item) => item.cardId === card.id); return <div key={card.id}><span>{card.title}</span><small>{binding ? `Revision ${binding.revision}${binding.current ? '' : ' · veraltet'}` : 'Nicht verbunden'}</small><button type="button" disabled={pending} onClick={() => void bind(card.id, binding?.current ? null : latest.revision)}>{binding?.current ? 'Lösen' : 'Verbinden'}</button></div>; })}</div></div>
       <div className="api-contract__section"><h4>Antwort prüfen</h4><p>Füge eine JSON-Antwort ein. Der Check vergleicht Felder und Typen mit Revision {latest.revision}; er führt keinen Netzaufruf aus.</p><div className="api-contract__sample"><label>HTTP-Status<input type="number" value={sampleStatus} onChange={(event) => { setSampleStatus(Number(event.target.value)); setCheck(null); }} /></label><textarea aria-label="JSON-Antwort" value={sampleText} onChange={(event) => { setSampleText(event.target.value); setCheck(null); }} rows={4} placeholder={JSON.stringify(latest.example, null, 2)} /><button type="button" disabled={pending || !sampleText.trim()} onClick={() => void verify()}>Antwort prüfen</button></div>{check ? <div role="status" className="api-contract__result"><strong>{check.valid ? 'Vertrag erfüllt' : `${check.mismatches.length} Abweichung(en)`}</strong>{check.mismatches.map((item, index) => <p key={index}><code>{item.path}</code>: erwartet {item.expected}, gefunden {item.actual}</p>)}</div> : null}</div>
+      <ApiContractHttpPanel key={`${projectId}:${latest.revision}`} projectId={projectId} contract={latest} />
       <details className="api-contract__history"><summary>Gespeicherte Revisionen · {overview?.versions.length ?? 0}</summary>{overview?.versions.map((item) => <p key={item.revision}>Revision {item.revision} · {item.draft.method} {item.draft.path} · {item.fingerprint.slice(0, 12)}… · {new Date(item.createdAt).toLocaleString('de-DE')}</p>)}</details></> : <p className="api-contract__empty">Noch kein Vertrag gespeichert.</p>}
   </section>;
 }

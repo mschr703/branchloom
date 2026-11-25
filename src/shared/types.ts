@@ -116,6 +116,11 @@ export interface StudioAPI {
   saveApiContract(input: { projectId: string; draft: import('./api-contract').ApiContractDraft; fingerprint: string; expectedLatestRevision: number }): Promise<import('./api-contract').ApiContractVersion>;
   bindCardApiContract(input: { projectId: string; cardId: string; revision: number | null; expectedContentRevision: number }): Promise<import('./api-contract').ApiContractOverview>;
   checkApiContractResponse(input: { projectId: string; revision: number; status: number; responseText: string }): Promise<import('./api-contract').ApiContractCheck>;
+  apiContractMockState(projectId: string): Promise<import('./api-contract').ApiContractMockState>;
+  startApiContractMock(input: { projectId: string; revision: number }): Promise<import('./api-contract').ApiContractMockState>;
+  stopApiContractMock(projectId: string): Promise<import('./api-contract').ApiContractMockState>;
+  checkApiContractEndpoint(input: { projectId: string; revision: number; baseUrl: string }): Promise<import('./api-contract').ApiContractLiveCheck>;
+  apiContractLiveChecks(projectId: string): Promise<import('./api-contract').ApiContractLiveCheck[]>;
   requirementConflictBoard(projectId: string): Promise<import('./requirement-conflicts').RequirementConflictBoard>;
   addRequirementClaim(input: { projectId: string; cardId: string; criterionId: string; component: string; scope: string; property: string; stance: import('./requirement-conflicts').RequirementStance; expectedCardRevision: number }): Promise<import('./requirement-conflicts').RequirementConflictBoard>;
   refreshRequirementClaim(input: { projectId: string; claimId: string; expectedCardRevision: number }): Promise<import('./requirement-conflicts').RequirementConflictBoard>;

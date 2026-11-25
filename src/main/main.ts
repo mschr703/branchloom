@@ -47,6 +47,7 @@ import { scanMemoryVault } from './memory-vault-import';
 import { attachMemoryGitSource, memoryGitCandidates, memoryGitSource, removeMemoryGitSource } from './memory-git-source';
 import { StudioStore } from './store';
 import { apiContractOverview, bindCardApiContract, checkApiContractResponse, previewApiContract, saveApiContract } from './api-contract';
+import { ApiContractHttp } from './api-contract-http';
 import { addRequirementClaim, refreshRequirementClaim, removeRequirementClaim, requirementConflictBoard, resolveRequirementConflict } from './requirement-conflicts';
 import { createCardFromWhiteboardEdge, createWhiteboardEdge, createWhiteboardNode, deleteWhiteboardEdge, deleteWhiteboardNode, updateWhiteboardNode, whiteboardSnapshot } from './whiteboard';
 import { analyzeWhiteboardImpact, createCardFromWhiteboardImpact } from './whiteboard-impact';
@@ -88,6 +89,7 @@ let runner: SessionRunner | null = null;
 let commandRunner: CommandTerminalRunner | null = null;
 let devEnvironmentRunner: DevEnvironmentRunner | null = null;
 let devAccountBrowser: DevAccountBrowser | null = null;
+let apiContractHttp: ApiContractHttp | null = null;
 let queueEngine: ProjectQueueEngine;
 let recoveryMonitor: SessionRecoveryMonitor | null = null;
 let browser: StudioBrowser | null = null;
@@ -143,6 +145,7 @@ function mustStore(): StudioStore {
 
 function installIpc(): void {
   const db = mustStore();
+  apiContractHttp = new ApiContractHttp(db);
   const trello = new TrelloConnection(app.getPath('userData'), safeStorage);
   trelloSignIn = new TrelloSignIn(trello, trelloPublicAppKey(app.getAppPath()), (url) => shell.openExternal(url));
   let workflowEngine: WorkflowEngine;
@@ -228,9 +231,18 @@ function installIpc(): void {
   bind('snapshot', (projectId: string) => db.snapshot(projectId));
   bind('apiContractOverview', (projectId: string) => apiContractOverview(db, projectId));
   bind('previewApiContract', (input: Parameters<StudioAPI['previewApiContract']>[0]) => previewApiContract(db, input));
-  bind('saveApiContract', (input: Parameters<StudioAPI['saveApiContract']>[0]) => saveApiContract(db, input));
+  bind('saveApiContract', async (input: Parameters<StudioAPI['saveApiContract']>[0]) => {
+    const version = saveApiContract(db, input);
+    await apiContractHttp!.stop(input.projectId);
+    return version;
+  });
   bind('bindCardApiContract', (input: Parameters<StudioAPI['bindCardApiContract']>[0]) => bindCardApiContract(db, input));
   bind('checkApiContractResponse', (input: Parameters<StudioAPI['checkApiContractResponse']>[0]) => checkApiContractResponse(db, input));
+  bind('apiContractMockState', (projectId: string) => apiContractHttp!.state(projectId));
+  bind('startApiContractMock', (input: Parameters<StudioAPI['startApiContractMock']>[0]) => apiContractHttp!.start(input));
+  bind('stopApiContractMock', (projectId: string) => apiContractHttp!.stop(projectId));
+  bind('checkApiContractEndpoint', (input: Parameters<StudioAPI['checkApiContractEndpoint']>[0]) => apiContractHttp!.check(input));
+  bind('apiContractLiveChecks', (projectId: string) => apiContractHttp!.checks(projectId));
   bind('requirementConflictBoard', (projectId: string) => requirementConflictBoard(db, projectId));
   bind('addRequirementClaim', (input: Parameters<StudioAPI['addRequirementClaim']>[0]) => addRequirementClaim(db, input));
   bind('refreshRequirementClaim', (input: Parameters<StudioAPI['refreshRequirementClaim']>[0]) => refreshRequirementClaim(db, input));
@@ -1993,6 +2005,31 @@ function createWindow(): void {
               selectSetter.call(projectSelect, boardProject.id); projectSelect.dispatchEvent(new Event('change', { bubbles: true }));
               for (let attempt = 0; attempt < 100 && document.querySelector('#project-select')?.value !== boardProject.id; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (document.querySelector('#project-select')?.value !== boardProject.id) throw new Error('Smoke-Projekt wurde nicht wiederhergestellt.');
+              const contractDraft = { method: 'GET', path: '/api/smoke-items', response: 'array', fields: [{ name: 'id', type: 'string', required: true }], error: { status: 404, code: 'NOT_FOUND', message: 'Missing' } };
+              const contractPreview = await window.studio.previewApiContract({ projectId: boardProject.id, draft: contractDraft });
+              await window.studio.saveApiContract({ projectId: boardProject.id, draft: contractDraft, fingerprint: contractPreview.fingerprint, expectedLatestRevision: contractPreview.expectedLatestRevision });
+              const agentsNav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Agenten');
+              if (!agentsNav) throw new Error('Agenten-Navigation für API-Vertrag fehlt.');
+              agentsNav.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.api-contract__http'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const contractHttp = document.querySelector('.api-contract__http');
+              if (!contractHttp?.textContent?.includes('Mock starten') || !contractHttp.textContent.includes('Endpoint jetzt prüfen')) throw new Error('API-Mock und Endpoint-Prüfung fehlen in der Oberfläche.');
+              [...contractHttp.querySelectorAll('button')].find((button) => button.textContent?.includes('Mock starten'))?.click();
+              for (let attempt = 0; attempt < 100 && !(await window.studio.apiContractMockState(boardProject.id)).running; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const mockState = await window.studio.apiContractMockState(boardProject.id);
+              if (!mockState.running || !mockState.url?.includes('/api/smoke-items')) throw new Error('API-Mock startete nicht auf der gespeicherten Route.');
+              for (let attempt = 0; attempt < 100 && !contractHttp.querySelector('.api-contract__http-address'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              [...contractHttp.querySelectorAll('button')].find((button) => button.textContent?.includes('Adresse für Check übernehmen'))?.click();
+              for (let attempt = 0; attempt < 100 && contractHttp.querySelector('input[aria-label="Lokaler API-Server"]')?.value !== new URL(mockState.url).origin; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (contractHttp.querySelector('input[aria-label="Lokaler API-Server"]')?.value !== new URL(mockState.url).origin) throw new Error('Mock-Adresse wurde nicht in den lokalen Check übernommen.');
+              [...contractHttp.querySelectorAll('button')].find((button) => button.textContent?.includes('Endpoint jetzt prüfen'))?.click();
+              for (let attempt = 0; attempt < 100 && !(await window.studio.apiContractLiveChecks(boardProject.id)).length; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const liveCheck = (await window.studio.apiContractLiveChecks(boardProject.id))[0];
+              for (let attempt = 0; attempt < 100 && !contractHttp.textContent?.includes('Lokale Antwort erfüllt Revision 1'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!liveCheck?.valid || liveCheck.status !== 200 || !contractHttp.textContent?.includes('Lokale Antwort erfüllt Revision 1')) throw new Error('Lokaler API-Endpoint-Check blieb ohne sichtbaren, passenden Beleg.');
+              [...contractHttp.querySelectorAll('button')].find((button) => button.textContent?.includes('Mock stoppen'))?.click();
+              for (let attempt = 0; attempt < 100 && (await window.studio.apiContractMockState(boardProject.id)).running; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if ((await window.studio.apiContractMockState(boardProject.id)).running) throw new Error('API-Mock wurde nicht gestoppt.');
               return true;
             })()
           `;
@@ -3525,6 +3562,8 @@ app.on('before-quit', () => {
   devEnvironmentRunner = null;
   devAccountBrowser?.dispose();
   devAccountBrowser = null;
+  apiContractHttp?.dispose();
+  apiContractHttp = null;
   store?.close();
   store = null;
 });
