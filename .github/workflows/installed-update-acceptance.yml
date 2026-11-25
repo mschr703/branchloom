@@ -1,0 +1,32 @@
+name: Installed update acceptance
+
+# This spends one fresh Windows runner and installs two public releases. It is
+# intentionally separate from push, PR, and release workflows.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  installed-update:
+    if: github.ref == 'refs/heads/main' && github.repository == 'mschr703/branchloom'
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Exercise installed 0.1.0 to 0.1.2 update
+        run: node scripts/accept-installed-update.mjs
+      - name: Upload synthetic UI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installed-update-acceptance
+          path: update-acceptance-evidence/
+          if-no-files-found: ignore
+          retention-days: 7

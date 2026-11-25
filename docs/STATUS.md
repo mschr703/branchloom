@@ -2,6 +2,10 @@
 
 Stand: 25.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## R01 installierter Update-Klickpfad: Abnahme vorbereitet
+
+- Ein **manuell startbarer** Windows-Actions-Job ist vorbereitet. Er soll auf einem frischen GitHub-Runner den öffentlichen 0.1.0-Installer anhand der veröffentlichten SHA-512-Prüfsumme installieren, eine rein synthetische Karte per installierter IPC speichern, den sichtbaren Hinweis auf 0.1.2 und **Später** samt Neustart prüfen, danach **Aktualisieren** per sichtbarem Klick auslösen und Version sowie Karte nach der Installation erneut prüfen. Der Job läuft nicht bei Push, PR oder Tag. Er verweigert lokale Rechner und vorhandene Branchloom-Profile. `node --check` und `--help` bestanden; der echte Lauf steht bis zur Veröffentlichung von v0.1.2 und Integration des Workflows aus. Bis zu einem grünen Actions-Lauf bleibt der installierte Versionswechsel **unbestätigt**. [Abnahme](RELEASE.md).
+
 ## UX01: vorhandenen Projektordner ohne Pfadwissen auswählen
 
 - Der erste Einstieg erklärt in einfachen Worten, wofür Branchloom den Codeordner verwendet und wann Git-Arbeitskopien nötig sind. Beim Anlegen eines Projekts und beim Import eines Branchloom-Projektpakets lässt sich der vorhandene Ordner jetzt mit dem nativen Windows-Dialog auswählen; manuelle Pfade bleiben möglich. Eine abgebrochene Auswahl ändert das Formular nicht, ein Fehler erscheint im Formular, und nur eine bewusst gewählte Ordnerauswahl schlägt bei leerem Namen den Ordnernamen vor. Das Verknüpfen kopiert keine Dateien und startet keinen Agenten. Zwei gezielte Renderer-Tests, Typprüfung und Produktionsbuild bestanden im isolierten Zweig. Der breite Quell-Electron-Smoke prüfte außerdem den sichtbaren Klick, den nativen Dialog mit einem synthetischen Ordner, den übernommenen Pfad und den Abbruch ohne Projektanlage. Der Dialog prüft keinen Git-Status beim Auswählen; für parallele Worktrees gilt weiterhin die bestehende Git-Prüfung beim Agentenstart. [Aufgabenkarte UX01](https://trello.com/c/EroaR2i1/63-ux01-branchloom-arbeitsfl%C3%A4chen-entlasten).
