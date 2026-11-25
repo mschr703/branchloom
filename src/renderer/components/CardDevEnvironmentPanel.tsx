@@ -127,7 +127,7 @@ export function CardDevEnvironmentPanel({ cardId, projectId, archived, onOpenBro
       onOpenBrowser?.();
     } catch (reason) {
       setError(message(reason));
-      setRun(await window.studio.cardDevEnvironment(cardId).catch(() => run));
+      setRun(await window.studio.cardDevEnvironment(cardId).catch(() => null));
     }
     finally { setBusy(false); }
   }

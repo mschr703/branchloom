@@ -3801,8 +3801,7 @@ http.createServer((_request,response)=>{response.writeHead(200,{'Content-Type':'
               const project = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project button')].find((item) => item.textContent?.trim() === 'Smoke-Projekt'), 'project');
               project.click();
               await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger')?.getAttribute('aria-label') === 'Projekt auswählen: Smoke-Projekt', 'selected project');
-              const nav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Entscheidungen');
-              if (!nav) throw new Error('F04 Decisions navigation missing.');
+              const nav = await wait(() => [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Entscheidungen'), 'decisions navigation');
               nav.click();
               const panel = await wait(() => document.querySelector('.requirement-conflicts'), 'conflict panel');
               const hint = await wait(() => [...panel.querySelectorAll('.requirement-conflicts__suggestions article')].find((item) => item.textContent?.includes(candidateText)), 'new criterion hint');

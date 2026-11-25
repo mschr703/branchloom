@@ -1,12 +1,11 @@
 .wireframe-interaction { border-top: 1px solid var(--border); padding: 18px 0; margin-top: 20px; max-width: 680px; }
 .wireframe-interaction-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .wireframe-interaction-heading h3 { margin: 0; font-size: 1rem; }
-.wireframe-interaction-heading span, .wireframe-interaction p, .wireframe-interaction-timing { color: var(--muted); font-size: .85rem; }
+.wireframe-interaction-heading span, .wireframe-interaction p { color: var(--muted); font-size: .85rem; }
 .wireframe-interaction-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 16px 0; }
 .wireframe-interaction-fields label { display: grid; gap: 5px; font-size: .8rem; }
 .wireframe-interaction-fields output { justify-self: end; }
 .wireframe-interaction-fields select, .wireframe-interaction-fields input { width: 100%; }
-.wireframe-interaction-timing { display: flex; justify-content: space-between; gap: 10px; border-top: 2px solid var(--border); padding-top: 7px; }
 .wireframe-interaction-reduced { display: inline-flex; align-items: center; gap: 7px; font-size: .84rem; }
 .wireframe-interaction-preview { position: relative; min-height: 180px; margin: 12px 0; padding: 16px; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; isolation: isolate; }
 .wireframe-interaction-backdrop { position: absolute; inset: 0; z-index: 1; background: var(--text); opacity: 0; pointer-events: none; transition: opacity var(--interaction-duration) ease; }

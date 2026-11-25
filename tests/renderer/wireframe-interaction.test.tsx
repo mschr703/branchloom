@@ -26,7 +26,7 @@ describe('wireframe interaction editor', () => {
     const html = renderToStaticMarkup(createElement(WireframeInteractionEditor, { elements: [button, panel], interactions: [interaction], disabled: false, onChange: () => undefined }));
     expect(html).toContain('Interaktion Auslöser');
     expect(html).toContain('Interaktion Zielfläche');
-    expect(html).toContain('240 ms · Fläche sichtbar');
+    expect(html).toContain('Ende · 240 ms · 0 px / 100 %');
     expect(html).toContain('Beim Öffnen auf die Fläche');
     expect(html).toContain('Reduzierte Bewegung: 0 ms');
     expect(html).toContain('aria-hidden="true"');
