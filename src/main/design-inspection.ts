@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { WebContentsView, type BrowserWindow, type Session } from 'electron';
 import type Database from 'better-sqlite3';
 import type { BrowserBounds } from '../shared/types';
-import type { DesignInspectionState, DesignSelection, ThemePreviewInput } from '../shared/design-inspection';
+import type { DesignElementPreviewInput, DesignElementStyle, DesignInspectionState, DesignSelection, ThemePreviewInput } from '../shared/design-inspection';
+import { normalizeDesignElementStyle } from '../shared/design-element-style';
 import type { DesignA11yCheck } from '../shared/design-a11y';
 import { a11yMeasurementScript, evaluateA11yMeasurement, type RawA11yMeasurement } from './design-a11y';
 import { normalizeThemeTokenValue } from '../shared/theme-token-value';
@@ -120,8 +121,10 @@ export class DesignInspector {
   private attached = false;
   private pageGeneration = 0;
   private themeBusy = false;
+  private elementBusy = false;
   private viewportCapture: AbortController | null = null;
   private themePreview: { name: string; value: string; path: string; line: number; original: string; priority: string } | null = null;
+  private elementPreview: { selectionId: string; selector: string; tag: string; text: string; sourceUrl: string; generation: number; values: DesignElementStyle; originals: Record<string, { value: string; priority: string }> } | null = null;
   private readonly preventDownload = (event: Electron.Event): void => event.preventDefault();
   private readonly resize = (): void => this.layout();
 
@@ -129,7 +132,7 @@ export class DesignInspector {
     window.on('resize', this.resize);
   }
 
-  state(): DesignInspectionState { return { projectId: this.projectId, sourceUrl: this.sourceUrl ? diagnosticSource(this.sourceUrl) : null, ready: this.ready, armed: this.armed, themePreview: this.themePreview ? { name: this.themePreview.name, value: this.themePreview.value, path: this.themePreview.path, line: this.themePreview.line } : null }; }
+  state(): DesignInspectionState { return { projectId: this.projectId, sourceUrl: this.sourceUrl ? diagnosticSource(this.sourceUrl) : null, ready: this.ready, armed: this.armed, themePreview: this.themePreview ? { name: this.themePreview.name, value: this.themePreview.value, path: this.themePreview.path, line: this.themePreview.line } : null, elementPreview: this.elementPreview ? { selectionId: this.elementPreview.selectionId, style: this.elementPreview.values } : null }; }
 
   async start(input: { projectId: string; url: string }): Promise<DesignInspectionState> {
     this.close();
@@ -141,7 +144,7 @@ export class DesignInspector {
     this.sourceUrl = url;
     const origin = new URL(url).origin;
     const contents = view.webContents;
-    contents.on('did-start-navigation', () => { this.pageGeneration++; this.themePreview = null; });
+    contents.on('did-start-navigation', () => { this.pageGeneration++; this.themePreview = null; this.elementPreview = null; });
     const previewSession = contents.session;
     this.partitionSession = previewSession;
     previewSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
@@ -182,6 +185,7 @@ export class DesignInspector {
 
   arm(projectId: string): DesignInspectionState {
     if (!this.ready || !this.visible || !this.attached || this.projectId !== projectId) throw new Error('Öffne zuerst die lokale Design-Vorschau dieses Projekts.');
+    if (this.elementPreview) throw new Error('Setze zuerst den Elemententwurf zurück.');
     this.armed = true;
     return this.state();
   }
@@ -190,6 +194,7 @@ export class DesignInspector {
     if (!this.ready || !this.visible || !this.view || this.projectId !== projectId) throw new Error('Öffne zuerst die lokale Design-Vorschau dieses Projekts.');
     if (typeof selector !== 'string' || !selector.trim() || selector.length > 320 || /[\u0000-\u001f\u007f]/.test(selector)) throw new Error('Gib einen CSS-Selektor mit höchstens 320 Zeichen ein.');
     if (this.busy) throw new Error('Eine Elementauswahl läuft bereits.');
+    if (this.elementPreview) throw new Error('Setze zuerst den Elemententwurf zurück.');
     this.armed = false;
     this.busy = true;
     try {
@@ -215,6 +220,87 @@ export class DesignInspector {
     return evaluateA11yMeasurement({ projectId, selectionId, selector: selection.selector, sourceUrl: selection.sourceUrl }, raw);
   }
 
+  async applyElementPreview(input: DesignElementPreviewInput): Promise<DesignInspectionState> {
+    const style = normalizeDesignElementStyle(input?.style);
+    const view = this.requireThemePreview(input?.projectId);
+    if (this.elementBusy || this.busy || this.themeBusy || this.viewportCapture) throw new Error('Warte, bis die Design-Prüfung abgeschlossen ist.');
+    if (this.elementPreview || this.themePreview) throw new Error('Setze zuerst die aktive Design-Vorschau zurück.');
+    if (typeof input.selectionId !== 'string' || !/^[0-9a-f-]{36}$/i.test(input.selectionId)) throw new Error('Wähle einen gespeicherten Elementbeleg.');
+    const selection = designSelections(this.store, input.projectId).find((item) => item.id === input.selectionId);
+    if (!selection) throw new Error('Dieser Elementbeleg gehört nicht zu diesem Projekt oder wurde entfernt.');
+    const contents = view.webContents;
+    const pageUrl = contents.getURL();
+    const generation = this.pageGeneration;
+    if (diagnosticSource(pageUrl) !== selection.sourceUrl) throw new Error('Der Beleg stammt von einer anderen Route. Öffne sie und wähle das Element erneut.');
+    const entries = Object.entries(style).map(([key, value]): [string, string] => [key === 'backgroundColor' ? 'background-color' : key === 'borderRadius' ? 'border-radius' : key === 'fontSize' ? 'font-size' : key, value!]);
+    this.elementBusy = true;
+    try {
+      const script = `(() => {
+        let node; try { node = document.querySelector(${JSON.stringify(selection.selector)}); } catch { return { error: 'missing' }; }
+        if (!node || node.tagName.toLowerCase() !== ${JSON.stringify(selection.tag)}) return { error: 'missing' };
+        const text = (node.textContent || '').replace(/[\\u0000-\\u001f\\u007f]/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 180);
+        if (${JSON.stringify(selection.text)} && text !== ${JSON.stringify(selection.text)}) return { error: 'changed' };
+        const entries = ${JSON.stringify(entries)};
+        const originals = {};
+        for (const [name, value] of entries) originals[name] = { value: node.style.getPropertyValue(name), priority: node.style.getPropertyPriority(name) };
+        for (const [name, value] of entries) node.style.setProperty(name, value);
+        const applied = Object.fromEntries(entries.map(([name]) => [name, node.style.getPropertyValue(name)]));
+        if (entries.some(([name, value]) => applied[name] !== value)) {
+          for (const [name] of entries) {
+            const before = originals[name];
+            if (before.value) node.style.setProperty(name, before.value, before.priority);
+            else node.style.removeProperty(name);
+          }
+          return { error: 'rejected' };
+        }
+        return { originals, applied };
+      })()`;
+      const result = await contents.executeJavaScript(script, false) as { error?: string; originals?: Record<string, { value: string; priority: string }>; applied?: Record<string, string> };
+      if (this.view !== view || contents.isDestroyed() || this.projectId !== input.projectId || this.pageGeneration !== generation || contents.getURL() !== pageUrl) throw new Error('Die Vorschau hat sich während der Änderung geändert. Wähle das Element erneut.');
+      if (result?.error === 'changed') throw new Error('Der Inhalt des ausgewählten Elements hat sich geändert. Wähle es erneut.');
+      if (result?.error || !result?.originals || !result.applied || entries.some(([name, value]) => result.applied?.[name] !== value)) throw new Error('Das ausgewählte Element ist nicht mehr erreichbar. Wähle es erneut.');
+      this.elementPreview = { selectionId: selection.id, selector: selection.selector, tag: selection.tag, text: selection.text, sourceUrl: selection.sourceUrl, generation, values: style, originals: result.originals };
+      return this.state();
+    } finally { this.elementBusy = false; }
+  }
+
+  async resetElementPreview(projectId: string): Promise<DesignInspectionState> {
+    const view = this.requireThemePreview(projectId);
+    if (this.elementBusy) throw new Error('Eine Elementvorschau läuft bereits.');
+    const active = this.elementPreview;
+    if (!active) return this.state();
+    this.elementBusy = true;
+    try {
+      const contents = view.webContents;
+      const pageUrl = contents.getURL();
+      if (this.pageGeneration !== active.generation || diagnosticSource(pageUrl) !== active.sourceUrl) {
+        this.elementPreview = null;
+        throw new Error('Die Seite hat sich geändert. Der flüchtige Entwurf ist nicht mehr aktiv.');
+      }
+      const entries = Object.entries(active.values).map(([key, value]): [string, string] => [key === 'backgroundColor' ? 'background-color' : key === 'borderRadius' ? 'border-radius' : key === 'fontSize' ? 'font-size' : key, value!]);
+      const script = `(() => {
+        let node; try { node = document.querySelector(${JSON.stringify(active.selector)}); } catch { return false; }
+        if (!node || node.tagName.toLowerCase() !== ${JSON.stringify(active.tag)}) return false;
+        const text = (node.textContent || '').replace(/[\\u0000-\\u001f\\u007f]/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 180);
+        if (${JSON.stringify(active.text)} && text !== ${JSON.stringify(active.text)}) return false;
+        const entries = ${JSON.stringify(entries)};
+        if (entries.some(([name, value]) => node.style.getPropertyValue(name) !== value)) return false;
+        const originals = ${JSON.stringify(active.originals)};
+        for (const [name] of entries) {
+          const before = originals[name];
+          if (before.value) node.style.setProperty(name, before.value, before.priority);
+          else node.style.removeProperty(name);
+        }
+        return true;
+      })()`;
+      const restored = await contents.executeJavaScript(script, false) as boolean;
+      this.elementPreview = null;
+      if (this.view !== view || contents.isDestroyed() || this.projectId !== projectId || this.pageGeneration !== active.generation || contents.getURL() !== pageUrl) throw new Error('Die Seite hat sich während des Zurücksetzens geändert.');
+      if (!restored) throw new Error('Das Element oder sein Stil hat sich geändert. Der neue Seitenwert wurde nicht überschrieben.');
+      return this.state();
+    } finally { this.elementBusy = false; }
+  }
+
   async applyThemePreview(input: ThemePreviewInput): Promise<DesignInspectionState> {
     if (this.viewportCapture) throw new Error('Warte, bis die Größenaufnahme abgeschlossen ist.');
     const { projectId, token } = input ?? ({} as ThemePreviewInput);
@@ -222,8 +308,8 @@ export class DesignInspector {
     if (!token || typeof token.name !== 'string' || !/^--[A-Za-z0-9_-]{1,98}$/.test(token.name) ||
       typeof token.path !== 'string' || typeof token.line !== 'number' || typeof token.sourceFingerprint !== 'string') throw new Error('Wähle eine gefundene CSS-Variable.');
     const view = this.requireThemePreview(projectId);
-    if (this.themeBusy) throw new Error('Eine Theme-Vorschau läuft bereits.');
-    if (this.themePreview) throw new Error('Setze zuerst die aktive Vorschau zurück.');
+    if (this.themeBusy || this.elementBusy) throw new Error('Eine Design-Vorschau läuft bereits.');
+    if (this.themePreview || this.elementPreview) throw new Error('Setze zuerst die aktive Vorschau zurück.');
     this.themeBusy = true;
     try {
       const generation = this.pageGeneration;
@@ -242,7 +328,7 @@ export class DesignInspector {
 
   async resetThemePreview(projectId: string): Promise<DesignInspectionState> {
     const view = this.requireThemePreview(projectId);
-    if (this.themeBusy) throw new Error('Eine Theme-Vorschau läuft bereits.');
+    if (this.themeBusy || this.elementBusy) throw new Error('Eine Design-Vorschau läuft bereits.');
     const active = this.themePreview;
     if (!active) return this.state();
     this.themeBusy = true;
@@ -260,8 +346,8 @@ export class DesignInspector {
 
   async captureViewports(projectId: string): Promise<DesignViewportResult> {
     if (!this.ready || !this.visible || !this.view || this.projectId !== projectId || !this.sourceUrl) throw new Error('Öffne zuerst die lokale Design-Vorschau dieses Projekts.');
-    if (this.themeBusy) throw new Error('Warte, bis die Theme-Vorschau abgeschlossen ist.');
-    if (this.themePreview) throw new Error('Setze die flüchtige Theme-Vorschau vor der Größenaufnahme zurück.');
+    if (this.themeBusy || this.elementBusy) throw new Error('Warte, bis die Design-Vorschau abgeschlossen ist.');
+    if (this.themePreview || this.elementPreview) throw new Error('Setze die flüchtige Design-Vorschau vor der Größenaufnahme zurück.');
     if (this.viewportCapture) throw new Error('Eine Größenaufnahme läuft bereits.');
     const controller = new AbortController();
     const generation = this.pageGeneration;
@@ -306,6 +392,7 @@ export class DesignInspector {
     this.viewportCapture = null;
     this.pageGeneration++;
     this.themePreview = null;
+    this.elementPreview = null;
     this.armed = false;
     this.ready = false;
     this.busy = false;

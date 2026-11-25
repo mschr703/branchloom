@@ -23,4 +23,10 @@ describe('design voice task', () => {
     const html = renderToStaticMarkup(createElement(DesignVoiceTask, { projectId: 'project', selection, columns, queueState: 'running', onOpenCard: () => undefined, onCreated: () => undefined, onCancel: () => undefined }));
     expect(html).toContain('Warteschlange läuft');
   });
+
+  it('shows a visual preview request as editable text before card save', () => {
+    const html = renderToStaticMarkup(createElement(DesignVoiceTask, { projectId: 'project', selection, columns, queueState: 'off', prefillDescription: 'Requested CSS: color: #aabbcc', onOpenCard: () => undefined, onCreated: () => undefined, onCancel: () => undefined }));
+    expect(html).toContain('Requested CSS: color: #aabbcc');
+    expect(html).toContain('Karte mit Beleg speichern');
+  });
 });

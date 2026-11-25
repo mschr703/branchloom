@@ -744,6 +744,8 @@ function installIpc(): void {
   bind('designInspectionState', () => designInspector?.state());
   bind('designInspectionApplyThemePreview', (input: Parameters<StudioAPI['designInspectionApplyThemePreview']>[0]) => designInspector?.applyThemePreview(input));
   bind('designInspectionResetThemePreview', (projectId: string) => designInspector?.resetThemePreview(projectId));
+  bind('designInspectionApplyElementPreview', (input: Parameters<StudioAPI['designInspectionApplyElementPreview']>[0]) => designInspector?.applyElementPreview(input));
+  bind('designInspectionResetElementPreview', (projectId: string) => designInspector?.resetElementPreview(projectId));
   bind('designInspectionStart', (input: Parameters<StudioAPI['designInspectionStart']>[0]) => designInspector?.start(input));
   bind('designInspectionArm', (projectId: string) => designInspector?.arm(projectId));
   bind('designInspectionSelectSelector', (input: Parameters<StudioAPI['designInspectionSelectSelector']>[0]) => designInspector?.selectSelector(input.projectId, input.selector));

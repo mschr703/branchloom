@@ -8,7 +8,7 @@ import type { CreateReviewRuleFromComment, ReviewRule, UpdateReviewRule } from '
 import type { ReviewInboxPage, ReviewInboxQuery, AcknowledgeReviewInboxComment, AcknowledgeQaInboxReport } from './review-inbox';
 import type { CreateOutputErrorCard, OutputErrorPreview, OutputErrorSourceKind } from './output-errors';
 import type { WhiteboardImpact, WhiteboardDirectImporter } from './whiteboard-impact';
-import type { DesignInspectionState, DesignSelection, ThemePreviewInput } from './design-inspection';
+import type { DesignElementPreviewInput, DesignInspectionState, DesignSelection, ThemePreviewInput } from './design-inspection';
 import type { DesignStateRoute, DesignStateRouteInput, DesignStateRouteKey } from './design-state-routes';
 import type { DesignA11yCheck } from './design-a11y';
 import type { DesignViewportResult } from './design-viewports';
@@ -429,6 +429,8 @@ export interface StudioAPI {
   designInspectionState(): Promise<DesignInspectionState>;
   designInspectionApplyThemePreview(input: ThemePreviewInput): Promise<DesignInspectionState>;
   designInspectionResetThemePreview(projectId: string): Promise<DesignInspectionState>;
+  designInspectionApplyElementPreview(input: DesignElementPreviewInput): Promise<DesignInspectionState>;
+  designInspectionResetElementPreview(projectId: string): Promise<DesignInspectionState>;
   designInspectionStart(input: { projectId: string; url: string }): Promise<DesignInspectionState>;
   designInspectionArm(projectId: string): Promise<DesignInspectionState>;
   designInspectionSelectSelector(input: { projectId: string; selector: string }): Promise<DesignSelection>;

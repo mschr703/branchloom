@@ -6,6 +6,14 @@ export interface ThemePreviewInput {
   value: string;
 }
 
+export type DesignElementStyle = Partial<Record<'color' | 'backgroundColor' | 'borderRadius' | 'fontSize', string>>;
+
+export interface DesignElementPreviewInput {
+  projectId: string;
+  selectionId: string;
+  style: DesignElementStyle;
+}
+
 export interface DesignSelection {
   id: string;
   projectId: string;
@@ -24,4 +32,5 @@ export interface DesignInspectionState {
   ready: boolean;
   armed: boolean;
   themePreview: { name: string; value: string; path: string; line: number } | null;
+  elementPreview?: { selectionId: string; style: DesignElementStyle } | null;
 }

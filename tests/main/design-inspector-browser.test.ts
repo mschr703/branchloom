@@ -6,9 +6,10 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BrowserWindow } from 'electron';
 
-const fake = vi.hoisted(() => ({ views: [] as Array<{ webContents: unknown; options: { webPreferences: { partition: string; sandbox: boolean; nodeIntegration: boolean; webSecurity: boolean } } }>, nullSelection: false, measurement: { found: true, tag: 'button', text: true, foreground: 'rgb(0, 0, 0)', background: 'rgb(255, 255, 255)', interactive: true, width: 30, height: 30 } as Record<string, unknown> }));
+const fake = vi.hoisted(() => ({ views: [] as Array<{ webContents: unknown; options: { webPreferences: { partition: string; sandbox: boolean; nodeIntegration: boolean; webSecurity: boolean } } }>, nullSelection: false, nodePresent: true, nodeText: 'Save', nodeTag: 'BUTTON', inline: {} as Record<string, { value: string; priority: string }>, measurement: { found: true, tag: 'button', text: true, foreground: 'rgb(0, 0, 0)', background: 'rgb(255, 255, 255)', interactive: true, width: 30, height: 30 } as Record<string, unknown> }));
 vi.mock('electron', async () => {
   const { EventEmitter } = await import('node:events');
+  const { runInNewContext } = await import('node:vm');
   class Contents extends EventEmitter {
     url = '';
     destroyed = false;
@@ -32,6 +33,19 @@ vi.mock('electron', async () => {
       if (script.includes('backgroundUnknown')) return fake.measurement;
       if (script.includes('root.style.setProperty')) return { original: '', priority: '', applied: '#aabbcc' };
       if (script.includes('root.style.removeProperty')) return true;
+      if (script.includes('node.style.getPropertyValue')) {
+        const node = fake.nodePresent ? {
+          tagName: fake.nodeTag,
+          textContent: fake.nodeText,
+          style: {
+            getPropertyValue: (name: string) => fake.inline[name]?.value ?? '',
+            getPropertyPriority: (name: string) => fake.inline[name]?.priority ?? '',
+            setProperty: (name: string, value: string, priority = '') => { fake.inline[name] = { value, priority }; },
+            removeProperty: (name: string) => { delete fake.inline[name]; },
+          },
+        } : null;
+        return runInNewContext(script, { document: { querySelector: () => node } });
+      }
       return fake.nullSelection ? null : { selector: 'button#save', tag: 'button', text: 'Save', styles: { color: 'rgb(1, 2, 3)' }, tokens: [{ name: '--ink', value: '#010203' }] };
     }
   }
@@ -47,9 +61,50 @@ import { DesignInspector, designSelections } from '../../src/main/design-inspect
 import { scanThemeTokens } from '../../src/main/theme-tokens';
 
 const roots: string[] = [];
-afterEach(() => { fake.views.length = 0; fake.nullSelection = false; fake.measurement = { found: true, tag: 'button', text: true, foreground: 'rgb(0, 0, 0)', background: 'rgb(255, 255, 255)', interactive: true, width: 30, height: 30 }; for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
+afterEach(() => { fake.views.length = 0; fake.nullSelection = false; fake.nodePresent = true; fake.nodeText = 'Save'; fake.nodeTag = 'BUTTON'; fake.inline = {}; fake.measurement = { found: true, tag: 'button', text: true, foreground: 'rgb(0, 0, 0)', background: 'rgb(255, 255, 255)', interactive: true, width: 30, height: 30 }; for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
 describe('isolated design browser', () => {
+  it('previews a selected local element, restores its inline style, and rejects stale or foreign sources', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'branchloom-element-preview-')); roots.push(root);
+    const repo = join(root, 'repo'); mkdirSync(repo);
+    const otherRepo = join(root, 'other'); mkdirSync(otherRepo);
+    const store = new StudioStore(join(root, 'studio.sqlite'));
+    const project = store.createProject({ name: 'Synthetic', path: repo });
+    const other = store.createProject({ name: 'Other', path: otherRepo });
+    const win = Object.assign(new EventEmitter(), { contentView: { addChildView: () => undefined, removeChildView: () => undefined }, getContentSize: () => [1000, 700], isDestroyed: () => false }) as unknown as BrowserWindow;
+    const inspector = new DesignInspector(win, store, () => undefined);
+    inspector.setVisible(true);
+    await inspector.start({ projectId: project.id, url: 'http://127.0.0.1:5173/page' });
+    const selection = await inspector.selectSelector(project.id, '#save');
+    const input = { projectId: project.id, selectionId: selection.id, style: { color: '#aabbcc', borderRadius: '8px' } };
+    await expect(inspector.applyElementPreview({ ...input, projectId: other.id })).rejects.toThrow();
+    await expect(inspector.applyElementPreview({ ...input, style: { color: 'url(https://example.com)' } })).rejects.toThrow();
+    fake.nodeText = 'Changed';
+    await expect(inspector.applyElementPreview(input)).rejects.toThrow('Inhalt');
+    fake.nodeText = 'Save';
+    const contents = fake.views[0]!.webContents as { url: string; emit: (event: string) => void };
+    contents.url = 'http://127.0.0.1:5173/other';
+    await expect(inspector.applyElementPreview(input)).rejects.toThrow('anderen Route');
+    contents.url = 'http://127.0.0.1:5173/page';
+    fake.inline.color = { value: '#010203', priority: 'important' };
+    expect((await inspector.applyElementPreview(input)).elementPreview).toMatchObject({ selectionId: selection.id, style: input.style });
+    expect(fake.inline.color).toEqual({ value: '#aabbcc', priority: '' });
+    expect(fake.inline['border-radius']).toEqual({ value: '8px', priority: '' });
+    await expect(inspector.applyElementPreview(input)).rejects.toThrow('Setze zuerst');
+    expect((await inspector.resetElementPreview(project.id)).elementPreview).toBeNull();
+    expect(fake.inline.color).toEqual({ value: '#010203', priority: 'important' });
+    expect(fake.inline['border-radius']).toBeUndefined();
+    expect(designSelections(store, project.id)).toHaveLength(1);
+    expect((await inspector.applyElementPreview(input)).elementPreview).not.toBeNull();
+    fake.inline.color = { value: '#fedcba', priority: '' };
+    await expect(inspector.resetElementPreview(project.id)).rejects.toThrow('nicht überschrieben');
+    expect(fake.inline.color.value).toBe('#fedcba');
+    expect(inspector.state().elementPreview).toBeNull();
+    await inspector.applyElementPreview(input);
+    contents.emit('did-start-navigation');
+    expect(inspector.state().elementPreview).toBeNull();
+    inspector.close(); store.close();
+  });
   it('revalidates a scanned token, isolates projects, and forgets a preview when closed', async () => {
     const root = mkdtempSync(join(tmpdir(), 'branchloom-theme-browser-')); roots.push(root);
     const repo = join(root, 'repo'); mkdirSync(repo);

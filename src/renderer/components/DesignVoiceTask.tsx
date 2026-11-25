@@ -7,13 +7,14 @@ const errorText = (reason: unknown): string => {
   return reason instanceof Error ? reason.message : String(reason);
 };
 
-export function DesignVoiceTask({ projectId, selection, columns, queueState, onOpenCard, onCreated, onCancel }: {
+export function DesignVoiceTask({ projectId, selection, prefillDescription = '', columns, queueState, onOpenCard, onCreated, onCancel }: {
   projectId: string; selection: DesignSelection; columns: Column[]; queueState: QueueState;
+  prefillDescription?: string;
   onOpenCard: (cardId: string) => void | Promise<void>; onCreated: () => void | Promise<void>; onCancel: () => void;
 }) {
   const [candidate, setCandidate] = useState<CardDesignContextCandidate | null>(null);
   const [title, setTitle] = useState(`Design: ${selection.selector}`.slice(0, 160));
-  const [description, setDescription] = useState('');
+  const [description, setDescription] = useState(prefillDescription);
   const [columnId, setColumnId] = useState(() => columns.find((column) => column.name.toLowerCase() === 'to do')?.id ?? columns[0]?.id ?? '');
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);

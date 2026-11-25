@@ -8,6 +8,7 @@ import { ThemeTokensPanel } from './ThemeTokensPanel';
 import { DesignViewportCanvas } from './DesignViewportCanvas';
 import { DesignStateRoutes } from './DesignStateRoutes';
 import { DesignVoiceTask } from './DesignVoiceTask';
+import { DesignElementStyleEditor } from './DesignElementStyleEditor';
 import { TaskWireframeEditor } from './TaskWireframeEditor';
 import type { Card, Column, QueueState } from '../../shared/types';
 import './design-inspection.css';
@@ -27,6 +28,7 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
   const [a11yBusyId, setA11yBusyId] = useState<string | null>(null);
   const [a11yError, setA11yError] = useState<{ id: string; message: string } | null>(null);
   const [voiceSelectionId, setVoiceSelectionId] = useState<string | null>(null);
+  const [styleRequest, setStyleRequest] = useState<{ selectionId: string; description: string } | null>(null);
   const [wireframeFocus, setWireframeFocus] = useState(false);
   const [workspaceMode, setWorkspaceMode] = useState<'draft' | 'preview'>('draft');
   const [focusPending, setFocusPending] = useState(false);
@@ -68,20 +70,20 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
     focused.current = false;
     setWireframeFocus(false);
     setWorkspaceMode('draft');
-    setSelections([]); setState(emptyState); setError(''); setUrl(''); setSelector(''); setA11yCheck(null); setA11yError(null); setA11yBusyId(null); setVoiceSelectionId(null);
+    setSelections([]); setState(emptyState); setError(''); setUrl(''); setSelector(''); setA11yCheck(null); setA11yError(null); setA11yBusyId(null); setVoiceSelectionId(null); setStyleRequest(null);
     void window.studio.designSelections(projectId).then((items) => { if (mounted) setSelections(items); }).catch((reason: unknown) => { if (mounted) setError(messageOf(reason)); });
     const unsubscribe = window.studio.onDesignSelection((selection) => {
       if (!mounted || selection.projectId !== projectId) return;
       setSelections((items) => [selection, ...items.filter((item) => item.id !== selection.id)].slice(0, 20));
       setA11yCheck(null); setA11yError(null);
-      setVoiceSelectionId(null);
+      setVoiceSelectionId(null); setStyleRequest(null);
       setState((old) => ({ ...old, armed: false }));
     });
     return () => { mounted = false; unsubscribe(); void window.studio.designInspectionSetVisible(false).catch(() => undefined); };
   }, [projectId]);
 
   useEffect(() => {
-    if (!active) { setA11yCheck(null); setA11yError(null); setVoiceSelectionId(null); void window.studio.designInspectionSetVisible(false).then(setState).catch(() => undefined); return; }
+    if (!active) { setA11yCheck(null); setA11yError(null); setVoiceSelectionId(null); setStyleRequest(null); void window.studio.designInspectionSetVisible(false).then(setState).catch(() => undefined); return; }
     void window.studio.designInspectionSetVisible(true).then(setState).catch((reason: unknown) => setError(messageOf(reason)));
     return () => { void window.studio.designInspectionSetVisible(false).catch(() => undefined); };
   }, [active]);
@@ -104,6 +106,12 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
     update();
     return () => { cancelAnimationFrame(scheduled); observer.disconnect(); intersection.disconnect(); window.removeEventListener('resize', update); window.removeEventListener('scroll', update, true); };
   }, [active, wireframeFocus, workspaceMode, syncBounds]);
+
+  useEffect(() => {
+    if (!styleRequest || voiceSelectionId !== styleRequest.selectionId) return;
+    const frame = requestAnimationFrame(() => document.querySelector('.design-voice-task')?.scrollIntoView?.({ block: 'nearest' }));
+    return () => cancelAnimationFrame(frame);
+  }, [styleRequest, voiceSelectionId]);
 
   async function start(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -176,14 +184,17 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
     <form className="design-inspection-toolbar" onSubmit={(event) => void start(event)}>
       <label>Lokale Vorschau-URL<input type="url" required maxLength={2048} value={url} onChange={(event) => setUrl(event.target.value)} placeholder="http://127.0.0.1:5173/" /></label>
       <button className="secondary-button" type="submit" disabled={busy || !url.trim()}>{busy ? 'Öffne…' : 'Vorschau öffnen'}</button>
-      <button className="primary-button" type="button" disabled={!state.ready || busy || state.armed || !active} onClick={() => void arm()}><MousePointer2 size={15} aria-hidden="true" />{state.armed ? 'Element anklicken…' : 'Element auswählen'}</button>
+      <button className="primary-button" type="button" disabled={!state.ready || busy || state.armed || !active || Boolean(state.elementPreview)} onClick={() => void arm()}><MousePointer2 size={15} aria-hidden="true" />{state.armed ? 'Element anklicken…' : 'Element auswählen'}</button>
     </form>
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
     <p className="design-inspection-state" role="status">{state.armed ? 'Auswahl aktiv: Klicke ein Element in der Vorschau. Der Seitenklick wird abgefangen.' : state.ready ? `Vorschau geladen: ${state.sourceUrl}` : 'Noch keine Vorschau geöffnet.'}</p>
-    <DesignStateRoutes key={projectId} projectId={projectId} active={previewActive} previewBusy={busy || Boolean(a11yBusyId)} themePreviewActive={Boolean(state.themePreview)} onOpen={openStateRoute} />
+    <DesignStateRoutes key={projectId} projectId={projectId} active={previewActive} previewBusy={busy || Boolean(a11yBusyId)} themePreviewActive={Boolean(state.themePreview || state.elementPreview)} onOpen={openStateRoute} />
     <details className="design-inspection-selector"><summary>Mit Tastatur oder CSS-Selektor auswählen</summary><form onSubmit={(event) => void selectBySelector(event)}><label>CSS-Selektor<input value={selector} maxLength={320} disabled={!state.ready || busy} onChange={(event) => setSelector(event.target.value)} placeholder="#header oder main button" /></label><button className="secondary-button" type="submit" disabled={!state.ready || busy || !selector.trim()}>Element prüfen</button></form></details>
-    <div className="design-inspection-viewport" ref={viewport} aria-label="Lokale Design-Vorschau">{!state.ready ? <p>Die laufende Seite erscheint hier nach „Vorschau öffnen“.</p> : null}</div>
-    <DesignViewportCanvas projectId={projectId} ready={state.ready && previewActive} themePreviewActive={Boolean(state.themePreview)} revision={previewRevision} />
+    <div className="design-inspection-live-layout">
+      <div className="design-inspection-viewport" ref={viewport} aria-label="Lokale Design-Vorschau">{!state.ready ? <p>Die laufende Seite erscheint hier nach „Vorschau öffnen“.</p> : null}</div>
+      <DesignElementStyleEditor projectId={projectId} selections={selections} state={state} onPreviewState={(next) => { setState(next); setA11yCheck(null); }} onPrepare={(selectionId, description) => { setStyleRequest({ selectionId, description }); setVoiceSelectionId(selectionId); }} />
+    </div>
+    <DesignViewportCanvas projectId={projectId} ready={state.ready && previewActive} themePreviewActive={Boolean(state.themePreview || state.elementPreview)} revision={previewRevision} />
     <div className="design-inspection-evidence"><h3>Ausgewählte Elemente</h3>
       {selections.length === 0 ? <p>Für dieses Projekt ist noch kein Element gespeichert.</p> : <ol>{selections.map((item) => <li key={item.id}>
         <div className="design-inspection-item-head"><strong><code>{item.selector}</code></strong><time dateTime={item.capturedAt}>{new Date(item.capturedAt).toLocaleString('de-DE')}</time></div>
@@ -202,8 +213,8 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
           </div> : null}
         </div>
         {item.tokens.length ? <details><summary>{item.tokens.length} CSS-Variablen am Element</summary><dl>{item.tokens.map((token) => <div key={token.name}><dt>{token.name}</dt><dd>{token.value}</dd></div>)}</dl></details> : <small>Keine berechneten CSS-Variablen erfasst.</small>}
-        <div className="design-voice-entry"><button type="button" className="secondary-button" disabled={!active || busy || Boolean(a11yBusyId)} aria-expanded={voiceSelectionId === item.id} onClick={() => setVoiceSelectionId((current) => current === item.id ? null : item.id)}>{voiceSelectionId === item.id ? 'Wunsch schließen' : 'Wunsch als Karte vorbereiten'}</button></div>
-        {active && voiceSelectionId === item.id ? <DesignVoiceTask key={item.id} projectId={projectId} selection={item} columns={columns} queueState={queueState} onOpenCard={onOpenCard} onCreated={onCreated} onCancel={() => setVoiceSelectionId(null)} /> : null}
+        <div className="design-voice-entry"><button type="button" className="secondary-button" disabled={!active || busy || Boolean(a11yBusyId)} aria-expanded={voiceSelectionId === item.id} onClick={() => { setStyleRequest(null); setVoiceSelectionId((current) => current === item.id ? null : item.id); }}>{voiceSelectionId === item.id ? 'Wunsch schließen' : 'Wunsch als Karte vorbereiten'}</button></div>
+        {active && voiceSelectionId === item.id ? <DesignVoiceTask key={item.id + (styleRequest?.selectionId === item.id ? styleRequest.description : '')} projectId={projectId} selection={item} prefillDescription={styleRequest?.selectionId === item.id ? styleRequest.description : ''} columns={columns} queueState={queueState} onOpenCard={onOpenCard} onCreated={onCreated} onCancel={() => { setVoiceSelectionId(null); setStyleRequest(null); }} /> : null}
       </li>)}</ol>}
     </div>
     <ComponentCatalogPanel projectId={projectId} />
