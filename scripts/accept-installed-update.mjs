@@ -19,6 +19,16 @@ if (process.argv.includes('--help')) {
   process.stdout.write('Run only through the manual installed-update-acceptance workflow on a fresh GitHub-hosted Windows VM.\n');
   process.exit(0);
 }
+if (process.argv.includes('--test-process-query')) {
+  if (process.platform !== 'win32') fail('The process-query check requires Windows.');
+  const present = matchingProcesses('powershell', 'branchloom-acceptance-no-match-');
+  if (!present.some((item) => item.name.toLowerCase() === 'powershell')) fail('The process query missed its own PowerShell process.');
+  if (matchingProcesses('branchloom-acceptance-no-match', 'branchloom-acceptance-no-match-').length) {
+    fail('The process query returned an unexpected match.');
+  }
+  process.stdout.write('INSTALLED_UPDATE_PROCESS_QUERY_OK\n');
+  process.exit(0);
+}
 if (process.platform !== 'win32' || process.env.GITHUB_ACTIONS !== 'true'
   || process.env.RUNNER_ENVIRONMENT !== 'github-hosted' || process.env.GITHUB_REPOSITORY !== REPOSITORY
   || !process.env.APPDATA || !process.env.LOCALAPPDATA) {
@@ -248,15 +258,26 @@ function cachedSetups() {
   return visit(root, 0);
 }
 
-function branchloomProcesses() {
-  // Process inspection is limited to the guarded, disposable GitHub runner.
-  const query = "Get-Process -Name 'Branchloom','Branchloom-Setup-*' -ErrorAction SilentlyContinue | Select-Object ProcessName,Id | ConvertTo-Json -Compress";
+function matchingProcesses(exactName, prefix) {
+  // The installed-update path runs only on the guarded runner. The explicit
+  // CLI self-test performs this one read-only query on a local Windows host.
+  // Filtering after Get-Process avoids PowerShell's exit status 1 when one
+  // requested -Name pattern is absent but another pattern has a match.
+  const query = "$ErrorActionPreference = 'Stop'; Get-Process | Select-Object ProcessName,Id | ConvertTo-Json -Compress";
   const output = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', query], {
     encoding: 'utf8', windowsHide: true, timeout: 10_000,
   }).trim();
   if (!output) return [];
   const parsed = JSON.parse(output);
-  return (Array.isArray(parsed) ? parsed : [parsed]).map((item) => ({ name: item.ProcessName, pid: item.Id }));
+  const name = exactName.toLowerCase();
+  const startsWith = prefix.toLowerCase();
+  return (Array.isArray(parsed) ? parsed : [parsed])
+    .filter((item) => item.ProcessName.toLowerCase() === name || item.ProcessName.toLowerCase().startsWith(startsWith))
+    .map((item) => ({ name: item.ProcessName, pid: item.Id }));
+}
+
+function branchloomProcesses() {
+  return matchingProcesses('Branchloom', 'Branchloom-Setup-');
 }
 
 async function waitForUpdaterInstaller() {

@@ -20,6 +20,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: Check process query with one present and one absent name
+        run: node scripts/accept-installed-update.mjs --test-process-query
       - name: Exercise installed 0.1.0 to 0.1.2 update
         run: node scripts/accept-installed-update.mjs
       - name: Upload synthetic UI evidence
