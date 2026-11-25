@@ -40,10 +40,21 @@
 .task-wireframe-variant-empty { padding-block: 18px; }
 .task-wireframe-variant-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 11px; }
 .task-wireframe-toolbar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.task-wireframe-toolbar > span { margin-right: 8px; font-size: 12px; color: var(--muted); }
 .task-wireframe-toolbar button { display: inline-flex; gap: 6px; align-items: center; }
 .task-wireframe-history { display: inline-flex; gap: 6px; margin-left: 6px; padding-left: 12px; border-left: 1px solid var(--border); }
-.task-wireframe-toolbar .task-wireframe-propose { margin-left: auto; }
+.task-wireframe-menu { position: relative; flex: none; }
+.task-wireframe-more-menu { margin-left: auto; }
+.task-wireframe-menu summary { display: inline-flex; min-height: 34px; align-items: center; gap: 7px; padding: 6px 11px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--text); font-size: 13px; font-weight: 600; list-style: none; cursor: pointer; }
+.task-wireframe-menu summary::-webkit-details-marker { display: none; }
+.task-wireframe-menu summary:hover, .task-wireframe-menu[open] summary { background: var(--surface-2); }
+.task-wireframe-menu summary[aria-disabled="true"] { opacity: .48; cursor: default; }
+.task-wireframe-menu summary:focus-visible, .task-wireframe-menu-items button:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 2px; }
+.task-wireframe-menu-items { position: absolute; top: calc(100% + 4px); left: 0; z-index: 15; display: grid; min-width: 184px; padding: 5px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); box-shadow: 0 8px 22px color-mix(in srgb, var(--text) 12%, transparent); }
+.task-wireframe-more-menu .task-wireframe-menu-items { right: 0; left: auto; min-width: 226px; }
+.task-wireframe-menu-items button { width: 100%; min-height: 34px; justify-content: flex-start; padding: 6px 9px; border: 0; border-radius: 3px; background: transparent; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.task-wireframe-menu-items button:hover:not(:disabled) { background: var(--surface-2); }
+.task-wireframe-menu-items button:disabled { color: var(--muted); opacity: .5; cursor: default; }
+body .design-workspace-draft .task-wireframe:not(.is-focused) .task-wireframe-toolbar { overflow: visible; }
 .task-wireframe-draw-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 7px 0; border-block: 1px solid var(--border); }
 .task-wireframe-draw-tools > span { margin-right: 8px; color: var(--muted); font-size: 12px; }
 .task-wireframe-draw-tools button { display: inline-flex; align-items: center; gap: 6px; }
@@ -64,14 +75,15 @@
 .task-wireframe.is-focused .task-wireframe-layout { grid-template-columns: 160px minmax(0, 1fr) 272px; gap: 14px; }
 .task-wireframe.is-focused .task-wireframe-layers, .task-wireframe.is-focused .task-wireframe-properties { max-height: min(72vh, 900px); overflow: auto; }
 .task-wireframe.is-focused .task-wireframe-canvas-viewport { max-height: min(72vh, 900px); }
-.task-wireframe.is-focused .task-wireframe-layers li button, .task-wireframe.is-focused .task-wireframe-properties label, .task-wireframe.is-focused .task-wireframe-align-grid button { font-size: 12px; }
+.task-wireframe.is-focused .task-wireframe-layers li button, .task-wireframe.is-focused .task-wireframe-properties label { font-size: 13px; }
+.task-wireframe.is-focused .task-wireframe-align-grid button { font-size: 12px; }
 .task-wireframe.is-focused .task-wireframe-properties input, .task-wireframe.is-focused .task-wireframe-properties select { min-height: 36px; font-size: 13px; }
 .task-wireframe.is-focused .task-wireframe-canvas-head, .task-wireframe.is-focused .task-wireframe-toolbar > span { font-size: 12px; }
 .task-wireframe-layers, .task-wireframe-properties { min-height: 280px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 12px; }
-.task-wireframe-layers h3, .task-wireframe-properties h3 { margin: 0 0 12px; font-size: 13px; }
+.task-wireframe-layers h3, .task-wireframe-properties h3 { margin: 0 0 12px; font-size: 14px; }
 .task-wireframe-layers ol { list-style: none; padding: 0; margin: 0; display: grid; gap: 3px; max-height: 500px; overflow: auto; }
 .task-wireframe-layers li { min-width: 0; }
-.task-wireframe-layers li button { width: 100%; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--text); padding: 7px; text-align: left; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-wireframe-layers li button { width: 100%; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--text); padding: 7px; text-align: left; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-wireframe-layers li button:hover, .task-wireframe-layers li button.selected { border-color: var(--border); background: var(--surface-2); }
 .task-wireframe-layers li button.in-entered-group { border-left: 2px solid var(--accent); }
 .task-wireframe-group-path { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); color: var(--muted); font-size: 12px; }
@@ -129,8 +141,8 @@
 .task-wireframe-resize:focus-visible, .task-wireframe-element:focus-visible, .task-wireframe-layers button:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 2px; }
 .task-wireframe-resize:disabled { cursor: default; opacity: .5; }
 .task-wireframe-properties { display: grid; gap: 10px; }
-.task-wireframe-properties label { display: grid; gap: 4px; min-width: 0; color: var(--muted); font-size: 12px; }
-.task-wireframe-properties input, .task-wireframe-properties select { min-height: 33px; padding: 6px 8px; font-size: 12px; }
+.task-wireframe-properties label { display: grid; gap: 4px; min-width: 0; color: var(--muted); font-size: 13px; }
+.task-wireframe-properties input, .task-wireframe-properties select { min-height: 33px; padding: 6px 8px; font-size: 13px; }
 .task-wireframe-properties .task-wireframe-duplicate { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .task-wireframe-property-kind { padding: 8px 0 2px; border-top: 1px solid var(--border); font-size: 12px; font-weight: 650; }
 .task-wireframe-geometry { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
