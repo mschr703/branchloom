@@ -26,6 +26,7 @@ import { createOutputErrorCard, previewOutputErrors } from './output-errors';
 import { BrowserSessionPersistence } from './browser-persistence';
 import { detectAgents, SessionRunner } from './cli';
 import { confirmTaskRevision, submitTaskRevision, taskRevisionHistory } from './task-revisions';
+import { previewTaskRevisionCleanup } from './task-revision-cleanup';
 import { CommandTerminalRunner } from './command-terminal';
 import { ensureCardWorktree, previewCardWorktreeCleanup, reviewCardWorktree, verifiedCardWorktreePath } from './git-worktree';
 import { approveIntegration, enqueueIntegration, integrationQueue, prepareIntegration } from './integration-queue';
@@ -301,6 +302,7 @@ function installIpc(): void {
   bind('createCardFromDesignRequest', (input: Parameters<StudioAPI['createCardFromDesignRequest']>[0]) => createCardFromDesignRequest(db, input));
   bind('updateCard', (input: Parameters<StudioAPI['updateCard']>[0]) => db.updateCard(input));
   bind('taskRevisionHistory', (input: Parameters<StudioAPI['taskRevisionHistory']>[0]) => taskRevisionHistory(db, input));
+  bind('previewTaskRevisionCleanup', (input: Parameters<StudioAPI['previewTaskRevisionCleanup']>[0]) => previewTaskRevisionCleanup(db, input));
   bind('confirmTaskRevision', (input: Parameters<StudioAPI['confirmTaskRevision']>[0]) => confirmTaskRevision(db, input));
   bind('submitTaskRevision', (input: Parameters<StudioAPI['submitTaskRevision']>[0]) => {
     if (!runner) throw new Error('Agent runner is unavailable');

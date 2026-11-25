@@ -94,6 +94,7 @@ const studio: StudioAPI = {
   createCardFromDesignRequest: (input) => invoke('createCardFromDesignRequest', input),
   updateCard: (input) => invoke('updateCard', input),
   taskRevisionHistory: (input) => invoke('taskRevisionHistory', input),
+  previewTaskRevisionCleanup: (input) => invoke('previewTaskRevisionCleanup', input),
   confirmTaskRevision: (input) => invoke('confirmTaskRevision', input),
   submitTaskRevision: (input) => invoke('submitTaskRevision', input),
   agentCardMetadataEnabled: (projectId) => invoke('agentCardMetadataEnabled', projectId),

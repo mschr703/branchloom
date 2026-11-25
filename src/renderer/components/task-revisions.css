@@ -10,4 +10,13 @@
 .task-revision-compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 10px 0; }
 .task-revision-compare > div { border-left: 2px solid var(--border); padding-left: 10px; display: grid; align-content: start; gap: 5px; }
 .task-revision-compare small { color: var(--muted); }
+.task-cleanup-preview { display: grid; gap: 10px; border-top: 1px solid var(--border); padding-top: 12px; }
+.task-cleanup-preview :is(p, ul) { margin: 0; }
+.task-cleanup-preview ul { padding-left: 19px; }
+.task-cleanup-preview li + li { margin-top: 6px; }
+.task-cleanup-preview summary { cursor: pointer; }
+.task-cleanup-preview summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.task-cleanup-terms { display: grid; gap: 4px; }
+.task-cleanup-matches { display: grid; gap: 6px; }
+.task-cleanup-matches pre { margin: 3px 0 0; overflow-wrap: anywhere; white-space: pre-wrap; font-size: .83rem; }
 @media (max-width: 620px) { .task-revision-compare { grid-template-columns: 1fr; } }

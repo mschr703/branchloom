@@ -33,3 +33,21 @@ export interface ConfirmTaskRevisionInput {
   description: string;
   reason: string;
 }
+
+export interface TaskRevisionCleanupPreview {
+  revisionId: string;
+  checkedAt: string;
+  oldOnly: Array<{ term: string; source: 'title' | 'description'; excerpt: string }>;
+  retained: string[];
+  newOnly: string[];
+  source: null | {
+    head: string;
+    targetHead: string;
+    baseHead: string;
+    worktreeDirty: boolean;
+    changedFileCount: number;
+    inspectedFileCount: number;
+    truncated: boolean;
+  };
+  matches: Array<{ term: string; path: string; line: number; excerpt: string; fileHash: string }>;
+}
