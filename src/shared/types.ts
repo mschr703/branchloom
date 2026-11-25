@@ -393,6 +393,15 @@ export interface StudioAPI {
   browserSetVisible(visible: boolean): Promise<BrowserState>;
   browserSetBounds(bounds: BrowserBounds | null): Promise<BrowserState>;
   browserCreateDiagnosticCard(input: { projectId: string; columnId: string; diagnosticId: string; reproduction: string }): Promise<Card>;
+  startBugCapture(projectId: string): Promise<void>;
+  markBugResize(): Promise<void>;
+  stopBugCapture(): Promise<import('./bug-replay').BugCaptureDraft>;
+  discardBugCapture(): Promise<void>;
+  saveBugScenario(input: { token: string; cardId: string; actions: import('./bug-replay').BugReplayAction[];
+    expectation: { target: import('./bug-replay').BugReplayTarget; state: 'visible' | 'hidden' } }): Promise<import('./bug-replay').BugScenario>;
+  bugScenarios(cardId: string): Promise<import('./bug-replay').BugScenario[]>;
+  bugScenarioRuns(scenarioId: string): Promise<import('./bug-replay').BugReplayResult[]>;
+  runBugScenario(scenarioId: string): Promise<import('./bug-replay').BugReplayResult>;
   cardQaReports(cardId: string): Promise<CardQaReport[]>;
   runCardQa(input: { cardId: string; url: string; viewport: CardQaViewport }): Promise<CardQaReport>;
   runCardQaBatch(input: { cardId: string; urls: string[]; viewport: CardQaViewport }): Promise<CardQaBatchResult>;

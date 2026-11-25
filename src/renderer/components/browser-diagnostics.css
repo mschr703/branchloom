@@ -6,6 +6,20 @@
 .browser-diagnostics label { display: grid; gap: 5px; color: var(--soft); font-weight: 600; }
 .browser-diagnostics select, .browser-diagnostics textarea { width: 100%; min-width: 0; color: var(--text); }
 .browser-diagnostics textarea { resize: vertical; }
+.browser-bug-recording { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 9px 13px; color: var(--text); font-size: 12px; }
+.browser-bug-recording summary { cursor: pointer; font-weight: 650; }
+.browser-bug-recording summary:focus-visible, .browser-bug-recording button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.browser-bug-recording p { max-width: 75ch; color: var(--muted); line-height: 1.5; }
+.browser-bug-recording form { display: grid; gap: 9px; max-width: 850px; padding: 8px 0 4px; }
+.browser-bug-recording form > button { justify-self: start; }
+.browser-bug-recording label { display: grid; gap: 4px; min-width: 0; color: var(--soft); font-weight: 600; }
+.browser-bug-recording select, .browser-bug-recording input { width: 100%; min-width: 0; }
+.browser-bug-recording ol { margin: 0; padding: 0 0 0 20px; }
+.browser-bug-recording li { padding: 3px 0; line-height: 1.5; }
+.browser-bug-recording li button { margin-left: 10px; }
+.browser-bug-expectation { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(170px, 2fr) minmax(150px, 1fr); gap: 9px; }
+.browser-bug-source { overflow-wrap: anywhere; }
+@media (max-width: 680px) { .browser-bug-expectation { grid-template-columns: 1fr; } }
 .browser-diagnostic-source { display: grid; gap: 4px; padding: 8px 10px; border-left: 3px solid var(--danger); background: var(--surface-2); overflow-wrap: anywhere; }
 .browser-diagnostic-source small { color: var(--muted); }
 .browser-diagnostic-action { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; }

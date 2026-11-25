@@ -11,6 +11,7 @@ import { StudioBrowser } from './browser';
 import { projectMemoryMapSources, readProjectMemorySource, refreshProjectMemoryIndex, searchProjectMemoryIndex } from './project-memory-index';
 import { createDiagnosticCard } from './error-catcher';
 import { cardQaReports, cardQaScreenshot, runCardQa, runCardQaBatch } from './card-qa';
+import { bugScenarios, bugScenarioRuns, runBugScenario, saveBugScenario } from './bug-replay';
 import { qaCoverageRoutes, saveQaCoverageRoute, removeQaCoverageRoute, runQaCoverageCell } from './qa-coverage';
 import { cardCriteria, createCardCriterion, updateCardCriterion, deleteCardCriterion, linkCardCriterionEvidence, unlinkCardCriterionEvidence } from './card-acceptance';
 import { cardSplitLinks, createCardSplit, previewCardSplit } from './card-split';
@@ -674,6 +675,19 @@ function installIpc(): void {
     if (!browser) throw new Error('Browser nicht verfügbar.');
     return createDiagnosticCard(db, input, browser.diagnostic(input.diagnosticId));
   });
+  bind('startBugCapture', (projectId: string) => { db.project(projectId); if (!browser) throw new Error('Browser nicht verfügbar.'); return browser.startBugCapture(projectId); });
+  bind('markBugResize', () => { if (!browser) throw new Error('Browser nicht verfügbar.'); return browser.markBugResize(); });
+  bind('stopBugCapture', () => { if (!browser) throw new Error('Browser nicht verfügbar.'); return browser.stopBugCapture(); });
+  bind('discardBugCapture', () => { if (!browser) throw new Error('Browser nicht verfügbar.'); return browser.discardBugCapture(); });
+  bind('saveBugScenario', (input: Parameters<StudioAPI['saveBugScenario']>[0]) => {
+    if (!browser) throw new Error('Browser nicht verfügbar.');
+    const scenario = saveBugScenario(db, devRunner, browser.bugCaptureForToken(input.token), input);
+    browser.clearBugCapture(input.token);
+    return scenario;
+  });
+  bind('bugScenarios', (cardId: string) => bugScenarios(db, cardId));
+  bind('bugScenarioRuns', (scenarioId: string) => bugScenarioRuns(db, scenarioId));
+  bind('runBugScenario', (scenarioId: string) => runBugScenario(db, devRunner, scenarioId));
   bind('cardQaReports', (cardId: string) => cardQaReports(db, cardId));
   bind('runCardQa', (input: Parameters<StudioAPI['runCardQa']>[0]) => runCardQa(db, input));
   bind('runCardQaBatch', (input: Parameters<StudioAPI['runCardQaBatch']>[0]) => runCardQaBatch(db, input));

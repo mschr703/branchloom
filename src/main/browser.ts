@@ -1,11 +1,46 @@
 import { randomUUID } from 'node:crypto';
 import { ClipboardItem, clipboard, Menu, session, shell, WebContentsView, type BrowserWindow, type Session } from 'electron';
 import type { BrowserBounds, BrowserCaptureResult, BrowserDiagnostic, BrowserState, BrowserTabState } from '../shared/types';
+import type { BugCaptureDraft, BugReplayAction } from '../shared/bug-replay';
 import { clampBrowserBounds, diagnosticSource, isLocalDevUrl, isSafeBrowserUrl, normalizeBrowserAddress } from './browser-policy';
 import { BrowserSessionPersistence, MAX_BROWSER_TABS } from './browser-persistence';
 
 const PARTITION = 'persist:jarvis-studio-browser';
 const MAX_CAPTURE_BYTES = 16 * 1024 * 1024;
+const BUG_CAPTURE_WORLD = 1017;
+const BUG_CAPTURE_START = `(() => {
+  const key = '__branchloom_bug_capture';
+  globalThis[key]?.stop();
+  const clicks = [];
+  let ignoredClicks = 0;
+  const valid = /^[A-Za-z0-9_.:-]{1,80}$/;
+  const onClick = (event) => {
+    if (!event.isTrusted) return;
+    const element = event.target instanceof Element ? event.target.closest('[data-testid], [id]') : null;
+    const testId = element?.getAttribute('data-testid');
+    const id = element?.id;
+    const unique = (attribute, value) => {
+      let found = null;
+      for (const candidate of document.querySelectorAll('[' + attribute + ']')) {
+        if (candidate.getAttribute(attribute) !== value) continue;
+        if (found) return false;
+        found = candidate;
+      }
+      return found === element;
+    };
+    const target = testId && valid.test(testId) && unique('data-testid', testId) ? { kind: 'test-id', value: testId }
+      : id && valid.test(id) && unique('id', id) ? { kind: 'id', value: id } : null;
+    if (!target || clicks.length >= 8) { ignoredClicks++; return; }
+    clicks.push({ kind: 'click', target, at: Date.now() });
+  };
+  document.addEventListener('click', onClick, true);
+  globalThis[key] = { stop() { document.removeEventListener('click', onClick, true); delete globalThis[key]; return { clicks, ignoredClicks }; } };
+  return true;
+})()`;
+const BUG_CAPTURE_STOP = `(() => globalThis.__branchloom_bug_capture?.stop() ?? null)()`;
+
+type TimedAction = BugReplayAction & { at: number };
+type ActiveBugCapture = { projectId: string; tabId: string; url: string; width: number; height: number; startedAt: string; actions: TimedAction[]; ignoredResizes: number };
 
 interface Tab { id: string; view: WebContentsView; requestedUrl: string; restoredUrl: string | null; error: string | null; diagnostics: BrowserDiagnostic[] }
 
@@ -19,6 +54,9 @@ export class StudioBrowser {
   private readonly preventDownload = (event: Electron.Event): void => event.preventDefault();
   private persistTimer: NodeJS.Timeout | null = null;
   private disposed = false;
+  private activeBugCapture: ActiveBugCapture | null = null;
+  private bugCaptureStarting = false;
+  private completedBugCapture: BugCaptureDraft | null = null;
 
   constructor(private readonly window: BrowserWindow, private readonly emit: (state: BrowserState) => void, private readonly onSearchShortcut: () => void = () => undefined, private readonly persistence: BrowserSessionPersistence | null = null) {
     this.browserSession = session.fromPartition(PARTITION);
@@ -50,6 +88,7 @@ export class StudioBrowser {
   }
 
   newTab(): BrowserState {
+    this.cancelBugCapture();
     if (this.tabs.length >= MAX_BROWSER_TABS) throw new Error(`Höchstens ${MAX_BROWSER_TABS} Browser-Tabs sind möglich.`);
     const tab = this.createTab();
     this.activeTabId = tab.id;
@@ -60,6 +99,7 @@ export class StudioBrowser {
   }
 
   selectTab(id: string): BrowserState {
+    this.cancelBugCapture();
     if (!this.tabs.some((tab) => tab.id === id)) throw new Error('Browser-Tab nicht gefunden.');
     this.activeTabId = id;
     this.layout();
@@ -69,6 +109,7 @@ export class StudioBrowser {
   }
 
   closeTab(id: string): BrowserState {
+    this.cancelBugCapture();
     const index = this.tabs.findIndex((tab) => tab.id === id);
     if (index < 0) throw new Error('Browser-Tab nicht gefunden.');
     const tab = this.tabs[index]!;
@@ -83,6 +124,7 @@ export class StudioBrowser {
   }
 
   async navigate(address: string): Promise<BrowserState> {
+    this.cancelBugCapture();
     const url = normalizeBrowserAddress(address);
     if (!this.activeTab() && this.tabs.length >= MAX_BROWSER_TABS) throw new Error(`Höchstens ${MAX_BROWSER_TABS} Browser-Tabs sind möglich.`);
     const tab = this.activeTab() ?? this.createTab();
@@ -104,18 +146,21 @@ export class StudioBrowser {
   }
 
   back(): BrowserState {
+    this.cancelBugCapture();
     const history = this.activeTab()?.view.webContents.navigationHistory;
     if (history?.canGoBack()) history.goBack();
     return this.state();
   }
 
   forward(): BrowserState {
+    this.cancelBugCapture();
     const history = this.activeTab()?.view.webContents.navigationHistory;
     if (history?.canGoForward()) history.goForward();
     return this.state();
   }
 
   reload(): BrowserState {
+    this.cancelBugCapture();
     const tab = this.activeTab();
     if (tab) { tab.diagnostics = []; tab.error = null; tab.view.webContents.reload(); this.publish(); }
     return this.state();
@@ -147,6 +192,7 @@ export class StudioBrowser {
   }
 
   setVisible(visible: boolean): BrowserState {
+    if (!visible) this.cancelBugCapture();
     this.visible = visible;
     this.layout();
     return this.state();
@@ -158,6 +204,87 @@ export class StudioBrowser {
     return this.state();
   }
 
+  markBugResize(): void {
+    const capture = this.activeBugCapture;
+    const bounds = clampBrowserBounds(this.bounds, this.window.getContentSize());
+    if (!capture || !bounds || !this.visible || this.activeTabId !== capture.tabId || bounds.width < 320 || bounds.height < 240 || bounds.width > 1920 || bounds.height > 1200) {
+      throw new Error('Passe die sichtbare lokale Vorschau während der Aufnahme auf 320–1920 × 240–1200 px an.');
+    }
+    if (capture.actions.length >= 8) throw new Error('Die Aufnahme enthält bereits zu viele Größenwechsel.');
+    capture.actions.push({ kind: 'resize', width: bounds.width, height: bounds.height, at: Date.now() });
+  }
+
+  /** Capture trusted clicks on stable IDs in an isolated world of the visible local preview. */
+  async startBugCapture(projectId: string): Promise<void> {
+    const tab = this.activeTab();
+    if (!tab || !this.visible || this.attachedTabId !== tab.id || this.activeBugCapture || this.bugCaptureStarting) throw new Error('Öffne zuerst eine sichtbare lokale Vorschau und beende eine laufende Aufnahme.');
+    const url = tab.view.webContents.getURL();
+    const bounds = clampBrowserBounds(this.bounds, this.window.getContentSize());
+    if (!isLocalDevUrl(url) || !bounds || bounds.width < 320 || bounds.height < 240 || bounds.width > 1920 || bounds.height > 1200) throw new Error('Die Aufnahme braucht eine lokale Vorschau mit 320–1920 × 240–1200 px.');
+    const parsed = new URL(url);
+    if (parsed.search || parsed.hash) throw new Error('Entferne Query und Fragment vor der Aufnahme, damit keine Zugangsdaten gespeichert werden.');
+    this.bugCaptureStarting = true;
+    try {
+      await tab.view.webContents.executeJavaScriptInIsolatedWorld(BUG_CAPTURE_WORLD, [{ code: BUG_CAPTURE_START }]);
+      if (this.disposed || this.activeTabId !== tab.id || !this.visible || tab.view.webContents.getURL() !== url) {
+        if (!tab.view.webContents.isDestroyed()) await tab.view.webContents.executeJavaScriptInIsolatedWorld(BUG_CAPTURE_WORLD, [{ code: BUG_CAPTURE_STOP }]).catch(() => undefined);
+        throw new Error('Der Browser-Tab hat sich beim Aufnahmestart geändert.');
+      }
+      this.completedBugCapture = null;
+      this.activeBugCapture = { projectId, tabId: tab.id, url: diagnosticSource(url)!, width: bounds.width, height: bounds.height, startedAt: new Date().toISOString(), actions: [], ignoredResizes: 0 };
+    } finally {
+      this.bugCaptureStarting = false;
+    }
+  }
+
+  async stopBugCapture(): Promise<BugCaptureDraft> {
+    const capture = this.activeBugCapture;
+    const tab = this.activeTab();
+    this.activeBugCapture = null;
+    if (!capture || !tab || tab.id !== capture.tabId || !this.visible || tab.view.webContents.getURL() !== capture.url) {
+      const original = this.tabs.find((item) => item.id === capture?.tabId);
+      if (original && !original.view.webContents.isDestroyed()) await original.view.webContents.executeJavaScriptInIsolatedWorld(BUG_CAPTURE_WORLD, [{ code: BUG_CAPTURE_STOP }]).catch(() => undefined);
+      throw new Error('Die Aufnahme wurde durch Tab- oder Seitenwechsel unterbrochen. Starte sie erneut.');
+    }
+    const raw = await tab.view.webContents.executeJavaScriptInIsolatedWorld(BUG_CAPTURE_WORLD, [{ code: BUG_CAPTURE_STOP }]) as { clicks?: unknown; ignoredClicks?: unknown } | null;
+    if (!raw || !Array.isArray(raw.clicks)) throw new Error('Die Aufnahmeseite wurde neu geladen; starte die Aufnahme erneut.');
+    const clicks: TimedAction[] = raw.clicks.map((item: unknown) => {
+      const click = item as { kind?: unknown; target?: { kind?: unknown; value?: unknown }; at?: unknown };
+      if (click.kind !== 'click' || !click.target || (click.target.kind !== 'test-id' && click.target.kind !== 'id')
+        || typeof click.target.value !== 'string' || !/^[A-Za-z0-9_.:-]{1,80}$/.test(click.target.value)
+        || !Number.isSafeInteger(click.at)) throw new Error('Die Aufnahme enthält einen ungültigen Klick.');
+      return { kind: 'click', target: { kind: click.target.kind, value: click.target.value }, at: click.at as number };
+    });
+    if (!Number.isSafeInteger(raw.ignoredClicks) || (raw.ignoredClicks as number) < 0) throw new Error('Die Aufnahme enthält ungültige Zähler.');
+    const actions = [...clicks, ...capture.actions].sort((a, b) => a.at - b.at).map(({ at: _at, ...action }) => action);
+    if (!actions.length || actions.length > 5 || (raw.ignoredClicks as number) + capture.ignoredResizes > 0) throw new Error('Die Aufnahme enthält keine oder zu viele eindeutig identifizierbare Schritte. Nutze höchstens fünf Klicks/Größenwechsel mit stabilen Element-IDs.');
+    const draft: BugCaptureDraft = { token: randomUUID(), projectId: capture.projectId, url: capture.url, width: capture.width, height: capture.height,
+      actions, ignoredClicks: 0, startedAt: capture.startedAt };
+    this.completedBugCapture = draft;
+    return structuredClone(draft);
+  }
+
+  bugCaptureForToken(token: string): BugCaptureDraft {
+    if (!this.completedBugCapture || this.completedBugCapture.token !== token) throw new Error('Diese Aufnahme ist nicht mehr verfügbar.');
+    return structuredClone(this.completedBugCapture);
+  }
+
+  clearBugCapture(token: string): void {
+    if (this.completedBugCapture?.token === token) this.completedBugCapture = null;
+  }
+
+  discardBugCapture(): void {
+    this.cancelBugCapture();
+    this.completedBugCapture = null;
+  }
+
+  private cancelBugCapture(): void {
+    if (!this.activeBugCapture) return;
+    const tab = this.tabs.find((item) => item.id === this.activeBugCapture?.tabId);
+    this.activeBugCapture = null;
+    if (tab && !tab.view.webContents.isDestroyed()) void tab.view.webContents.executeJavaScriptInIsolatedWorld(BUG_CAPTURE_WORLD, [{ code: BUG_CAPTURE_STOP }]).catch(() => undefined);
+  }
+
   diagnostic(id: string): BrowserDiagnostic {
     const match = this.activeTab()?.diagnostics.find((entry) => entry.id === id);
     if (!match) throw new Error('Der Browserfehler ist nicht mehr verfügbar. Seite neu laden und erneut prüfen.');
@@ -166,6 +293,8 @@ export class StudioBrowser {
 
   dispose(): void {
     if (this.disposed) return;
+    this.cancelBugCapture();
+    this.completedBugCapture = null;
     this.disposed = true;
     this.flushPersist();
     this.browserSession.removeListener('will-download', this.preventDownload);
@@ -223,8 +352,8 @@ export class StudioBrowser {
     });
     contents.on('will-navigate', (event) => { if (!isSafeBrowserUrl(event.url)) event.preventDefault(); });
     contents.on('will-redirect', (event) => { if (!isSafeBrowserUrl(event.url)) event.preventDefault(); });
-    contents.on('did-navigate', () => { tab.error = null; tab.diagnostics = []; this.schedulePersist(); this.publish(); });
-    contents.on('did-navigate-in-page', () => { this.schedulePersist(); this.publish(); });
+    contents.on('did-navigate', () => { if (this.activeBugCapture?.tabId === tab.id) this.cancelBugCapture(); tab.error = null; tab.diagnostics = []; this.schedulePersist(); this.publish(); });
+    contents.on('did-navigate-in-page', () => { if (this.activeBugCapture?.tabId === tab.id) this.cancelBugCapture(); this.schedulePersist(); this.publish(); });
     contents.on('page-title-updated', () => this.publish());
     contents.on('did-start-loading', () => this.publish());
     contents.on('did-stop-loading', () => this.publish());

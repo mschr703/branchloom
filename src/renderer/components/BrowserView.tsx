@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Camera, ExternalLink, Globe2, Plus, RotateCw, X } from 'lucide-react';
 import type { BrowserDiagnostic, BrowserState, ProjectSnapshot } from '../../shared/types';
+import type { BugCaptureDraft, BugReplayTarget } from '../../shared/bug-replay';
 import './browser-diagnostics.css';
 
 const EMPTY: BrowserState = { tabs: [], activeTabId: null, url: '', title: '', loading: false, canGoBack: false, canGoForward: false, error: null, diagnostics: [] };
@@ -15,6 +16,13 @@ export function BrowserView({ active, snapshot = null, onOpenCard, onOpenSetting
   const [reproduction, setReproduction] = useState('');
   const [columnId, setColumnId] = useState('');
   const [savingDiagnostic, setSavingDiagnostic] = useState(false);
+  const [bugRecording, setBugRecording] = useState(false);
+  const [bugBusy, setBugBusy] = useState(false);
+  const [bugDraft, setBugDraft] = useState<BugCaptureDraft | null>(null);
+  const [bugCardId, setBugCardId] = useState('');
+  const [bugTargetKind, setBugTargetKind] = useState<BugReplayTarget['kind']>('test-id');
+  const [bugTargetValue, setBugTargetValue] = useState('');
+  const [bugExpected, setBugExpected] = useState<'visible' | 'hidden'>('visible');
   const viewport = useRef<HTMLDivElement>(null);
   const editing = useRef(false);
   const syncBounds = useCallback(() => {
@@ -46,8 +54,14 @@ export function BrowserView({ active, snapshot = null, onOpenCard, onOpenSetting
   }, [snapshot?.project.id, snapshot?.columns]);
 
   useEffect(() => {
+    setBugDraft(null); setBugRecording(false); setBugCardId('');
+    void window.studio?.discardBugCapture().catch(() => undefined);
+  }, [snapshot?.project.id]);
+
+  useEffect(() => {
     if (!window.studio) return;
     if (!active) {
+      setBugRecording(false);
       void window.studio.browserSetVisible(false).catch(() => undefined);
       return;
     }
@@ -77,6 +91,7 @@ export function BrowserView({ active, snapshot = null, onOpenCard, onOpenSetting
 
   async function navigate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setBugRecording(false);
     setError('');
     setNotice('');
     try { setState(await window.studio.browserNavigate(address)); }
@@ -84,6 +99,7 @@ export function BrowserView({ active, snapshot = null, onOpenCard, onOpenSetting
   }
 
   async function command(action: () => Promise<BrowserState>) {
+    setBugRecording(false);
     setError('');
     setNotice('');
     try { setState(await action()); }
@@ -122,6 +138,43 @@ export function BrowserView({ active, snapshot = null, onOpenCard, onOpenSetting
     finally { setSavingDiagnostic(false); }
   }
 
+  async function toggleBugRecording() {
+    if (!snapshot || bugBusy) return;
+    setBugBusy(true); setError(''); setNotice('');
+    try {
+      if (bugRecording) {
+        const draft = await window.studio.stopBugCapture();
+        setBugDraft(draft); setBugRecording(false);
+        setNotice(`${draft.actions.length} Schritte aufgenommen. Prüfe sie und lege die Erwartung fest.`);
+      } else {
+        await window.studio.startBugCapture(snapshot.project.id);
+        setBugDraft(null); setBugRecording(true);
+        setNotice('Aufnahme läuft. Bediene die lokale Vorschau und stoppe dann die Aufnahme.');
+      }
+    } catch (reason) { setBugRecording(false); setError(messageOf(reason)); }
+    finally { setBugBusy(false); }
+  }
+
+  async function saveBugRecording(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!bugDraft || !bugCardId || bugBusy) return;
+    setBugBusy(true); setError(''); setNotice('');
+    try {
+      const scenario = await window.studio.saveBugScenario({ token: bugDraft.token, cardId: bugCardId, actions: bugDraft.actions,
+        expectation: { target: { kind: bugTargetKind, value: bugTargetValue.trim() }, state: bugExpected } });
+      setBugDraft(null);
+      setNotice('Ablauf an der Karte gespeichert. Kein Test und kein Agent wurde automatisch gestartet.');
+      await onOpenCard?.(scenario.cardId);
+    } catch (reason) { setError(messageOf(reason)); }
+    finally { setBugBusy(false); }
+  }
+
+  async function markBugResize() {
+    setError(''); setNotice('');
+    try { await window.studio.markBugResize(); setNotice('Die aktuelle Vorschaugröße wurde als Schritt notiert.'); }
+    catch (reason) { setError(messageOf(reason)); }
+  }
+
   return <section className="browser-page" aria-label="Browser">
     <div className="browser-tabbar" role="tablist" aria-label="Browser-Tabs">
       {state.tabs.map((tab, index) => <div className={tab.id === state.activeTabId ? 'browser-tab active' : 'browser-tab'} key={tab.id}>
@@ -149,6 +202,20 @@ export function BrowserView({ active, snapshot = null, onOpenCard, onOpenSetting
     </div>
     {error || state.error ? <div className="browser-error" role="alert">{error || state.error}</div> : null}
     {notice ? <div className="browser-notice" role="status">{notice}</div> : null}
+    <details className="browser-bug-recording" onToggle={() => requestAnimationFrame(syncBounds)}>
+      <summary>Fehlerablauf aufnehmen</summary>
+      <p>Nur lokale Vorschauen. Die Aufnahme merkt sich höchstens fünf echte Klicks auf stabile <code>data-testid</code>- oder ID-Elemente. Nach einer Fensteränderung kannst du die neue Größe ausdrücklich als Schritt markieren. Eingaben, Seitentext und Cookies werden nicht übernommen.</p>
+      <button className="secondary-button small" type="button" disabled={!active || !snapshot || !state.url || bugBusy} onClick={() => void toggleBugRecording()}>{bugBusy ? 'Bitte warten…' : bugRecording ? 'Aufnahme stoppen' : 'Aufnahme starten'}</button>
+      {bugRecording ? <button className="text-button" type="button" disabled={bugBusy} onClick={() => void markBugResize()}>Aktuelle Größe als Schritt</button> : null}
+      {bugDraft ? <form onSubmit={(event) => void saveBugRecording(event)}>
+        <p className="browser-bug-source">{bugDraft.url} · Startgröße {bugDraft.width} × {bugDraft.height} px</p>
+        <ol>{bugDraft.actions.map((step, index) => <li key={`${index}-${step.kind}`}><span>{step.kind === 'click' ? `Klick auf ${step.target.kind === 'test-id' ? 'data-testid' : 'ID'} „${step.target.value}“` : `Fenster ${step.width} × ${step.height} px`}</span><button className="text-button" type="button" disabled={bugBusy} onClick={() => setBugDraft((current) => current ? { ...current, actions: current.actions.filter((_item, at) => at !== index) } : null)}>Entfernen</button></li>)}</ol>
+        <label>Zu dieser Karte speichern<select value={bugCardId} required disabled={bugBusy} onChange={(event) => setBugCardId(event.target.value)}><option value="">Karte wählen</option>{snapshot?.cards.filter((card) => !card.archivedAt).map((card) => <option key={card.id} value={card.id}>{card.title}</option>)}</select></label>
+        <div className="browser-bug-expectation"><label>Element<select value={bugTargetKind} disabled={bugBusy} onChange={(event) => setBugTargetKind(event.target.value as BugReplayTarget['kind'])}><option value="test-id">data-testid</option><option value="id">ID</option></select></label><label>Bezeichner<input value={bugTargetValue} required maxLength={80} disabled={bugBusy} onChange={(event) => setBugTargetValue(event.target.value)} placeholder="filter-button" /></label><label>Erwartung<select value={bugExpected} disabled={bugBusy} onChange={(event) => setBugExpected(event.target.value as 'visible' | 'hidden')}><option value="visible">bleibt sichtbar</option><option value="hidden">ist verborgen</option></select></label></div>
+        <button className="secondary-button" type="submit" disabled={bugBusy || !bugCardId || !bugTargetValue.trim() || !bugDraft.actions.length}>An Karte speichern</button>
+      </form> : null}
+      {!snapshot ? <small>Wähle zuerst ein Projekt.</small> : null}
+    </details>
     {state.diagnostics.length ? <BrowserDiagnostics diagnostics={state.diagnostics} selectedId={selectedDiagnosticId} snapshot={snapshot} columnId={columnId} reproduction={reproduction} saving={savingDiagnostic} onSelect={setSelectedDiagnosticId} onColumn={setColumnId} onReproduction={setReproduction} onCreate={(event) => void createDiagnosticCard(event)} onToggle={() => requestAnimationFrame(syncBounds)} /> : null}
     <div className="browser-viewport" ref={viewport}>
       {!state.url ? <div className="browser-empty"><Globe2 size={30} /><h2>Webvorschau</h2><p>Öffne hier eine Seite von Hand. Kartenagenten erhalten keinen Zugriff auf diese Tabs. Ihre lesende lokale Browserprüfung stellst du unter Einstellungen ein.</p>{onOpenSettings ? <button className="text-button" type="button" onClick={onOpenSettings}>Browser-Einstellungen öffnen</button> : null}</div> : null}

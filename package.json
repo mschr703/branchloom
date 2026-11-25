@@ -22,6 +22,7 @@
     "smoke:chat-canvas": "npm run build && node scripts/smoke-electron.mjs --chat-canvas --timeout-ms 120000",
     "smoke:usage": "npm run build && node scripts/smoke-electron.mjs --usage --timeout-ms 120000",
     "smoke:dev-accounts": "node scripts/smoke-dev-account-restart.mjs",
+    "smoke:f17": "npm run build:main && electron scripts/smoke-bug-replay.cjs",
     "smoke:package": "node scripts/smoke-electron.mjs --package",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
     "test": "vitest run",

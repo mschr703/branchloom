@@ -19,6 +19,7 @@ import { ParallelRunPanel } from './ParallelRunPanel';
 import type { CardRunGate } from '../../shared/parallel-runs';
 import type { CardCriterionEvidenceKind } from '../../shared/card-acceptance';
 import { CardQaPanel } from './CardQaPanel';
+import { CardBugReplayPanel } from './CardBugReplayPanel';
 import { PrDraftPanel } from './PrDraftPanel';
 import { OutputErrorPanel } from './OutputErrorPanel';
 import { ConflictRadarNotice } from './ConflictRadarNotice';
@@ -311,6 +312,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
         <DevAccountPanel key={`dev-account-${card.id}`} cardId={card.id} projectId={card.projectId} />
         <div className="drawer-divider" />
         <CardQaPanel key={`qa-${card.id}`} card={card} focusReport={criterionQaFocus ?? focusQaReport} />
+        <CardBugReplayPanel key={`bug-replay-${card.id}`} cardId={card.id} archived={Boolean(card.archivedAt)} />
         <div className="drawer-divider" />
         <div className="section-heading"><h3>Git-Worktree prüfen</h3></div>
         <p className="section-copy">Status und Änderungsumfang lokal prüfen. Die App übernimmt nur committete Änderungen per Fast-Forward; bei divergierten Branches bleibt alles unangetastet.</p>

@@ -1,0 +1,16 @@
+.card-bug-replay { display: grid; gap: 8px; }
+.card-bug-replay .section-heading, .card-bug-replay .section-copy { margin: 0; }
+.card-bug-scenario { border-top: 1px solid var(--border); padding: 8px 0; font-size: 12px; }
+.card-bug-scenario summary { display: flex; flex-wrap: wrap; gap: 4px 12px; cursor: pointer; }
+.card-bug-scenario summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.card-bug-scenario summary span, .card-bug-scenario > p, .card-bug-runs span { color: var(--muted); }
+.card-bug-scenario ol { margin: 7px 0; padding-left: 20px; }
+.card-bug-scenario li { line-height: 1.5; }
+.card-bug-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.card-bug-warning { max-width: 75ch; color: var(--danger) !important; }
+.card-bug-runs { max-height: 220px; overflow-y: auto; }
+.card-bug-runs li { padding: 5px 0; border-top: 1px solid var(--border); }
+.card-bug-runs strong { display: inline-block; margin-right: 8px; }
+.card-bug-runs strong.passed { color: var(--accent); }
+.card-bug-runs strong.failed, .card-bug-runs strong.error { color: var(--danger); }
+.card-bug-runs p { margin: 3px 0 0; color: var(--muted); overflow-wrap: anywhere; }

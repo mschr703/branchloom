@@ -16,6 +16,9 @@ const mocked = vi.hoisted(() => ({
   menus: [] as unknown[],
   clipboardWrites: [] as unknown[],
   externalOpens: [] as string[],
+  captureClicks: [] as Array<{ kind: 'click'; target: { kind: 'id' | 'test-id'; value: string }; at: number }>,
+  captureIgnored: 0,
+  captureStops: 0,
 }));
 
 vi.mock('electron', async () => {
@@ -51,6 +54,11 @@ vi.mock('electron', async () => {
       this.emit('did-stop-loading');
     }
     async capturePage() { return { isEmpty: () => false, getSize: () => ({ width: 640, height: 360 }), toPNG: () => Buffer.from([137, 80, 78, 71]) }; }
+    async executeJavaScriptInIsolatedWorld(_worldId: number, scripts: Array<{ code: string }>) {
+      if (scripts[0]?.code.includes('BUG_CAPTURE_UNUSED_MARKER')) throw new Error('Unexpected script');
+      if (scripts[0]?.code.includes('__branchloom_bug_capture?.stop()')) { mocked.captureStops++; return { clicks: mocked.captureClicks, ignoredClicks: mocked.captureIgnored }; }
+      return true;
+    }
   }
   class FakeView {
     webContents = new FakeContents();
@@ -123,6 +131,65 @@ describe('browser URL and bounds policy', () => {
 });
 
 describe('isolated embedded browser', () => {
+  it('captures only bounded stable-element clicks and an explicitly marked local viewport change', async () => {
+    const browser = new StudioBrowser(fakeWindow() as unknown as BrowserWindow, () => undefined);
+    browser.newTab();
+    await browser.navigate('http://127.0.0.1:5173/settings');
+    browser.setVisible(true);
+    browser.setBounds({ x: 0, y: 0, width: 600, height: 500 });
+    await browser.startBugCapture('project-synthetic');
+    mocked.captureClicks = [{ kind: 'click', target: { kind: 'id', value: 'menu' }, at: Date.now() - 100 }];
+    browser.setBounds({ x: 0, y: 0, width: 390, height: 400 });
+    browser.markBugResize();
+    const draft = await browser.stopBugCapture();
+    expect(draft).toMatchObject({ projectId: 'project-synthetic', url: 'http://127.0.0.1:5173/settings',
+      width: 600, height: 500, actions: [{ kind: 'click', target: { kind: 'id', value: 'menu' } }, { kind: 'resize', width: 390, height: 400 }] });
+    expect(browser.bugCaptureForToken(draft.token).actions).toHaveLength(2);
+    browser.clearBugCapture(draft.token);
+    expect(() => browser.bugCaptureForToken(draft.token)).toThrow('nicht mehr verfügbar');
+    browser.dispose(); mocked.captureClicks = []; mocked.captureIgnored = 0;
+  });
+
+  it('rejects external, query-bearing, and ambiguous recordings', async () => {
+    const browser = new StudioBrowser(fakeWindow() as unknown as BrowserWindow, () => undefined);
+    browser.newTab(); browser.setVisible(true); browser.setBounds({ x: 0, y: 0, width: 600, height: 500 });
+    await browser.navigate('https://example.com/');
+    await expect(browser.startBugCapture('project-synthetic')).rejects.toThrow('lokale Vorschau');
+    await browser.navigate('http://127.0.0.1:5173/settings?token=private');
+    await expect(browser.startBugCapture('project-synthetic')).rejects.toThrow('Query');
+    await browser.navigate('http://127.0.0.1:5173/settings');
+    await browser.startBugCapture('project-synthetic');
+    mocked.captureClicks = [{ kind: 'click', target: { kind: 'id', value: 'menu' }, at: Date.now() }];
+    mocked.captureIgnored = 1;
+    await expect(browser.stopBugCapture()).rejects.toThrow('eindeutig identifizierbare');
+    browser.dispose(); mocked.captureClicks = []; mocked.captureIgnored = 0;
+  });
+  it('removes the capture listener when the visible tab changes during start or before stop', async () => {
+    const browser = new StudioBrowser(fakeWindow() as unknown as BrowserWindow, () => undefined);
+    browser.newTab();
+    await browser.navigate('http://127.0.0.1:5173/settings');
+    browser.setVisible(true); browser.setBounds({ x: 0, y: 0, width: 600, height: 500 });
+    const contents = (mocked.views.at(-1) as { webContents: { url: string; executeJavaScriptInIsolatedWorld: (world: number, scripts: Array<{ code: string }>) => Promise<unknown> } }).webContents;
+    const original = contents.executeJavaScriptInIsolatedWorld.bind(contents);
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    contents.executeJavaScriptInIsolatedWorld = async (world, scripts) => {
+      if (scripts[0]?.code.includes("const key = '__branchloom_bug_capture'")) await pending;
+      return original(world, scripts);
+    };
+    const before = mocked.captureStops;
+    const starting = browser.startBugCapture('project-synthetic');
+    browser.setVisible(false);
+    release();
+    await expect(starting).rejects.toThrow('beim Aufnahmestart geändert');
+    expect(mocked.captureStops).toBe(before + 1);
+    browser.setVisible(true);
+    await browser.startBugCapture('project-synthetic');
+    contents.url = 'http://127.0.0.1:5173/elsewhere';
+    await expect(browser.stopBugCapture()).rejects.toThrow('Seitenwechsel');
+    expect(mocked.captureStops).toBe(before + 2);
+    browser.dispose();
+  });
   it('captures bounded real console errors from local previews only, with source and tab isolation', async () => {
     const browser = new StudioBrowser(fakeWindow() as unknown as BrowserWindow, () => undefined);
     await browser.navigate('http://localhost:5173/page?token=secret');
