@@ -95,24 +95,57 @@ export async function runWhiteboardVisibleSmoke(window: BrowserWindow, store: St
     if (!document.querySelector('.wb-discussion') || !findButton('Auswahl beenden')) throw new Error('Area discussion is not reachable.');
     return true;
   })()`);
-  const rectangle = await window.webContents.executeJavaScript(`(() => {
-    const node = document.querySelector('.wb-node');
-    const pane = document.querySelector('.react-flow__pane');
-    if (!node || !pane) throw new Error('Selection fixture is missing.');
-    const box = node.getBoundingClientRect();
-    const canvas = pane.getBoundingClientRect();
-    return { x1: Math.max(canvas.left + 8, box.left - 22), y1: Math.max(canvas.top + 8, box.top - 22),
-      x2: Math.min(canvas.right - 8, box.right + 22), y2: Math.min(canvas.bottom - 8, box.bottom + 22) };
+  const rectangle = await window.webContents.executeJavaScript(`(async () => {
+    document.querySelector('.react-flow__controls-fitview')?.click();
+    const started = Date.now();
+    let previous = '';
+    let stableSince = started;
+    for (let attempt = 0; attempt < 140; attempt++) {
+      const node = document.querySelector('.react-flow__node[data-id=${JSON.stringify(saved.id)}]');
+      const pane = document.querySelector('.react-flow__pane');
+      if (!node || !pane) throw new Error('Selection fixture is missing.');
+      const box = node.getBoundingClientRect();
+      const canvas = pane.getBoundingClientRect();
+      const rect = { x1: Math.round(Math.max(canvas.left + 8, box.left - 24)), y1: Math.round(Math.max(canvas.top + 8, box.top - 24)),
+        x2: Math.round(Math.min(canvas.right - 8, box.right + 24)), y2: Math.round(Math.min(canvas.bottom - 8, box.bottom + 24)) };
+      const valid = rect.x1 < box.left - 2 && rect.y1 < box.top - 2 && rect.x2 > box.right + 2 && rect.y2 > box.bottom + 2
+        && rect.x1 < rect.x2 && rect.y1 < rect.y2;
+      const key = JSON.stringify({ rect, viewport: document.querySelector('.react-flow__viewport')?.getAttribute('style') });
+      if (key !== previous || !valid) stableSince = Date.now();
+      if (valid && Date.now() - started >= 1_200 && Date.now() - stableSince >= 700) return { ...rect, box: { x: box.x, y: box.y, width: box.width, height: box.height },
+        pane: { x: canvas.x, y: canvas.y, width: canvas.width, height: canvas.height } };
+      previous = key;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('Saved box never settled inside the visible selection pane.');
   })()`);
-  window.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', x: Math.round(rectangle.x1), y: Math.round(rectangle.y1), clickCount: 1 });
-  for (let step = 1; step <= 5; step++) window.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(rectangle.x1 + (rectangle.x2 - rectangle.x1) * step / 5), y: Math.round(rectangle.y1 + (rectangle.y2 - rectangle.y1) * step / 5), movementX: 4, movementY: 4 });
-  window.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', x: Math.round(rectangle.x2), y: Math.round(rectangle.y2), clickCount: 1 });
+  const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  window.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', x: rectangle.x1, y: rectangle.y1, clickCount: 1 });
+  await pause(70);
+  let previousX = rectangle.x1;
+  let previousY = rectangle.y1;
+  for (let step = 1; step <= 8; step++) {
+    const x = Math.round(rectangle.x1 + (rectangle.x2 - rectangle.x1) * step / 8);
+    const y = Math.round(rectangle.y1 + (rectangle.y2 - rectangle.y1) * step / 8);
+    window.webContents.sendInputEvent({ type: 'mouseMove', x, y, movementX: x - previousX, movementY: y - previousY });
+    previousX = x; previousY = y;
+    await pause(40);
+  }
+  window.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', x: rectangle.x2, y: rectangle.y2, clickCount: 1 });
   await window.webContents.executeJavaScript(`(async () => {
     for (let attempt = 0; attempt < 100; attempt++) {
       if (/Ausgewählte Quellen · [1-9]/.test(document.querySelector('.wb-discussion h4')?.textContent ?? '')) return true;
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
-    throw new Error('Drag rectangle did not select a saved box.');
+    const node = document.querySelector('.react-flow__node[data-id=${JSON.stringify(saved.id)}]')?.getBoundingClientRect();
+    const pane = document.querySelector('.react-flow__pane')?.getBoundingClientRect();
+    throw new Error('Drag rectangle did not select a saved box: ' + JSON.stringify({ requested: ${JSON.stringify(rectangle)},
+      currentNode: node && { x: node.x, y: node.y, width: node.width, height: node.height },
+      currentPane: pane && { x: pane.x, y: pane.y, width: pane.width, height: pane.height },
+      hit: document.elementFromPoint(${rectangle.x1}, ${rectangle.y1})?.className?.baseVal ?? document.elementFromPoint(${rectangle.x1}, ${rectangle.y1})?.className,
+      selection: document.querySelector('.react-flow__selection')?.getBoundingClientRect().toJSON(),
+      count: document.querySelector('.wb-discussion h4')?.textContent, viewport: document.querySelector('.react-flow__viewport')?.getAttribute('style'),
+      size: [innerWidth, innerHeight] }));
   })()`);
   await window.webContents.executeJavaScript(`(async () => {
     document.querySelector('.wb-area-list summary')?.click();

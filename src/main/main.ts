@@ -932,6 +932,7 @@ function createWindow(): void {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
+      backgroundThrottling: !smokeWhiteboard,
     },
   });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
