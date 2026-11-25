@@ -57,12 +57,14 @@ export function divergentIntegration(store: StudioStore, cardId: string): Diverg
   store.card(cardId);
   const row = rowForCard(store, cardId);
   if (!row) return null;
-  const base = realpathSync(store.worktreeBase);
-  const project = store.project(store.card(cardId).projectId);
-  const expected = join(base, project.id, `integration-${row.item_id}-${cardId}`);
   const missing = (reason: string): DivergentIntegration => ({ cardId, path: row.path, branch: row.branch,
     originalSourceHead: row.original_source_head, targetHead: row.target_head, resultHead: null,
     conflicts: [], state: 'missing', reason });
+  let base: string;
+  try { base = realpathSync(store.worktreeBase); }
+  catch { return missing('The app-owned worktree directory is missing. No Git action was retried.'); }
+  const project = store.project(store.card(cardId).projectId);
+  const expected = join(base, project.id, `integration-${row.item_id}-${cardId}`);
   let targetRoot: string;
   try { targetRoot = realpathSync(git(project.path, ['rev-parse', '--show-toplevel']).output); }
   catch { return missing('The target repository cannot be verified.'); }
