@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { agentCardMetadataEnabled, cardMetadataFingerprint, projectLabels, updateAgentCardMetadata } from './agent-card-metadata';
+import { recordAgentQuestion } from './agent-questions';
 import type { StudioStore } from './store';
 
 const MAX_BODY_BYTES = 4_096;
@@ -40,7 +41,7 @@ export class AgentCardMetadataBridge {
 
   constructor(
     private readonly store: StudioStore,
-    private readonly changed: (sessionId: string, cardId: string) => void,
+    private readonly changed: (sessionId: string, cardId: string, kind: 'metadata' | 'question') => void,
     private readonly listenPort = 0,
     private readonly unavailable: (error: Error) => void = () => undefined,
   ) {}
@@ -93,8 +94,11 @@ export class AgentCardMetadataBridge {
   }
 
   instructions(projectId: string): string {
-    if (!this.available || !agentCardMetadataEnabled(this.store, projectId)) return '';
-    return `\n\nCard metadata tool (only for this running Branchloom card):
+    if (!this.available) return '';
+    const questionTool = `\n\nBranchloom question tool (only for this running card):
+When you need a user decision, POST JSON {"requestId":"new UUID","question":"one precise question"} to BRANCHLOOM_AGENT_QUESTION_URL with Authorization: Bearer <BRANCHLOOM_AGENT_QUESTION_TOKEN> and Content-Type: application/json. Read the token inside the child process from its environment; never print it or put it in project files. This creates a question in the local Decision Inbox, linked to this exact card and session. Wait for the answer in this session; plain terminal output alone does not create an inbox question.`;
+    if (!agentCardMetadataEnabled(this.store, projectId)) return questionTool;
+    return questionTool + `\n\nCard metadata tool (only for this running Branchloom card):
 The user enabled agent edits to priority and labels for this project. Make an actual local HTTP tool call; mentioning metadata in your answer changes nothing. Use BRANCHLOOM_CARD_METADATA_URL and BRANCHLOOM_CARD_METADATA_TOKEN from your process environment. Never print the token or include it in a commit.
 Read the token inside a child process (for example Node's process.env); never expand it into shell command arguments, logs, or project files.
 GET the URL with Authorization: Bearer <token> to read the current priority, labels, project labels and fingerprint. POST JSON to the same URL with Content-Type: application/json, Authorization: Bearer <token>, requestId (new UUID), expectedFingerprint (from GET), a short reason, and priority (none|low|medium|high|urgent) and/or labels (complete list, up to 12 names). A stale response requires a new GET. The server enforces this session's card and project, validates all fields, and records an audit. It cannot move cards or edit descriptions.`;
@@ -103,11 +107,16 @@ GET the URL with Authorization: Bearer <token> to read the current priority, lab
   environment(sessionId: string): Record<string, string> {
     if (!this.available) return {};
     const session = this.store.session(sessionId);
-    if (session.state !== 'running' || !agentCardMetadataEnabled(this.store, session.projectId)) return {};
+    if (session.state !== 'running') return {};
     this.revoke(sessionId);
     const token = randomBytes(32).toString('base64url');
     this.sessions.set(token, sessionId);
-    return { BRANCHLOOM_CARD_METADATA_URL: `http://127.0.0.1:${this.port}/v1/card-metadata`, BRANCHLOOM_CARD_METADATA_TOKEN: token };
+    return {
+      BRANCHLOOM_AGENT_QUESTION_URL: `http://127.0.0.1:${this.port}/v1/agent-question`,
+      BRANCHLOOM_AGENT_QUESTION_TOKEN: token,
+      ...(agentCardMetadataEnabled(this.store, session.projectId)
+        ? { BRANCHLOOM_CARD_METADATA_URL: `http://127.0.0.1:${this.port}/v1/card-metadata`, BRANCHLOOM_CARD_METADATA_TOKEN: token } : {}),
+    };
   }
 
   revoke(sessionId: string): void {
@@ -122,7 +131,8 @@ GET the URL with Authorization: Bearer <token> to read the current priority, lab
   }
 
   private async handle(request: IncomingMessage, response: ServerResponse): Promise<void> {
-    if (!this.available || request.headers.host !== `127.0.0.1:${this.port}` || request.headers.origin || request.url !== '/v1/card-metadata') {
+    if (!this.available || request.headers.host !== `127.0.0.1:${this.port}` || request.headers.origin
+      || !['/v1/card-metadata', '/v1/agent-question'].includes(request.url ?? '')) {
       respond(response, 403, { error: 'Forbidden.' }); return;
     }
     if (request.method !== 'GET' && request.method !== 'POST') { respond(response, 405, { error: 'Method not allowed.' }); return; }
@@ -131,9 +141,22 @@ GET the URL with Authorization: Bearer <token> to read the current priority, lab
     if (!sessionId) { respond(response, 401, { error: 'Invalid or expired session capability.' }); return; }
     try {
       const session = this.store.session(sessionId);
-      if (session.state !== 'running' || !agentCardMetadataEnabled(this.store, session.projectId)) throw new Error('Agent card metadata changes are unavailable.');
+      if (session.state !== 'running') throw new Error('Agent session is no longer running.');
       const card = this.store.card(session.cardId);
       if (card.projectId !== session.projectId || card.archivedAt) throw new Error('The session card is unavailable.');
+      if (request.url === '/v1/agent-question') {
+        if (request.method !== 'POST') { respond(response, 405, { error: 'Method not allowed.' }); return; }
+        if (!/^application\/json(?:;|$)/i.test(request.headers['content-type'] ?? '')) { respond(response, 415, { error: 'JSON content type required.' }); return; }
+        const value = await body(request);
+        if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid question request.');
+        const input = value as Record<string, unknown>;
+        if (Object.keys(input).some((key) => !['requestId', 'question'].includes(key))) throw new Error('Unsupported question field.');
+        const saved = recordAgentQuestion(this.store, { sessionId, requestId: input.requestId as string, question: input.question as string });
+        this.changed(sessionId, card.id, 'question');
+        respond(response, 200, { questionId: saved.id, cardId: card.id, sessionId, cardRevision: saved.cardRevision });
+        return;
+      }
+      if (!agentCardMetadataEnabled(this.store, session.projectId)) throw new Error('Agent card metadata changes are unavailable.');
       if (request.method === 'GET') {
         respond(response, 200, { cardId: card.id, projectId: card.projectId, priority: card.priority,
           labels: card.labels, projectLabels: projectLabels(this.store, card.projectId), fingerprint: cardMetadataFingerprint(card) });
@@ -151,7 +174,7 @@ GET the URL with Authorization: Bearer <token> to read the current priority, lab
         priority: input.priority as import('../shared/types').CardPriority | undefined,
         labels: input.labels as string[] | undefined, reason: input.reason as string,
       });
-      this.changed(sessionId, card.id);
+      this.changed(sessionId, card.id, 'metadata');
       respond(response, 200, { cardId: card.id, priority: result.card.priority,
         labels: result.card.labels, fingerprint: result.fingerprint, auditId: result.audit.id });
     } catch (error) {

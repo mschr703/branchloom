@@ -6,6 +6,7 @@ import type { GlobalInboxItem } from '../../shared/global-inbox';
 import { decisionItems, filterDecisionItems, type DecisionFilter } from '../decision-inbox';
 import { CrossProjectInbox } from './CrossProjectInbox';
 import { RequirementConflictsPanel } from './RequirementConflictsPanel';
+import { AgentQuestions } from './AgentQuestions';
 import { inboxFirstPageChanged, useVisibleInboxRefresh } from '../inbox-refresh';
 import '../decision-inbox.css';
 
@@ -135,6 +136,7 @@ export function DecisionInbox({ snapshot, onOpenWorkflow, onOpenQueue, onOpenSes
     {onOpenGlobalItem ? <div className="decision-scope" role="group" aria-label="Projektumfang"><button type="button" className="secondary-button" aria-pressed={scope === 'project'} onClick={() => setScope('project')}>Dieses Projekt</button><button type="button" className="secondary-button" aria-pressed={scope === 'all'} onClick={() => setScope('all')}>Alle Projekte</button></div> : null}
     {scope === 'all' && onOpenGlobalItem ? <CrossProjectInbox onOpen={onOpenGlobalItem} /> : <>
     <RequirementConflictsPanel projectId={snapshot.project.id} cards={snapshot.cards} onOpenCard={onOpenCard} />
+    <AgentQuestions projectId={snapshot.project.id} onOpenCard={onOpenCard} onOpenSession={onOpenSession} />
     {!reviews && !reviewError ? <p className="section-copy" role="status">Reviews und Browser-QA werden geladen…</p> : null}
     {reviewError ? <p className="inline-error" role="alert">Reviews und Browser-QA konnten nicht geladen werden: {reviewError}</p> : null}
     {reviewNotice ? <p className="inline-note" role="status">{reviewNotice}</p> : null}

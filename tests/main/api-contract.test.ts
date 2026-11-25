@@ -119,6 +119,12 @@ describe('shared API contract', () => {
       expect(store.session(session.id).state).toBe('exited');
       expect(store.session(session.id).output).toContain(contract.fingerprint);
       expect(sessionRunEvidence(store, { projectId: project.id, sessionId: session.id }).launch?.sources).toContain('api-contract');
+      const empty = runner.start({ cardId: frontend.id, agentId: agent.id, prompt: '', mode: 'one-shot' });
+      for (let attempt = 0; attempt < 40 && store.session(empty.id).state === 'running'; attempt++)
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(store.session(empty.id).state).toBe('exited');
+      expect(sessionRunEvidence(store, { projectId: project.id, sessionId: empty.id }).launch?.sources).toEqual([]);
+      expect(store.db.prepare('SELECT session_id FROM session_api_contract_snapshots WHERE session_id = ?').get(empty.id)).toBeUndefined();
     } finally { runner.dispose(); store.close(); }
   }, 15_000);
 });

@@ -27,6 +27,7 @@ import type { ProjectMemoryIndexStatus, ProjectMemorySearch, ProjectMemorySearch
 import type { ReleaseUpdateState } from './release-update';
 import type { UsageSessionPage } from './usage';
 import type { IntegrationItem } from './integration-queue';
+import type { AgentQuestion, AnswerAgentQuestions } from './agent-questions';
 
 export type SessionState = 'running' | 'exited' | 'failed' | 'stopped';
 export type WorkflowState = 'draft' | 'running' | 'paused' | 'done';
@@ -293,6 +294,8 @@ export interface StudioAPI {
   listReviewComments(cardId: string): Promise<ReviewComment[]>;
   createReviewComment(input: CreateReviewComment): Promise<ReviewComment>;
   reviewInboxItems(input: ReviewInboxQuery): Promise<ReviewInboxPage>;
+  agentQuestions(projectId: string): Promise<AgentQuestion[]>;
+  answerAgentQuestions(input: AnswerAgentQuestions): Promise<AgentQuestion[]>;
   globalInboxItems(input: GlobalInboxQuery): Promise<GlobalInboxPage>;
   acknowledgeReviewInboxComment(input: AcknowledgeReviewInboxComment): Promise<void>;
   acknowledgeQaInboxReport(input: AcknowledgeQaInboxReport): Promise<void>;

@@ -35,6 +35,7 @@ import { scanProjectComponents } from './component-catalog';
 import { checkoutMilestone, compareMilestone, createMilestone, createMilestoneWithPreview, listMilestones, milestonePreviewImage } from './milestones';
 import { createReviewComment, listReviewComments, previewCardDiff } from './diff-review';
 import { acknowledgeQaInboxReport, acknowledgeReviewInboxComment, reviewInboxItems } from './review-inbox';
+import { agentQuestions, answerAgentQuestions } from './agent-questions';
 import { globalInboxItems } from './global-inbox';
 import { acceptReviewedPlan, createPlanComment, listPlanComments, listReviewedPlans, saveReviewedPlan } from './plan-review';
 import { createReviewRuleFromComment, deleteReviewRule, listReviewRules, updateReviewRule } from './review-rules';
@@ -453,6 +454,11 @@ function installIpc(): void {
   bind('listReviewComments', (cardId: string) => listReviewComments(db, cardId));
   bind('createReviewComment', (input: Parameters<StudioAPI['createReviewComment']>[0]) => createReviewComment(db, input));
   bind('reviewInboxItems', (input: Parameters<StudioAPI['reviewInboxItems']>[0]) => reviewInboxItems(db, input));
+  bind('agentQuestions', (projectId: string) => agentQuestions(db, projectId));
+  bind('answerAgentQuestions', (input: Parameters<StudioAPI['answerAgentQuestions']>[0]) => answerAgentQuestions(db, input, (sessionId, text) => {
+    if (!runner) throw new Error('Agent runner is unavailable.');
+    runner.send({ sessionId, text });
+  }));
   bind('globalInboxItems', (input: Parameters<StudioAPI['globalInboxItems']>[0]) => globalInboxItems(db, input));
   bind('acknowledgeReviewInboxComment', (input: Parameters<StudioAPI['acknowledgeReviewInboxComment']>[0]) => acknowledgeReviewInboxComment(db, input));
   bind('acknowledgeQaInboxReport', (input: Parameters<StudioAPI['acknowledgeQaInboxReport']>[0]) => acknowledgeQaInboxReport(db, input));
@@ -3333,9 +3339,9 @@ if (ownsSharedProfile) app.whenReady().then(async () => {
   mkdirSync(directory, { recursive: true });
   store = new StudioStore(join(directory, 'studio.sqlite'));
   configureReleaseUpdater();
-  agentCardMetadataBridge = new AgentCardMetadataBridge(store, (sessionId, cardId) => {
+  agentCardMetadataBridge = new AgentCardMetadataBridge(store, (sessionId, cardId, kind) => {
     if (window && !window.isDestroyed()) window.webContents.send('studio:session-event', {
-      sessionId, cardId, type: 'state', data: 'Card metadata updated', state: 'running',
+      sessionId, cardId, type: 'state', data: kind === 'question' ? 'Agent question recorded' : 'Card metadata updated', state: 'running',
     } satisfies SessionEvent);
   }, 0, (error) => console.error('[Branchloom] optional agent card metadata bridge unavailable', error));
   void agentCardMetadataBridge.start().catch(() => undefined);

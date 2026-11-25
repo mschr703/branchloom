@@ -37,6 +37,7 @@ import { installPlanReview } from './plan-review';
 import { installMilestones } from './milestones';
 import { installReviewRules } from './review-rules';
 import { installReviewInbox } from './review-inbox';
+import { installAgentQuestions } from './agent-questions';
 import { installCardQa } from './card-qa';
 import { installQaCoverage } from './qa-coverage';
 import { installQaFixCards } from './qa-fix-card';
@@ -182,6 +183,7 @@ export class StudioStore {
     installProjectRunPause(this.db);
     installApiContracts(this.db);
     installRequirementConflicts(this.db);
+    installAgentQuestions(this.db);
     const count = this.db.prepare('SELECT COUNT(*) AS count FROM agents').get() as { count: number };
     if (count.count === 0) {
       for (const preset of [

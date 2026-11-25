@@ -82,7 +82,7 @@ describe('agent card metadata capability', () => {
     await bridge.start();
     try {
       expect(agentCardMetadataEnabled(store, project.id)).toBe(false);
-      expect(bridge.environment(session.id)).toEqual({});
+      expect(bridge.environment(session.id)).toEqual(expect.objectContaining({ BRANCHLOOM_AGENT_QUESTION_URL: expect.stringContaining('/v1/agent-question') }));
       setAgentCardMetadataEnabled(store, { projectId: project.id, enabled: true });
       const env = bridge.environment(session.id);
       const url = env.BRANCHLOOM_CARD_METADATA_URL!;

@@ -256,7 +256,7 @@ export class SessionRunner {
     const apiContractContext = cardApiContractContext(this.store, card.id);
     const metadataInstructions = this.metadataBridge?.instructions(card.projectId) ?? '';
     const browserInstructions = this.browserBridge?.instructions(card.projectId) ?? '';
-    const prompt = taskPrompt + (wireframeContext ? `\n\n${wireframeContext}` : '') + (apiContractContext ? `\n\n${apiContractContext}` : '') + metadataInstructions + browserInstructions;
+    const prompt = taskPrompt ? taskPrompt + (wireframeContext ? `\n\n${wireframeContext}` : '') + (apiContractContext ? `\n\n${apiContractContext}` : '') + metadataInstructions + browserInstructions : '';
     if (prompt.length > 30_000) throw new Error('Agent prompt exceeds 30000 characters');
     assertSafeModelContext([
       { field: 'Kartentitel', text: card.title },
@@ -273,7 +273,7 @@ export class SessionRunner {
     const worktree = input.useWorktree === true ? ensureCardWorktree(this.store, card.id) : null;
     const runGit = captureRunGit(worktree?.cwd ?? project.path, worktree ? 'card-worktree' : 'project');
     const row = reserveCardSession(this.store, { cardId: card.id, agentId, worktreePath: worktree?.path });
-    recordSessionApiContract(this.store, card.id, row.id);
+    if (prompt) recordSessionApiContract(this.store, card.id, row.id);
     let finalFile: { directory: string; path: string } | null = null;
     try {
       if (input.mode === 'one-shot' && agent.kind === 'codex') {
@@ -303,7 +303,7 @@ export class SessionRunner {
     try {
       child = spawnPty(launcher.executable, args, {
         cwd: worktree?.cwd ?? project.path,
-        env: { ...process.env, BRANCHLOOM_CARD_METADATA_URL: '', BRANCHLOOM_CARD_METADATA_TOKEN: '', BRANCHLOOM_AGENT_BROWSER_URL: '', BRANCHLOOM_AGENT_BROWSER_TOKEN: '', ...metadataEnv, ...browserEnv, TERM: 'xterm-256color' } as Record<string, string>,
+        env: { ...process.env, BRANCHLOOM_CARD_METADATA_URL: '', BRANCHLOOM_CARD_METADATA_TOKEN: '', BRANCHLOOM_AGENT_QUESTION_URL: '', BRANCHLOOM_AGENT_QUESTION_TOKEN: '', BRANCHLOOM_AGENT_BROWSER_URL: '', BRANCHLOOM_AGENT_BROWSER_TOKEN: '', ...metadataEnv, ...browserEnv, TERM: 'xterm-256color' } as Record<string, string>,
         cols: 100, rows: 30,
         name: 'xterm-256color',
       });
@@ -320,8 +320,8 @@ export class SessionRunner {
     this.attachProcess(row, child, agent.kind === 'codex' && input.mode === 'one-shot');
     const mode = input.mode ?? 'interactive';
     const sources: RunSource[] = input.prompt === undefined ? ['card-text'] : input.prompt.trim() ? ['manual-prompt'] : [];
-    if (wireframeContext) sources.push('approved-wireframe');
-    if (apiContractContext) sources.push('api-contract');
+    if (prompt && wireframeContext) sources.push('approved-wireframe');
+    if (prompt && apiContractContext) sources.push('api-contract');
     const promptDelivery: PromptDelivery = !prompt ? 'none' : agent.kind === 'codex' || agent.kind === 'antigravity' || (mode === 'one-shot' && ['claude', 'gemini'].includes(agent.kind))
       || (mode === 'one-shot' && agent.kind === 'custom' && agent.args.some((arg) => arg.includes('{prompt}')))
       ? 'argv' : mode === 'interactive' ? 'pty-delayed' : 'unknown';
@@ -380,7 +380,7 @@ export class SessionRunner {
       // chooses it. Neither path selects --last or sends an old prompt.
       child = spawnPty(launcher.executable, [...launcher.prefixArgs, ...codexPackagedArgs(launcher, agent), 'resume', ...(exactId ? [exactId] : ['--include-non-interactive'])], {
         cwd: worktree?.cwd ?? project.path,
-        env: { ...process.env, BRANCHLOOM_CARD_METADATA_URL: '', BRANCHLOOM_CARD_METADATA_TOKEN: '', BRANCHLOOM_AGENT_BROWSER_URL: '', BRANCHLOOM_AGENT_BROWSER_TOKEN: '', ...metadataEnv, ...browserEnv, TERM: 'xterm-256color' } as Record<string, string>,
+        env: { ...process.env, BRANCHLOOM_CARD_METADATA_URL: '', BRANCHLOOM_CARD_METADATA_TOKEN: '', BRANCHLOOM_AGENT_QUESTION_URL: '', BRANCHLOOM_AGENT_QUESTION_TOKEN: '', BRANCHLOOM_AGENT_BROWSER_URL: '', BRANCHLOOM_AGENT_BROWSER_TOKEN: '', ...metadataEnv, ...browserEnv, TERM: 'xterm-256color' } as Record<string, string>,
         cols: 100, rows: 30,
         name: 'xterm-256color',
       });
