@@ -3372,6 +3372,14 @@ function createWindow(): void {
               if (stored?.revision !== 2 || stored.interaction?.trigger !== 'click') throw new Error('Trigger-Wechsel überschrieb die freigegebene Click-Fassung vor dem Speichern.');
               return true;
             })()`);
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const previewTab = [...document.querySelectorAll('.design-workspace-modes button')].find((button) => button.textContent?.includes('Laufende App prüfen'));
+              if (!(previewTab instanceof HTMLButtonElement)) throw new Error('Live-Vorschau-Tab fehlt nach der Interaktionsbearbeitung.');
+              previewTab.click();
+              for (let attempt = 0; attempt < 100 && document.querySelector('.design-inspection-tools[hidden]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('.design-inspection-tools[hidden]')) throw new Error('Live-Vorschau blieb für die Design-Auswahl verborgen.');
+              return true;
+            })()`);
             await designInspector!.smokeClick('#design-smoke-target');
             let saved = false;
             for (let attempt = 0; attempt < 100; attempt++) {
