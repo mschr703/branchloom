@@ -28,12 +28,16 @@ export function ReleaseUpdateNotice() {
   async function update() {
     setBusy(true);
     try { setState(await window.studio.installReleaseUpdate()); }
+    catch { setState((current) => current ? { ...current, phase: 'error', percent: null,
+      message: 'Das Update konnte nicht gestartet werden. Versuche es erneut.' } : current); }
     finally { setBusy(false); }
   }
 
   async function later() {
     setBusy(true);
     try { setState(await window.studio.laterReleaseUpdate()); }
+    catch { setState((current) => current ? { ...current, phase: 'error', percent: null,
+      message: 'Die Auswahl konnte nicht gespeichert werden. Versuche es erneut.' } : current); }
     finally { setBusy(false); }
   }
 
