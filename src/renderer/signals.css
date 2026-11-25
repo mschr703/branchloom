@@ -31,8 +31,9 @@
 :root[data-theme] .board-workflow-name { overflow: hidden; min-width: 0; max-width: 100px; text-overflow: ellipsis; white-space: nowrap; }
 :root[data-theme] .board-workflow-steps { display: flex; align-items: center; gap: 2px; min-width: 0; }
 :root[data-theme] .board-workflow-step { display: block; width: 8px; height: 3px; border-radius: 1px; background: var(--border); }
-:root[data-theme] .board-workflow-step.complete { background: #577eaa; }
-:root[data-theme] .board-workflow-step.running { background: #8d75b7; }
+:root[data-theme] .board-workflow-step.not-recorded { height: 0; border-bottom: 1px dotted var(--muted); background: none; }
+:root[data-theme] .board-workflow-step.complete { background: #7c879c; }
+:root[data-theme] .board-workflow-step.running { background: #4d78a4; }
 :root[data-theme] .board-workflow-step.needs_review,
 :root[data-theme] .board-workflow-step.manual_wait { background: #ba8150; }
 :root[data-theme] .board-workflow-overflow,

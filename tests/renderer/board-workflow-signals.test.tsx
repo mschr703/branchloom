@@ -39,6 +39,8 @@ it('does not turn a route index, unrelated row, or truncated evidence into a pro
   expect(cardWorkflowSignal('card', [workflow], { workflow: other })).toBeNull();
   expect(cardWorkflowSignal('card', [workflow], { workflow: { ...evidence, moreAvailable: true } })).toBeNull();
   expect(cardWorkflowSignal('card', [{ ...workflow, state: 'draft' }], { workflow: evidence })).toBeNull();
+  const newerWithoutRows = { ...workflow, id: 'newer', updatedAt: '2026-01-01T03:00:00Z' };
+  expect(cardWorkflowSignal('card', [newerWithoutRows, workflow], { newer: { ...other, workflowId: 'newer' }, workflow: evidence })?.workflowId).toBe('workflow');
 });
 
 it('loads recorded progress through the Board API and offers retry after a failed refresh', async () => {
