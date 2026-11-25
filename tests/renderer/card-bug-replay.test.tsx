@@ -13,7 +13,7 @@ it('shows the saved expectation and requires a second explicit click before repl
   const previousAct = Object.getOwnPropertyDescriptor(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   const scenario: BugScenario = {
-    id: 'scenario-1', projectId: 'project-1', cardId: 'card-1', url: 'http://127.0.0.1:4020/list',
+    id: 'scenario-1', projectId: 'project-1', cardId: 'card-1', url: 'http://127.0.0.1:4020/',
     width: 900, height: 700, actions: [{ kind: 'click', target: { kind: 'id', value: 'menu' } }],
     diagnostics: [{ kind: 'console', category: 'TypeError', line: 12, capturedAt: '2026-11-25T08:00:00.000Z' }],
     expectation: { target: { kind: 'test-id', value: 'filter' }, state: 'visible' },
@@ -31,6 +31,7 @@ it('shows the saved expectation and requires a second explicit click before repl
   } });
   try {
     await act(async () => { root.render(<CardBugReplayPanel cardId="card-1" archived={false} />); });
+    expect(mount.textContent).toContain('Startseite (/)');
     expect(mount.textContent).toContain('data-testid „filter“ sichtbar');
     const prepare = [...mount.querySelectorAll('button')].find((button) => button.textContent === 'Prüfung vorbereiten')!;
     await act(async () => { prepare.click(); });
