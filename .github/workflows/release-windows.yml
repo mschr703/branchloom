@@ -35,6 +35,7 @@ jobs:
       - run: npm run build
       - run: node scripts/smoke-electron.mjs --usage --timeout-ms 120000
       - run: node scripts/smoke-electron.mjs --changelog --timeout-ms 120000
+      - run: node scripts/smoke-electron.mjs --whiteboard --timeout-ms 120000
       - run: node scripts/check-public.mjs
       - run: npm run make:installer
       - run: node scripts/smoke-electron.mjs --executable out/installer/win-unpacked/Branchloom.exe

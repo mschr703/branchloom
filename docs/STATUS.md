@@ -2,6 +2,10 @@
 
 Stand: 25.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Whiteboard: Git-Struktur neben gespeicherter Arbeitsfläche
+
+- Auch wenn das Architektur-Whiteboard bereits eigene Boxen enthält, zeigt **Git-Struktur ansehen** eine getrennte, ungespeicherte Vorschau aus versionierten Pfaden. Eine knappe Pfadliste im Inspector bietet Tastaturauswahl und führt zum Git-Quellenbeleg; **Arbeitsfläche ansehen** bringt die gespeicherten Boxen zurück. **Git-Stand neu lesen** aktualisiert die Vorschau ausdrücklich. Nach Integration bestanden acht gezielte Repo-/Whiteboard-Tests, Typprüfung, Build und der fokussierte Electron-Smoke mit synthetischem Git-Repository, gespeicherter Box, Vorschau, Tastaturauswahl, Rückweg sowie Nachweis, dass keine Box und kein Agentenlauf hinzukam. Die vollständige Windows-CI und Paketprüfung stehen aus. Die Linien bedeuten nur Ordnerzugehörigkeit; Importabhängigkeiten oder semantische Beziehungen werden nicht behauptet. [Ablauf](WHITEBOARD.md).
+
 ## M01 graphischer Quellenfokus
 
 - Die Memory-Beziehungskarte hebt nach Auswahl eines Knotens nur seine direkt gespeicherten Kanten und Nachbarn hervor. Der Inspector listet diese Nachbarn mit Auswahlaktion; **Auswahl aufheben** stellt den Gesamtblick wieder her. Der Ausschnitt bleibt auf vier Aufgaben und begrenzte Quellen pro Seite beschränkt. Acht gezielte Graph-Tests, Typprüfung und Build bestanden nach Integration erneut. Der vollständige Quell-Electron-Smoke mit Memory-Inspector und Public-Scan bestanden im isolierten Zweig; die Windows-Paket-CI steht für diesen Commit aus.

@@ -36,6 +36,7 @@ import { runG02VisibleSmoke } from './smoke-g02';
 import { runG02AutoSmoke } from './smoke-g02-auto';
 import { runUsageSmoke } from './smoke-usage';
 import { runChangelogVisibleSmoke } from './smoke-changelog';
+import { runWhiteboardVisibleSmoke } from './smoke-whiteboard';
 import { applyManualRevision, captureManualRevision, manualRevisionFiles, manualRevisions, previewManualRevision, setManualRevisionConflictChoice } from './manual-revision';
 import { runF03Acceptance } from './f03-acceptance-smoke';
 import { attestIntegrationReview, integrationEvidence, runIntegrationTest, setIntegrationTestScript } from './integration-evidence';
@@ -120,7 +121,8 @@ const g02Smoke = process.argv.includes('--studio-smoke-g02');
 const smokeG02Auto = process.argv.includes('--studio-smoke-g02-auto');
 const smokeUsage = process.argv.includes('--studio-smoke-usage');
 const smokeChangelog = process.argv.includes('--studio-smoke-changelog');
-const smoke = process.argv.includes('--studio-smoke') || smokeF01 || smokeF03 || smokeF06 || g02Smoke || smokeG02Auto || smokeUsage || smokeChangelog;
+const smokeWhiteboard = process.argv.includes('--studio-smoke-whiteboard');
+const smoke = process.argv.includes('--studio-smoke') || smokeF01 || smokeF03 || smokeF06 || g02Smoke || smokeG02Auto || smokeUsage || smokeChangelog || smokeWhiteboard;
 const smokeDataDirectory = smoke ? mkdtempSync(join(tmpdir(), 'branchloom-smoke-')) : null;
 const devDataDirectory = !app.isPackaged ? process.env.BRANCHLOOM_DEV_USER_DATA : undefined;
 if (smokeDataDirectory) {
@@ -911,7 +913,14 @@ function createWindow(): void {
   // source modes, so it cannot decide this on its own.
   if (!app.isPackaged && process.env.JARVIS_STUDIO_DEV_SERVER === '1') void window.loadURL('http://127.0.0.1:5181');
   else void window.loadFile(join(__dirname, '../../dist/renderer/index.html'));
-  if (smokeUsage) {
+  if (smokeWhiteboard) {
+    window.webContents.once('did-finish-load', () => {
+      void runWhiteboardVisibleSmoke(window!, mustStore(), smokeDataDirectory!).then(() => {
+        process.stdout.write('STUDIO_SMOKE_WHITEBOARD_OK\n');
+        app.quit();
+      }).catch((error: unknown) => { console.error('STUDIO_SMOKE_WHITEBOARD_FAILED', error); app.exit(1); });
+    });
+  } else if (smokeUsage) {
     window.webContents.once('did-finish-load', () => {
       void runUsageSmoke(window!, mustStore(), smokeDataDirectory!).then(() => {
         process.stdout.write('STUDIO_SMOKE_USAGE_OK\n');

@@ -22,13 +22,14 @@ const g02 = process.argv.includes('--g02');
 const g02Auto = process.argv.includes('--g02-auto');
 const usage = process.argv.includes('--usage');
 const changelog = process.argv.includes('--changelog');
-if (Number(f01) + Number(f03) + Number(f06) + Number(g02) + Number(g02Auto) + Number(usage) + Number(changelog) > 1) throw new Error('Choose one focused smoke mode.');
+const whiteboard = process.argv.includes('--whiteboard');
+if (Number(f01) + Number(f03) + Number(f06) + Number(g02) + Number(g02Auto) + Number(usage) + Number(changelog) + Number(whiteboard) > 1) throw new Error('Choose one focused smoke mode.');
 const executable = explicitExecutable ?? (packaged
   ? join(process.cwd(), 'out', 'Branchloom-win32-x64', 'Branchloom.exe')
   : require('electron'));
 if (!existsSync(executable)) throw new Error(`Electron-Binary fehlt: ${executable}`);
 const smokeFlag = f01 ? '--studio-smoke-f01' : f03 ? '--studio-smoke-f03' : f06 ? '--studio-smoke-f06' : g02 ? '--studio-smoke-g02'
-  : g02Auto ? '--studio-smoke-g02-auto' : usage ? '--studio-smoke-usage' : changelog ? '--studio-smoke-changelog' : '--studio-smoke';
+  : g02Auto ? '--studio-smoke-g02-auto' : usage ? '--studio-smoke-usage' : changelog ? '--studio-smoke-changelog' : whiteboard ? '--studio-smoke-whiteboard' : '--studio-smoke';
 const args = packaged ? [smokeFlag] : ['.', smokeFlag];
 const child = spawn(executable, args, {
   cwd: process.cwd(), windowsHide: true,
@@ -49,7 +50,7 @@ child.on('error', (error) => {
 child.on('exit', (code) => {
   clearTimeout(timeout);
   const expectedMarker = f01 ? 'STUDIO_SMOKE_F01_OK' : f03 ? 'STUDIO_SMOKE_F03_OK' : f06 ? 'STUDIO_SMOKE_F06_OK' : g02 ? 'G02_SMOKE_OK'
-    : g02Auto ? 'G02_AUTO_SMOKE_OK' : usage ? 'STUDIO_SMOKE_USAGE_OK' : changelog ? 'STUDIO_SMOKE_CHANGELOG_OK' : 'STUDIO_SMOKE_OK';
+    : g02Auto ? 'G02_AUTO_SMOKE_OK' : usage ? 'STUDIO_SMOKE_USAGE_OK' : changelog ? 'STUDIO_SMOKE_CHANGELOG_OK' : whiteboard ? 'STUDIO_SMOKE_WHITEBOARD_OK' : 'STUDIO_SMOKE_OK';
   if (code === 0 && stdout.includes(expectedMarker)) {
     console.log(f01 ? `${packaged ? 'Paket' : 'Quellbuild'}: F01 saved project profile, two visible card previews with distinct live worktree versions, browser tabs, logs, independent stop and reload passed.`
       : f03 ? `${packaged ? 'Paket' : 'Quellbuild'}: F03-Kartenansicht, bewusst gespeicherte Revision, Dreifachvergleich, Konfliktwahl, Wiederöffnen und veraltete Zieldatei erfolgreich.`
@@ -58,6 +59,7 @@ child.on('exit', (code) => {
       : g02Auto ? `${packaged ? 'Paket' : 'Quellbuild'}: G02 automatic policy, current review/test evidence, project pause, background fast-forward and restart receipt passed.`
       : usage ? `${packaged ? 'Paket' : 'Quellbuild'}: Usage origin, workflow links, unknown tokens and visible navigation passed.`
       : changelog ? `${packaged ? 'Paket' : 'Quellbuild'}: Changelog receipt, current Git ancestry, review/test snapshot and visible card link passed.`
+      : whiteboard ? `${packaged ? 'Paket' : 'Quellbuild'}: saved Whiteboard, tracked-source preview, keyboard evidence and unchanged board passed.`
       : `${packaged ? 'Paket' : 'Quellbuild'}: Renderer, IPC, SQLite, Terminal/Agenten-PTY, Board, Ideenraum, Aufgabenklärung, Whiteboard, Kartenkontext mit bestätigtem Anhang-, Whiteboard-Dateibox- und Design-Beleg-Drop, lokale Karten-QA mit mehreren Routen, DOM-Hinweisen und Screenshots, visueller Vergleich, gespeicherte Prüfgrößenansicht, Design-Aufnahmen in drei Größen, Changelog-Quellwahl und Memory-Übernahme erfolgreich.`);
   } else {
     console.error(timedOut ? `Electron-Smoke nach ${timeoutMs / 1000} Sekunden ohne Abschluss-Signal abgebrochen.` : `Electron-Smoke fehlgeschlagen (Exit ${code ?? 'unbekannt'}).`);

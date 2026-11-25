@@ -56,6 +56,8 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard }: { snapshot: Pro
   const [automaticProposalProjectId, setAutomaticProposalProjectId] = useState<string | null>(null);
   const [automaticMapError, setAutomaticMapError] = useState('');
   const [automaticMapBusy, setAutomaticMapBusy] = useState(false);
+  const [canvasMode, setCanvasMode] = useState<'board' | 'repository'>('board');
+  const [repoRevision, setRepoRevision] = useState(0);
   const [selectedProposal, setSelectedProposal] = useState<string | null>(null);
   const [impact, setImpact] = useState<WhiteboardImpact | null>(null);
   const [impactBusy, setImpactBusy] = useState(false);
@@ -81,6 +83,8 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard }: { snapshot: Pro
     setCardDraft(null);
     setBoard({ nodes: [], edges: [] });
     setMapProposal(null); setMapError(''); setMapResult(null); setMapBusy(false);
+    setCanvasMode('board');
+    setRepoRevision(0);
     setAutomaticProposal(null); setAutomaticProposalProjectId(null); setAutomaticMapError(''); setAutomaticMapBusy(false); setSelectedProposal(null);
     impactRequest.current++; setImpact(null); setImpactError(''); setImpactBusy(false); setImpactCardDraft(null);
     window.studio.whiteboard(projectId).then((next) => { if (live) setBoard(next); })
@@ -90,7 +94,7 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard }: { snapshot: Pro
   }, [projectId]);
 
   useEffect(() => {
-    if (loading || board.nodes.length > 0 || automaticProposal || automaticMapBusy || automaticMapError) return;
+    if (loading || (board.nodes.length > 0 && canvasMode !== 'repository') || automaticProposal || automaticMapBusy || automaticMapError) return;
     let live = true;
     setAutomaticMapBusy(true);
     void window.studio.previewRepoMap(projectId)
@@ -98,17 +102,18 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard }: { snapshot: Pro
       .catch((reason: unknown) => { if (live) setAutomaticMapError(message(reason)); })
       .finally(() => { if (live) setAutomaticMapBusy(false); });
     return () => { live = false; };
-  }, [projectId, loading, board.nodes.length]);
+  }, [projectId, loading, board.nodes.length, canvasMode, repoRevision]);
 
-  const overview = useMemo(() => board.nodes.length === 0 && automaticProposalProjectId === projectId && automaticProposal ? repoMapOverview(automaticProposal) : null,
-    [board.nodes.length, automaticProposalProjectId, projectId, automaticProposal]);
+  const showRepository = canvasMode === 'repository' || board.nodes.length === 0;
+  const overview = useMemo(() => showRepository && automaticProposalProjectId === projectId && automaticProposal ? repoMapOverview(automaticProposal) : null,
+    [showRepository, automaticProposalProjectId, projectId, automaticProposal]);
   const previewNode = overview?.nodes.find((node) => node.id === selectedProposal) ?? null;
 
   useEffect(() => {
-    if (overview) {
-      setFlowNodes(overview.nodes.map((item) => ({ id: item.id, position: { x: item.x, y: item.y }, data: {
+    if (showRepository) {
+      setFlowNodes(overview?.nodes.map((item) => ({ id: item.id, position: { x: item.x, y: item.y }, data: {
         label: <div className="wb-node-content"><strong>{item.title}</strong><small>{item.kind === 'package' ? 'Paketordner' : item.kind === 'folder' ? 'Ordner' : 'Mögliche UI-Komponente'} · {item.path}</small></div>,
-      }, className: 'wb-node wb-proposal-node' })));
+      }, className: 'wb-node wb-proposal-node' })) ?? []);
       return;
     }
     setFlowNodes(board.nodes.map((item) => ({ id: item.id, position: { x: item.x, y: item.y }, data: {
@@ -117,7 +122,7 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard }: { snapshot: Pro
         {item.reference?.kind === 'folder' ? <small>Ordner · {item.reference.path}</small> : null}
         {item.reference?.kind === 'file' ? <small>Datei · {item.reference.path}</small> : null}</div>,
     }, className: `wb-node${item.reference ? ' wb-node-linked' : ''}` })));
-  }, [board.nodes, overview, snapshot.cards]);
+  }, [board.nodes, overview, showRepository, snapshot.cards]);
 
   useEffect(() => {
     if (!flowNodes.length) return;
@@ -125,9 +130,9 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard }: { snapshot: Pro
     return () => cancelAnimationFrame(frame);
   }, [projectId, flowNodes.length]);
 
-  const flowEdges = useMemo<Edge[]>(() => overview ? overview.edges.map((item) => ({ id: `${item.sourceId}>${item.targetId}`, source: item.sourceId, target: item.targetId,
-    type: 'smoothstep', className: 'wb-proposal-edge' })) : board.edges.map((item) => ({ id: item.id, source: item.sourceId, target: item.targetId, label: item.label || undefined,
-    type: 'smoothstep', className: 'wb-edge' })), [board.edges, overview]);
+  const flowEdges = useMemo<Edge[]>(() => showRepository ? overview?.edges.map((item) => ({ id: `${item.sourceId}>${item.targetId}`, source: item.sourceId, target: item.targetId,
+    type: 'smoothstep', className: 'wb-proposal-edge' })) ?? [] : board.edges.map((item) => ({ id: item.id, source: item.sourceId, target: item.targetId, label: item.label || undefined,
+    type: 'smoothstep', className: 'wb-edge' })), [board.edges, overview, showRepository]);
   const selectedNode = board.nodes.find((item) => item.id === selected) ?? null;
   const edge = board.edges.find((item) => item.id === selectedEdge) ?? null;
 
@@ -192,6 +197,7 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard }: { snapshot: Pro
     void run(async () => {
       const index = board.nodes.length;
       const created = await window.studio.createWhiteboardNode({ projectId, title: 'Neue Box', x: (index % 3) * 260, y: Math.floor(index / 3) * 180 });
+      setCanvasMode('board');
       setAutomaticProposal(null); setAutomaticProposalProjectId(null); setSelectedProposal(null);
       setSelected(created.id);
       setSelectedEdge(null);
@@ -237,15 +243,6 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard }: { snapshot: Pro
     finally { if (latestProjectId.current === projectId) setBusy(false); }
   }
 
-  async function previewMap() {
-    setMapBusy(true); setMapError(''); setMapResult(null); setError('');
-    try {
-      const proposal = await window.studio.previewRepoMap(projectId);
-      if (latestProjectId.current === projectId) setMapProposal(proposal);
-    } catch (reason) { if (latestProjectId.current === projectId) setError(message(reason)); }
-    finally { if (latestProjectId.current === projectId) setMapBusy(false); }
-  }
-
   async function acceptMap(nodeIds: string[]) {
     if (!mapProposal || mapBusy) return;
     setMapBusy(true); setMapError('');
@@ -253,38 +250,41 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard }: { snapshot: Pro
       const result = await window.studio.acceptRepoMap({ projectId, fingerprint: mapProposal.fingerprint, nodeIds });
       if (latestProjectId.current !== projectId) return;
       await reload();
-      setMapResult(result); setMapProposal(null); setAutomaticProposal(null); setAutomaticProposalProjectId(null); setSelectedProposal(null);
+      setMapResult(result); setMapProposal(null); setAutomaticProposal(null); setAutomaticProposalProjectId(null); setSelectedProposal(null); setCanvasMode('board');
     } catch (reason) { if (latestProjectId.current === projectId) setMapError(message(reason)); }
     finally { if (latestProjectId.current === projectId) setMapBusy(false); }
   }
 
   return <div className="wb-view">
     <div className="view-header wb-heading"><div><h2>Architektur-Whiteboard</h2><p>Projektstruktur aus dem Git-Index ansehen, Quellen prüfen und eigene Verbindungen ergänzen.</p></div>
-      <div className="wb-heading-actions"><button className="secondary-button" type="button" disabled={busy || loading || mapBusy} onClick={() => void previewMap()}><FolderTree size={16} /> {mapBusy && !mapProposal ? 'Prüfe Repo…' : 'Repo-Struktur vorschlagen'}</button><button className="primary-button" type="button" disabled={busy || loading} onClick={addNode}><Plus size={16} /> Box hinzufügen</button></div></div>
+      <div className="wb-heading-actions">{board.nodes.length > 0 ? <button className="secondary-button" type="button" disabled={loading} onClick={() => { setCanvasMode(canvasMode === 'repository' ? 'board' : 'repository'); setSelected(null); setSelectedEdge(null); setSelectedProposal(null); }}><FolderTree size={16} /> {canvasMode === 'repository' ? 'Arbeitsfläche ansehen' : 'Git-Struktur ansehen'}</button> : null}<button className="primary-button" type="button" disabled={busy || loading} onClick={addNode}><Plus size={16} /> Box hinzufügen</button></div></div>
     {error ? <div className="error-banner" role="alert"><span>{error}</span><button type="button" aria-label="Fehler schließen" onClick={() => setError('')}>×</button></div> : null}
     {mapResult ? <p className="wb-import-result" role="status">Repo-Struktur übernommen: {mapResult.createdNodes} neue Boxen, {mapResult.reusedNodes} vorhandene Boxen, {mapResult.createdEdges} neue Verbindungen.</p> : null}
     <div className="wb-workspace">
       <div className="wb-canvas" aria-label="Architektur-Canvas">
         {loading ? <div className="wb-loading">Whiteboard wird geladen…</div> : <ReactFlow nodes={flowNodes} edges={flowEdges} onNodesChange={onNodesChange} onConnect={connect}
           onInit={(instance) => { flowApi.current = instance; }}
-          onNodeDragStop={(_event, node) => { if (!overview) void run(() => window.studio.updateWhiteboardNode({ projectId, id: node.id, x: node.position.x, y: node.position.y })); }}
+          onNodeDragStop={(_event, node) => { if (!showRepository) void run(() => window.studio.updateWhiteboardNode({ projectId, id: node.id, x: node.position.x, y: node.position.y })); }}
           onNodeClick={(_event, node) => { if (overview) setSelectedProposal(node.id); else setSelected(node.id); setSelectedEdge(null); setCardDraft(null); }}
           onEdgeClick={(_event, clicked) => { if (overview) return; setSelectedEdge(clicked.id); setSelected(null); setCardDraft(null); }}
           onPaneClick={() => { setSelected(null); setSelectedEdge(null); setSelectedProposal(null); setCardDraft(null); }}
-          nodesConnectable={!busy && !overview} nodesDraggable={!busy && !overview} fitView fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
+          nodesConnectable={!busy && !showRepository} nodesDraggable={!busy && !showRepository} fitView fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
           deleteKeyCode={null} selectionKeyCode="Shift" attributionPosition="bottom-left">
           <Background color="var(--border)" gap={24} size={1} /><Controls showInteractive={false} /><MiniMap pannable zoomable maskColor="var(--surface-2)" />
         </ReactFlow>}
         {!loading && overview && overview.nodes.length > 0 ? <div className="wb-source-banner" role="status"><strong>Vorschau aus Git</strong><span>{overview.nodes.length} von {automaticProposal?.nodes.length} Pfaden · nicht gespeichert</span></div> : null}
-        {!loading && board.nodes.length === 0 && !overview?.nodes.length ? <div className="wb-empty"><strong>{automaticMapBusy ? 'Projektstruktur wird gelesen…' : 'Noch keine Architekturboxen.'}</strong><span>{automaticMapError ? 'Die Git-Struktur ist hier nicht verfügbar. Du kannst eigene Boxen anlegen.' : automaticProposal ? 'Im Git-Index liegen keine geeigneten Pfade. Du kannst eigene Boxen anlegen.' : 'Branchloom prüft versionierte Projektpfade und zeigt einen unverbindlichen Vorschlag.'}</span></div> : null}
+        {!loading && showRepository && !overview?.nodes.length ? <div className="wb-empty"><strong>{automaticMapBusy ? 'Git-Struktur wird gelesen…' : automaticMapError ? 'Git-Struktur nicht verfügbar.' : 'Keine geeigneten Git-Pfade.'}</strong><span>{automaticMapError ? 'Die Arbeitsfläche bleibt erhalten. Du kannst zu ihr zurückkehren oder eigene Boxen anlegen.' : 'Nur versionierte Projektpfade erscheinen in dieser Vorschau. Es wird nichts gespeichert.'}</span></div> : null}
       </div>
       <aside className="wb-inspector" aria-label="Whiteboard-Details">
-        {overview ? <section className="wb-source-inspector"><h3>Projektstruktur</h3><p>Die Vorschau liest nur versionierte Pfade. Linien bedeuten „liegt im Ordner“; Importbeziehungen sind damit nicht belegt.</p>
+        {showRepository ? <section className="wb-source-inspector"><h3>Git-Struktur</h3><p>Die Vorschau liest nur versionierte Pfade. Linien bedeuten „liegt im Ordner“; Importbeziehungen sind damit nicht belegt. Deine Arbeitsfläche wird dabei nicht verändert.</p>
           {automaticProposal?.truncated ? <p className="wb-source-warning">Der Scan ist begrenzt. Die vollständige Auswahl zeigt alle erfassten Pfade.</p> : null}
-          {previewNode ? <dl className="wb-source-detail"><div><dt>Pfad</dt><dd>{previewNode.path}</dd></div><div><dt>Quelle im Git-Index</dt><dd>{previewNode.evidence.path}</dd></div><div><dt>Einordnung</dt><dd>{previewNode.kind === 'component-candidate' ? 'Mögliche UI-Komponente (Dateiname)' : previewNode.kind === 'package' ? 'Paketordner (Manifestpfad)' : 'Ordner (versionierter Pfad)'}</dd></div></dl>
-            : <p>Wähle eine Box, um ihren belegten Pfad zu sehen. {overview.omittedNodes > 0 ? `${overview.omittedNodes} weitere Boxen stehen in der Auswahl.` : ''}</p>}
-          <button className="primary-button" type="button" disabled={mapBusy} onClick={() => setMapProposal(automaticProposal)}>Struktur prüfen und übernehmen</button>
-          <p>Erst nach deiner Auswahl wird sie lokal gespeichert. Eigene Boxen kannst du jederzeit ergänzen.</p></section>
+          {automaticMapError ? <p className="wb-source-warning" role="status">{automaticMapError}</p> : null}
+          {overview?.nodes.length ? <><div className="wb-source-list" aria-label="Git-Pfade auswählen">{overview.nodes.map((item) => <button key={item.id} type="button" className={selectedProposal === item.id ? 'is-selected' : ''} onClick={() => { setSelectedProposal(item.id); void flowApi.current?.fitView({ nodes: [{ id: item.id }], padding: 0.5, maxZoom: 1.25, duration: 160 }); }}><strong>{item.title}</strong><small>{item.path}</small></button>)}</div>
+            {previewNode ? <dl className="wb-source-detail"><div><dt>Pfad</dt><dd>{previewNode.path}</dd></div><div><dt>Quelle im Git-Index</dt><dd>{previewNode.evidence.path}</dd></div><div><dt>Einordnung</dt><dd>{previewNode.kind === 'component-candidate' ? 'Mögliche UI-Komponente (Dateiname)' : previewNode.kind === 'package' ? 'Paketordner (Manifestpfad)' : 'Ordner (versionierter Pfad)'}</dd></div></dl> : null}
+            {overview.omittedNodes > 0 ? <p>{overview.omittedNodes} weitere Pfade stehen in der vollständigen Auswahl.</p> : null}
+            <button className="primary-button" type="button" disabled={mapBusy} onClick={() => setMapProposal(automaticProposal)}>Struktur prüfen und übernehmen</button></> : null}
+          <button className="secondary-button" type="button" disabled={automaticMapBusy} onClick={() => { setAutomaticProposal(null); setAutomaticProposalProjectId(null); setAutomaticMapError(''); setSelectedProposal(null); setRepoRevision((value) => value + 1); }}>Git-Stand neu lesen</button>
+          <p>Erst nach deiner Auswahl wird ein Vorschlag lokal gespeichert.</p></section>
         : selectedNode ? <><h3>Box bearbeiten</h3><label>Titel<input maxLength={120} value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label>
           <label>Beschreibung<textarea maxLength={2000} rows={4} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
           <label>Verknüpfung<select value={draft.referenceKind} onChange={(event) => setDraft({ ...draft, referenceKind: event.target.value as EditDraft['referenceKind'] })}><option value="none">Keine</option><option value="card">Karte</option><option value="folder">Projektordner</option><option value="file">Projektdatei</option></select></label>
