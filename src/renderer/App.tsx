@@ -339,19 +339,19 @@ export function App() {
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><span className="brand-mark"><BranchloomMark /></span><strong>Branchloom</strong></div>
-      <div className="sidebar-projects">
+      {projects.length ? <div className="sidebar-projects">
         <span className="side-section-title">Projekt</span>
-        {projects.length ? <ProjectSwitcher projects={projects} projectId={projectId} organization={projectOrganization} onSelect={(id) => { setPendingGlobalItem(null); setProjectId(id); }} onOrganizationChange={setProjectOrganization} onError={setError} /> : null}
-        {/* The source Electron smoke still drives this non-interactive selector while its UI scripts migrate. */}
-        <select id="project-select" hidden aria-hidden="true" tabIndex={-1} value={projectId ?? ''} onChange={(event) => { setPendingGlobalItem(null); setProjectId(event.target.value || null); }}>
-          {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-        </select>
+        <ProjectSwitcher projects={projects} projectId={projectId} organization={projectOrganization} onSelect={(id) => { setPendingGlobalItem(null); setProjectId(id); }} onOrganizationChange={setProjectOrganization} onError={setError} />
         <details className="project-actions" ref={projectMenuRef}><summary><MoreHorizontal size={17} aria-hidden="true" /> Projektaktionen</summary><div className="project-actions-menu">
           <button type="button" onClick={() => { if (projectMenuRef.current) projectMenuRef.current.open = false; setCreatingProject(true); }}><Plus size={15} aria-hidden="true" /> Codeordner hinzufügen</button>
           <button type="button" onClick={() => { if (projectMenuRef.current) projectMenuRef.current.open = false; void previewProjectPackage(); }}><Upload size={15} aria-hidden="true" /> Branchloom-Paket (.json) importieren</button>
           <button type="button" disabled={!projectId} onClick={() => { if (projectMenuRef.current) projectMenuRef.current.open = false; void exportProjectPackage(); }}><Download size={15} aria-hidden="true" /> Projekt sichern</button>
         </div></details>
-      </div>
+      </div> : null}
+      {/* The source Electron smoke still drives this non-interactive selector while its UI scripts migrate. */}
+      <select id="project-select" hidden aria-hidden="true" tabIndex={-1} value={projectId ?? ''} onChange={(event) => { setPendingGlobalItem(null); setProjectId(event.target.value || null); }}>
+        {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+      </select>
       {projectId ? <WorkspaceNavigation activeView={view} decisionCount={decisionCount} onView={setView} status={projectNavigationStatus(snapshot, projectId)} /> : null}
     </aside>
 
