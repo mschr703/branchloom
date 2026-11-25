@@ -3452,8 +3452,10 @@ function createWindow(): void {
             const milestonePath = join(smokeDataDirectory!, 'milestone-preview-project');
             mkdirSync(milestonePath);
             writeFileSync(join(milestonePath, 'README.md'), '# Synthetic milestone preview\n');
+            mkdirSync(join(milestonePath, 'src'));
+            writeFileSync(join(milestonePath, 'src', 'widget.ts'), 'export const milestoneWidget = 1;\n');
             execFileSync('git', ['init', '-q', milestonePath], { windowsHide: true });
-            execFileSync('git', ['-C', milestonePath, 'add', 'README.md'], { windowsHide: true });
+            execFileSync('git', ['-C', milestonePath, 'add', 'README.md', 'src/widget.ts'], { windowsHide: true });
             execFileSync('git', ['-C', milestonePath, '-c', 'user.name=Branchloom Smoke', '-c', 'user.email=smoke@example.invalid', 'commit', '-qm', 'Synthetic preview milestone'], { windowsHide: true });
             const milestoneProjectId = await smokeWindow.webContents.executeJavaScript(`(async () => {
               const milestoneProject = await window.studio.createProject({ name: 'Meilenstein-Vorschau', path: ${JSON.stringify(milestonePath)} });
@@ -3512,6 +3514,7 @@ function createWindow(): void {
               await Promise.all(comparedImages.map((image) => image.decode()));
               return true;
             })()`);
+            process.stdout.write('STUDIO_SMOKE_MEMORY_START\n');
             const memoryNote = smokeStore.saveNote({ projectId: milestoneProjectId, title: 'Commit-Beleg Smoke', body: 'Synthetische Git-Quelle', tags: [], links: [] });
             const memoryHead = execFileSync('git', ['-C', milestonePath, 'rev-parse', 'HEAD'], { encoding: 'utf8', windowsHide: true }).trim();
             await new Promise<void>((resolve) => { smokeWindow.webContents.once('did-finish-load', () => resolve()); smokeWindow.webContents.reload(); });
@@ -3534,6 +3537,24 @@ function createWindow(): void {
                 await new Promise((resolve) => setTimeout(resolve, 50));
               }
               if (!found?.hits.some((hit) => hit.kind === 'commit' && hit.gitRef === ${JSON.stringify(memoryHead)})) throw new Error('Gespeicherter Git-Commit fehlt im lokalen Projektindex: ' + JSON.stringify(found?.status));
+              const graphSources = await window.studio.projectMemoryMapSources(${JSON.stringify(milestoneProjectId)});
+              if (graphSources.gitRef !== ${JSON.stringify(memoryHead)} || graphSources.headCommit?.sourceId !== ${JSON.stringify(memoryHead)}
+                || !graphSources.codeFiles.some((file) => file.path === 'src/widget.ts')) throw new Error('Memory-Karte nennt keinen belegten Git-Stand mit Quelldatei.');
+              const gitLayer = [...document.querySelectorAll('.knowledge-map-layers button')].find((button) => button.textContent?.trim() === 'Git-Quellen');
+              if (!(gitLayer instanceof HTMLButtonElement)) throw new Error('Git-Quellen-Ebene fehlt in der Memory-Karte.');
+              gitLayer.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.knowledge-map-list')?.textContent?.includes('src/widget.ts'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.knowledge-map-list')?.textContent?.includes('src/widget.ts')) throw new Error('Indexierte Datei fehlt in der sichtbaren Memory-Karte.');
+              const fileList = document.querySelector('.knowledge-map-list');
+              if (!(fileList instanceof HTMLDetailsElement)) throw new Error('Memory-Quellenliste fehlt.');
+              fileList.open = true;
+              const fileNode = [...document.querySelectorAll('.knowledge-map-list button')].find((button) => button.textContent?.includes('src/widget.ts'));
+              if (!(fileNode instanceof HTMLButtonElement)) throw new Error('Indexierte Datei ist nicht per Tastatur auswählbar.');
+              fileNode.focus();
+              if (document.activeElement !== fileNode) throw new Error('Indexierte Datei ist nicht per Tastatur fokussierbar.');
+              fileNode.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.knowledge-map-source-preview')?.textContent?.includes('milestoneWidget'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.knowledge-map-source-preview')?.textContent?.includes('milestoneWidget')) throw new Error('Datei-Quellbeleg fehlt im Memory-Inspector.');
               const source = await window.studio.readProjectMemorySource({ projectId: ${JSON.stringify(milestoneProjectId)}, kind: 'commit', sourceId: ${JSON.stringify(memoryHead)} });
               if (!source?.body.includes('Synthetic preview milestone')) throw new Error('Git-Quellbeleg lässt sich nicht projektbezogen öffnen.');
               let note;
@@ -3572,6 +3593,7 @@ function createWindow(): void {
               if (saved?.hash !== ${JSON.stringify(memoryHead)} || saved.state !== 'in-history') throw new Error('Git-Quelle wurde nicht in SQLite gespeichert.');
               return true;
             })()`);
+            process.stdout.write('STUDIO_SMOKE_MEMORY_MAP_OK\n');
             await new Promise<void>((resolve) => { smokeWindow.webContents.once('did-finish-load', () => resolve()); smokeWindow.webContents.reload(); });
             await smokeWindow.webContents.executeJavaScript(`(async () => {
               const select = document.querySelector('#project-select');
@@ -3865,16 +3887,16 @@ http.createServer((_request,response)=>{response.writeHead(200,{'Content-Type':'
             const f08UnloggedUser = await devAccountBrowser!.probe(f08Other.id);
             if (f08Admin.state !== 'verified' || f08UnloggedUser.state !== 'login-required') throw new Error('F08 real-session login isolation failed.');
             await smokeWindow.webContents.executeJavaScript(`(async () => {
-              const panel = document.querySelector('.card-drawer .dev-account-panel');
-              if (!panel) throw new Error('F08 account panel is missing for protected-login action.');
-              const button = (label) => [...panel.querySelectorAll('button')].find((item) => item.textContent?.trim() === label);
+              const panel = () => document.querySelector('.card-drawer .dev-account-panel');
+              if (!panel()) throw new Error('F08 account panel is missing for protected-login action.');
+              const button = (label) => [...(panel()?.querySelectorAll('button') ?? [])].find((item) => item.textContent?.trim() === label);
               button('Zugang prüfen')?.click();
-              for (let attempt = 0; attempt < 100 && !panel.textContent?.includes('Konto und Rolle bestätigt'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              for (let attempt = 0; attempt < 200 && !panel()?.textContent?.includes('Konto und Rolle bestätigt'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const save = button('Anmeldung für Neustart speichern');
-              if (!save || save.disabled) throw new Error('F08 protected-login opt-in did not become available after identity verification.');
+              if (!save || save.disabled) throw new Error('F08 protected-login opt-in did not become available after identity verification: ' + panel()?.textContent?.slice(0, 500));
               save.click();
-              for (let attempt = 0; attempt < 100 && !panel.textContent?.includes('Login-Cookies dieses Kontos geschützt'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              if (!panel.textContent?.includes('Login-Cookies dieses Kontos geschützt')) throw new Error('F08 protected-login save did not report success.');
+              for (let attempt = 0; attempt < 200 && !panel()?.textContent?.includes('Login-Cookies dieses Kontos geschützt'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!panel()?.textContent?.includes('Login-Cookies dieses Kontos geschützt')) throw new Error('F08 protected-login save did not report success: ' + panel()?.textContent?.slice(0, 500));
               return true;
             })()`);
             if (devAccountBrowser!.savedLoginStatus(f08Card.id).state !== 'saved') throw new Error('F08 protected-login state was not stored.');

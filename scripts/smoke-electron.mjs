@@ -8,9 +8,9 @@ const explicitIndex = process.argv.indexOf('--executable');
 const explicitExecutable = explicitIndex < 0 ? null : process.argv[explicitIndex + 1];
 if (explicitIndex >= 0 && !explicitExecutable) throw new Error('--executable braucht einen Pfad');
 const timeoutIndex = process.argv.indexOf('--timeout-ms');
-// The broad smoke also runs the visible F03 revision flow. Packaged Windows runs
-// took up to 117 seconds before F03 was added, and F03 alone takes about 22 seconds in CI.
-const timeoutMs = timeoutIndex < 0 ? 240_000 : Number(process.argv[timeoutIndex + 1]);
+// The broad smoke includes several real Git, browser, and PTY flows. A packaged
+// Windows run can approach four minutes under concurrent CI or local load.
+const timeoutMs = timeoutIndex < 0 ? 360_000 : Number(process.argv[timeoutIndex + 1]);
 if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 30_000 || timeoutMs > 600_000) {
   throw new Error('--timeout-ms must be an integer between 30000 and 600000');
 }
