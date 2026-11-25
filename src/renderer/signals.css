@@ -66,6 +66,23 @@
 .board-dependency-nav button { width: 23px; height: 23px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--text); font-size: 17px; line-height: 1; cursor: pointer; }
 .board-dependency-nav button:hover { background: var(--surface-2); }
 .board-dependency-nav button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+:root[data-theme] .board-session-dock { flex: none; min-width: 0; margin-right: 29px; border-top: 1px solid var(--border); background: var(--bg); }
+:root[data-theme] .board-session-toggle { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; padding: 5px 3px; border: 0; background: transparent; color: var(--text); text-align: left; font: inherit; font-size: 12px; cursor: pointer; }
+:root[data-theme] .board-session-toggle > strong { margin-left: auto; color: var(--muted); font-size: 11px; font-weight: 550; font-variant-numeric: tabular-nums; }
+:root[data-theme] .board-session-toggle > svg:last-child { color: var(--muted); transition: transform 150ms ease; }
+:root[data-theme] .board-session-toggle[aria-expanded='true'] > svg:last-child { transform: rotate(180deg); }
+:root[data-theme] .board-session-toggle:focus-visible,
+:root[data-theme] .board-session-row:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+:root[data-theme] .board-session-list { max-height: min(235px, 30vh); overflow-y: auto; padding-bottom: 7px; }
+:root[data-theme] .board-session-row { display: grid; grid-template-columns: 8px minmax(0, 1fr) minmax(135px, auto) auto; align-items: center; gap: 10px; width: 100%; min-height: 38px; padding: 6px 8px 6px 3px; border: 0; border-top: 1px solid var(--border); background: transparent; color: var(--text); text-align: left; font: inherit; cursor: pointer; }
+:root[data-theme] .board-session-row:hover:not(:disabled) { background: var(--surface-2); }
+:root[data-theme] .board-session-row:disabled { cursor: default; opacity: .65; }
+:root[data-theme] .board-session-running { width: 6px; height: 6px; border-radius: 50%; background: #4d78a4; }
+:root[data-theme] .board-session-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }
+:root[data-theme] .board-session-meta,
+:root[data-theme] .board-session-action { color: var(--muted); font-size: 11px; white-space: nowrap; }
+:root[data-theme] .board-session-action { color: var(--text); }
+:root[data-theme] .board-session-empty { margin: 0; padding: 8px 3px 13px; color: var(--muted); font-size: 11px; }
 @media (max-width: 1120px) {
   :root[data-theme] .board-filters .board-search { flex-basis: 100%; max-width: none; }
 }
@@ -73,4 +90,7 @@
   :root[data-theme] .board-page { padding-top: 8px; }
   :root[data-theme] .board-column { width: min(308px, calc(100vw - 42px)); min-width: min(308px, calc(100vw - 42px)); max-height: calc(100vh - 260px); }
   :root[data-theme] .board-filters .board-search { flex-basis: 100%; }
+  :root[data-theme] .board-session-dock { margin-right: 16px; }
+  :root[data-theme] .board-session-row { grid-template-columns: 8px minmax(0, 1fr) auto; gap: 7px; }
+  :root[data-theme] .board-session-meta { display: none; }
 }
