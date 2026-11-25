@@ -18,12 +18,14 @@ const packaged = process.argv.includes('--package') || explicitExecutable !== nu
 const f06 = process.argv.includes('--f06');
 const f03 = process.argv.includes('--f03');
 const g02 = process.argv.includes('--g02');
-if (Number(f03) + Number(f06) + Number(g02) > 1) throw new Error('Choose one focused smoke mode.');
+const g02Auto = process.argv.includes('--g02-auto');
+if (Number(f03) + Number(f06) + Number(g02) + Number(g02Auto) > 1) throw new Error('Choose one focused smoke mode.');
 const executable = explicitExecutable ?? (packaged
   ? join(process.cwd(), 'out', 'Branchloom-win32-x64', 'Branchloom.exe')
   : require('electron'));
 if (!existsSync(executable)) throw new Error(`Electron-Binary fehlt: ${executable}`);
-const smokeFlag = f03 ? '--studio-smoke-f03' : f06 ? '--studio-smoke-f06' : g02 ? '--studio-smoke-g02' : '--studio-smoke';
+const smokeFlag = f03 ? '--studio-smoke-f03' : f06 ? '--studio-smoke-f06' : g02 ? '--studio-smoke-g02'
+  : g02Auto ? '--studio-smoke-g02-auto' : '--studio-smoke';
 const args = packaged ? [smokeFlag] : ['.', smokeFlag];
 const child = spawn(executable, args, {
   cwd: process.cwd(), windowsHide: true,
@@ -43,11 +45,13 @@ child.on('error', (error) => {
 });
 child.on('exit', (code) => {
   clearTimeout(timeout);
-  const expectedMarker = f03 ? 'STUDIO_SMOKE_F03_OK' : f06 ? 'STUDIO_SMOKE_F06_OK' : g02 ? 'G02_SMOKE_OK' : 'STUDIO_SMOKE_OK';
+  const expectedMarker = f03 ? 'STUDIO_SMOKE_F03_OK' : f06 ? 'STUDIO_SMOKE_F06_OK' : g02 ? 'G02_SMOKE_OK'
+    : g02Auto ? 'G02_AUTO_SMOKE_OK' : 'STUDIO_SMOKE_OK';
   if (code === 0 && stdout.includes(expectedMarker)) {
     console.log(f03 ? `${packaged ? 'Paket' : 'Quellbuild'}: F03-Kartenansicht, bewusst gespeicherte Revision, Dreifachvergleich, Konfliktwahl, Wiederöffnen und veraltete Zieldatei erfolgreich.`
       : f06 ? `${packaged ? 'Paket' : 'Quellbuild'}: F06 board revision, live CLI delivery, source cleanup evidence, reload and stopped-session guard passed.`
       : g02 ? `${packaged ? 'Paket' : 'Quellbuild'}: G02-Kartenklick, Diff-Prüfung, npm-Testbeleg, bestätigter Fast-Forward und divergierter zweiter Worktree erfolgreich.`
+      : g02Auto ? `${packaged ? 'Paket' : 'Quellbuild'}: G02 automatic policy, current review/test evidence, project pause, background fast-forward and restart receipt passed.`
       : `${packaged ? 'Paket' : 'Quellbuild'}: Renderer, IPC, SQLite, Terminal/Agenten-PTY, Board, Ideenraum, Aufgabenklärung, Whiteboard, Kartenkontext mit bestätigtem Anhang-, Whiteboard-Dateibox- und Design-Beleg-Drop, lokale Karten-QA mit mehreren Routen, DOM-Hinweisen und Screenshots, visueller Vergleich, gespeicherte Prüfgrößenansicht, Design-Aufnahmen in drei Größen, Changelog-Quellwahl und Memory-Übernahme erfolgreich.`);
   } else {
     console.error(timedOut ? `Electron-Smoke nach ${timeoutMs / 1000} Sekunden ohne Abschluss-Signal abgebrochen.` : `Electron-Smoke fehlgeschlagen (Exit ${code ?? 'unbekannt'}).`);
