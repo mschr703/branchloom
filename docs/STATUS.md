@@ -2,6 +2,10 @@
 
 Stand: 25.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## UX01: vorhandenen Projektordner ohne Pfadwissen auswählen
+
+- Der erste Einstieg erklärt in einfachen Worten, wofür Branchloom den Codeordner verwendet und wann Git-Arbeitskopien nötig sind. Beim Anlegen eines Projekts und beim Import eines Branchloom-Projektpakets lässt sich der vorhandene Ordner jetzt mit dem nativen Windows-Dialog auswählen; manuelle Pfade bleiben möglich. Eine abgebrochene Auswahl ändert das Formular nicht, ein Fehler erscheint im Formular, und nur eine bewusst gewählte Ordnerauswahl schlägt bei leerem Namen den Ordnernamen vor. Das Verknüpfen kopiert keine Dateien und startet keinen Agenten. Zwei gezielte Renderer-Tests, Typprüfung und Produktionsbuild bestanden im isolierten Zweig. Der breite Quell-Electron-Smoke prüfte außerdem den sichtbaren Klick, den nativen Dialog mit einem synthetischen Ordner, den übernommenen Pfad und den Abbruch ohne Projektanlage. Der Dialog prüft keinen Git-Status beim Auswählen; für parallele Worktrees gilt weiterhin die bestehende Git-Prüfung beim Agentenstart. [Aufgabenkarte UX01](https://trello.com/c/EroaR2i1/63-ux01-branchloom-arbeitsfl%C3%A4chen-entlasten).
+
 ## F17: Lokalen Fehlerablauf vormachen und erneut prüfen
 
 - Der Folgecommit erfasst nur begrenzte Diagnoseverweise (Fehlerkategorie, Zeile, Zeit), keine Konsolentexte oder URLs. Der Replay prüft vor einem Klick auf verdeckende Elemente und danach den tatsächlichen Klickempfänger. Ein verschwundenes sichtbar erwartetes Element ist ein Fehlschlag; ein verschwundenes verborgen erwartetes Element bleibt nicht prüfbar. Das Kartenpanel zeigt aufklappbar Umgebungslauf, geprüfte Adresse, Profil-Fingerprint und Git-Start-/Endbelege. Der synthetische Electron-Smoke deckt diese Fälle ab und ist als Gate in Windows-CI und Release-Workflow eingetragen; die Windows-Ausführung steht noch aus.

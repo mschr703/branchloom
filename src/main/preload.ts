@@ -45,6 +45,7 @@ const studio: StudioAPI = {
   removeCardComponentVariant: (input) => invoke('removeCardComponentVariant', input),
   cardComponentVariantScreenshot: (input) => invoke('cardComponentVariantScreenshot', input),
   createProject: (input) => invoke('createProject', input),
+  chooseProjectFolder: () => invoke('chooseProjectFolder'),
   exportProjectPackage: (projectId) => invoke('exportProjectPackage', projectId),
   previewProjectPackage: () => invoke('previewProjectPackage'),
   importProjectPackage: (input) => invoke('importProjectPackage', input),

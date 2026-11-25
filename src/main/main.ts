@@ -233,6 +233,11 @@ function installIpc(): void {
   bind('cardComponentVariantScreenshot', (input: Parameters<StudioAPI['cardComponentVariantScreenshot']>[0]) => cardComponentVariantScreenshot(db, input));
   bind('usageSessions', (input: Parameters<StudioAPI['usageSessions']>[0]) => db.usageSessions(input));
   bind('createProject', (input: { name: string; path: string }) => db.createProject(input));
+  bind('chooseProjectFolder', async () => {
+    if (!window || window.isDestroyed()) throw new Error('Das Projektfenster ist nicht verfügbar.');
+    const choice = await dialog.showOpenDialog(window, { title: 'Vorhandenen Codeordner auswählen', properties: ['openDirectory'] });
+    return choice.canceled ? null : choice.filePaths[0] ?? null;
+  });
   bind('exportProjectPackage', async (projectId: string) => {
     if (!window || window.isDestroyed()) throw new Error('Das Exportfenster ist nicht verfügbar.');
     const data = db.exportProjectPackage(projectId);
@@ -3845,6 +3850,34 @@ function createWindow(): void {
               })()`);
               for (let attempt = 0; attempt < 100 && !packagePickerOpened; attempt++) await new Promise((resolve) => setTimeout(resolve, 10));
               if (!packagePickerOpened) throw new Error('JSON package action did not open the native file picker.');
+            } finally { dialog.showOpenDialog = nativeOpenDialog; }
+            let folderPickerOpened = false;
+            try {
+              dialog.showOpenDialog = (async (...args: unknown[]) => {
+                const options = args.at(-1) as { title?: string; properties?: string[] };
+                if (options.title !== 'Vorhandenen Codeordner auswählen' || !options.properties?.includes('openDirectory')) throw new Error('Project folder picker used unexpected native dialog options.');
+                folderPickerOpened = true;
+                return { canceled: false, filePaths: [smokeProject.path] };
+              }) as typeof dialog.showOpenDialog;
+              await smokeWindow.webContents.executeJavaScript(`(async () => {
+                const add = document.querySelector('button[aria-label="Codeordner hinzufügen"]');
+                if (!(add instanceof HTMLButtonElement)) throw new Error('Project add action is missing.');
+                add.click();
+                for (let attempt = 0; attempt < 100 && !document.querySelector('#new-project-folder'); attempt++) await new Promise((resolve) => setTimeout(resolve, 20));
+                const choose = [...document.querySelectorAll('.project-folder-field button')].find((button) => button.textContent?.includes('Ordner auswählen'));
+                if (!(choose instanceof HTMLButtonElement)) throw new Error('Native folder choice is missing in the project form.');
+                choose.click();
+              })()`);
+              for (let attempt = 0; attempt < 100 && !folderPickerOpened; attempt++) await new Promise((resolve) => setTimeout(resolve, 20));
+              if (!folderPickerOpened) throw new Error('Project folder choice did not reach the native dialog.');
+              await smokeWindow.webContents.executeJavaScript(`(async () => {
+                for (let attempt = 0; attempt < 100 && document.querySelector('#new-project-folder')?.value !== ${JSON.stringify(smokeProject.path)}; attempt++) await new Promise((resolve) => setTimeout(resolve, 20));
+                if (document.querySelector('#new-project-folder')?.value !== ${JSON.stringify(smokeProject.path)}) throw new Error('Chosen folder did not populate the project form.');
+                if (!document.querySelector('.modal-backdrop input[placeholder="Mein Projekt"]')?.value) throw new Error('Chosen folder did not suggest a project name.');
+                const cancel = [...document.querySelectorAll('.modal-backdrop button')].find((button) => button.textContent?.trim() === 'Abbrechen');
+                if (!(cancel instanceof HTMLButtonElement)) throw new Error('Project form cancel action is missing.');
+                cancel.click();
+              })()`);
             } finally { dialog.showOpenDialog = nativeOpenDialog; }
             // F08: a real Electron session must keep two synthetic local logins apart.
             const identityServerPath = join(smokeDataDirectory!, 'f08-identity-server.cjs');

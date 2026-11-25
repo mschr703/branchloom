@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Download, GitBranch, MessageCircle, Moon, MoreHorizontal, Pause, Play, Plus, RefreshCw, Search, Sun, Upload, X } from 'lucide-react';
+import { Download, MessageCircle, Moon, MoreHorizontal, Pause, Play, Plus, RefreshCw, Search, Sun, Upload, X } from 'lucide-react';
 import type { Project, ProjectOrganization, ProjectPackagePreview, ProjectSnapshot, Session } from '../shared/types';
 import { BoardView } from './components/BoardView';
 import { IdeasView } from './components/IdeasView';
@@ -12,6 +12,7 @@ import { ActivityView } from './components/ActivityView';
 import { DecisionInbox } from './components/DecisionInbox';
 import { ChangelogView } from './components/ChangelogView';
 import { ProjectPackageDialog } from './components/ProjectPackageDialog';
+import { ProjectFolderField } from './components/ProjectFolderField';
 import { BranchloomMark } from './components/BranchloomMark';
 import { sessionMemoryDraft } from './activity-transcript';
 import { viewForSearchKind, type ProjectSearchResult, type SearchKind } from './project-search';
@@ -27,6 +28,7 @@ import { savePreparedChatCanvasNode } from './project-chat-canvas';
 import './theme.css';
 import './brand.css';
 import './project-chat-dock.css';
+import './first-run.css';
 
 const WhiteboardView = lazy(() => import('./components/WhiteboardView').then((module) => ({ default: module.WhiteboardView })));
 const WorkflowView = lazy(() => import('./components/WorkflowView').then((module) => ({ default: module.WorkflowView })));
@@ -374,7 +376,7 @@ export function App() {
         onRefresh={() => void checkProjectRadar()} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
       {error ? <div className="error-banner" role="alert"><span>{error}</span><button type="button" onClick={() => setError('')} aria-label="Fehler schließen">×</button></div> : null}
       {notice ? <div className="package-notice" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Hinweis schließen">×</button></div> : null}
-      {loading ? <div className="content-message">Projekte werden geladen…</div> : view === 'browser' ? <div className="view-area" ref={viewAreaRef}><Suspense fallback={<div className="content-message" role="status">Browser wird geladen…</div>}><BrowserView active={!creatingProject && !searchOpen} snapshot={snapshot?.project.id === projectId ? snapshot : null} onOpenCard={async (id) => { await refresh(); navigateToEntity('card', id); }} onOpenSettings={snapshot?.project.id === projectId ? () => setView('settings') : undefined} /></Suspense></div> : !projectId ? <div className="empty-intro"><div className="intro-icon"><GitBranch size={30} /></div><h2>Ein Projekt, alle Arbeitsschritte.</h2><p>Wähle einen lokalen Projektordner. Plane Aufgaben auf dem Board, starte CLI-Agenten und halte Entscheidungen im Projektgedächtnis fest.</p><button className="primary-button" type="button" onClick={() => setCreatingProject(true)}><Plus size={17} /> Codeordner hinzufügen</button></div> : !snapshot ? <div className="content-message">Workspace wird geladen…</div> : <div className="view-area" ref={viewAreaRef}>
+      {loading ? <div className="content-message">Projekte werden geladen…</div> : view === 'browser' ? <div className="view-area" ref={viewAreaRef}><Suspense fallback={<div className="content-message" role="status">Browser wird geladen…</div>}><BrowserView active={!creatingProject && !searchOpen} snapshot={snapshot?.project.id === projectId ? snapshot : null} onOpenCard={async (id) => { await refresh(); navigateToEntity('card', id); }} onOpenSettings={snapshot?.project.id === projectId ? () => setView('settings') : undefined} /></Suspense></div> : !projectId ? <div className="empty-intro"><h2>Dein Projekt beginnt mit einem Ordner.</h2><p>Branchloom hilft dir, Ideen als Aufgaben zu planen, einen Coding-Agenten arbeiten zu lassen und seine Änderungen vor der Übernahme zu prüfen. Wähle dafür den Ordner deiner App oder Website.</p><button className="primary-button" type="button" onClick={() => setCreatingProject(true)}><Plus size={17} /> Codeordner auswählen</button><p className="first-run-detail">Für parallele Agentenläufe kann Branchloom getrennte Git-Arbeitskopien anlegen. Dafür muss der Ordner ein Git-Repository sein.</p></div> : !snapshot ? <div className="content-message">Workspace wird geladen…</div> : <div className="view-area" ref={viewAreaRef}>
         <Suspense fallback={<div className="content-message" role="status">{activeView.name} wird geladen…</div>}>
         {view === 'board' ? <BoardView snapshot={snapshot} mutate={mutate} openCard={navigationTarget?.kind === 'card' ? navigationTarget : null} onOpenDesign={(cardId) => { setDesignCardId(cardId); setView('design'); }} onOpenBrowser={() => setView('browser')} onOpenQaReport={navigateToQaReport} /> : null}
         {view === 'ideas' ? <IdeasView key={snapshot.project.id} snapshot={snapshot} mutate={mutate} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
@@ -413,8 +415,8 @@ export function App() {
       </div> : null}
     </main>
 
-    {creatingProject ? <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setCreatingProject(false); }}><form className="dialog" onSubmit={(event) => void createProject(event)}><div className="dialog-heading"><div><small>Projekt</small><h2>Codeordner hinzufügen</h2></div><button type="button" className="icon-button" onClick={() => setCreatingProject(false)} aria-label="Schließen">×</button></div><label>Name<input autoFocus required maxLength={80} value={newProject.name} onChange={(event) => setNewProject((old) => ({ ...old, name: event.target.value }))} placeholder="Mein Projekt" /></label><label>Absoluter Pfad zum vorhandenen Codeordner<input required value={newProject.path} onChange={(event) => setNewProject((old) => ({ ...old, path: event.target.value }))} placeholder="C:\\Projekte\\mein-projekt" /></label><p className="field-help">Branchloom verknüpft den Ordner, ohne Dateien zu kopieren. CLI-Agenten laufen dort und können Dateien verändern.</p><div className="dialog-actions"><button type="button" className="secondary-button" onClick={() => setCreatingProject(false)}>Abbrechen</button><button type="submit" className="primary-button">Codeordner hinzufügen</button></div></form></div> : null}
-    {importPreview ? <ProjectPackageDialog preview={importPreview} target={importTarget} onTarget={setImportTarget} onClose={() => setImportPreview(null)} onImport={(event) => void importProjectPackage(event)} /> : null}
+    {creatingProject ? <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setCreatingProject(false); }}><form className="dialog" onSubmit={(event) => void createProject(event)}><div className="dialog-heading"><div><small>Projekt</small><h2>Codeordner hinzufügen</h2></div><button type="button" className="icon-button" onClick={() => setCreatingProject(false)} aria-label="Schließen">×</button></div><p className="field-help">Wähle einen vorhandenen Ordner mit deiner App oder Website. Branchloom kopiert und verändert beim Hinzufügen keine Dateien.</p><label>Projektname<input autoFocus required maxLength={80} value={newProject.name} onChange={(event) => setNewProject((old) => ({ ...old, name: event.target.value }))} placeholder="Mein Projekt" /></label><ProjectFolderField id="new-project-folder" value={newProject.path} onChange={(path) => setNewProject((old) => ({ ...old, path }))} onSelected={(path) => setNewProject((old) => ({ path, name: old.name || path.split(/[\\/]/).filter(Boolean).at(-1)?.slice(0, 80) || '' }))} onError={setError} /><p className="field-help">Agenten dürfen später in diesem Ordner Dateien ändern, aber erst wenn du einen Lauf ausdrücklich startest. Für getrennte Git-Arbeitskopien muss der Ordner ein Git-Repository sein.</p><div className="dialog-actions"><button type="button" className="secondary-button" onClick={() => setCreatingProject(false)}>Abbrechen</button><button type="submit" className="primary-button">Projekt verbinden</button></div></form></div> : null}
+    {importPreview ? <ProjectPackageDialog preview={importPreview} target={importTarget} onTarget={setImportTarget} onClose={() => setImportPreview(null)} onImport={(event) => void importProjectPackage(event)} onError={setError} /> : null}
   </div>;
 }
 

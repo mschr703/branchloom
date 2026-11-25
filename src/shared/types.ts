@@ -178,6 +178,7 @@ export interface StudioAPI {
   removeCardComponentVariant(input: { cardId: string; variantId: string; expectedContentRevision: number }): Promise<CardComponentChoiceState>;
   cardComponentVariantScreenshot(input: { cardId: string; variantId: string }): Promise<string>;
   createProject(input: { name: string; path: string }): Promise<Project>;
+  chooseProjectFolder(): Promise<string | null>;
   exportProjectPackage(projectId: string): Promise<ProjectPackageExportResult | null>;
   previewProjectPackage(): Promise<ProjectPackagePreview | null>;
   importProjectPackage(input: { fingerprint: string; name: string; path: string }): Promise<Project>;

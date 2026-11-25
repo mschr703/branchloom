@@ -1,0 +1,5 @@
+.project-folder-field{display:grid;gap:7px}
+.project-folder-field-row{display:flex;gap:8px;align-items:stretch}
+.project-folder-field-row input{min-width:0;flex:1}
+.project-folder-field-row button{white-space:nowrap}
+@media(max-width:520px){.project-folder-field-row{flex-wrap:wrap}.project-folder-field-row button{width:100%}}

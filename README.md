@@ -78,7 +78,7 @@ The doctor command checks local prerequisites and CLI paths; it does not verify 
 
 In the app:
 
-1. Add an **existing local Git folder** as a project.
+1. Add an **existing local code folder** as a project using **Choose folder**. A Git repository is needed for separate worktrees and parallel agent runs.
 2. Create a card on the board, or connect Trello and import selected cards.
 3. Install and sign in to the CLI you want to use. Codex CLI has been exercised on the development machine; check [agent diagnostics](docs/AGENT_DIAGNOSTICS.md) for the other adapters.
 4. Configure an agent on a column, then deliberately start a card. Review its session, worktree, diff, and test or browser QA evidence before integrating changes.

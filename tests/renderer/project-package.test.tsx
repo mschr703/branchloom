@@ -11,11 +11,14 @@ describe('project package preview', () => {
       onTarget: () => undefined,
       onClose: () => undefined,
       onImport: () => undefined,
+      onError: () => undefined,
     }));
     expect(html).toContain('4 Spalten · 12 Karten · 3 Notizen · 2 Workflows');
+    expect(html).toContain('Es enthält keinen App-Code');
     expect(html).toContain('Agenten, Autostart und Warteschlange bleiben ausgeschaltet');
     expect(html).toContain('Sitzungsprotokolle, Browserdaten und Projektdateien sind nicht enthalten');
-    expect(html).toContain('Existierender absoluter Projektordner');
+    expect(html).toContain('Vorhandener Codeordner');
+    expect(html).toContain('Ordner auswählen');
     expect(html).toContain('Als neues Projekt importieren');
     expect(html).toContain('required=""');
   });
