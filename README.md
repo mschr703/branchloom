@@ -4,6 +4,8 @@ Branchloom ist eine lokale Windows-App für Ideen, Projekte, Kanban-Boards, CLI-
 
 Mit **Sicher anhalten** in der oberen Leiste sperrst du neue Agenten, Queue-Folgekarten, Workflow-Folgeschritte und neue Integrationsarbeit für das ausgewählte Projekt. Laufende Arbeit beendet sich und bleibt im Verlauf; erst danach zeigt Branchloom **Projekt angehalten**. **Projekt fortsetzen** hebt nur die Sperre auf, Queue und Workflows benötigen danach einen bewussten Neustart. [Bedienung und Grenzen](docs/PROJECT_PAUSE.md).
 
+In **Workflows** lässt sich zusätzlich ein [Haltepunkt nach einem strukturierten Schritt](docs/WORKFLOW_STEP_HALTPOINTS.md) setzen. Branchloom zeigt **angefordert**, bis alle Karten dieses Schritts belegt abgeschlossen sind; erst dann hält es vor dem Folgeschritt an. Nach Neustart ist eine ausdrückliche Fortsetzung nötig. Eine eigene Freigabe für den nächsten Schritt wird dabei nicht erteilt.
+
 Der aktuelle Quellcode steht unter [PolyForm Noncommercial 1.0.0](LICENSE): private Nutzung, nichtkommerzielle Forks, Änderungen und Weitergabe sind nach den Lizenzbedingungen erlaubt. Für geschäftliche Nutzung ist eine separate schriftliche Lizenz erforderlich; [Lizenzhinweise](docs/COMMERCIAL_LICENSING.md). Frühere unter MIT veröffentlichte Stände behalten ihre MIT-Rechte. Branchloom ist damit öffentlich einsehbarer Quellcode, aber keine OSI-Open-Source-Software.
 
 Für Beiträge gibt es einen [Leitfaden](CONTRIBUTING.md). Externe PRs brauchen vor dem Merge eine gesondert geprüfte Rechtefreigabe, damit der Quellcode auch unter einer späteren kommerziellen Lizenz angeboten werden kann. Die PR-Vorlage allein gilt nicht als Unterschrift.

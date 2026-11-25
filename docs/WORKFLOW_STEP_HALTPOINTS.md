@@ -1,0 +1,9 @@
+# Haltepunkte zwischen Workflow-Schritten
+
+In **Workflows** kannst du unter einem gespeicherten Ablauf **Nach einem Schritt anhalten** wählen. Die Auswahl nennt die Grenze nach einem noch ausstehenden Schritt. **Haltepunkt setzen** speichert die Anforderung; sie startet und stoppt keinen Agenten. Solange sie noch nicht erreicht ist, kannst du eine andere Grenze wählen oder sie aufheben.
+
+Ein angeforderter Haltepunkt wartet auf den belegten Abschluss **aller Karten** des gewählten Schritts. Ein fehlgeschlagener oder unterbrochener Agentenlauf hält den Workflow wie bisher zur Prüfung an und erfüllt den Haltepunkt nicht. Erst beim vollständigen Schrittübergang erscheinen **Haltepunkt erreicht** und der pausierte Zustand. Der nächste Schritt startet dann nicht. Workflow und betroffene Karte zeigen den Zustand; in der Karte steht er beim Sitzungsverlauf. **Nach Haltepunkt fortsetzen** gibt nur diese Grenze frei. Falls der nächste Schritt zusätzlich eine Freigabe verlangt, bleibt diese separat erforderlich.
+
+Die Anforderung und der erreichte Zustand bleiben in der lokalen SQLite-Datenbank erhalten. Nach App-Neustart läuft nichts automatisch weiter. Ein spätes oder doppeltes Sitzungsereignis kann den angehaltenen Folgeschritt nicht starten. Der Verlauf der Haltepunktänderungen bleibt intern gespeichert; die Oberfläche zeigt nur den aktuellen aktiven Haltepunkt. Andere Workflows bleiben unabhängig.
+
+Der erste Umfang unterstützt bewusst nur Grenzen zwischen gespeicherten Workflow-Schritten. Ein Punkt nach dem letzten Schritt, freie Textbedingungen wie „nach dem nächsten Testlauf“ sowie Haltepunkte innerhalb eines laufenden Agentenprozesses sind noch nicht umgesetzt. Das Aufheben eines bereits erreichten Haltepunkts lässt den Workflow pausiert; zum Fortsetzen ist weiterhin ein Klick erforderlich. Die projektweite Funktion **Sicher anhalten** bleibt eine getrennte Sperre.

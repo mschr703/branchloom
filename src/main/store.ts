@@ -118,6 +118,8 @@ export class StudioStore {
       CREATE TABLE IF NOT EXISTS workflow_progress (workflow_id TEXT NOT NULL REFERENCES workflows(id) ON DELETE CASCADE, step_index INTEGER NOT NULL, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, session_id TEXT REFERENCES sessions(id), state TEXT NOT NULL, PRIMARY KEY (workflow_id, step_index, card_id));
       CREATE TABLE IF NOT EXISTS workflow_start_errors (workflow_id TEXT PRIMARY KEY REFERENCES workflows(id) ON DELETE CASCADE, message TEXT NOT NULL, failed_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS workflow_step_approvals (workflow_id TEXT NOT NULL REFERENCES workflows(id) ON DELETE CASCADE, step_index INTEGER NOT NULL, approved_at TEXT NOT NULL, PRIMARY KEY (workflow_id, step_index));
+      CREATE TABLE IF NOT EXISTS workflow_step_haltpoints (id TEXT PRIMARY KEY, workflow_id TEXT NOT NULL REFERENCES workflows(id) ON DELETE CASCADE, after_step_index INTEGER NOT NULL, step_id TEXT NOT NULL, state TEXT NOT NULL CHECK (state IN ('requested', 'reached', 'released', 'cancelled')), requested_at TEXT NOT NULL, reached_at TEXT, closed_at TEXT);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_workflow_active_haltpoint ON workflow_step_haltpoints(workflow_id) WHERE state IN ('requested', 'reached');
       CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, title TEXT NOT NULL, body TEXT NOT NULL, tags_json TEXT NOT NULL, links_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value_json TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS trello_imports (project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, source_id TEXT NOT NULL, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, imported_at TEXT NOT NULL, PRIMARY KEY (project_id, source_id));
@@ -831,6 +833,8 @@ export class StudioStore {
   workflow(id: string): Workflow { return this.hydrateWorkflow(required(this.db.prepare('SELECT * FROM workflows WHERE id = ?').get(id) as WorkflowRow | undefined, 'Workflow not found')); }
   private hydrateWorkflow(row: WorkflowRow): Workflow {
     const value = workflow(row);
+    const haltpoint = this.db.prepare("SELECT id, after_step_index, step_id, state, requested_at, reached_at FROM workflow_step_haltpoints WHERE workflow_id = ? AND state IN ('requested', 'reached')").get(value.id) as { id: string; after_step_index: number; step_id: string; state: 'requested' | 'reached'; requested_at: string; reached_at: string | null } | undefined;
+    if (haltpoint) value.haltpoint = { id: haltpoint.id, afterStepIndex: haltpoint.after_step_index, stepId: haltpoint.step_id, state: haltpoint.state, requestedAt: haltpoint.requested_at, reachedAt: haltpoint.reached_at };
     const startError = this.db.prepare('SELECT message, failed_at FROM workflow_start_errors WHERE workflow_id = ?').get(value.id) as { message: string; failed_at: string } | undefined;
     if (startError) value.startError = { message: startError.message, at: startError.failed_at };
     const skip = this.db.prepare('SELECT reason, skipped_at FROM queue_run_skips WHERE workflow_id = ?').get(value.id) as { reason: string; skipped_at: string } | undefined;
@@ -838,7 +842,9 @@ export class StudioStore {
     if (value.state !== 'paused') return value;
     const step = value.steps[value.currentStep];
     const progress = this.workflowProgress(value.id, value.currentStep);
-    const pauseReason: NonNullable<Workflow['pauseReason']> = step?.requireApproval && !this.isStepApproved(value.id, value.currentStep)
+    const pauseReason: NonNullable<Workflow['pauseReason']> = value.haltpoint?.state === 'reached'
+      ? 'haltpoint'
+      : step?.requireApproval && !this.isStepApproved(value.id, value.currentStep)
       ? 'approval'
       : progress.some((item) => item.state === 'manual_wait')
         ? 'manual'
@@ -900,6 +906,9 @@ export class StudioStore {
         if (card.archivedAt) throw new Error('Archivierte Workflow-Karte zuerst wiederherstellen.');
       }
       const steps = this.validatedWorkflowSteps(old.projectId, input.steps);
+      // A draft route can change its step identities. A requested boundary
+      // must never silently point to a different step after editing.
+      this.db.prepare("UPDATE workflow_step_haltpoints SET state = 'cancelled', closed_at = ? WHERE workflow_id = ? AND state = 'requested'").run(now(), old.id);
       this.db.prepare('UPDATE workflows SET name = ?, card_ids_json = ?, steps_json = ?, updated_at = ? WHERE id = ?').run(trimmed(input.name, 'Workflow name'), json(input.cardIds), json(steps), now(), old.id);
       return this.workflow(old.id);
     })();
@@ -923,6 +932,27 @@ export class StudioStore {
     if (state === 'running' && current.cardIds.some((cardId) => this.card(cardId).archivedAt)) throw new Error('Archivierte Workflow-Karte zuerst wiederherstellen.');
     this.db.prepare('UPDATE workflows SET state = ?, updated_at = ? WHERE id = ?').run(state, now(), id);
     return this.workflow(id);
+  }
+  setWorkflowStepHaltpoint(input: { id: string; afterStepIndex: number | null }): Workflow {
+    return this.db.transaction(() => {
+      const flow = this.workflow(input.id);
+      if (flow.state === 'done' || flow.queueSkip) throw new Error('Completed or skipped workflows cannot set a haltpoint.');
+      const boundary = input.afterStepIndex;
+      if (boundary !== null && (!Number.isInteger(boundary) || boundary < flow.currentStep || boundary >= flow.steps.length - 1)) {
+        throw new Error('Choose an upcoming boundary before the final workflow step.');
+      }
+      if (flow.haltpoint?.state === 'reached' && boundary !== null) throw new Error('Resume or remove the reached haltpoint before choosing another.');
+      if (boundary === null && !flow.haltpoint) return flow;
+      if (flow.haltpoint?.state === 'requested' && flow.haltpoint.afterStepIndex === boundary) return flow;
+      this.db.prepare("UPDATE workflow_step_haltpoints SET state = 'cancelled', closed_at = ? WHERE workflow_id = ? AND state IN ('requested', 'reached')").run(now(), flow.id);
+      if (boundary !== null) {
+        this.db.prepare("INSERT INTO workflow_step_haltpoints (id, workflow_id, after_step_index, step_id, state, requested_at) VALUES (?, ?, ?, ?, 'requested', ?)").run(randomUUID(), flow.id, boundary, flow.steps[boundary]!.id, now());
+      }
+      return this.workflow(flow.id);
+    })();
+  }
+  releaseReachedWorkflowHaltpoint(id: string): void {
+    this.db.prepare("UPDATE workflow_step_haltpoints SET state = 'released', closed_at = ? WHERE workflow_id = ? AND state = 'reached'").run(now(), id);
   }
   workflowAgentSettings(): WorkflowAgentSettings {
     const row = this.db.prepare("SELECT value_json FROM settings WHERE key = 'workflow_agent'").get() as { value_json: string } | undefined;
@@ -951,11 +981,18 @@ export class StudioStore {
     })();
   }
   advanceWorkflow(id: string): Workflow {
-    const old = this.workflow(id);
-    const step = old.currentStep + 1;
-    const state: WorkflowState = step >= old.steps.length ? 'done' : old.state;
-    this.db.prepare('UPDATE workflows SET current_step = ?, state = ?, updated_at = ? WHERE id = ?').run(step, state, now(), id);
-    return this.workflow(id);
+    return this.db.transaction(() => {
+      const old = this.workflow(id);
+      if (old.state !== 'running') throw new Error('Only a running workflow can advance.');
+      const progress = this.workflowProgress(id, old.currentStep);
+      if (progress.length !== old.cardIds.length || progress.some((item) => item.state !== 'complete')) throw new Error('Workflow step is not complete.');
+      const step = old.currentStep + 1;
+      const boundaryReached = old.haltpoint?.state === 'requested' && old.haltpoint.afterStepIndex === old.currentStep && old.haltpoint.stepId === old.steps[old.currentStep]?.id;
+      const state: WorkflowState = step >= old.steps.length ? 'done' : boundaryReached ? 'paused' : old.state;
+      if (boundaryReached) this.db.prepare("UPDATE workflow_step_haltpoints SET state = 'reached', reached_at = ? WHERE id = ? AND state = 'requested'").run(now(), old.haltpoint!.id);
+      this.db.prepare('UPDATE workflows SET current_step = ?, state = ?, updated_at = ? WHERE id = ?').run(step, state, now(), id);
+      return this.workflow(id);
+    })();
   }
   ensureWorkflowProgress(id: string, stepIndex: number, cardIds: string[]): void {
     const insert = this.db.prepare("INSERT OR IGNORE INTO workflow_progress (workflow_id, step_index, card_id, session_id, state) VALUES (?, ?, ?, NULL, 'pending')");

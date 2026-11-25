@@ -168,6 +168,7 @@ const studio: StudioAPI = {
   updateDraftWorkflow: (input) => invoke('updateDraftWorkflow', input),
   deleteDraftWorkflow: (id) => invoke('deleteDraftWorkflow', id),
   setWorkflowState: (input) => invoke('setWorkflowState', input),
+  setWorkflowStepHaltpoint: (input) => invoke('setWorkflowStepHaltpoint', input),
   workflowRunEvidence: (input) => invoke('workflowRunEvidence', input),
   setProjectQueue: (input) => invoke('setProjectQueue', input),
   setProjectRunPause: (input) => invoke('setProjectRunPause', input),

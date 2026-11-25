@@ -23,6 +23,12 @@ export class WorkflowEngine {
   private readonly pumping = new Set<string>();
   constructor(private readonly store: StudioStore, private readonly runner: SessionRunner, private readonly deviceOnline: () => boolean = () => true) {}
 
+  setStepHaltpoint(input: { id: string; afterStepIndex: number | null }): Workflow {
+    const workflow = this.store.setWorkflowStepHaltpoint(input);
+    if (workflow.state === 'running') this.pump(workflow.id);
+    return this.store.workflow(workflow.id);
+  }
+
   setState(input: { id: string; state: 'running' | 'paused' }): Workflow {
     // The renderer can request a start or pause. Draft and done are durable
     // results of creation and the gated engine, never direct user transitions.
@@ -44,7 +50,11 @@ export class WorkflowEngine {
       if (old.currentStep >= old.steps.length) return this.store.setWorkflowState(input.id, 'done');
       const progress = this.store.workflowProgress(old.id, old.currentStep);
       const step = old.steps[old.currentStep];
-      if (old.state === 'paused' && step?.requireApproval && !this.store.isStepApproved(old.id, old.currentStep)) {
+      if (old.haltpoint?.state === 'reached') {
+        // Resuming a boundary is not approval of the next step. Its own
+        // approval gate remains independent and may pause the route again.
+        this.store.releaseReachedWorkflowHaltpoint(old.id);
+      } else if (old.state === 'paused' && step?.requireApproval && !this.store.isStepApproved(old.id, old.currentStep)) {
         this.store.approveStep(old.id, old.currentStep);
       } else if (old.state === 'paused' && progress.some((row) => row.state === 'manual_wait')) {
         this.store.confirmManualWait(old.id, old.currentStep);

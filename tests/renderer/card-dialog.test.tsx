@@ -25,4 +25,17 @@ describe('card dialog accessibility', () => {
     expect(html).toContain('Integrationsliste wird geladen');
     expect(html).not.toContain('Fast-Forward bestätigt übernehmen');
   });
+
+  it('shows a reached workflow haltpoint beside the affected card session history', () => {
+    const withHaltpoint: ProjectSnapshot = { ...snapshot, workflows: [{
+      id: 'flow', projectId: card.projectId, name: 'Synthetic route', cardIds: [card.id],
+      steps: [{ id: 'one', columnId: 'todo', agentId: null, requireApproval: false }, { id: 'two', columnId: 'todo', agentId: null, requireApproval: false }],
+      state: 'paused', currentStep: 1, pauseReason: 'haltpoint',
+      haltpoint: { id: 'halt', afterStepIndex: 0, stepId: 'one', state: 'reached', requestedAt: stamp, reachedAt: stamp },
+      createdAt: stamp, updatedAt: stamp,
+    }] };
+    const html = renderToStaticMarkup(createElement(CardPanel, { card, snapshot: withHaltpoint, mutate: async <T,>(action: () => Promise<T>) => action(), onClose: () => undefined, onOpenCard: () => undefined }));
+    expect(html).toContain('Synthetic route:</strong> Haltepunkt nach Schritt 1 erreicht');
+    expect(html).toContain('Der nächste Agentenlauf wartet auf Fortsetzung');
+  });
 });

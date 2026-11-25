@@ -415,6 +415,7 @@ function installIpc(): void {
     queueEngine.onBoardChanged(workflow.projectId);
     return workflow;
   });
+  bind('setWorkflowStepHaltpoint', (input: Parameters<StudioAPI['setWorkflowStepHaltpoint']>[0]) => workflowEngine.setStepHaltpoint(input));
   bind('workflowRunEvidence', (input: Parameters<StudioAPI['workflowRunEvidence']>[0]) => workflowRunEvidence(db, input));
   bind('setProjectQueue', (input: { projectId: string; state: QueueState; templateWorkflowId?: string }) => queueEngine.setState(input));
   bind('setProjectRunPause', (input: Parameters<StudioAPI['setProjectRunPause']>[0]) => {

@@ -88,6 +88,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
 
   const sessions = useMemo(() => snapshot.sessions.filter((item) => item.cardId === card.id).sort((a, b) => b.startedAt.localeCompare(a.startedAt)), [snapshot.sessions, card.id]);
   const session = sessions.find((item) => item.state === 'running') ?? sessions[0] ?? null;
+  const workflowHaltpoints = snapshot.workflows.filter((flow) => flow.cardIds.includes(card.id) && flow.haltpoint);
   useEffect(() => {
     // A drawer can stay open across periodic snapshots. Check at most once per
     // 30 seconds, while its current agent is running, without blocking renders.
@@ -286,6 +287,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
         {enabledAgents.length === 0 ? <p className="inline-note">Noch kein Agent eingerichtet. Unter „Agenten“ kannst du installierte CLIs erkennen und einen Startbefehl speichern.</p> : null}
         <div className="drawer-divider" />
         <div ref={sessionHeadingRef} className="section-heading" tabIndex={-1}><Terminal size={19} /><h3>Terminal</h3><span className={session?.state === 'running' ? 'session-state running' : 'session-state'}>{session?.state === 'running' ? 'Läuft' : session?.state === 'failed' ? 'Fehlgeschlagen' : session?.state === 'exited' ? 'Beendet' : session?.state === 'stopped' ? 'Gestoppt' : 'Kein Lauf'}</span></div>
+        {workflowHaltpoints.map((flow) => <p className="section-copy" role="status" key={flow.id}><strong>{flow.name}:</strong> Haltepunkt nach Schritt {flow.haltpoint!.afterStepIndex + 1} {flow.haltpoint!.state === 'reached' ? 'erreicht. Der nächste Agentenlauf wartet auf Fortsetzung.' : 'angefordert. Dieser Schritt kann noch laufen.'}</p>)}
         {session ? <>
           <Suspense fallback={<div className="terminal-empty">Terminal wird geladen…</div>}><SessionTerminal key={session.id} session={session} /></Suspense>
           <SessionRecoveryPanel key={`recovery-${session.id}`} session={session} />
