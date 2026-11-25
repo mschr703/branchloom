@@ -205,7 +205,9 @@ async function connectPage(port, timeoutMs = 40_000) {
     },
     async screenshot(name) {
       const result = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
-      writeFileSync(join(EVIDENCE, name), Buffer.from(result.data, 'base64'));
+      const png = Buffer.from(result.data, 'base64');
+      writeFileSync(join(EVIDENCE, name), png);
+      return png.length;
     },
     connected() { return socket.readyState === WebSocket.OPEN; },
     close() { socket.close(); },
@@ -393,8 +395,27 @@ try {
   if (newState.phase === 'unsupported') fail('Updated installed app lost its update feed.');
   const stillSaved = await currentApp.page.evaluate(`(async () => { const snapshot = await window.studio.snapshot(${JSON.stringify(saved.projectId)}); return snapshot.cards.some((card) => card.id === ${JSON.stringify(saved.cardId)} && card.title === 'Synthetic card survives update'); })()`);
   if (!stillSaved) fail('Synthetic card did not survive the installed update.');
-  await currentApp.page.screenshot('updated-0.1.2.png');
-  record('updated app and synthetic card verified', { version: NEW });
+  const visibleUntil = Date.now() + 30_000;
+  let visible = false;
+  while (Date.now() < visibleUntil && !visible) {
+    visible = await currentApp.page.evaluate(`(() => {
+      const shell = document.querySelector('.app-shell');
+      const card = document.getElementById('board-card-' + ${JSON.stringify(saved.cardId)});
+      if (!shell || !card || !document.body?.innerText?.includes('Branchloom')) return false;
+      const rect = card.getBoundingClientRect();
+      const style = getComputedStyle(card);
+      return rect.width > 0 && rect.height > 0 && rect.right > 0 && rect.bottom > 0
+        && rect.left < innerWidth && rect.top < innerHeight
+        && style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+    })()`);
+    if (!visible) await delay(300);
+  }
+  if (!visible) fail('Updated app did not visibly render the saved synthetic card.');
+  await currentApp.page.evaluate('new Promise((resolve) => { const timer = setTimeout(resolve, 800); requestAnimationFrame(() => requestAnimationFrame(() => { clearTimeout(timer); resolve(); })); })');
+  await delay(400);
+  const screenshotBytes = await currentApp.page.screenshot('updated-0.1.2.png');
+  if (screenshotBytes < 10_000) fail(`Updated app screenshot appears blank (${screenshotBytes} bytes).`);
+  record('updated app and synthetic card verified', { version: NEW, screenshotBytes });
   process.stdout.write('INSTALLED_UPDATE_010_TO_012_OK\n');
 } catch (error) {
   record('failed', { error: error instanceof Error ? error.message : String(error) });
