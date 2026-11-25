@@ -1563,7 +1563,7 @@ function createWindow(): void {
               if (!document.querySelector('.project-chat-host.dock[hidden]') || !conversationField?.isConnected) throw new Error('Projektgespräch wurde beim Schließen unerwartet gelöscht: hidden=' + Boolean(document.querySelector('.project-chat-host.dock[hidden]')) + ', connected=' + conversationField?.isConnected + '.');
               let whiteboardReady = false;
               for (let attempt = 0; attempt < 300; attempt++) {
-                whiteboardReady = Boolean(document.querySelector('.wb-canvas') && document.querySelector('.wb-inspector') && document.querySelector('.wb-node'));
+                whiteboardReady = Boolean(document.querySelector('.wb-canvas') && document.querySelector('.wb-node'));
                 if (whiteboardReady) break;
                 await new Promise((resolve) => setTimeout(resolve, 50));
               }
