@@ -346,6 +346,7 @@ export interface StudioAPI {
   reviewCardConflicts(cardId: string): Promise<ConflictRadarResult>;
   reviewProjectConflicts(projectId: string): Promise<ProjectConflictRadarResult>;
   integrationQueue(projectId: string): Promise<IntegrationItem[]>;
+  integrationResultFolder(projectId: string): Promise<import('./integration-results').IntegrationResultFolder>;
   integrationPolicy(projectId: string): Promise<import('./integration-queue').IntegrationPolicy>;
   setIntegrationPolicy(input: { projectId: string; mode: 'manual' | 'automatic'; confirm: boolean }): Promise<import('./integration-queue').IntegrationPolicy>;
   manualRevisionFiles(cardId: string): Promise<string[]>;

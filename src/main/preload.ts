@@ -247,6 +247,7 @@ const studio: StudioAPI = {
   reviewCardConflicts: (cardId) => invoke('reviewCardConflicts', cardId),
   reviewProjectConflicts: (projectId) => invoke('reviewProjectConflicts', projectId),
   integrationQueue: (projectId) => invoke('integrationQueue', projectId),
+  integrationResultFolder: (projectId) => invoke('integrationResultFolder', projectId),
   integrationPolicy: (projectId) => invoke('integrationPolicy', projectId),
   setIntegrationPolicy: (input) => invoke('setIntegrationPolicy', input),
   manualRevisionFiles: (cardId) => invoke('manualRevisionFiles', cardId),

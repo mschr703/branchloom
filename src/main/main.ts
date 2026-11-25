@@ -30,6 +30,7 @@ import { previewTaskRevisionCleanup } from './task-revision-cleanup';
 import { CommandTerminalRunner } from './command-terminal';
 import { ensureCardWorktree, previewCardWorktreeCleanup, reviewCardWorktree, verifiedCardWorktreePath } from './git-worktree';
 import { advanceAutomaticIntegrations, approveIntegration, enqueueIntegration, integrationPolicy, integrationQueue, prepareIntegration, setIntegrationPolicy } from './integration-queue';
+import { integrationResultFolder } from './integration-results';
 import { runG02VisibleSmoke } from './smoke-g02';
 import { runG02AutoSmoke } from './smoke-g02-auto';
 import { applyManualRevision, captureManualRevision, manualRevisionFiles, manualRevisions, previewManualRevision, setManualRevisionConflictChoice } from './manual-revision';
@@ -557,6 +558,7 @@ function installIpc(): void {
   bind('reviewCardConflicts', (cardId: string) => reviewCardWorktreeConflicts(db, cardId));
   bind('reviewProjectConflicts', (projectId: string) => reviewProjectConflicts(db, projectId));
   bind('integrationQueue', (projectId: string) => integrationQueue(db, projectId));
+  bind('integrationResultFolder', (projectId: string) => integrationResultFolder(db, projectId));
   bind('integrationPolicy', (projectId: string) => integrationPolicy(db, projectId));
   bind('setIntegrationPolicy', (input: Parameters<StudioAPI['setIntegrationPolicy']>[0]) => setIntegrationPolicy(db, input));
   bind('manualRevisionFiles', (cardId: string) => manualRevisionFiles(db, cardId));

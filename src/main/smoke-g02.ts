@@ -47,7 +47,7 @@ export async function runG02VisibleSmoke(window: BrowserWindow, store: StudioSto
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
       throw new Error('G02 UI timeout: ' + label + ' / alert=' + document.querySelector('.card-drawer [role="alert"]')?.textContent?.slice(0, 300)
-        + ' / queue=' + document.querySelector('.card-drawer [aria-label="Integrationswarteschlange"]')?.textContent?.slice(0, 550));
+        + ' / queue=' + document.querySelector('.card-drawer [aria-label="Integrationswarteschlange"]')?.textContent?.slice(-1600));
     };
     const currentPanel = () => document.querySelector('.card-drawer [aria-label="Integrationswarteschlange"]');
     const button = (_panel, label) => [...(currentPanel()?.querySelectorAll('button') ?? [])].find((item) => item.textContent?.includes(label));
@@ -97,7 +97,7 @@ export async function runG02VisibleSmoke(window: BrowserWindow, store: StudioSto
     await wait(async () => (await window.studio.integrationEvidence(${JSON.stringify(first.id)})).review?.current && currentPanel()?.textContent?.includes('Diff-Prüfung: aktuell'), 'saved diff review');
     if (confirmationCalls !== 2 || !button(panel, 'Geprüft übernehmen')?.disabled) throw new Error('G02 review confirmation or pre-test merge gate failed: ' + confirmationCalls);
     await click(panel, 'npm run verify prüfen');
-    await wait(() => currentPanel()?.textContent?.includes('Test: Bestanden') && !button(panel, 'Geprüft übernehmen')?.disabled, 'passing test evidence', 300);
+    await wait(() => currentPanel()?.textContent?.includes('Test: Bestanden') && !button(panel, 'Geprüft übernehmen')?.disabled, 'passing test evidence', 1200);
     const result = await window.studio.integrationEvidence(${JSON.stringify(first.id)});
     if (!result.review?.current || result.test?.state !== 'passed' || !result.test.current || !result.test.outputTail.includes('G02_TEST_OK')) throw new Error('G02 test/review evidence was not stored.');
     window.confirm = () => false;
@@ -123,6 +123,15 @@ export async function runG02VisibleSmoke(window: BrowserWindow, store: StudioSto
     await click(panel, 'Git-Stand neu prüfen');
     await wait(() => currentPanel()?.textContent?.includes('Blockiert'), 'diverged branch blocked');
     if (button(panel, 'Geprüft übernehmen')) throw new Error('G02 offered merge for divergent second branch.');
+    const resultsToggle = await wait(() => currentPanel()?.querySelector('.integration-results > summary'), 'result folder toggle');
+    resultsToggle.click();
+    const results = await wait(() => {
+      const element = currentPanel()?.querySelector('.integration-results-body');
+      return element?.textContent?.includes('G02 Login') && element.textContent.includes('G02 Navigation')
+        && element.textContent.includes('Commit im aktuellen Ziel nachweisbar') ? element : null;
+    }, 'visible merged and blocked result folder');
+    if (!results.textContent.includes('Review belegt') || !results.textContent.includes('Test bestanden (verify)'))
+      throw new Error('G02 result folder omitted matching review or test evidence.');
     return true;
   })()`);
 

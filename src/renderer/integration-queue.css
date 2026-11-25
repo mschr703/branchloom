@@ -13,3 +13,14 @@
 .integration-policy small { color: var(--muted); font-size: 12px; }
 .integration-checks > small, .integration-checks > p, .integration-checks > details { flex-basis: 100%; margin: 0; }
 .integration-checks .terminal-output { max-height: 180px; overflow: auto; }
+.integration-results { border-top: 1px solid var(--border); padding: 9px 0; }
+.integration-results > summary { cursor: pointer; font-size: 12px; font-weight: 600; }
+.integration-results > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.integration-results-body { display: grid; gap: 8px; padding-top: 10px; }
+.integration-results-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.integration-results-actions small { color: var(--muted); max-width: 55ch; }
+.integration-results h5 { margin: 6px 0 0; font-size: 12px; }
+.integration-results ol { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border); }
+.integration-results li { display: grid; gap: 3px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.integration-results li strong { font-size: 12px; }
+.integration-results li span, .integration-results li small { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }

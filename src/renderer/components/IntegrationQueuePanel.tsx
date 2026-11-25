@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Card } from '../../shared/types';
 import type { IntegrationItem, IntegrationPolicy } from '../../shared/integration-queue';
 import type { IntegrationEvidence } from '../../shared/integration-evidence';
+import { IntegrationResultFolder } from './IntegrationResultFolder';
 import '../integration-queue.css';
 
 interface Props { card: Card; cards: Card[]; onIntegrated: () => void; onOpenDiff: () => void }
@@ -99,6 +100,7 @@ export function IntegrationQueuePanel({ card, cards, onIntegrated, onOpenDiff }:
       {entry.reason ? <small>{entry.reason}</small> : null}
       {entry.integratedHead ? <small>Git-Ziel: <code title={entry.integratedHead}>{entry.integratedHead.slice(0, 12)}</code></small> : null}
     </li>)}</ol> : <p className="inline-note">Noch keine Karten zur Integration vorgemerkt.</p>}
+    {!loading && items.length ? <IntegrationResultFolder projectId={card.projectId} queueRevision={items.map((entry) => `${entry.id}:${entry.state}:${entry.updatedAt}`).join('|')} /> : null}
     <div className="agent-actions">
       {!loading && (!current || current.state === 'integrated') ? <button className="secondary-button" type="button" disabled={busy} onClick={() => void act('enqueue')}>Diese Karte vormerken</button> : null}
       {current && ['queued', 'ready', 'blocked'].includes(current.state) ? <button className="secondary-button" type="button" disabled={busy} onClick={() => void act('prepare')}>Git-Stand neu prüfen</button> : null}
