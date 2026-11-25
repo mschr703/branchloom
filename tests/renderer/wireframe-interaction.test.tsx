@@ -45,4 +45,16 @@ describe('wireframe interaction editor', () => {
     expect(html).toContain('400 ms');
     expect(html).toContain('Weiteren Ablauf hinzufügen');
   });
+  it('renders the saved entrance frame on the timeline and uses the matching preview animation', () => {
+    const html = renderToStaticMarkup(createElement(WireframeInteractionEditor, {
+      elements: [button, panel], interactions: [{ ...interaction, midpoint: { atPercent: 75, offsetPx: 8, opacity: 0.8 } }],
+      disabled: false, onChange: () => undefined,
+    }));
+    expect(html).toContain('Eintritts-Zeitspur');
+    expect(html).toContain('180 ms · 8 px / 80 %');
+    expect(html).toContain('class="wireframe-interaction-panel has-midpoint at-75"');
+    expect(html).toContain('Zwischenpunkt Zeitpunkt');
+    expect(html).toContain('Zwischenpunkt Versatz');
+    expect(html).toContain('Zwischenpunkt Deckkraft');
+  });
 });

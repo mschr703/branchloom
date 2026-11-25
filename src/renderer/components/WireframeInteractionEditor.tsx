@@ -52,7 +52,9 @@ export function WireframeInteractionEditor({ elements, interactions, disabled, o
     if (interaction?.trigger === 'focus' || interaction?.trigger === 'hover') setOpen(true);
   }
   const duration = reduced ? 0 : interaction?.durationMs ?? 0;
-  const style = { '--interaction-duration': `${duration}ms`, '--interaction-offset': `${interaction?.enterOffsetPx ?? 0}px`, '--interaction-opacity': interaction?.closedOpacity ?? 0 } as CSSProperties;
+  const midpoint = interaction?.midpoint;
+  const style = { '--interaction-duration': `${duration}ms`, '--interaction-offset': `${interaction?.enterOffsetPx ?? 0}px`, '--interaction-opacity': interaction?.closedOpacity ?? 0,
+    '--interaction-mid-offset': `${midpoint?.offsetPx ?? 0}px`, '--interaction-mid-opacity': midpoint?.opacity ?? 1 } as CSSProperties;
   return <section className="wireframe-interaction" aria-label="Interaktionen">
     <div className="wireframe-interaction-heading"><h3>Interaktionen</h3><span>Desktop · {interactions.length}/8</span></div>
     <p>Jede Zeile verbindet einen Knopf mit einer Fläche. Wähle eine Zeile, um ihren Ablauf zu bearbeiten und auszuprobieren.</p>
@@ -75,6 +77,18 @@ export function WireframeInteractionEditor({ elements, interactions, disabled, o
         <label>Startdeckkraft <output>{Math.round(interaction.closedOpacity * 100)} %</output><input aria-label="Interaktion Startdeckkraft" type="range" min={0} max={0.5} step={0.05} disabled={disabled} value={interaction.closedOpacity} onChange={(event) => replace({ ...interaction, closedOpacity: Number(event.target.value) })} /></label>
       </div>
       <div className="wireframe-interaction-timing" aria-label="Zeitlicher Ablauf"><span>0 ms · {interaction.trigger === 'click' ? 'Klick' : interaction.trigger === 'hover' ? 'Zeigerkontakt' : 'Fokus'}</span><span>{interaction.durationMs} ms · Fläche sichtbar</span></div>
+      <div className="wireframe-interaction-timeline" aria-label="Eintritts-Zeitspur">
+        <div className="wireframe-interaction-timeline-rail" aria-hidden="true"><i className="is-start" />{midpoint ? <i className="is-mid" style={{ left: `${midpoint.atPercent}%` }} /> : null}<i className="is-end" /></div>
+        <div className="wireframe-interaction-timeline-legend"><span>Start · {interaction.enterOffsetPx} px / {Math.round(interaction.closedOpacity * 100)} %</span>{midpoint ? <span>{Math.round(interaction.durationMs * midpoint.atPercent / 100)} ms · {midpoint.offsetPx} px / {Math.round(midpoint.opacity * 100)} %</span> : null}<span>Ende · 0 px / 100 %</span></div>
+      </div>
+      {midpoint ? <div className="wireframe-interaction-midpoint">
+        <div className="wireframe-interaction-midpoint-heading"><strong>Zwischenpunkt</strong><button type="button" className="text-button" disabled={disabled} onClick={() => { const next = { ...interaction }; delete next.midpoint; replace(next); }}>Entfernen</button></div>
+        <div className="wireframe-interaction-fields">
+          <label>Zeitpunkt<select aria-label="Zwischenpunkt Zeitpunkt" disabled={disabled} value={midpoint.atPercent} onChange={(event) => replace({ ...interaction, midpoint: { ...midpoint, atPercent: Number(event.target.value) as 25 | 50 | 75 } })}><option value={25}>25 %</option><option value={50}>50 %</option><option value={75}>75 %</option></select></label>
+          <label>Versatz <output>{midpoint.offsetPx} px</output><input aria-label="Zwischenpunkt Versatz" type="range" min={0} max={80} step={4} disabled={disabled} value={midpoint.offsetPx} onChange={(event) => replace({ ...interaction, midpoint: { ...midpoint, offsetPx: Number(event.target.value) } })} /></label>
+          <label>Deckkraft <output>{Math.round(midpoint.opacity * 100)} %</output><input aria-label="Zwischenpunkt Deckkraft" type="range" min={0} max={1} step={0.05} disabled={disabled} value={midpoint.opacity} onChange={(event) => replace({ ...interaction, midpoint: { ...midpoint, opacity: Number(event.target.value) } })} /></label>
+        </div>
+      </div> : <button type="button" className="text-button" disabled={disabled} onClick={() => replace({ ...interaction, midpoint: { atPercent: 50, offsetPx: Math.round(interaction.enterOffsetPx / 2), opacity: Math.min(1, Math.round((1 + interaction.closedOpacity) * 10) / 20) } })}>Zwischenpunkt hinzufügen</button>}
       <p className="wireframe-interaction-focus">Fokusvorgabe: Beim Öffnen auf die Fläche; mit Schließen oder Escape zurück auf den Auslöser. {interaction.trigger === 'hover' ? 'Tastaturfokus öffnet als Alternative. Verlassen der Vorschau schließt die Fläche.' : interaction.trigger === 'focus' ? 'Tab aus der Vorschau schließt ohne Fokusfalle.' : ''} Reduzierte Bewegung: 0 ms.</p>
       <label className="wireframe-interaction-reduced"><input type="checkbox" checked={reduced} onChange={(event) => setReduced(event.target.checked)} />Reduzierte Bewegung vorschauen</label>
       <div className="wireframe-interaction-preview" style={style} aria-label="Interaktionsvorschau" onPointerLeave={() => { if (interaction.trigger === 'hover' && open) close(); }} onBlurCapture={(event) => {
@@ -84,7 +98,7 @@ export function WireframeInteractionEditor({ elements, interactions, disabled, o
       }}>
         <button ref={triggerRef} type="button" className="secondary-button small" aria-controls={panelId} aria-expanded={open} onFocus={focusTrigger} onPointerEnter={() => { if (interaction.trigger === 'hover') setOpen(true); }} onClick={() => { if (interaction.trigger === 'click') open ? close() : setOpen(true); }}>{selectedButton?.text || 'Fläche umschalten'}</button>
         <div className={`wireframe-interaction-backdrop${open ? ' is-open' : ''}`} aria-hidden="true" />
-        <div ref={panelRef} id={panelId} className={`wireframe-interaction-panel${open ? ' is-open' : ''}`} tabIndex={open ? -1 : undefined} role="region" aria-label={selectedPanel?.text || 'Geöffnete Fläche'} aria-hidden={!open} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); close(); } }}>
+        <div ref={panelRef} id={panelId} className={`wireframe-interaction-panel${open ? ' is-open' : ''}${midpoint ? ` has-midpoint at-${midpoint.atPercent}` : ''}`} tabIndex={open ? -1 : undefined} role="region" aria-label={selectedPanel?.text || 'Geöffnete Fläche'} aria-hidden={!open} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); close(); } }}>
           <strong>{selectedPanel?.text || 'Fläche'}</strong><button type="button" className="secondary-button small" tabIndex={open ? 0 : -1} onClick={() => close()}>Schließen</button>
         </div>
       </div>

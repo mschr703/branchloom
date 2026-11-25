@@ -1,4 +1,4 @@
-.wireframe-interaction { border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-top: 20px; background: var(--surface); max-width: 680px; }
+.wireframe-interaction { border-top: 1px solid var(--border); padding: 18px 0; margin-top: 20px; max-width: 680px; }
 .wireframe-interaction-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .wireframe-interaction-heading h3 { margin: 0; font-size: 1rem; }
 .wireframe-interaction-heading span, .wireframe-interaction p, .wireframe-interaction-timing { color: var(--muted); font-size: .85rem; }
@@ -13,6 +13,13 @@
 .wireframe-interaction-backdrop.is-open { opacity: .17; }
 .wireframe-interaction-panel { position: absolute; z-index: 2; inset: 8px 8px 8px auto; width: min(55%, 260px); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 7px 22px rgba(0,0,0,.12); padding: 14px; display: flex; flex-direction: column; justify-content: space-between; opacity: var(--interaction-opacity); transform: translateX(var(--interaction-offset)); visibility: hidden; transition: transform var(--interaction-duration) ease, opacity var(--interaction-duration) ease, visibility 0s linear var(--interaction-duration); }
 .wireframe-interaction-panel.is-open { opacity: 1; transform: translateX(0); visibility: visible; transition: transform var(--interaction-duration) ease, opacity var(--interaction-duration) ease, visibility 0s; }
+.wireframe-interaction-panel.is-open.has-midpoint { animation-duration: var(--interaction-duration); animation-timing-function: linear; animation-fill-mode: both; }
+.wireframe-interaction-panel.is-open.has-midpoint.at-25 { animation-name: wireframe-enter-quarter; }
+.wireframe-interaction-panel.is-open.has-midpoint.at-50 { animation-name: wireframe-enter-half; }
+.wireframe-interaction-panel.is-open.has-midpoint.at-75 { animation-name: wireframe-enter-three-quarter; }
+@keyframes wireframe-enter-quarter { 0% { opacity: var(--interaction-opacity); transform: translateX(var(--interaction-offset)); } 25% { opacity: var(--interaction-mid-opacity); transform: translateX(var(--interaction-mid-offset)); } 100% { opacity: 1; transform: translateX(0); } }
+@keyframes wireframe-enter-half { 0% { opacity: var(--interaction-opacity); transform: translateX(var(--interaction-offset)); } 50% { opacity: var(--interaction-mid-opacity); transform: translateX(var(--interaction-mid-offset)); } 100% { opacity: 1; transform: translateX(0); } }
+@keyframes wireframe-enter-three-quarter { 0% { opacity: var(--interaction-opacity); transform: translateX(var(--interaction-offset)); } 75% { opacity: var(--interaction-mid-opacity); transform: translateX(var(--interaction-mid-offset)); } 100% { opacity: 1; transform: translateX(0); } }
 .wireframe-interaction-panel strong { font-size: .9rem; }
 .wireframe-interaction .text-button { margin-top: 3px; }
 .wireframe-interaction-track { list-style: none; margin: 14px 0 10px; padding: 0; border-top: 1px solid var(--border); }
@@ -26,7 +33,16 @@
 .wireframe-interaction-track-label small, .wireframe-interaction-track-time small { color: var(--muted); font-size: .72rem; }
 .wireframe-interaction-track-time { display: grid; gap: 5px; }
 .wireframe-interaction-track-bar { display: block; height: 5px; min-width: 10%; max-width: 100%; border-radius: 4px; background: var(--accent); }
+.wireframe-interaction-timeline { margin: 15px 0 8px; }
+.wireframe-interaction-timeline-rail { position: relative; height: 2px; margin: 12px 7px 16px; background: var(--border); }
+.wireframe-interaction-timeline-rail i { position: absolute; top: 50%; width: 9px; height: 9px; border: 2px solid var(--accent); border-radius: 50%; background: var(--surface); transform: translate(-50%, -50%); }
+.wireframe-interaction-timeline-rail .is-start { left: 0; }
+.wireframe-interaction-timeline-rail .is-end { left: 100%; background: var(--accent); }
+.wireframe-interaction-timeline-legend { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; font-size: .75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.wireframe-interaction-midpoint { border-top: 1px solid var(--border); margin-top: 14px; }
+.wireframe-interaction-midpoint-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: .86rem; }
 @media (max-width: 520px) { .wireframe-interaction-track button { grid-template-columns: minmax(0, 1fr) 80px; gap: 8px; } }
 @media (prefers-reduced-motion: reduce) {
-  .wireframe-interaction-backdrop, .wireframe-interaction-panel, .wireframe-interaction-panel.is-open { transition-duration: 0ms; transition-delay: 0ms; }
+  .wireframe-interaction-backdrop, .wireframe-interaction-panel, .wireframe-interaction-panel.is-open { transition-duration: 0ms; transition-delay: 0ms; animation-duration: 0ms; }
+  .wireframe-interaction-panel.is-open.has-midpoint { animation-duration: 0ms; }
 }

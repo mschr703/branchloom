@@ -58,6 +58,8 @@ export interface WireframeInteraction {
   durationMs: number;
   enterOffsetPx: number;
   closedOpacity: number;
+  /** Optional edited entrance frame; older interactions still use a two-point transition. */
+  midpoint?: { atPercent: 25 | 50 | 75; offsetPx: number; opacity: number };
   reducedMotionDurationMs: 0;
   focusOnOpen: 'panel';
   focusOnClose: 'trigger';

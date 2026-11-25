@@ -27,6 +27,26 @@ const panel: WireframeElement = { id: 'drawer', kind: 'panel', x: 400, y: 100, w
 const interaction: WireframeInteraction = { triggerElementId: 'open', panelElementId: 'drawer', trigger: 'click', action: 'toggle-panel', durationMs: 240, enterOffsetPx: 24, closedOpacity: 0, reducedMotionDurationMs: 0, focusOnOpen: 'panel', focusOnClose: 'trigger' };
 
 describe('task-linked wireframes', () => {
+  it('persists a bounded entrance midpoint as a new approved revision without changing legacy interactions', () => {
+    const { dbFile, store, key } = fixture();
+    const elements = [button, panel];
+    const first = saveCardWireframe(store, { ...key, title: 'Panel', elements, interaction, expectedRevision: 0 });
+    approveCardWireframe(store, { ...key, expectedRevision: first.revision });
+    const midpoint = { atPercent: 50 as const, offsetPx: 12, opacity: 0.65 };
+    const edited = saveCardWireframe(store, { ...key, title: 'Panel', elements, interaction: { ...interaction, midpoint }, expectedRevision: 1 });
+    expect(edited).toMatchObject({ revision: 2, approvedRevision: null, interaction: { midpoint } });
+    expect(approvedCardWireframeContext(store, key)).toBe('');
+    expect(() => saveCardWireframe(store, { ...key, title: 'Panel', elements, interaction: { ...interaction, midpoint: { ...midpoint, atPercent: 60 as never } }, expectedRevision: 2 })).toThrow('Zwischenpunkt');
+    expect(() => saveCardWireframe(store, { ...key, title: 'Panel', elements, interaction: { ...interaction, midpoint: { ...midpoint, opacity: 1.2 } }, expectedRevision: 2 })).toThrow('Zwischenpunkt');
+    expect(() => saveCardWireframe(store, { ...key, title: 'Panel', elements, interaction: { ...interaction, midpoint: { ...midpoint, offsetPx: -1 } }, expectedRevision: 2 })).toThrow('Zwischenpunkt');
+    approveCardWireframe(store, { ...key, expectedRevision: 2 });
+    expect(approvedCardWireframeContext(store, key)).toContain('"midpoint":{"atPercent":50,"offsetPx":12,"opacity":0.65}');
+    store.close();
+    const restarted = new StudioStore(dbFile);
+    expect(cardWireframe(restarted, key)?.interaction).toMatchObject({ midpoint });
+    expect(cardWireframe(restarted, key)?.approvedRevision).toBe(2);
+    restarted.close();
+  });
   it('keeps legacy single interactions readable and persists multiple approved timelines by revision', () => {
     const { dbFile, store, key } = fixture();
     const secondButton: WireframeElement = { ...button, id: 'settings', text: 'Einstellungen' };
