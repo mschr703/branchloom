@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Card, CardContextReference, Project, Session } from '../../src/shared/types';
-import { projectKnowledgeMapPage } from '../../src/renderer/project-knowledge-map';
+import { projectKnowledgeMapPage, visibleKnowledgeCodeFiles } from '../../src/renderer/project-knowledge-map';
 import { knowledgeMapFlow } from '../../src/renderer/components/ProjectKnowledgeMap';
+import type { ProjectMemoryMapSources } from '../../src/shared/project-memory-index';
 
 const project: Project = { id: 'p', name: 'Project', path: 'synthetic', createdAt: '2026-01-01T00:00:00Z' };
 function card(id: string, projectId = 'p'): Card {
@@ -71,5 +72,34 @@ describe('project knowledge map', () => {
     const sources = knowledgeMapFlow(map.groups, [], '').nodes.filter((node) => node.id.startsWith('source:'));
     expect(sources).toHaveLength(2);
     expect(Math.abs(sources[0]!.position.x - sources[1]!.position.x)).toBeGreaterThanOrEqual(238);
+  });
+
+  it('connects only indexed files at the recorded Git ref, reusing an explicit card file node', () => {
+    const map = projectKnowledgeMapPage({ project, cards: [card('a')], sessions: [session('run', 'a')] }, 0,
+      [reference('1', 'a', 'src/relay.ts'), reference('2', 'a', 'src/missing.ts')]);
+    const sources: ProjectMemoryMapSources = { gitRef: 'a'.repeat(40), headCommit: { sourceId: 'a'.repeat(40), title: 'Recorded head', updatedAt: '2026-01-02T00:00:00Z' },
+      codeFiles: [{ path: 'src/relay.ts', sourceId: 'src/relay.ts#1', updatedAt: '2026-01-02T00:00:00Z' }], totalCodeFiles: 1 };
+    const flow = knowledgeMapFlow(map.groups, [], '', sources);
+    expect(flow.nodes.filter((node) => node.id === 'source:file:src/relay.ts')).toHaveLength(1);
+    expect(flow.nodes.some((node) => node.id === 'commit:' + sources.gitRef)).toBe(true);
+    expect(flow.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: 'task:a', target: 'conversation:run' }),
+      expect.objectContaining({ source: 'task:a', target: 'source:file:src/relay.ts' }),
+      expect.objectContaining({ source: 'commit:' + sources.gitRef, target: 'source:file:src/relay.ts' }),
+    ]));
+    expect(flow.edges.some((edge) => edge.source.startsWith('commit:') && edge.target === 'source:file:src/missing.ts')).toBe(false);
+    expect(knowledgeMapFlow(map.groups, [], '', null).nodes.some((node) => node.id.startsWith('commit:'))).toBe(false);
+  });
+
+  it('filters a bounded Git source view by path and prefers explicitly attached files', () => {
+    const sources: ProjectMemoryMapSources = { gitRef: 'b'.repeat(40), headCommit: { sourceId: 'b'.repeat(40), title: 'Head', updatedAt: '2026-01-02T00:00:00Z' },
+      codeFiles: ['src/alpha.ts', 'src/beta.ts', 'src/ui.tsx'].map((path) => ({ path, sourceId: `${path}#1`, updatedAt: '2026-01-02T00:00:00Z' })), totalCodeFiles: 3 };
+    const map = projectKnowledgeMapPage({ project, cards: [card('a')], sessions: [] }, 0, [reference('1', 'a', 'src/ui.tsx')]);
+    expect(visibleKnowledgeCodeFiles(sources, map.groups.flatMap((group) => group.references), '', 2).map((file) => file.path)).toEqual(['src/ui.tsx', 'src/alpha.ts']);
+    const flow = knowledgeMapFlow(map.groups, [], '', sources, 'code', 'beta');
+    expect(flow.shownCodeFiles.map((file) => file.path)).toEqual(['src/beta.ts']);
+    expect(flow.nodes.map((node) => node.id)).toEqual([`commit:${sources.gitRef}`, 'source:file:src/beta.ts']);
+    expect(flow.edges).toHaveLength(1);
+    expect(knowledgeMapFlow(map.groups, [], '', sources, 'work').nodes.some((node) => node.id.startsWith('commit:'))).toBe(false);
   });
 });

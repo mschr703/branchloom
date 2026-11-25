@@ -1,8 +1,9 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { isAbsolute, relative, sep } from 'node:path';
 import { promisify } from 'node:util';
 import type Database from 'better-sqlite3';
-import type { ProjectMemoryHit, ProjectMemoryIndexStatus, ProjectMemorySearch, ProjectMemorySearchInput, ProjectMemorySourceDetail, ProjectMemorySourceInput, ProjectMemorySourceKind } from '../shared/project-memory-index';
+import type { ProjectMemoryHit, ProjectMemoryIndexStatus, ProjectMemoryMapSources, ProjectMemorySearch, ProjectMemorySearchInput, ProjectMemorySourceDetail, ProjectMemorySourceInput, ProjectMemorySourceKind } from '../shared/project-memory-index';
 import { searchSessionTranscripts } from './session-search';
 import type { StudioStore } from './store';
 
@@ -280,6 +281,26 @@ export function searchProjectMemoryIndex(store: StudioStore, input: ProjectMemor
   }
   if (!expression) hits.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return { status: projectMemoryIndexStatus(store, input.projectId), hits: hits.slice(0, 30) };
+}
+
+/** The map only exposes files actually indexed at the persisted Git ref. */
+export function projectMemoryMapSources(store: StudioStore, projectId: string): ProjectMemoryMapSources {
+  const project = store.project(projectId);
+  const state = store.db.prepare('SELECT git_ref AS gitRef, repository FROM project_memory_index_state WHERE project_id = ?').get(projectId) as { gitRef: string | null; repository: string | null } | undefined;
+  const gitRef = state?.gitRef ?? null;
+  if (!gitRef) return { gitRef: null, headCommit: null, codeFiles: [], totalCodeFiles: 0 };
+  const commit = store.db.prepare(`SELECT source_id AS sourceId, title, updated_at AS updatedAt FROM project_memory_sources
+    WHERE project_id = ? AND kind = 'commit' AND source_id = ?`).get(projectId, gitRef) as ProjectMemoryMapSources['headCommit'];
+  const totalCodeFiles = (store.db.prepare(`SELECT COUNT(DISTINCT source_path) AS count FROM project_memory_sources
+    WHERE project_id = ? AND kind = 'code' AND git_ref = ? AND source_path IS NOT NULL`).get(projectId, gitRef) as { count: number }).count;
+  const codeFiles = store.db.prepare(`SELECT source_path AS path, MIN(source_id) AS sourceId, MAX(updated_at) AS updatedAt
+    FROM project_memory_sources WHERE project_id = ? AND kind = 'code' AND git_ref = ? AND source_path IS NOT NULL
+    GROUP BY source_path ORDER BY source_path COLLATE NOCASE LIMIT 180`).all(projectId, gitRef) as ProjectMemoryMapSources['codeFiles'];
+  const relativeRoot = state?.repository ? relative(state.repository, project.path).split(sep).join('/') : '';
+  const prefix = relativeRoot && relativeRoot !== '.' && !relativeRoot.startsWith('../') && !isAbsolute(relativeRoot) ? `${relativeRoot}/` : '';
+  return { gitRef, headCommit: commit ?? null, codeFiles: prefix
+    ? codeFiles.map((file) => ({ ...file, path: file.path.toLocaleLowerCase().startsWith(prefix.toLocaleLowerCase()) ? file.path.slice(prefix.length) : file.path }))
+    : codeFiles, totalCodeFiles };
 }
 
 export function readProjectMemorySource(store: StudioStore, input: ProjectMemorySourceInput): ProjectMemorySourceDetail | null {

@@ -28,6 +28,14 @@ export interface ProjectMemorySearch {
   hits: ProjectMemoryHit[];
 }
 
+/** A bounded, provenance-preserving inventory for the relationship map. */
+export interface ProjectMemoryMapSources {
+  gitRef: string | null;
+  headCommit: { sourceId: string; title: string; updatedAt: string } | null;
+  codeFiles: Array<{ path: string; sourceId: string; updatedAt: string }>;
+  totalCodeFiles: number;
+}
+
 export interface ProjectMemorySearchInput {
   projectId: string;
   query: string;

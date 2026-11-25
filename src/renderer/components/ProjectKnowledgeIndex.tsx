@@ -21,7 +21,7 @@ export function ProjectKnowledgeIndex({ snapshot, onOpenCard, onOpenSession }: P
   const projectId = snapshot.project.id;
   const [query, setQuery] = useState('');
   const [kind, setKind] = useState<ProjectMemorySourceKind | 'all'>('all');
-  const [view, setView] = useState<'map' | 'sources'>(() => snapshot.sessions.some((session) => session.state !== 'running' && Boolean(session.output.trim())) ? 'map' : 'sources');
+  const [view, setView] = useState<'map' | 'sources'>('map');
   const [status, setStatus] = useState<ProjectMemoryIndexStatus | null>(null);
   const [hits, setHits] = useState<ProjectMemoryHit[]>([]);
   const [selectedId, setSelectedId] = useState('');
@@ -33,7 +33,7 @@ export function ProjectKnowledgeIndex({ snapshot, onOpenCard, onOpenSession }: P
   const revision = useMemo(() => `${snapshot.cards.length}:${snapshot.cards.reduce((latest, card) => card.updatedAt > latest ? card.updatedAt : latest, '')}:${snapshot.sessions.filter((session) => session.state !== 'running').length}`, [snapshot.cards, snapshot.sessions]);
   const selected = hits.find((hit) => `${hit.kind}:${hit.sourceId}` === selectedId) ?? null;
 
-  useEffect(() => { setQuery(''); setKind('all'); setView(snapshot.sessions.some((session) => session.state !== 'running' && Boolean(session.output.trim())) ? 'map' : 'sources'); setSelectedId(''); setDetail(null); setStatus(null); setHits([]); setLoading(true); }, [projectId]);
+  useEffect(() => { setQuery(''); setKind('all'); setView('map'); setSelectedId(''); setDetail(null); setStatus(null); setHits([]); setLoading(true); }, [projectId]);
 
   useEffect(() => {
     let active = true;
@@ -84,7 +84,7 @@ export function ProjectKnowledgeIndex({ snapshot, onOpenCard, onOpenSession }: P
     {status?.warning ? <p className="knowledge-index-warning" role="status">{status.warning}</p> : null}
     {status?.state === 'partial' ? <p className="knowledge-index-limit">{status.codeFilesIndexed} von {status.codeFilesSeen} geeigneten Codedateien erfasst. Nicht erfasste Inhalte liefern keine Treffer.</p> : null}
     <div className="knowledge-index-view-tabs" role="group" aria-label="Projektwissen anzeigen"><button type="button" aria-pressed={view === 'map'} onClick={() => setView('map')}>Beziehungen</button><button type="button" aria-pressed={view === 'sources'} onClick={() => setView('sources')}>Quellen durchsuchen</button></div>
-    {view === 'map' ? <ProjectKnowledgeMap snapshot={snapshot} onOpenCard={onOpenCard} onOpenSession={onOpenSession} /> : <>
+    {view === 'map' ? <ProjectKnowledgeMap snapshot={snapshot} indexRevision={status?.indexedAt} onOpenCard={onOpenCard} onOpenSession={onOpenSession} /> : <>
     <div className="knowledge-index-controls"><label><Search size={17} aria-hidden="true" /><input value={query} maxLength={160} onChange={(event) => { setQuery(event.target.value); setSelectedId(''); }} aria-label="Projektwissen durchsuchen" placeholder="Was wurde zu … gemacht?" /></label><div role="group" aria-label="Quelle filtern">{filters.map((item) => <button key={item} type="button" aria-pressed={kind === item} onClick={() => { setKind(item); setSelectedId(''); }}>{item === 'all' ? 'Alle' : kindLabels[item]}</button>)}</div></div>
     {error ? <p className="knowledge-index-warning error" role="alert">{error}</p> : null}
     <div className="knowledge-index-body"><div className="knowledge-index-results" aria-label="Quellentreffer">{loading ? <p>Quellen werden geladen…</p> : hits.length ? hits.map((hit) => <button key={`${hit.kind}:${hit.sourceId}`} type="button" className={selectedId === `${hit.kind}:${hit.sourceId}` ? 'knowledge-index-result selected' : 'knowledge-index-result'} aria-current={selectedId === `${hit.kind}:${hit.sourceId}` ? 'true' : undefined} onClick={() => setSelectedId(`${hit.kind}:${hit.sourceId}`)}><span>{kindLabels[hit.kind]} · {new Date(hit.updatedAt).toLocaleDateString('de-DE')}</span><strong>{hit.title}</strong><small>{hit.snippet || 'Kein Textauszug verfügbar.'}</small></button>) : <p>{query ? 'Keine passenden Quellen gefunden.' : 'Noch keine indexierten Quellen. Aufgaben und Agentenläufe erscheinen nach dem ersten gespeicherten Schritt.'}</p>}</div>

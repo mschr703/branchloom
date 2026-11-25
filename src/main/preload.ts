@@ -185,6 +185,7 @@ const studio: StudioAPI = {
   searchSessionTranscripts: (input) => invoke('searchSessionTranscripts', input),
   refreshProjectMemoryIndex: (projectId, force) => invoke('refreshProjectMemoryIndex', projectId, force),
   searchProjectMemoryIndex: (input) => invoke('searchProjectMemoryIndex', input),
+  projectMemoryMapSources: (projectId) => invoke('projectMemoryMapSources', projectId),
   readProjectMemorySource: (input) => invoke('readProjectMemorySource', input),
   sessionForProject: (input) => invoke('sessionForProject', input),
   sessionRunEvidence: (input) => invoke('sessionRunEvidence', input),

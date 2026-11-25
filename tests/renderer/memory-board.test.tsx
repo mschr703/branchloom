@@ -65,7 +65,8 @@ describe('memory workspace', () => {
     };
     const html = renderToStaticMarkup(createElement(MemoryView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() }));
     expect(html.indexOf('aria-label="Automatischer Projektindex"')).toBeLessThan(html.indexOf('class="memory-list"'));
-    expect(html).toContain('aria-label="Projektwissen durchsuchen"');
+    expect(html).toContain('Quellen durchsuchen');
+    expect(html).toContain('Git-Quellen');
     expect(html).toContain('Index aktualisieren');
     expect(html).toContain('Eigene Notizen');
     expect(html.indexOf('class="memory-list"')).toBeLessThan(html.indexOf('class="graph-panel"'));
@@ -87,8 +88,8 @@ describe('memory workspace', () => {
       workflows: [], notes: [],
     };
     const html = renderToStaticMarkup(createElement(MemoryView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() }));
-    expect(html).toContain('Beziehungskarte aus Aufgaben und Agentenläufen');
-    expect(html).toContain('1 Aufgaben · 1 belegte Läufe');
+    expect(html).toContain('Beziehungskarte aus Aufgaben, Agentenläufen und Git-Quellen');
+    expect(html).toContain('1 Aufgabe · 1 Lauf');
     expect(html).toContain('Quellen als Liste');
     expect(html).toContain('without-note-graph');
     expect(html).not.toContain('aria-label="Manuelle Notizverknüpfungen"');

@@ -284,6 +284,7 @@ export interface StudioAPI {
   searchSessionTranscripts(input: { projectId: string; query: string }): Promise<SessionSearchHit[]>;
   refreshProjectMemoryIndex(projectId: string, force?: boolean): Promise<ProjectMemoryIndexStatus>;
   searchProjectMemoryIndex(input: ProjectMemorySearchInput): Promise<ProjectMemorySearch>;
+  projectMemoryMapSources(projectId: string): Promise<import('./project-memory-index').ProjectMemoryMapSources>;
   readProjectMemorySource(input: ProjectMemorySourceInput): Promise<ProjectMemorySourceDetail | null>;
   sessionForProject(input: { projectId: string; sessionId: string }): Promise<Session>;
   sessionRunEvidence(input: { projectId: string; sessionId: string }): Promise<SessionRunEvidence>;

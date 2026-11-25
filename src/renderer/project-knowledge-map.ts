@@ -1,4 +1,5 @@
 import type { Card, CardContextReference, ProjectSnapshot, Session } from '../shared/types';
+import type { ProjectMemoryMapSources } from '../shared/project-memory-index';
 
 export interface KnowledgeMapGroup {
   card: Card;
@@ -20,6 +21,19 @@ export interface KnowledgeMapPage {
 const CARDS_PER_PAGE = 4;
 const SESSIONS_PER_CARD = 2;
 const REFERENCES_PER_CARD = 2;
+
+/** Prefer indexed files that a visible task explicitly uses; other files remain discoverable. */
+export function visibleKnowledgeCodeFiles(sources: ProjectMemoryMapSources | null, references: readonly CardContextReference[], query = '', limit = 8): ProjectMemoryMapSources['codeFiles'] {
+  if (!sources) return [];
+  const term = query.trim().toLocaleLowerCase();
+  const fileRefs = new Set(references.filter((reference) => reference.kind === 'file').map((reference) => reference.target.replaceAll('\\', '/').toLocaleLowerCase()));
+  const folderRefs = references.filter((reference) => reference.kind === 'folder').map((reference) => `${reference.target.replaceAll('\\', '/').replace(/\/$/, '').toLocaleLowerCase()}/`);
+  return sources.codeFiles.filter((file) => !term || file.path.toLocaleLowerCase().includes(term))
+    .sort((a, b) => {
+      const priority = (path: string) => fileRefs.has(path.toLocaleLowerCase()) ? 0 : folderRefs.some((folder) => path.toLocaleLowerCase().startsWith(folder)) ? 1 : 2;
+      return priority(a.path) - priority(b.path) || a.path.localeCompare(b.path);
+    }).slice(0, limit);
+}
 
 /** Only saved card IDs are edges. Text similarity never creates a relationship. */
 export function projectKnowledgeMapPage(

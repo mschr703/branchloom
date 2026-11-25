@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudioStore } from '../../src/main/store';
-import { readProjectMemorySource, refreshProjectMemoryIndex, searchProjectMemoryIndex } from '../../src/main/project-memory-index';
+import { projectMemoryMapSources, readProjectMemorySource, refreshProjectMemoryIndex, searchProjectMemoryIndex } from '../../src/main/project-memory-index';
 
 const roots: string[] = [];
 const stores: StudioStore[] = [];
@@ -55,6 +55,12 @@ describe('automatic project memory index', () => {
     expect(status.counts).toMatchObject({ task: 1, conversation: 1, commit: 1 });
     expect(status.counts.code).toBeGreaterThan(0);
     expect(status.codeFilesSeen).toBe(1);
+    expect(projectMemoryMapSources(store, project.id)).toEqual({
+      gitRef: status.gitRef,
+      headCommit: expect.objectContaining({ sourceId: status.gitRef, title: 'Initial relay implementation' }),
+      codeFiles: [{ path: 'src/relay.ts', sourceId: 'src/relay.ts#1', updatedAt: expect.any(String) }],
+      totalCodeFiles: 1,
+    });
     const relay = searchProjectMemoryIndex(store, { projectId: project.id, query: 'relay' });
     expect(relay.hits.some((hit) => hit.kind === 'task' && hit.cardId === card.id)).toBe(true);
     expect(relay.hits.some((hit) => hit.kind === 'commit' && hit.gitRef === status.gitRef)).toBe(true);
@@ -67,6 +73,7 @@ describe('automatic project memory index', () => {
     const reopened = new StudioStore(file);
     stores.push(reopened);
     expect(searchProjectMemoryIndex(reopened, { projectId: project.id, query: 'relay' }).hits.some((hit) => hit.kind === 'code')).toBe(true);
+    expect(projectMemoryMapSources(reopened, project.id).codeFiles.map((item) => item.path)).toEqual(['src/relay.ts']);
     expect((await refreshProjectMemoryIndex(reopened, project.id)).gitRef).toBe(status.gitRef);
     reopened.close();
   });
@@ -91,7 +98,9 @@ describe('automatic project memory index', () => {
     const other = store.createProject({ name: 'Other', path: otherPath });
     expect(searchProjectMemoryIndex(store, { projectId: other.id, query: 'freshSignal' }).hits).toEqual([]);
     expect(readProjectMemorySource(store, { projectId: other.id, kind: 'code', sourceId: 'src/relay.ts#1' })).toBeNull();
+    expect(projectMemoryMapSources(store, other.id).codeFiles).toEqual([]);
     expect(() => searchProjectMemoryIndex(store, { projectId: 'invalid', query: 'signal' })).toThrow();
+    expect(() => projectMemoryMapSources(store, 'invalid')).toThrow();
     store.close();
   });
 
@@ -100,6 +109,7 @@ describe('automatic project memory index', () => {
     const status = await refreshProjectMemoryIndex(store, project.id);
     expect(status.state).toBe('git-unavailable');
     expect(status.counts).toMatchObject({ task: 1, conversation: 1, commit: 0, code: 0 });
+    expect(projectMemoryMapSources(store, project.id)).toEqual({ gitRef: null, headCommit: null, codeFiles: [], totalCodeFiles: 0 });
     expect(searchProjectMemoryIndex(store, { projectId: project.id, query: 'handshake' }).hits[0]?.sessionId).toBe(session.id);
     expect(store.db.prepare('SELECT COUNT(*) AS count FROM sessions').get()).toMatchObject({ count: 1 });
     expect(() => searchProjectMemoryIndex(store, { projectId: project.id, query: 'x'.repeat(161) })).toThrow('160 Zeichen');
@@ -130,6 +140,7 @@ describe('automatic project memory index', () => {
     const status = await refreshProjectMemoryIndex(store, child.id);
     expect(status.counts.commit).toBe(1);
     expect(status.codeFilesSeen).toBe(1);
+    expect(projectMemoryMapSources(store, child.id).codeFiles.map((file) => file.path)).toEqual(['child.ts']);
     expect(searchProjectMemoryIndex(store, { projectId: child.id, query: 'childOnly', kind: 'code' }).hits).toHaveLength(1);
     expect(searchProjectMemoryIndex(store, { projectId: child.id, query: 'siblingOnly' }).hits).toEqual([]);
     expect(searchProjectMemoryIndex(store, { projectId: child.id, query: 'sibling topic', kind: 'commit' }).hits).toEqual([]);

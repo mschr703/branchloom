@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { basename, isAbsolute, join } from 'node:path';
 import type { AgentPreset, CommandTerminalEvent, QueueState, SessionEvent, StudioAPI, WorkflowAgentSettings, WorkflowProposal, WorkflowStep } from '../shared/types';
 import { StudioBrowser } from './browser';
-import { readProjectMemorySource, refreshProjectMemoryIndex, searchProjectMemoryIndex } from './project-memory-index';
+import { projectMemoryMapSources, readProjectMemorySource, refreshProjectMemoryIndex, searchProjectMemoryIndex } from './project-memory-index';
 import { createDiagnosticCard } from './error-catcher';
 import { cardQaReports, cardQaScreenshot, runCardQa, runCardQaBatch } from './card-qa';
 import { qaCoverageRoutes, saveQaCoverageRoute, removeQaCoverageRoute, runQaCoverageCell } from './qa-coverage';
@@ -470,6 +470,7 @@ function installIpc(): void {
   bind('searchSessionTranscripts', (input: { projectId: string; query: string }) => db.searchSessionTranscripts(input.projectId, input.query));
   bind('refreshProjectMemoryIndex', (projectId: string, force?: boolean) => refreshProjectMemoryIndex(db, projectId, force));
   bind('searchProjectMemoryIndex', (input: Parameters<StudioAPI['searchProjectMemoryIndex']>[0]) => searchProjectMemoryIndex(db, input));
+  bind('projectMemoryMapSources', (projectId: string) => projectMemoryMapSources(db, projectId));
   bind('readProjectMemorySource', (input: Parameters<StudioAPI['readProjectMemorySource']>[0]) => readProjectMemorySource(db, input));
   bind('sessionForProject', (input: { projectId: string; sessionId: string }) => db.sessionForProject(input.projectId, input.sessionId));
   bind('sessionRunEvidence', (input: Parameters<StudioAPI['sessionRunEvidence']>[0]) => sessionRunEvidence(db, input));
