@@ -3867,6 +3867,94 @@ http.createServer((_request,response)=>{response.writeHead(200,{'Content-Type':'
                 (await window.studio.cardCriteria(candidateId)).find((item) => item.id === criterionId)?.text !== candidateText) throw new Error('F04 decision changed a source statement.');
               return true;
             })()`);
+
+            const f05Root = join(smokeDataDirectory!, 'f05-question-project');
+            mkdirSync(f05Root, { recursive: true });
+            const f05AgentPath = join(f05Root, 'question-agent.cjs');
+            writeFileSync(join(f05Root, 'README.md'), 'Synthetic shared-question acceptance project.\n');
+            writeFileSync(f05AgentPath, [
+              "const { randomUUID } = require('node:crypto');",
+              '(async () => {',
+              '  const response = await fetch(process.env.BRANCHLOOM_AGENT_QUESTION_URL, {',
+              "    method: 'POST', headers: { Authorization: 'Bearer ' + process.env.BRANCHLOOM_AGENT_QUESTION_TOKEN, 'Content-Type': 'application/json' },",
+              "    body: JSON.stringify({ requestId: randomUUID(), question: 'Can members edit archived projects?' })",
+              '  });',
+              "  if (!response.ok) throw new Error('Question tool returned ' + response.status);",
+              "  console.log('F05_QUESTION_POSTED');",
+              "  let received = '';",
+              "  process.stdin.on('data', (chunk) => { received += String(chunk); if (received.includes('Archived projects are read-only.')) { console.log('F05_ANSWER_RECEIVED'); process.exit(0); } });",
+              '  process.stdin.resume();',
+              "})().catch((error) => { console.error(error.message); process.exit(1); });",
+            ].join('\n'));
+            execFileSync('git', ['init', '-q', f05Root], { windowsHide: true });
+            execFileSync('git', ['-C', f05Root, 'add', 'README.md', 'question-agent.cjs'], { windowsHide: true });
+            execFileSync('git', ['-C', f05Root, '-c', 'user.name=Branchloom Smoke', '-c', 'user.email=smoke@example.invalid', 'commit', '-qm', 'Synthetic F05 project'], { windowsHide: true });
+            const f05Project = smokeStore.createProject({ name: 'F05 Fragenprojekt', path: f05Root });
+            setProjectRunCapacity(smokeStore, { projectId: f05Project.id, capacity: 3 });
+            const f05Agent = smokeStore.saveAgent({ name: 'F05 synthetic question agent', kind: 'custom', command: 'node', args: [f05AgentPath], model: null, enabled: true });
+            const f05Column = smokeStore.snapshot(f05Project.id).columns[0]!.id;
+            const f05Cards = ['Frontend', 'Backend', 'Unrelated'].map((title) => smokeStore.createCard({ projectId: f05Project.id, columnId: f05Column, title }));
+            const f05Runs = f05Cards.map((card) => runner!.start({ cardId: card.id, agentId: f05Agent.id, prompt: '', mode: 'one-shot', useWorktree: true }));
+            let f05Questions = agentQuestions(smokeStore, f05Project.id);
+            for (let attempt = 0; attempt < 200 && f05Questions.length < 3; attempt++) {
+              await new Promise((resolve) => setTimeout(resolve, 100));
+              f05Questions = agentQuestions(smokeStore, f05Project.id);
+            }
+            if (f05Questions.length !== 3 || f05Runs.some((run) => smokeStore.session(run.id).state !== 'running')) {
+              throw new Error('F05 three live CLI questions were not available for the visible inbox test.');
+            }
+            await new Promise<void>((resolve) => { smokeWindow.webContents.once('did-finish-load', () => resolve()); smokeWindow.webContents.reload(); });
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const projectId = ${JSON.stringify(f05Project.id)};
+              const firstIds = ${JSON.stringify(f05Questions.filter((item) => f05Cards.slice(0, 2).some((card) => card.id === item.cardId)).map((item) => item.id))};
+              const thirdId = ${JSON.stringify(f05Questions.find((item) => item.cardId === f05Cards[2]!.id)!.id)};
+              const wait = async (predicate, label) => {
+                for (let i = 0; i < 300; i++) { const result = await predicate(); if (result) return result; await new Promise((resolve) => setTimeout(resolve, 50)); }
+                throw new Error('F05 UI smoke timed out: ' + label);
+              };
+              const picker = await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger:not(.is-compact)'), 'project picker');
+              picker.click();
+              const choice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project button')].find((item) => item.textContent?.trim() === 'F05 Fragenprojekt'), 'question project');
+              choice.click();
+              await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger')?.getAttribute('aria-label') === 'Projekt auswählen: F05 Fragenprojekt', 'selected question project');
+              const nav = await wait(() => [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.querySelector('.nav-label')?.textContent?.trim() === 'Entscheidungen'), 'Decisions navigation');
+              nav.click();
+              const panel = await wait(() => document.querySelector('.agent-questions'), 'question inbox');
+              const suggestion = await wait(() => panel.querySelector('.agent-question-suggestions button'), 'sourced question suggestion');
+              suggestion.click();
+              const compose = await wait(() => panel.querySelector('.agent-question-compose'), 'recipient review');
+              await wait(() => compose.querySelectorAll('.agent-question-recipients li').length === 3, 'three suggested recipients');
+              const omit = compose.querySelector('button[aria-label="Frage von Unrelated abwählen"]');
+              if (!omit) throw new Error('F05 unrelated recipient cannot be removed.');
+              omit.click();
+              await wait(() => compose.querySelectorAll('.agent-question-recipients li').length === 2, 'two reviewed recipients');
+              if (!firstIds.every((id) => panel.querySelector('[data-agent-question-id="' + id + '"] input[type="checkbox"]')?.checked)
+                || panel.querySelector('[data-agent-question-id="' + thirdId + '"] input[type="checkbox"]')?.checked) throw new Error('F05 recipient selection is incorrect.');
+              const answer = compose.querySelector('textarea');
+              const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+              if (!answer || !setter) throw new Error('F05 answer editor missing.');
+              setter.call(answer, 'Archived projects are read-only.'); answer.dispatchEvent(new Event('input', { bubbles: true }));
+              const send = await wait(() => [...compose.querySelectorAll('button')].find((item) => item.textContent?.includes('Einmal beantworten') && !item.disabled), 'answer button');
+              send.click();
+              const saved = await wait(async () => {
+                const rows = await window.studio.agentQuestions(projectId);
+                return firstIds.every((id) => rows.find((item) => item.id === id)?.delivery === 'delivered') ? rows : null;
+              }, 'two delivered answers');
+              if (saved.find((item) => item.id === thirdId)?.answer !== null || saved.find((item) => item.id === thirdId)?.delivery !== 'open'
+                || saved.filter((item) => firstIds.includes(item.id)).some((item) => item.answer !== 'Archived projects are read-only.' || item.answerSource !== 'user')
+                || new Set(saved.filter((item) => firstIds.includes(item.id)).map((item) => item.answerId)).size !== 1) {
+                throw new Error('F05 answer did not stay scoped to two original questions.');
+              }
+              await wait(() => firstIds.every((id) => panel.querySelector('[data-agent-question-id="' + id + '"]')?.textContent?.includes('An diese Sitzung zugestellt')), 'visible delivery status');
+              return true;
+            })()`);
+            for (let attempt = 0; attempt < 100 && f05Runs.slice(0, 2).some((run) => smokeStore.session(run.id).state === 'running'); attempt++) {
+              await new Promise((resolve) => setTimeout(resolve, 100));
+            }
+            if (f05Runs.slice(0, 2).some((run) => smokeStore.session(run.id).state !== 'exited' || !smokeStore.session(run.id).output.includes('F05_ANSWER_RECEIVED'))) {
+              throw new Error('F05 live CLI recipients did not acknowledge the terminal message.');
+            }
+            runner!.stop(f05Runs[2]!.id);
             process.stdout.write('STUDIO_SMOKE_OK\n');
             app.quit();
           }).catch(failSmoke);
