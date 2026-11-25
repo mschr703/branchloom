@@ -409,6 +409,16 @@ export interface StudioAPI {
   runCardQa(input: { cardId: string; url: string; viewport: CardQaViewport }): Promise<CardQaReport>;
   runCardQaBatch(input: { cardId: string; urls: string[]; viewport: CardQaViewport }): Promise<CardQaBatchResult>;
   cardQaScreenshot(input: { cardId: string; reportId: string }): Promise<string>;
+  startTeamReviewRoom(input: { projectId: string; cardId: string; qaReportId: string; scenario: string; reviewerName: string }): Promise<{ room: import('./team-review').TeamReviewRoom; invite: import('./team-review').TeamReviewInvite; reviewerSecret: string; url: string }>;
+  teamReviewRooms(cardId: string): Promise<import('./team-review').TeamReviewRoom[]>;
+  teamReviewInvites(roomId: string): Promise<import('./team-review').TeamReviewInvite[]>;
+  teamReviewComments(roomId: string): Promise<import('./team-review').TeamReviewComment[]>;
+  teamReviewImage(roomId: string): Promise<string>;
+  newTeamReviewInvite(input: { roomId: string; reviewerName: string }): Promise<{ invite: import('./team-review').TeamReviewInvite; reviewerSecret: string; url: string }>;
+  revokeTeamReviewInvite(input: { roomId: string; inviteId: string }): Promise<import('./team-review').TeamReviewInvite>;
+  closeTeamReviewRoom(roomId: string): Promise<import('./team-review').TeamReviewRoom>;
+  openTeamReviewInvite(secret: string): Promise<void>;
+  copyTeamReviewInvite(secret: string): Promise<void>;
   qaCoverageRoutes(projectId: string): Promise<import('./qa-coverage').QaCoverageRoute[]>;
   saveQaCoverageRoute(input: import('./qa-coverage').SaveQaCoverageRoute): Promise<import('./qa-coverage').QaCoverageRoute>;
   removeQaCoverageRoute(input: { projectId: string; routeId: string }): Promise<void>;
