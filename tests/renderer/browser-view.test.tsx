@@ -17,7 +17,11 @@ describe('browser controls', () => {
     expect(html).toContain('Öffnen');
     expect(html).toContain('aria-label="Browser-Tabs"');
     expect(html).toContain('aria-label="Neuer Tab"');
-    expect(html).toContain('Den lesenden Zugriff für Kartenagenten');
+    expect(html).toContain('Kartenagenten erhalten keinen Zugriff auf diese Tabs');
+    expect(html).toContain('unter Einstellungen');
+    expect(html).not.toContain('Browser-Einstellungen öffnen');
+    const withSettings = renderToStaticMarkup(createElement(BrowserView, { active: true, onOpenSettings: () => undefined }));
+    expect(withSettings).toContain('Browser-Einstellungen öffnen');
   });
 
   it('shows an observed source and requires a deliberate card action', () => {

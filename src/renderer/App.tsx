@@ -4,6 +4,7 @@ import type { Project, ProjectOrganization, ProjectPackagePreview, ProjectSnapsh
 import { BoardView } from './components/BoardView';
 import { IdeasView } from './components/IdeasView';
 import { AgentView } from './components/AgentView';
+import { ProjectSettingsView } from './components/ProjectSettingsView';
 import { CommandTerminalView } from './components/CommandTerminalView';
 import { MilestonesView } from './components/MilestonesView';
 import { SearchPalette } from './components/SearchPalette';
@@ -368,7 +369,7 @@ export function App() {
         onRefresh={() => void checkProjectRadar()} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
       {error ? <div className="error-banner" role="alert"><span>{error}</span><button type="button" onClick={() => setError('')} aria-label="Fehler schließen">×</button></div> : null}
       {notice ? <div className="package-notice" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Hinweis schließen">×</button></div> : null}
-      {loading ? <div className="content-message">Projekte werden geladen…</div> : view === 'browser' ? <div className="view-area" ref={viewAreaRef}><Suspense fallback={<div className="content-message" role="status">Browser wird geladen…</div>}><BrowserView active={!creatingProject && !searchOpen} snapshot={snapshot?.project.id === projectId ? snapshot : null} onOpenCard={async (id) => { await refresh(); navigateToEntity('card', id); }} /></Suspense></div> : !projectId ? <div className="empty-intro"><div className="intro-icon"><GitBranch size={30} /></div><h2>Ein Projekt, alle Arbeitsschritte.</h2><p>Wähle einen lokalen Projektordner. Plane Aufgaben auf dem Board, starte CLI-Agenten und halte Entscheidungen im Projektgedächtnis fest.</p><button className="primary-button" type="button" onClick={() => setCreatingProject(true)}><Plus size={17} /> Codeordner hinzufügen</button></div> : !snapshot ? <div className="content-message">Workspace wird geladen…</div> : <div className="view-area" ref={viewAreaRef}>
+      {loading ? <div className="content-message">Projekte werden geladen…</div> : view === 'browser' ? <div className="view-area" ref={viewAreaRef}><Suspense fallback={<div className="content-message" role="status">Browser wird geladen…</div>}><BrowserView active={!creatingProject && !searchOpen} snapshot={snapshot?.project.id === projectId ? snapshot : null} onOpenCard={async (id) => { await refresh(); navigateToEntity('card', id); }} onOpenSettings={snapshot?.project.id === projectId ? () => setView('settings') : undefined} /></Suspense></div> : !projectId ? <div className="empty-intro"><div className="intro-icon"><GitBranch size={30} /></div><h2>Ein Projekt, alle Arbeitsschritte.</h2><p>Wähle einen lokalen Projektordner. Plane Aufgaben auf dem Board, starte CLI-Agenten und halte Entscheidungen im Projektgedächtnis fest.</p><button className="primary-button" type="button" onClick={() => setCreatingProject(true)}><Plus size={17} /> Codeordner hinzufügen</button></div> : !snapshot ? <div className="content-message">Workspace wird geladen…</div> : <div className="view-area" ref={viewAreaRef}>
         <Suspense fallback={<div className="content-message" role="status">{activeView.name} wird geladen…</div>}>
         {view === 'board' ? <BoardView snapshot={snapshot} mutate={mutate} openCard={navigationTarget?.kind === 'card' ? navigationTarget : null} onOpenDesign={(cardId) => { setDesignCardId(cardId); setView('design'); }} onOpenBrowser={() => setView('browser')} onOpenQaReport={navigateToQaReport} /> : null}
         {view === 'ideas' ? <IdeasView key={snapshot.project.id} snapshot={snapshot} mutate={mutate} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
@@ -380,7 +381,8 @@ export function App() {
         {view === 'whiteboard' ? <WhiteboardView snapshot={snapshot} mutate={mutate} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
         {view === 'memory' ? <MemoryView snapshot={snapshot} mutate={mutate} openNote={navigationTarget?.kind === 'note' ? navigationTarget : null} onOpenSession={(id) => void openSessionFromMemory(id)} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
         {view === 'milestones' ? <MilestonesView key={snapshot.project.id} projectId={snapshot.project.id} /> : null}
-        {view === 'agents' ? <AgentView snapshot={snapshot} mutate={mutate} /> : null}
+        {view === 'agents' ? <AgentView snapshot={snapshot} mutate={mutate} onOpenBrowserSettings={() => setView('settings')} /> : null}
+        {view === 'settings' ? <ProjectSettingsView project={snapshot.project} /> : null}
         {view === 'terminal' ? <CommandTerminalView key={snapshot.project.id} projectId={snapshot.project.id} columns={snapshot.columns} onOpenCard={async (card) => { await refresh(); navigateToEntity('card', card.id); }} /> : null}
         {view === 'design' ? <DesignInspectionView key={snapshot.project.id} projectId={snapshot.project.id} active={!creatingProject && !searchOpen} cards={snapshot.cards} startCardId={designCardId} columns={snapshot.columns} queueState={snapshot.queue.state} onOpenCard={async (id) => { await refresh(); navigateToEntity('card', id); }} onCreated={refresh} /> : null}
         </Suspense>

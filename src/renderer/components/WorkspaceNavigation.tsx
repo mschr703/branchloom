@@ -1,7 +1,7 @@
-import { Activity, Bot, BrainCircuit, Columns3, GitBranch, GitCommitHorizontal, Globe2, History, Inbox, Lightbulb, MessageCircle, MousePointer2, Network, TerminalSquare } from 'lucide-react';
+import { Activity, Bot, BrainCircuit, Columns3, GitBranch, GitCommitHorizontal, Globe2, History, Inbox, Lightbulb, MessageCircle, MousePointer2, Network, Settings2, TerminalSquare } from 'lucide-react';
 import type { ProjectSnapshot } from '../../shared/types';
 
-export type View = 'board' | 'ideas' | 'chat' | 'activity' | 'workflows' | 'decisions' | 'whiteboard' | 'memory' | 'milestones' | 'agents' | 'terminal' | 'browser' | 'design' | 'changelog';
+export type View = 'board' | 'ideas' | 'chat' | 'activity' | 'workflows' | 'decisions' | 'whiteboard' | 'memory' | 'milestones' | 'agents' | 'terminal' | 'browser' | 'design' | 'changelog' | 'settings';
 
 export const views: { id: View; name: string; icon: typeof Columns3 }[] = [
   { id: 'board', name: 'Board', icon: Columns3 },
@@ -18,6 +18,7 @@ export const views: { id: View; name: string; icon: typeof Columns3 }[] = [
   { id: 'terminal', name: 'Terminal', icon: TerminalSquare },
   { id: 'browser', name: 'Webvorschau', icon: Globe2 },
   { id: 'design', name: 'Design', icon: MousePointer2 },
+  { id: 'settings', name: 'Einstellungen', icon: Settings2 },
 ];
 
 const primaryViewIds: View[] = ['board', 'ideas', 'chat', 'workflows'];

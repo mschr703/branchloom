@@ -6,7 +6,7 @@ import './browser-diagnostics.css';
 const EMPTY: BrowserState = { tabs: [], activeTabId: null, url: '', title: '', loading: false, canGoBack: false, canGoForward: false, error: null, diagnostics: [] };
 const messageOf = (reason: unknown): string => reason instanceof Error ? reason.message : String(reason);
 
-export function BrowserView({ active, snapshot = null, onOpenCard }: { active: boolean; snapshot?: ProjectSnapshot | null; onOpenCard?: (cardId: string) => Promise<void> | void }) {
+export function BrowserView({ active, snapshot = null, onOpenCard, onOpenSettings }: { active: boolean; snapshot?: ProjectSnapshot | null; onOpenCard?: (cardId: string) => Promise<void> | void; onOpenSettings?: () => void }) {
   const [state, setState] = useState<BrowserState>(EMPTY);
   const [address, setAddress] = useState('');
   const [error, setError] = useState('');
@@ -151,7 +151,7 @@ export function BrowserView({ active, snapshot = null, onOpenCard }: { active: b
     {notice ? <div className="browser-notice" role="status">{notice}</div> : null}
     {state.diagnostics.length ? <BrowserDiagnostics diagnostics={state.diagnostics} selectedId={selectedDiagnosticId} snapshot={snapshot} columnId={columnId} reproduction={reproduction} saving={savingDiagnostic} onSelect={setSelectedDiagnosticId} onColumn={setColumnId} onReproduction={setReproduction} onCreate={(event) => void createDiagnosticCard(event)} onToggle={() => requestAnimationFrame(syncBounds)} /> : null}
     <div className="browser-viewport" ref={viewport}>
-      {!state.url ? <div className="browser-empty"><Globe2 size={30} /><h2>Webvorschau</h2><p>Öffne hier eine Seite von Hand. Den lesenden Zugriff für Kartenagenten auf eine lokale Dev-Seite stellst du unter Agenten ein.</p></div> : null}
+      {!state.url ? <div className="browser-empty"><Globe2 size={30} /><h2>Webvorschau</h2><p>Öffne hier eine Seite von Hand. Kartenagenten erhalten keinen Zugriff auf diese Tabs. Ihre lesende lokale Browserprüfung stellst du unter Einstellungen ein.</p>{onOpenSettings ? <button className="text-button" type="button" onClick={onOpenSettings}>Browser-Einstellungen öffnen</button> : null}</div> : null}
     </div>
   </section>;
 }

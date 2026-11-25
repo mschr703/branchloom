@@ -16,6 +16,7 @@ describe('agent diagnostic messages', () => {
     expect(html).toContain('Agenten dürfen ändern');
     expect(html).toContain('Noch keine Agentenänderungen');
     expect(html).toMatch(/type="checkbox"[^>]*disabled/);
+    expect(html).toContain('Browser-Einstellungen öffnen');
   });
   it('distinguishes missing CLI, timeout and verified version from login', () => {
     expect(diagnosticHint(base)).toContain('nicht gefunden');

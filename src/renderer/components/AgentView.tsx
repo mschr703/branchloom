@@ -3,11 +3,10 @@ import { Bot, Check, CircleHelp, Plus, Radar, RefreshCw, Terminal } from 'lucide
 import type { AgentCapability, AgentCapabilityEvidence, AgentDetection, AgentPreset, ProjectSnapshot } from '../../shared/types';
 import type { AgentCardMetadataAudit } from '../../shared/agent-card-metadata';
 import { CARD_PRIORITIES } from '../../shared/card-metadata';
-import { AgentBrowserSettings } from './AgentBrowserSettings';
 import { ApiContractPanel } from './ApiContractPanel';
 import type { Mutate } from './shared';
 
-interface Props { snapshot: ProjectSnapshot; mutate: Mutate }
+interface Props { snapshot: ProjectSnapshot; mutate: Mutate; onOpenBrowserSettings?: () => void }
 type Draft = Omit<AgentPreset, 'id'> & { id?: string; argumentsText: string };
 
 const emptyDraft: Draft = { name: '', kind: 'codex', command: '', args: [], argumentsText: '', model: null, enabled: true };
@@ -48,7 +47,7 @@ export function DiagnosticStatus({ item }: { item: AgentDetection }) {
   return <span className={item.available ? 'available-badge' : 'unavailable-badge'}>{item.available && <Check size={12} />}{label}</span>;
 }
 
-export function AgentView({ snapshot, mutate }: Props) {
+export function AgentView({ snapshot, mutate, onOpenBrowserSettings }: Props) {
   const [detections, setDetections] = useState<AgentDetection[]>([]);
   const [detecting, setDetecting] = useState(false);
   const [detectError, setDetectError] = useState('');
@@ -139,7 +138,7 @@ export function AgentView({ snapshot, mutate }: Props) {
       {metadataAvailable === false ? <p className="agent-metadata-unavailable" role="status">Der lokale Metadaten-Dienst ist gerade nicht verfügbar. Die Projektfreigabe bleibt gespeichert; Agenten können damit erst nach einem erfolgreichen Neustart Kartenwerte ändern.</p> : null}
       {metadataAudit.length > 0 ? <details className="agent-metadata-history"><summary>Agentenänderungen · {metadataAudit.length}</summary><ol>{metadataAudit.slice(0, 10).map((item) => <li key={item.id}><time dateTime={item.changedAt}>{new Date(item.changedAt).toLocaleString('de-DE')}</time><strong>{item.agentName}</strong><span>{snapshot.cards.find((card) => card.id === item.cardId)?.title ?? 'Karte'}</span><small>Priorität: {CARD_PRIORITIES.find((entry) => entry.value === item.beforePriority)?.label} → {CARD_PRIORITIES.find((entry) => entry.value === item.afterPriority)?.label}; Labels: {item.beforeLabels.join(', ') || 'keine'} → {item.afterLabels.join(', ') || 'keine'}</small><p>{item.reason}</p><small>Sitzung {item.sessionId}</small></li>)}</ol></details> : <p className="agent-metadata-empty">Noch keine Agentenänderungen an Priorität oder Labels.</p>}
     </section>
-    <AgentBrowserSettings projectId={snapshot.project.id} />
+    <p className="panel-subtitle">Lesende lokale Browserprüfungen werden pro Projekt unter Einstellungen freigegeben. <button className="text-button" type="button" onClick={onOpenBrowserSettings} disabled={!onOpenBrowserSettings}>Browser-Einstellungen öffnen</button></p>
     <ApiContractPanel projectId={snapshot.project.id} cards={snapshot.cards} />
     <section className="panel agent-capability-panel">
       <div className="panel-heading"><div><Radar size={18} /><h3>Fähigkeitsbelege</h3></div></div>

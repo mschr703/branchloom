@@ -38,7 +38,7 @@ export function AgentBrowserSettings({ projectId }: { projectId: string }) {
   }
 
   return <section className="agent-browser-settings" aria-label="Browser-Automation für Agenten">
-    <div className="agent-browser-settings-head"><div><h3>Browser für Agenten</h3><p>Agenten dürfen nach Freigabe eine lokale Dev-Seite lesen. Die Webvorschau mit deinen Tabs und Anmeldungen bleibt allein unter deiner Kontrolle.</p></div><span>{policy.enabled !== savedPolicy.enabled || policy.origin !== savedPolicy.origin ? 'Ungespeichert' : savedPolicy.enabled ? 'Freigegeben' : 'Gesperrt'}</span></div>
+    <div className="agent-browser-settings-head"><div><h3>Browser-Automation</h3><p>Verfügbar: isolierter Branchloom-Browser für lesende Prüfungen einer lokalen Dev-Seite. Chrome, Edge und persönliche Profile sind nicht verbunden. Die Webvorschau mit deinen Tabs und Anmeldungen bleibt allein unter deiner Kontrolle.</p></div><span>{policy.enabled !== savedPolicy.enabled || policy.origin !== savedPolicy.origin ? 'Ungespeichert' : savedPolicy.enabled ? 'Freigegeben' : 'Gesperrt'}</span></div>
     <form onSubmit={(event) => void save(event)}>
       <label>Erlaubte lokale Adresse<input type="url" value={policy.origin} disabled={loading || saving || policy.projectId !== projectId} onChange={(event) => setPolicy((old) => ({ ...old, origin: event.target.value }))} placeholder="http://127.0.0.1:5173" spellCheck={false} aria-describedby="agent-browser-origin-help" /></label>
       <p id="agent-browser-origin-help">Nur genau dieser Ursprung. Der Agent kann Pfade darauf öffnen; andere Domains, Downloads und Schreibanfragen werden gesperrt.</p>
