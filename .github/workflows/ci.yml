@@ -19,6 +19,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - run: node scripts/smoke-electron.mjs --f03 --timeout-ms 180000
       - run: node scripts/check-public.mjs
 
   portable-windows:

@@ -4,6 +4,8 @@ Stand: 25.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollst�
 
 ## Neue Abnahmen im Hauptzweig
 
+- F03 nach Integration: Neun gezielte Backend-/Renderer-Tests, Produktionsbuild und der separate sichtbare `npm run smoke:f03` bestanden. Der Klickpfad prüft den Drei-Wege-Vergleich, eine gespeicherte Konfliktwahl nach Renderer-Neuladen, veraltete Zieldateien und die unveränderte Datei bei Ablehnung. Der Windows-CI-Schritt und eine paketierte Prüfung folgen; freie Bearbeitung innerhalb eines Konfliktblocks und komplette Kartenintegration bleiben offen.
+
 - Gemeinsamer Prüfstand vor dem ersten Paketlauf: 206 Testdateien mit 850 bestandenen Tests, sieben optionale Skips, Typprüfung, Produktionsbuild, gezielter F06-Electron-Smoke, vollständiger Quell-Electron-Smoke, Audit ohne kritische Befunde und Public-Scan bestanden. Windows-CI und paketierte Abnahme für diesen Stand folgen.
 
 - F02/F05 gemeinsam: Nach der Integration bestanden 27 gezielte Tests aus sechs Testdateien und die Typprüfung. Der vollständige Main-Electron-Smoke erreichte nach einer bestandenen Bulk-Prioritätsprüfung den Designbereich; dort verwendete er noch einen mit der neuen Zeitspur entfernten Selektor. Die Abfrage wurde auf die sichtbare Ablaufspur korrigiert. Ein vollständiger Wiederholungslauf, die Gesamtsuite und die Paketprüfung stehen für diesen Stand noch aus.
