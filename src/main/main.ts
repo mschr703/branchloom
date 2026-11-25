@@ -2081,9 +2081,16 @@ function createWindow(): void {
               if (!(await sessionsUnchanged())) throw new Error('Fehlerkarten-Anlage startete einen weiteren Agenten.');
               document.querySelector('.card-drawer button[aria-label="Karte schließen"]')?.click();
               [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Whiteboard'))?.click();
+              let connectionIndex;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                connectionIndex = document.querySelector('.wb-connection-index summary');
+                if (connectionIndex) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              connectionIndex?.click();
               let edgeListButton;
               for (let attempt = 0; attempt < 100; attempt++) {
-                edgeListButton = document.querySelector('.wb-edge-list-item');
+                edgeListButton = document.querySelector('.wb-connection-index button, .wb-edge-list-item');
                 if (edgeListButton) break;
                 await new Promise((resolve) => setTimeout(resolve, 50));
               }
