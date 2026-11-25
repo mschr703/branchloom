@@ -93,7 +93,7 @@ The local **safe pause** blocks new project work and waits for active runs to fi
 
 Usage shows recorded runs and known duration, **not** estimated tokens or provider cost. A QA screenshot or Git HEAD is evidence of a bounded check, not proof that every interaction passed. [Activity and usage](docs/ACTIVITY.md) · [QA scope](docs/CARD_QA.md).
 
-Team invitations, shared synchronization, semantic Memory links, and an end-to-end verified installer update between two published versions are still open. The [parity list](docs/PARITY.md) tracks those and other gaps.
+Team invitations, shared synchronization, and semantic Memory links are still open. The installed update path has been verified for 0.1.0 → 0.1.2 on a fresh Windows runner; other version pairs and code signing remain open. The [parity list](docs/PARITY.md) tracks these and other gaps.
 
 ## Documentation and contribution
 
