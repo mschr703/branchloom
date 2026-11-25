@@ -58,8 +58,8 @@ export async function runG02AutoSmoke(window: BrowserWindow, store: StudioStore,
     };
     const picker = await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger:not(.is-compact)'), 'project picker');
     picker.click();
-    const choice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project button')]
-      .find((item) => item.textContent?.trim() === 'G02 Auto Smoke'), 'project choice');
+    const choice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project > button:first-child')]
+      .find((item) => item.getAttribute('aria-label') === 'G02 Auto Smoke auswählen'), 'project choice');
     choice.click();
     await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger')?.getAttribute('aria-label') === 'Projekt auswählen: G02 Auto Smoke', 'project selected');
     const nav = await wait(() => [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')]

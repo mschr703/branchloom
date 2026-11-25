@@ -1,0 +1,76 @@
+/* The board is a working surface: compact rows, a clear reading order, and signals
+   derived from real card, session, and column state. */
+:root[data-theme] .board-page { padding-top: 15px; }
+:root[data-theme] .board-toolbar { min-height: 42px; padding-bottom: 5px; }
+:root[data-theme] .board-toolbar .secondary-button,
+:root[data-theme] .board-toolbar .qa-coverage > summary { min-height: 32px; }
+:root[data-theme] .board-filters { min-height: 48px; padding-bottom: 9px; }
+:root[data-theme] .board-filters .board-search { flex: 1 1 330px; max-width: 680px; border-radius: 6px; background: var(--surface); color: var(--muted); }
+:root[data-theme] .board-filters .board-search:focus-within { border-color: var(--focus); box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus) 14%, transparent); }
+:root[data-theme] .board-filters .board-search input { width: 100%; font-size: 13px; }
+:root[data-theme] .board-column { width: 308px; min-width: 308px; max-height: calc(100vh - 197px); overflow: hidden; background: var(--surface-2); border-radius: 7px; box-shadow: none; }
+:root[data-theme] .board-column .column-header { position: relative; min-height: 44px; padding: 7px 9px 7px 14px; background: var(--surface-2); }
+:root[data-theme] .board-column .column-header::before { content: ''; position: absolute; inset: 0 0 auto; height: 2px; background: var(--border); }
+:root[data-theme] .board-column[data-run-mode='manual-agent'] .column-header::before { background: #7c879c; }
+:root[data-theme] .board-column[data-run-mode='automatic'] .column-header::before { background: #667bb5; }
+:root[data-theme] .column-title { gap: 8px; }
+:root[data-theme] .column-title h3 { font-size: 13px; font-weight: 650; }
+:root[data-theme] .column-indicator { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+:root[data-theme] .board-column[data-run-mode='manual-agent'] .column-indicator { background: #7c879c; }
+:root[data-theme] .board-column[data-run-mode='automatic'] .column-indicator { background: #667bb5; }
+:root[data-theme] .count-pill { padding: 1px 5px; border-radius: 5px; font-size: 10px; font-variant-numeric: tabular-nums; }
+:root[data-theme] .column-body { gap: 7px; padding: 9px; min-height: 70px; }
+:root[data-theme] .board-card-wrap > .task-card { padding: 10px 33px 9px 36px; border-radius: 6px; border-color: var(--border); background: var(--surface); color: var(--text); box-shadow: none; transform: none; }
+:root[data-theme] .board-card-wrap > .task-card:hover { border-color: var(--muted); background: var(--surface); }
+:root[data-theme] .board-card-wrap > .task-card.dependency-source { border-color: #4e70ad; box-shadow: inset 0 0 0 1px #4e70ad; }
+:root[data-theme] .board-card-wrap > .task-card.is-running { border-left: 3px solid #4d78a4; padding-left: 34px; }
+:root[data-theme] .board-card-wrap > .task-card[data-priority='urgent'] { border-left: 3px solid #b65b4e; padding-left: 34px; }
+:root[data-theme] .board-card-wrap > .task-card[data-priority='high']:not(.is-running) { border-left: 3px solid #bf8145; padding-left: 34px; }
+:root[data-theme] .task-card strong { padding-right: 0; font-size: 13px; line-height: 1.36; font-weight: 640; }
+:root[data-theme] .task-card-description { margin-top: 4px; font-size: 11px; line-height: 1.4; -webkit-line-clamp: 2; }
+:root[data-theme] .task-card-metadata { gap: 5px; margin-top: 7px; padding: 0; }
+:root[data-theme] .task-card-metadata .card-priority,
+:root[data-theme] .task-card-metadata .card-label { padding: 1px 5px; border: 0; border-radius: 4px; background: var(--surface-2); color: var(--muted); font-size: 10px; font-weight: 550; }
+:root[data-theme] .task-card-metadata .card-priority.urgent { color: var(--danger); background: var(--danger-bg); }
+:root[data-theme] .task-card-metadata .card-priority.high { color: var(--warning); background: var(--warning-bg); }
+:root[data-theme] .task-card-footer { margin-top: 8px; padding-top: 6px; font-size: 10px; }
+:root[data-theme] .board-card-wrap > .board-bulk-card-select { position: absolute; z-index: 2; top: 8px; left: 8px; width: 23px; height: 25px; padding: 4px; }
+:root[data-theme] .board-card-wrap > .board-bulk-card-select input { width: 15px; height: 15px; min-height: 15px; margin: 0; }
+:root[data-theme] .card-quick-trigger { top: 5px; right: 5px; width: 26px; height: 26px; }
+:root[data-theme] .board-card-wrap > .card-order-actions { position: absolute; z-index: 3; right: 5px; bottom: 5px; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); box-shadow: 0 4px 12px #0002; opacity: 0; pointer-events: none; }
+:root[data-theme] .board-card-wrap:hover > .card-order-actions,
+:root[data-theme] .board-card-wrap:focus-within > .card-order-actions { opacity: 1; pointer-events: auto; }
+:root[data-theme] .card-order-actions > button:not(.card-move-trigger) { width: 25px; height: 25px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); }
+:root[data-theme] .card-order-actions > button:not(.card-move-trigger):hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
+:root[data-theme] .card-order-actions .card-move-trigger { min-height: 25px; margin-left: 0; padding: 2px 5px; background: transparent; color: var(--text); font-size: 10px; }
+:root[data-theme] .card-order-actions .card-move-trigger:hover { background: var(--surface-2); }
+:root[data-theme] .column-footer { padding: 4px 9px; background: var(--surface-2); }
+:root[data-theme] .column-add-task { min-height: 33px; font-size: 12px; color: var(--muted); }
+:root[data-theme] .column-add-task:hover { color: var(--text); }
+:root[data-theme] .drawer-backdrop:has(.card-drawer) { z-index: 60; background: #1e202540; }
+:root[data-theme] .card-drawer { width: min(560px, 100vw); box-shadow: -12px 0 36px #0002; }
+:root[data-theme] .card-drawer .drawer-header { padding: 16px 21px; }
+:root[data-theme] .card-drawer .drawer-header h2 { font-size: 18px; }
+:root[data-theme] .card-drawer .drawer-header small { letter-spacing: 0; text-transform: none; }
+:root[data-theme] .card-drawer .drawer-content { padding: 19px 21px 30px; }
+.board-dependency-overlay { position: fixed; inset: 0; z-index: 29; overflow: visible; pointer-events: none; color: #4e70ad; }
+.board-dependency-overlay marker path { fill: currentColor; }
+.board-dependency-line { fill: none; stroke: currentColor; stroke-width: 1.5; }
+.board-dependency-label { fill: currentColor; font: 600 10px 'IBM Plex Sans Variable', sans-serif; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; }
+.board-dependency-hidden { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 7px; margin: 4px 0 3px 4px; padding-left: 8px; border-left: 2px solid #4e70ad; color: var(--muted); font-size: 11px; }
+.board-dependency-hidden button { max-width: 100%; padding: 0; border: 0; background: transparent; color: var(--text); text-align: left; font: inherit; font-weight: 600; cursor: pointer; }
+.board-dependency-hidden button:hover { text-decoration: underline; }
+.board-dependency-hidden button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.board-dependency-nav { display: flex; align-items: center; gap: 4px; padding: 3px 5px 3px 8px; color: var(--muted); font-size: 10px; }
+.board-dependency-nav span { flex: 1; }
+.board-dependency-nav button { width: 23px; height: 23px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--text); font-size: 17px; line-height: 1; cursor: pointer; }
+.board-dependency-nav button:hover { background: var(--surface-2); }
+.board-dependency-nav button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (max-width: 1120px) {
+  :root[data-theme] .board-filters .board-search { flex-basis: 100%; max-width: none; }
+}
+@media (max-width: 600px) {
+  :root[data-theme] .board-page { padding-top: 8px; }
+  :root[data-theme] .board-column { width: min(308px, calc(100vw - 42px)); min-width: min(308px, calc(100vw - 42px)); max-height: calc(100vh - 260px); }
+  :root[data-theme] .board-filters .board-search { flex-basis: 100%; }
+}

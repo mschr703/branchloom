@@ -6,13 +6,15 @@ This file records the current UI decisions for Branchloom's Windows desktop app.
 
 Branchloom is an operating surface for people who plan, run, and review coding-agent work. Its primary view should show the work itself: a board, a diagram, an editable artboard, a live app, or a source-backed relationship map. Controls should support that surface without becoming the main visual event. A newcomer must see the next useful action; an experienced user must retain fast access to sources, agent settings, and approval gates.
 
-## Current visual language
+## Current tokens and next direction
 
 - **Type:** IBM Plex Sans Variable for interface copy and headings; tabular numerals for IDs, counts, sizes, and time. Keep primary controls and inspector values readable at 13–14 px or larger at a 1440 px desktop viewport. Secondary metadata may be smaller, but must remain legible.
-- **Light:** canvas `#f6f7f5`, sidebar `#e9eeea`, surface `#ffffff`, text `#202a24`, border `#c7d0c8`, accent `#275d48`.
-- **Dark:** canvas `#191e1b`, sidebar `#151b17`, surface `#222a25`, text `#eef3ee`, border `#4e5e52`, accent `#8bcaa7`.
-- These values come from `src/renderer/brand.css`. Use its semantic CSS variables for new UI; avoid new page-specific colors without a concrete state or source distinction. Both themes are product surfaces, not a dark-only marketing treatment.
-- Borders express actual containment or a resizable split. Prefer spacing and type hierarchy over nested rounded boxes. Reserve the accent for selection, focus, and the one primary action in a local workflow.
+- **Light (default for new profiles; current implementation tokens):** canvas `#f6f5f2`, sidebar `#eeece7`, surface `#ffffff`, text `#25262a`, border `#d8d5ce`, ink accent `#373b46`. A previously saved dark preference remains dark.
+- **Dark (current implementation tokens):** canvas `#1d1d1f`, sidebar `#19191b`, surface `#28282b`, text `#eeece9`, border `#505055`, ink accent `#dedddd`.
+- These are an initial implementation of the user's selected light Signals direction, not a final brand palette. Blue denotes actual agent/selection/dependency state, orange and red actual card priorities. No progress marker may be drawn from a guessed workflow state.
+- Borders express actual containment or a resizable split. Prefer spacing and type hierarchy over nested rounded boxes. Color must have meaning beyond decoration and must not be the sole way to read a state.
+- The next visual pass applies across the whole app, not just the board. Use the information density and direct manipulation of modern work apps, the compact agent workflow of Kangentic, and the restraint of Apple interfaces as references without copying their screens. Current heavy headings, filled sections, and nested frames need a lighter hierarchy. Verify the proposed direction with realistic Board and Intake mockups before propagating it.
+- The user selected the light **Signals** Board study on 25 November 2026 as the direction for the next UI pass. Compact cards, neutral surfaces, a right-hand detail drawer, project monograms, and flat saved-note rows have entered the app. The study's active-session strip and workflow progression markers remain unshipped; they require real data and separate interaction checks.
 
 ## Surface rules
 

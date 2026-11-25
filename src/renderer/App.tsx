@@ -29,6 +29,7 @@ import './theme.css';
 import './brand.css';
 import './project-chat-dock.css';
 import './first-run.css';
+import './signals.css';
 
 const WhiteboardView = lazy(() => import('./components/WhiteboardView').then((module) => ({ default: module.WhiteboardView })));
 const WorkflowView = lazy(() => import('./components/WorkflowView').then((module) => ({ default: module.WorkflowView })));

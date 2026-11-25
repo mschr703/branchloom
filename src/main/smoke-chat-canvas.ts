@@ -26,8 +26,8 @@ export async function runChatCanvasSmoke(window: BrowserWindow, store: StudioSto
     const chooseProject = async () => {
       const picker = await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger:not(.is-compact)'), 'project picker');
       picker.click();
-      const choice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project button')]
-        .find((item) => item.textContent?.trim() === 'Chat canvas smoke'), 'project choice');
+      const choice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project > button:first-child')]
+        .find((item) => item.getAttribute('aria-label') === 'Chat canvas smoke auswählen'), 'project choice');
       choice.click();
       await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger')?.getAttribute('aria-label') === 'Projekt auswählen: Chat canvas smoke', 'selected project');
     };
@@ -80,8 +80,8 @@ export async function runChatCanvasSmoke(window: BrowserWindow, store: StudioSto
     };
     const picker = await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger:not(.is-compact)'), 'project picker');
     picker.click();
-    const choice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project button')]
-      .find((item) => item.textContent?.trim() === 'Chat canvas smoke'), 'project choice');
+    const choice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project > button:first-child')]
+      .find((item) => item.getAttribute('aria-label') === 'Chat canvas smoke auswählen'), 'project choice');
     choice.click();
     const whiteboardNav = await wait(() => [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')]
       .find((item) => item.querySelector('.nav-label')?.textContent?.trim() === 'Whiteboard'), 'Whiteboard navigation');

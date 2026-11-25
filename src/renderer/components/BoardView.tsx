@@ -10,6 +10,7 @@ import { TrelloImportPanel } from './TrelloImportPanel';
 import { TaskDraftAssistant } from './TaskDraftAssistant';
 import { QaCoveragePanel } from './QaCoveragePanel';
 import { ColumnSettingsSheet } from './ColumnSettingsSheet';
+import { BoardDependencyTrace } from './BoardDependencyTrace';
 import { filterBoardCards, type BoardVisibility } from '../board-filters';
 import '../board-metadata.css';
 import '../board-order.css';
@@ -31,7 +32,7 @@ export function moveDestinations(columns: Column[], card: Card): Column[] {
 
 export function boardEmptyMessage(index: number, hasActiveCards: boolean, filtersActive: boolean): string | null {
   if (filtersActive) return 'Keine passenden Karten';
-  if (hasActiveCards) return 'Karten hierher ziehen';
+  if (hasActiveCards) return null;
   return index === 0 ? 'Erstelle unten deine erste Aufgabe. Verschiebe sie später zwischen den Spalten.' : null;
 }
 
@@ -253,6 +254,7 @@ export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenBrow
       </BoardColumn>)}
       {visibility !== 'archived' && !filterColumnId ? <form className="new-column-form" onSubmit={(event) => void addColumn(event)}><span><Plus size={17} /> Spalte hinzufügen</span><input value={newColumn} onChange={(event) => setNewColumn(event.target.value)} placeholder="Spaltenname" aria-label="Neue Spalte" maxLength={80} required /><button className="secondary-button small" type="submit">Erstellen</button></form> : null}
     </div></div>
+    <BoardDependencyTrace projectId={snapshot.project.id} cards={snapshot.cards} onOpenCard={openBoardCard} />
     {selected ? <CardPanel card={selected} snapshot={snapshot} mutate={mutate} onClose={closeBoardCard} onOpenCard={openBoardCard} onOpenDesign={onOpenDesign} onOpenBrowser={onOpenBrowser} focusSession={focusSession} focusReviewComment={openCard?.id === selected.id && openCard.reviewCommentId ? { id: openCard.reviewCommentId, token: openCard.token } : null} focusQaReport={openCard?.id === selected.id && openCard.qaReportId ? { id: openCard.qaReportId, token: openCard.token } : null} /> : null}
     {showTaskDraft ? <TaskDraftAssistant key={snapshot.project.id} snapshot={snapshot} mutate={mutate} onClose={() => setShowTaskDraft(false)} onCreated={(card) => { setShowTaskDraft(false); openBoardCard(card.id); }} /> : null}
     {showImport ? <TrelloImportPanel key={snapshot.project.id} projectId={snapshot.project.id} columns={columns} mutate={mutate} onClose={() => setShowImport(false)} /> : null}
@@ -295,7 +297,7 @@ function BoardColumn({ column, columns, cards, snapshot, emptyMessage, onSelect,
     requestAnimationFrame(() => settingsTrigger.current?.focus());
   }
   const activeOrder = snapshot.cards.filter((card) => card.columnId === column.id && !card.archivedAt).sort(compareCardOrder);
-  return <section className="board-column" onDragOver={(event) => event.preventDefault()} onDrop={(event) => onDrop(event, column.id)} aria-label={`Spalte ${column.name}`}>
+  return <section className="board-column" data-run-mode={column.agentId ? column.autoStart ? 'automatic' : 'manual-agent' : 'manual'} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onDrop(event, column.id)} aria-label={`Spalte ${column.name}`}>
     <header className="column-header"><div className="column-title"><span className="column-indicator" /><h3>{column.name}</h3><span className="count-pill">{cards.length}</span></div><button ref={settingsTrigger} className="column-settings-trigger" type="button" aria-label={`Spalte ${column.name} einstellen`} aria-haspopup="dialog" aria-expanded={settingsOpen} title="Spalte einstellen" onClick={() => setSettingsOpen(true)}><Pencil size={16} aria-hidden="true" /></button></header>
     <div className="column-body">
       {cards.map((card) => {
@@ -423,9 +425,9 @@ function BoardCard({ card, column, columns, snapshot, onSelect, onOpenSession, o
     } finally { setActionBusy(false); }
   }
 
-  return <div className="board-card-wrap">
-    {!card.archivedAt ? <label className="board-bulk-card-select"><input type="checkbox" checked={bulkSelected} onChange={() => onToggleBulk(card.id)} aria-label={`„${card.title}“ für Sammelaktion auswählen`} /> Auswählen</label> : null}
-    <button ref={cardButton} id={`board-card-${card.id}`} type="button" draggable={!card.archivedAt} onDragStart={(event) => { if (!card.archivedAt) event.dataTransfer.setData('text/card-id', card.id); }} className={card.archivedAt ? 'task-card archived' : 'task-card'} aria-label={`Karte „${card.title}“ in „${column.name}“ öffnen${card.archivedAt ? ', archiviert' : ''}${active ? ', Agent läuft' : ''}`} aria-describedby={card.description ? `board-card-description-${card.id}` : undefined} aria-keyshortcuts={destinations.length ? 'M' : undefined} onKeyDown={(event) => { if (destinations.length && isMoveShortcut(event)) { event.preventDefault(); setMoveOpen(true); } }} onClick={() => onSelect(card.id)}>
+  return <div className="board-card-wrap" data-card-id={card.id}>
+    {!card.archivedAt ? <label className="board-bulk-card-select"><input type="checkbox" checked={bulkSelected} onChange={() => onToggleBulk(card.id)} aria-label={`„${card.title}“ für Sammelaktion auswählen`} /><span className="sr-only">Auswählen</span></label> : null}
+    <button ref={cardButton} id={`board-card-${card.id}`} type="button" draggable={!card.archivedAt} onDragStart={(event) => { if (!card.archivedAt) event.dataTransfer.setData('text/card-id', card.id); }} className={`task-card${card.archivedAt ? ' archived' : ''}${active ? ' is-running' : ''}`} data-priority={card.priority} aria-label={`Karte „${card.title}“ in „${column.name}“ öffnen${card.archivedAt ? ', archiviert' : ''}${active ? ', Agent läuft' : ''}`} aria-describedby={card.description ? `board-card-description-${card.id}` : undefined} aria-keyshortcuts={destinations.length ? 'M' : undefined} onKeyDown={(event) => { if (destinations.length && isMoveShortcut(event)) { event.preventDefault(); setMoveOpen(true); } }} onClick={() => onSelect(card.id)}>
       <span className="task-card-grip" aria-hidden="true">{card.archivedAt ? <Archive size={15} /> : <GripVertical size={15} />}</span>
       <strong>{card.title}</strong>
       {card.archivedAt ? <span className="task-card-archive-label">Archiviert</span> : null}
