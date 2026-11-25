@@ -20,7 +20,7 @@ function fixture() {
   mkdirSync(join(app, 'docs'), { recursive: true });
   writeFileSync(join(app, 'LICENSE'), 'synthetic license fixture');
   writeFileSync(join(app, 'docs', 'COMMERCIAL_LICENSING.md'), 'synthetic notice fixture');
-  writeFileSync(join(installer, 'win-unpacked', 'resources', 'app-update.yml'), 'provider: github\n');
+  writeFileSync(join(installer, 'win-unpacked', 'resources', 'app-update.yml'), 'provider: github\nowner: mschr703\nrepo: branchloom\nupdaterCacheDirName: branchloom-updater\n');
   writeFileSync(join(root, 'package.json'), JSON.stringify({ version: '0.1.1' }));
   const name = 'Branchloom-Setup-0.1.1.exe';
   const setup = join(installer, name);
@@ -58,8 +58,25 @@ describe('Windows installer release integrity gate', () => {
     const { root, installer } = fixture();
     rmSync(join(installer, 'win-unpacked', 'resources', 'app-update.yml'));
     expect(check(root).stderr).toContain('update feed is missing');
-    writeFileSync(join(installer, 'win-unpacked', 'resources', 'app-update.yml'), 'provider: github\n');
+    writeFileSync(join(installer, 'win-unpacked', 'resources', 'app-update.yml'), 'provider: github\nowner: mschr703\nrepo: branchloom\n');
     writeFileSync(join(root, 'package.json'), JSON.stringify({ version: '0.1.2' }));
     expect(check(root).stderr).toContain('version does not match');
+  });
+
+  it('rejects a different or ambiguous update feed source', () => {
+    const { root, installer } = fixture();
+    const feed = join(installer, 'win-unpacked', 'resources', 'app-update.yml');
+    for (const [contents, expected] of [
+      ['provider: generic\nowner: mschr703\nrepo: branchloom\n', 'provider does not match'],
+      ['provider: github\nowner: other\nrepo: branchloom\n', 'owner does not match'],
+      ['provider: github\nowner: mschr703\nrepo: other\n', 'repo does not match'],
+      ['provider: github\nowner: mschr703\nrepo: branchloom\nrepo: other\n', 'repeats repo'],
+      ['provider: github\nowner: mschr703\nrepo: branchloom\nurl: https://example.invalid\n', 'unexpected field'],
+    ] as const) {
+      writeFileSync(feed, contents);
+      const result = check(root);
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain(expected);
+    }
   });
 });
