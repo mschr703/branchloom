@@ -28,6 +28,7 @@ import type { ReleaseUpdateState } from './release-update';
 import type { UsageSessionPage } from './usage';
 import type { IntegrationItem } from './integration-queue';
 import type { AgentQuestion, AnswerAgentQuestions } from './agent-questions';
+import type { ConfirmTaskRevisionInput, TaskRevisionHistory } from './task-revisions';
 
 export type SessionState = 'running' | 'exited' | 'failed' | 'stopped';
 export type WorkflowState = 'draft' | 'running' | 'paused' | 'done';
@@ -192,6 +193,9 @@ export interface StudioAPI {
   designTaskCandidate(input: { projectId: string; selectionId: string }): Promise<CardDesignContextCandidate>;
   createCardFromDesignRequest(input: { projectId: string; selectionId: string; expectedFingerprint: string; columnId: string; title: string; description: string }): Promise<Card>;
   updateCard(input: { id: string; title?: string; description?: string; priority?: CardPriority; labels?: string[]; wireframeRequired?: boolean }): Promise<Card>;
+  taskRevisionHistory(input: { projectId: string; cardId: string }): Promise<TaskRevisionHistory>;
+  confirmTaskRevision(input: ConfirmTaskRevisionInput): Promise<TaskRevisionHistory>;
+  submitTaskRevision(input: { projectId: string; cardId: string; revisionId: string; sessionId: string }): Promise<TaskRevisionHistory>;
   cardSplitLinks(cardId: string): Promise<import('./card-split').CardSplitLinks>;
   previewCardSplit(input: import('./card-split').CardSplitInput): Promise<import('./card-split').CardSplitPreview>;
   createCardSplit(input: import('./card-split').CardSplitInput & { token: string; confirm: boolean }): Promise<import('./card-split').CardSplitResult>;

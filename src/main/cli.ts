@@ -14,6 +14,7 @@ import { approvedCardWireframeContext } from './card-wireframe';
 import { assertCardApiContractResume, cardApiContractContext, recordSessionApiContract } from './api-contract';
 import { assertCardWireframeReady } from './card-wireframe-gate';
 import { captureRunGit, recordSessionLaunch, recordSessionPromptWrite, recordSessionVersion } from './session-evidence';
+import { currentTaskRevisionContext, recordTaskRevisionInLaunch } from './task-revisions';
 import type { PromptDelivery, RunSource } from '../shared/session-evidence';
 import { assertSafeModelContext } from './sensitive-content';
 import type { AgentCardMetadataBridge } from './agent-card-metadata-bridge';
@@ -254,9 +255,12 @@ export class SessionRunner {
     const taskPrompt = (input.prompt ?? `Work on this card in the selected project.\n\nTitle: ${card.title}\n\n${card.description}`).trim();
     const wireframeContext = approvedCardWireframeContext(this.store, { projectId: card.projectId, cardId: card.id });
     const apiContractContext = cardApiContractContext(this.store, card.id);
+    const taskRevision = currentTaskRevisionContext(this.store, card.id);
     const metadataInstructions = this.metadataBridge?.instructions(card.projectId) ?? '';
     const browserInstructions = this.browserBridge?.instructions(card.projectId) ?? '';
-    const prompt = taskPrompt ? taskPrompt + (wireframeContext ? `\n\n${wireframeContext}` : '') + (apiContractContext ? `\n\n${apiContractContext}` : '') + metadataInstructions + browserInstructions : '';
+    const prompt = taskPrompt ? taskPrompt + (taskRevision ? `\n\n${taskRevision.text}` : '')
+      + (wireframeContext ? `\n\n${wireframeContext}` : '') + (apiContractContext ? `\n\n${apiContractContext}` : '')
+      + metadataInstructions + browserInstructions : '';
     if (prompt.length > 30_000) throw new Error('Agent prompt exceeds 30000 characters');
     assertSafeModelContext([
       { field: 'Kartentitel', text: card.title },
@@ -325,6 +329,10 @@ export class SessionRunner {
     const promptDelivery: PromptDelivery = !prompt ? 'none' : agent.kind === 'codex' || agent.kind === 'antigravity' || (mode === 'one-shot' && ['claude', 'gemini'].includes(agent.kind))
       || (mode === 'one-shot' && agent.kind === 'custom' && agent.args.some((arg) => arg.includes('{prompt}')))
       ? 'argv' : mode === 'interactive' ? 'pty-delayed' : 'unknown';
+    if (taskRevision && promptDelivery === 'argv') {
+      try { recordTaskRevisionInLaunch(this.store, { revisionId: taskRevision.id, cardId: card.id, sessionId: row.id }); }
+      catch { this.store.appendOutput(row.id, '\n[Task revision launch evidence could not be saved; delivery is unverified.]\n'); }
+    }
     try {
       recordSessionLaunch(this.store, { sessionId: row.id, agentName: agent.name, agentKind: agent.kind, mode,
         configuredModel: launchOverrides.model ?? agent.model, configuredEffort: launchOverrides.effort,
@@ -339,6 +347,10 @@ export class SessionRunner {
           if (this.processes.has(row.id)) {
             child.write(`${prompt}\r`);
             recordSessionPromptWrite(this.store, row.id);
+            if (taskRevision) {
+              try { recordTaskRevisionInLaunch(this.store, { revisionId: taskRevision.id, cardId: card.id, sessionId: row.id }); }
+              catch { this.store.appendOutput(row.id, '\n[Task revision PTY evidence could not be saved; delivery is unverified.]\n'); }
+            }
           }
         } catch { this.store.appendOutput(row.id, '\n[Verzögerte PTY-Eingabe konnte nicht belegt werden.]\n'); }
         finally { this.pendingFirstTurn.delete(row.id); }

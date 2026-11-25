@@ -1,0 +1,13 @@
+.task-revisions { border-top: 1px solid var(--border); padding: 10px 0; }
+.task-revisions > summary { cursor: pointer; font-weight: 600; }
+.task-revisions > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.task-revisions-content { display: grid; gap: 12px; padding-top: 12px; }
+.task-revisions-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.task-revision { border-top: 1px solid var(--border); padding: 12px 0 0; display: grid; gap: 7px; }
+.task-revision p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.task-revision-heading { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.task-revision-heading span { color: var(--muted); font-size: .82rem; }
+.task-revision-compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 10px 0; }
+.task-revision-compare > div { border-left: 2px solid var(--border); padding-left: 10px; display: grid; align-content: start; gap: 5px; }
+.task-revision-compare small { color: var(--muted); }
+@media (max-width: 620px) { .task-revision-compare { grid-template-columns: 1fr; } }

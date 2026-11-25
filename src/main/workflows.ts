@@ -4,6 +4,7 @@ import { StudioStore } from './store';
 import { wireframeStartBlockReason } from './card-wireframe-gate';
 import { cardRunGate } from './parallel-runs';
 import { assertProjectCanStart, projectPauseRequested } from './project-pause';
+import { wasTaskRevisedDuringSession } from './task-revisions';
 
 /** Last-line gate: the marker in the initial instruction or an earlier echo is not completion. */
 export function hasCompletionMarker(output: string): boolean {
@@ -79,7 +80,8 @@ export class WorkflowEngine {
       // scrollback may echo the prompt and redraw lines, so never treat that as
       // evidence of completion. Other one-shot CLIs use their final output.
       const evidence = agent.kind === 'codex' ? finalMessage ?? '' : session.output;
-      const completed = session.state === 'exited' && session.exitCode === 0 && hasCompletionMarker(evidence);
+      const completed = session.state === 'exited' && session.exitCode === 0 && hasCompletionMarker(evidence)
+        && !wasTaskRevisedDuringSession(this.store, session.id);
       this.store.finishWorkflowCard(session.id, completed);
       if (current.state === 'running' && current.currentStep === linked.stepIndex && !completed) this.store.setWorkflowState(current.id, 'paused');
     }

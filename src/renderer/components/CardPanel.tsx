@@ -13,6 +13,7 @@ import { CardSplitPanel } from './CardSplitPanel';
 import { SessionEvidencePanel } from './SessionEvidencePanel';
 import { SessionRecoveryPanel } from './SessionRecoveryPanel';
 import { AgentHandoffPanel } from './AgentHandoffPanel';
+import { TaskRevisionPanel } from './TaskRevisionPanel';
 import { ParallelRunPanel } from './ParallelRunPanel';
 import type { CardRunGate } from '../../shared/parallel-runs';
 import type { CardCriterionEvidenceKind } from '../../shared/card-acceptance';
@@ -253,6 +254,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
           </div>
           <div className="form-row"><label>Spalte<select value={card.columnId} onChange={(event) => void mutate(() => window.studio.moveCard({ id: card.id, columnId: event.target.value }))}>{[...snapshot.columns].sort((a, b) => a.position - b.position).map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select></label><button className="secondary-button" type="submit">Karte speichern</button></div>
         </fieldset></form>
+        <TaskRevisionPanel card={card} session={session} mutate={mutate} />
         <div className="archive-controls">{card.archivedAt ? <><p>Archiviert am {new Date(card.archivedAt).toLocaleString('de-DE')}. Verlauf und Daten bleiben erhalten.</p><button className="secondary-button" type="button" disabled={archiveBusy} onClick={() => void changeArchive(false)}><RotateCcw size={15} /> Wiederherstellen</button></> : <button className="text-button archive-action" type="button" disabled={archiveBusy} onClick={() => void changeArchive(true)}><Archive size={15} /> Karte archivieren</button>}</div>
         {archiveError ? <p className="inline-error" role="alert">{archiveError}</p> : null}
         <label className="field-label"><span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" style={{ width: 'auto' }} checked={card.wireframeRequired} disabled={Boolean(card.archivedAt) || session?.state === 'running'} onChange={(event) => void mutate(() => window.studio.updateCard({ id: card.id, wireframeRequired: event.target.checked }))} /> Wireframe vor Agentenstart prüfen</span></label>
