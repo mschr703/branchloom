@@ -109,6 +109,13 @@ const smokeDataDirectory = smoke ? mkdtempSync(join(tmpdir(), 'branchloom-smoke-
 const devDataDirectory = !app.isPackaged ? process.env.BRANCHLOOM_DEV_USER_DATA : undefined;
 if (smokeDataDirectory) {
   app.setPath('userData', smokeDataDirectory);
+  const haltpointCounter = join(smokeDataDirectory, 'f07-launches.txt');
+  writeFileSync(join(smokeDataDirectory, 'f07-agent.cmd'), [
+    '@echo off',
+    `echo launch>>"${haltpointCounter}"`,
+    'ping -n 4 127.0.0.1 >nul',
+    'echo [JARVIS_STEP_DONE]',
+  ].join('\r\n'));
   mkdirSync(join(smokeDataDirectory, 'src'));
   writeFileSync(join(smokeDataDirectory, 'src', 'widget.ts'), 'export const widget = 1;');
   writeFileSync(join(smokeDataDirectory, 'screen.ts'), "import './src/widget';");
@@ -877,6 +884,18 @@ function createWindow(): void {
         const smokeProject = smokeStore.projects()[0]!;
         const smokeSnapshot = smokeStore.snapshot(smokeProject.id);
         const smokeCard = smokeSnapshot.cards.find((item) => item.title === 'Smoke-Karte')!;
+        const f07Agent = smokeStore.saveAgent({ name: 'F07 synthetic CLI', kind: 'custom',
+          command: join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'cmd.exe'),
+          args: ['/C', join(smokeDataDirectory!, 'f07-agent.cmd')], model: null, enabled: true });
+        const f07Card = smokeStore.createCard({ projectId: smokeProject.id, columnId: smokeSnapshot.columns[0]!.id, title: 'BRANCHLOOM_F07_HALTPOINT_CARD' });
+        const f07Flow = smokeStore.createWorkflow({ projectId: smokeProject.id, name: 'BRANCHLOOM_F07_HALTPOINT_FLOW', cardIds: [f07Card.id], steps: [
+          { id: 'f07-first', columnId: smokeSnapshot.columns[1]!.id, agentId: f07Agent.id, requireApproval: false },
+          { id: 'f07-second', columnId: smokeSnapshot.columns[2]!.id, agentId: f07Agent.id, requireApproval: false },
+        ] });
+        const f07SafeCard = smokeStore.createCard({ projectId: smokeProject.id, columnId: smokeSnapshot.columns[0]!.id, title: 'BRANCHLOOM_F07_SAFE_PAUSE_CARD' });
+        const f07SafeFlow = smokeStore.createWorkflow({ projectId: smokeProject.id, name: 'BRANCHLOOM_F07_SAFE_PAUSE_FLOW', cardIds: [f07SafeCard.id], steps: [
+          { id: 'f07-safe', columnId: smokeSnapshot.columns[1]!.id, agentId: f07Agent.id, requireApproval: false },
+        ] });
         const evidenceCard = smokeStore.createCard({ projectId: smokeProject.id, columnId: smokeSnapshot.columns[2]!.id, title: 'BRANCHLOOM_WORKFLOW_EVIDENCE_CARD' });
         const evidenceAgent = smokeStore.agents().find((item) => item.kind === 'codex')!;
         const evidenceFlow = smokeStore.createWorkflow({ projectId: smokeProject.id, name: 'BRANCHLOOM_WORKFLOW_EVIDENCE_FLOW', cardIds: [evidenceCard.id], steps: [
@@ -941,8 +960,59 @@ function createWindow(): void {
               for (let attempt = 0; attempt < 20 && document.querySelector('.project-switcher-panel'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (document.querySelector('.project-switcher-panel')) throw new Error('Project switcher did not close on Escape.');
               const evidenceSessionId = ${JSON.stringify(evidenceSession.id)};
-              const baselineSessions = (await window.studio.snapshot(boardProject.id)).sessions;
+              let baselineSessions = (await window.studio.snapshot(boardProject.id)).sessions;
               if (!baselineSessions.some((item) => item.id === evidenceSessionId)) throw new Error('Synthetische Workflow-Sitzung fehlt nach Reload.');
+              if (${process.platform === 'win32'}) {
+              const f07FlowId = ${JSON.stringify(f07Flow.id)};
+              const f07CardId = ${JSON.stringify(f07Card.id)};
+              const f07WorkflowNav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Workflows'));
+              if (!f07WorkflowNav) throw new Error('F07: Workflow navigation is missing.');
+              f07WorkflowNav.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('#workflow-' + f07FlowId + ' .workflow-haltpoint'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const f07Article = document.getElementById('workflow-' + f07FlowId);
+              const f07Set = [...(f07Article?.querySelectorAll('.workflow-haltpoint-actions button') ?? [])].find((item) => item.textContent?.includes('Haltepunkt setzen'));
+              if (!f07Set) throw new Error('F07: The two-step workflow has no visible haltpoint action.');
+              f07Set.click();
+              for (let attempt = 0; attempt < 100 && !f07Article?.textContent?.includes('Haltepunkt angefordert'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!f07Article?.textContent?.includes('Haltepunkt angefordert')) throw new Error('F07: Requested boundary is not shown.');
+              const f07Start = [...f07Article.querySelectorAll('.workflow-actions button')].find((item) => item.textContent?.trim() === 'Starten');
+              if (!f07Start) throw new Error('F07: The workflow cannot be started through the UI.');
+              f07Start.click();
+              for (let attempt = 0; attempt < 200 && !f07Article.textContent?.includes('Haltepunkt erreicht'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const f07Reached = (await window.studio.snapshot(boardProject.id)).workflows.find((item) => item.id === f07FlowId);
+              if (f07Reached?.state !== 'paused' || f07Reached.currentStep !== 1 || f07Reached.haltpoint?.state !== 'reached'
+                || !f07Article.textContent?.includes('Nach Haltepunkt fortsetzen')
+                || (await window.studio.snapshot(boardProject.id)).sessions.filter((item) => item.cardId === f07CardId).length !== 1)
+                throw new Error('F07: The first real CLI step did not stop visibly before its successor: ' + JSON.stringify({ flow: f07Reached, article: f07Article.textContent?.slice(0, 500), sessions: (await window.studio.snapshot(boardProject.id)).sessions.filter((item) => item.cardId === f07CardId).map((item) => ({ state: item.state, exitCode: item.exitCode, output: item.output.slice(-250) })) }));
+              [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Board')?.click();
+              for (let attempt = 0; attempt < 100 && !document.getElementById('board-card-' + f07CardId); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              document.getElementById('board-card-' + f07CardId)?.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.card-drawer')?.textContent?.includes('Haltepunkt nach Schritt 1 erreicht'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.card-drawer')?.textContent?.includes('Haltepunkt nach Schritt 1 erreicht')) throw new Error('F07: The affected card does not show the reached boundary.');
+              document.querySelector('.card-drawer button[aria-label="Karte schließen"]')?.click();
+              for (let attempt = 0; attempt < 100 && document.querySelector('.card-drawer'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              f07WorkflowNav.click();
+              const f07SafeId = ${JSON.stringify(f07SafeFlow.id)};
+              for (let attempt = 0; attempt < 100 && !document.getElementById('workflow-' + f07SafeId); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const f07SafeStart = [...(document.getElementById('workflow-' + f07SafeId)?.querySelectorAll('.workflow-actions button') ?? [])].find((item) => item.textContent?.trim() === 'Starten');
+              if (!f07SafeStart) throw new Error('F07: Safe-pause workflow cannot start through the UI.');
+              f07SafeStart.click();
+              for (let attempt = 0; attempt < 100 && !(await window.studio.snapshot(boardProject.id)).sessions.some((item) => item.cardId === ${JSON.stringify(f07SafeCard.id)} && item.state === 'running'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!(await window.studio.snapshot(boardProject.id)).sessions.some((item) => item.cardId === ${JSON.stringify(f07SafeCard.id)} && item.state === 'running')) throw new Error('F07: The second CLI was not running before safe pause.');
+              const f07Pause = document.querySelector('.project-pause-button');
+              f07Pause?.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.project-pause-status')?.textContent?.includes('Anhalten angefordert'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if ((await window.studio.snapshot(boardProject.id)).runPause.state !== 'requested'
+                || !document.querySelector('.project-pause-status')?.textContent?.includes('Anhalten angefordert')) throw new Error('F07: Active CLI is not shown as a requested pause.');
+              for (let attempt = 0; attempt < 200 && !document.querySelector('.project-pause-status')?.textContent?.includes('Projekt angehalten'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if ((await window.studio.snapshot(boardProject.id)).runPause.state !== 'paused'
+                || !document.querySelector('.project-pause-status')?.textContent?.includes('Projekt angehalten')) throw new Error('F07: Safe pause did not become visible after the CLI ended.');
+              document.querySelector('.project-pause-button')?.click();
+              for (let attempt = 0; attempt < 100 && (await window.studio.snapshot(boardProject.id)).runPause.state !== 'active'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Board')?.click();
+              for (let attempt = 0; attempt < 100 && !document.getElementById('board-card-' + f07CardId); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              baselineSessions = (await window.studio.snapshot(boardProject.id)).sessions;
               const pauseControl = document.querySelector('.project-pause-button');
               if (!pauseControl || pauseControl.disabled || pauseControl.getAttribute('aria-label') !== 'Sicher anhalten')
                 throw new Error('Projektweite sichere Pause ist nicht als bedienbarer Schalter sichtbar.');
@@ -2062,6 +2132,15 @@ function createWindow(): void {
             })()
           `;
           void smokeWindow.webContents.executeJavaScript(boardScript).then(async () => {
+            if (process.platform === 'win32') {
+            const lateSession = smokeStore.snapshot(smokeProject.id).sessions.find((item) => item.cardId === f07Card.id);
+            if (!lateSession || lateSession.state !== 'exited') throw new Error('F07: Real CLI completion is missing before the late-event check.');
+            const beforeLateCount = readFileSync(join(smokeDataDirectory!, 'f07-launches.txt'), 'utf8').trim().split(/\r?\n/).length;
+            new WorkflowEngine(smokeStore, runner!).onSessionFinished(lateSession);
+            if (smokeStore.snapshot(smokeProject.id).sessions.filter((item) => item.cardId === f07Card.id).length !== 1
+              || readFileSync(join(smokeDataDirectory!, 'f07-launches.txt'), 'utf8').trim().split(/\r?\n/).length !== beforeLateCount)
+              throw new Error('F07: Late completion launched the next step without explicit resume.');
+            }
             await smokeWindow.webContents.executeJavaScript(`(async () => {
               const projectId = ${JSON.stringify(smokeProject.id)};
               const cardId = ${JSON.stringify(smokeCard.id)};

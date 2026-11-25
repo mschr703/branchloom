@@ -103,6 +103,7 @@ npm run typecheck
 npm test
 npm run build
 npm audit --audit-level=critical
+node scripts/smoke-electron.mjs --timeout-ms 300000
 ```
 
 Vor einer öffentlichen Veröffentlichung zusätzlich `node scripts/check-public.mjs` auf den gestagten Dateien und der erreichbaren Git-Historie ausführen. Das Skript sperrt typische Schlüssel, persönliche Benutzerpfade und lokale Datenordner; es meldet Datei, Zeile und Kategorie ohne Werte. Auch vor einem neuen Modellübergabepfad prüft Branchloom die vorbereiteten Textfelder lokal und sperrt erkannte Fundstellen. [Ablauf und Grenzen](docs/MODEL_HANDOFF_GUARD.md). Öffentliche Beispiele verwenden synthetische Daten.

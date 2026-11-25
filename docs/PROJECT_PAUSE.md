@@ -12,4 +12,4 @@ Die Anforderung wird pro Projekt in der lokalen SQLite-Datenbank gespeichert. Na
 
 ## Grenzen
 
-Der Schalter ist ein Start-Gate für Branchloom und nimmt einem bereits laufenden CLI-Prozess keine Rechte weg. Er stoppt keine externen Prozesse, die außerhalb von Branchloom gestartet wurden, und ersetzt keine Prüfung möglicher Datei- oder Netzänderungen. Einzeln wählbare Haltepunkte nach Workflow-Schritten aus der ursprünglichen F07-Idee sind noch nicht umgesetzt. Automatische Integration existiert noch nicht; die Sperre ist bereits am heutigen manuellen G02-Startpfad gesetzt.
+Der Schalter ist ein Start-Gate für Branchloom und nimmt einem bereits laufenden CLI-Prozess keine Rechte weg. Er stoppt keine externen Prozesse, die außerhalb von Branchloom gestartet wurden, und ersetzt keine Prüfung möglicher Datei- oder Netzänderungen. [Einzeln wählbare Workflow-Haltepunkte](WORKFLOW_STEP_HALTPOINTS.md) sind zusätzlich verfügbar; sie betreffen nur den gewählten Workflow. Die projektweite Sperre gilt auch für den heutigen G02-Startpfad.
