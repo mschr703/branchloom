@@ -2,6 +2,12 @@
 
 Stand: 25.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Arbeitsflächen-Überarbeitung vom 25.11.2026
+
+- Die zweite Navigationsreihe ordnet Whiteboard, Memory und Design sowie Prüfung und Werkzeuge in beschriftete Gruppen ein. Alle bisherigen Ziele bleiben mit einem Klick erreichbar; die schmale Icon-Navigation bleibt erhalten. Drei gezielte Navigationstests, Typprüfung und Produktionsbuild bestanden. Eine sichtbare Prüfung auf dem integrierten Paket steht noch aus.
+- Die neue [UX02-Karte](https://trello.com/c/OXHjTNDn) hält Auswahlbereich, besprechbaren Architekturentwurf und echten Agenten-Kontext fest. Die Arbeiten an Whiteboard, Memory und Design laufen in getrennten Zweigen. Bis zu ihrer Integration und Prüfung sind sie keine ausgelieferten Funktionen. Die bestehende Trello-Anmeldung des offiziellen Windows-Builds ist in [PARITY.md](PARITY.md) nun korrekt beschrieben.
+- Für den vorherigen Quellstand `1a43517` ist der vollständige Verify-Job in [Windows-CI 45602548334](https://github.com/mschr703/branchloom/actions/runs/45602548334) grün; portable und Installer-Paketjobs laufen noch. Die Desktop-Verknüpfung zeigt weiter auf die ältere geprüfte Vorschau aus CI 45588163726.
+
 ## 0.1.2 veröffentlicht und Desktop geprüft
 
 - Der Tag `v0.1.2` zeigt auf `ab5ae2b` mit der kompakten, quellenbelegten Memory-Netzansicht und dem geprüften Chat-Canvas-Klickpfad. [Windows-CI 45581550568](https://github.com/mschr703/branchloom/actions/runs/45581550568) bestand vollständig; [Release-CI 45585512917](https://github.com/mschr703/branchloom/actions/runs/45585512917) veröffentlichte den NSIS-Installer, die Blockmap und `latest.yml`. Der öffentlich heruntergeladene Installer hat exakt die SHA-512-Prüfsumme des Manifests. Das portable Release-CI-Paket wurde separat auf dem Entwicklungslaptop entpackt, auf lokale Daten geprüft und mit isolierten synthetischen App-Daten gestartet. Die Desktop-Verknüpfung zeigt inzwischen auf die ebenfalls paketgeprüfte und isoliert gestartete Quellvorschau aus [CI 45588163726](https://github.com/mschr703/branchloom/actions/runs/45588163726) mit den ersten F17- und UX01-Funktionen. Diese Vorschau meldet weiterhin Paketversion 0.1.2, ist aber nicht das veröffentlichte v0.1.2-Release und enthält noch nicht die späteren kleinen UI-Korrekturen. Ein bereits offenes älteres Fenster muss normal geschlossen und neu geöffnet werden. Der installierte Release-Update-Wechsel wurde separat geprüft.

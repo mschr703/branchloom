@@ -23,7 +23,11 @@ export const views: { id: View; name: string; icon: typeof Columns3 }[] = [
 
 const primaryViewIds: View[] = ['board', 'ideas', 'chat', 'workflows'];
 const primaryViews = primaryViewIds.map((id) => views.find((item) => item.id === id)!);
-const otherViews = views.filter((item) => !primaryViewIds.includes(item.id));
+const secondaryGroups: { name: string; ids: View[] }[] = [
+  { name: 'Entwurf & Wissen', ids: ['whiteboard', 'memory', 'design', 'milestones'] },
+  { name: 'Prüfung', ids: ['decisions', 'activity', 'changelog'] },
+  { name: 'Werkzeuge', ids: ['agents', 'terminal', 'browser', 'settings'] },
+];
 
 interface Props {
   activeView: View;
@@ -53,7 +57,11 @@ export function WorkspaceNavigation({ activeView, decisionCount, onView, status 
     </button>;
   return <><nav className="side-nav" aria-label="Hauptnavigation">
     <div className="nav-primary" role="group" aria-label="Planung">{primaryViews.map(item)}</div>
-    <div className="nav-other" role="group" aria-label="Weitere Ansichten">{otherViews.map(item)}</div>
+    <div className="nav-other" role="group" aria-label="Weitere Ansichten">{secondaryGroups.map((group) =>
+      <div key={group.name} className="nav-other-group" role="group" aria-label={group.name}>
+        <span className="nav-other-title" aria-hidden="true">{group.name}</span>
+        <div className="nav-other-items">{group.ids.map((id) => item(views.find((view) => view.id === id)!))}</div>
+      </div>)}</div>
   </nav>{status ? <div className="sidebar-status" aria-label="Projektstatus">
     <span><strong>{status.runningSessions}</strong> {status.runningSessions === 1 ? 'Agentenlauf' : 'Agentenläufe'} aktiv</span>
     <span><strong>{status.activeCards}</strong> aktive {status.activeCards === 1 ? 'Karte' : 'Karten'}</span>

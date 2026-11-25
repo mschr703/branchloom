@@ -14,6 +14,9 @@ describe('compact workspace navigation', () => {
     expect(html).toContain('aria-label="Changelog"');
     expect(html).toContain('aria-label="Planung"');
     expect(html).toContain('aria-label="Weitere Ansichten"');
+    expect(html).toContain('aria-label="Entwurf &amp; Wissen"');
+    expect(html).toContain('aria-label="Prüfung"');
+    expect(html).toContain('aria-label="Werkzeuge"');
   });
 
   it('announces an open decision count without changing the destination name', () => {

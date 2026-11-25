@@ -16,7 +16,10 @@
 
 .side-nav { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 2px 6px; scrollbar-width: thin; }
 .nav-primary { display: grid; gap: 3px; }
-.nav-other { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--border); }
+.nav-other { display: grid; gap: 9px; padding-top: 11px; margin-top: 11px; border-top: 1px solid var(--border); }
+.nav-other-group { min-width: 0; }
+.nav-other-title { display: block; padding: 0 5px 4px; color: var(--muted); font-size: 10px; font-weight: 600; line-height: 1.2; }
+.nav-other-items { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
 .nav-primary .nav-item { min-height: 36px; padding: 6px 9px; gap: 9px; font-size: 13px; }
 .nav-other .nav-item { position: relative; min-width: 0; min-height: 48px; display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 5px 3px; text-align: center; font-size: 10px; line-height: 1.15; }
 .nav-other .nav-label { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -38,8 +41,9 @@
   :root[data-theme] .brand { flex: none; padding: 0; margin-right: 8px; }
   .brand strong, .sidebar-projects { display: none; }
   .side-nav { display: flex; flex: 1; align-items: center; gap: 4px; overflow-x: auto; overflow-y: hidden; padding: 0; scrollbar-width: thin; }
-  .nav-primary, .nav-other { display: flex; flex: none; align-items: center; gap: 2px; padding: 0; margin: 0; border: 0; }
+  .nav-primary, .nav-other, .nav-other-items { display: flex; flex: none; align-items: center; gap: 2px; padding: 0; margin: 0; border: 0; }
   .nav-other { border-left: 1px solid var(--border); padding-left: 5px; }
+  .nav-other-title { display: none; }
   .side-nav .nav-item, .side-nav .nav-item:not(.active) { flex: none; width: 40px; height: 40px; min-height: 40px; padding: 7px; }
   .side-nav .nav-label, .side-nav .nav-count { display: none; }
   .side-nav .nav-item svg { flex: none; }
