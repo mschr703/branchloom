@@ -10,7 +10,7 @@ const interaction: WireframeInteraction = { triggerElementId: 'open', panelEleme
 
 describe('wireframe interaction editor', () => {
   it('keeps the saved click mode and exposes hover and keyboard focus with their closing rules', () => {
-    const render = (trigger: WireframeInteraction['trigger']) => renderToStaticMarkup(createElement(WireframeInteractionEditor, { elements: [button, panel], interaction: { ...interaction, trigger }, disabled: false, onChange: () => undefined }));
+    const render = (trigger: WireframeInteraction['trigger']) => renderToStaticMarkup(createElement(WireframeInteractionEditor, { elements: [button, panel], interactions: [{ ...interaction, trigger }], disabled: false, onChange: () => undefined }));
     expect(render('click')).toContain('<option value="click" selected="">Klick</option>');
     const hover = render('hover');
     expect(hover).toContain('<option value="hover" selected="">Zeigerkontakt</option>');
@@ -20,10 +20,10 @@ describe('wireframe interaction editor', () => {
     expect(focus).toContain('Tab aus der Vorschau schließt ohne Fokusfalle');
   });
   it('offers only a valid button and panel pair and renders the stored timing and focus requirements', () => {
-    const empty = renderToStaticMarkup(createElement(WireframeInteractionEditor, { elements: [button], interaction: null, disabled: false, onChange: () => undefined }));
+    const empty = renderToStaticMarkup(createElement(WireframeInteractionEditor, { elements: [button], interactions: [], disabled: false, onChange: () => undefined }));
     expect(empty).toContain('Für eine Interaktion brauchst du');
     expect(empty).toMatch(/<button[^>]*disabled=""[^>]*>Klick → Fläche anlegen/);
-    const html = renderToStaticMarkup(createElement(WireframeInteractionEditor, { elements: [button, panel], interaction, disabled: false, onChange: () => undefined }));
+    const html = renderToStaticMarkup(createElement(WireframeInteractionEditor, { elements: [button, panel], interactions: [interaction], disabled: false, onChange: () => undefined }));
     expect(html).toContain('Interaktion Auslöser');
     expect(html).toContain('Interaktion Zielfläche');
     expect(html).toContain('240 ms · Fläche sichtbar');
@@ -35,5 +35,14 @@ describe('wireframe interaction editor', () => {
     expect(controlledPanel?.[1]).toBeTruthy();
     expect(html).toContain(`id="${controlledPanel?.[1]}"`);
     expect(html).toContain('Interaktionsvorschau');
+  });
+  it('renders separate selectable timeline rows for multiple saved interactions', () => {
+    const secondButton = { ...button, id: 'settings', text: 'Einstellungen' };
+    const html = renderToStaticMarkup(createElement(WireframeInteractionEditor, { elements: [button, secondButton, panel], interactions: [interaction, { ...interaction, triggerElementId: 'settings', durationMs: 400 }], disabled: false, onChange: () => undefined }));
+    expect(html).toContain('Interaktionsabläufe');
+    expect(html).toContain('Details → Seitenleiste');
+    expect(html).toContain('Einstellungen → Seitenleiste');
+    expect(html).toContain('400 ms');
+    expect(html).toContain('Weiteren Ablauf hinzufügen');
   });
 });

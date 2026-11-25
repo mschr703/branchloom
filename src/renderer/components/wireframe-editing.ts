@@ -29,10 +29,12 @@ function sameStyle(left?: WireframeElementStyle, right?: WireframeElementStyle):
 }
 
 export function sameWireframeContent(
-  draft: { title: string; elements: WireframeElement[]; artboards?: Partial<Record<WireframeVariant, WireframeElement[]>>; interaction?: WireframeInteraction | null },
-  saved: { title: string; elements: WireframeElement[]; artboards?: Partial<Record<WireframeVariant, WireframeElement[]>>; interaction?: WireframeInteraction | null } | null,
+  draft: { title: string; elements: WireframeElement[]; artboards?: Partial<Record<WireframeVariant, WireframeElement[]>>; interactions?: WireframeInteraction[]; interaction?: WireframeInteraction | null },
+  saved: { title: string; elements: WireframeElement[]; artboards?: Partial<Record<WireframeVariant, WireframeElement[]>>; interactions?: WireframeInteraction[]; interaction?: WireframeInteraction | null } | null,
 ): boolean {
-  if (!saved || draft.title !== saved.title || !sameElements(draft.elements, saved.elements) || JSON.stringify(draft.interaction ?? null) !== JSON.stringify(saved.interaction ?? null)) return false;
+  const draftInteractions = draft.interactions ?? (draft.interaction ? [draft.interaction] : []);
+  const savedInteractions = saved?.interactions ?? (saved?.interaction ? [saved.interaction] : []);
+  if (!saved || draft.title !== saved.title || !sameElements(draft.elements, saved.elements) || JSON.stringify(draftInteractions) !== JSON.stringify(savedInteractions)) return false;
   return (['tablet', 'mobile'] as const).every((name) => {
     const left = draft.artboards?.[name];
     const right = saved.artboards?.[name];

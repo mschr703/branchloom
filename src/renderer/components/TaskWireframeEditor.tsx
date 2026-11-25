@@ -15,7 +15,7 @@ import { wireframeDrawBounds, type WireframeDrawKind } from './wireframe-drawing
 import './task-wireframe.css';
 import './task-wireframe-finish.css';
 
-interface Draft { title: string; elements: WireframeElement[]; artboards: CardWireframe['artboards']; interaction: WireframeInteraction | null }
+interface Draft { title: string; elements: WireframeElement[]; artboards: CardWireframe['artboards']; interactions: WireframeInteraction[] }
 interface MarqueeDrag { pointerId: number; start: WireframePoint; end: WireframePoint; clientX: number; clientY: number; initialIds: string[]; add: boolean }
 interface DrawingDrag { pointerId: number; artboard: WireframeArtboard; kind: WireframeDrawKind; start: WireframePoint; end: WireframePoint; clientX: number; clientY: number }
 interface Props { projectId: string; cards: Card[]; startCardId?: string | null; focusMode: boolean; focusPending?: boolean; canEnterFocus: boolean; onFocusModeChange: (focus: boolean) => void }
@@ -52,7 +52,7 @@ function StyleColorControl({ label, styleKey, item, disabled, onChange }: {
 
 export function starterWireframe(card: Pick<Card, 'title'>): Draft {
   const title = card.title.slice(0, 100);
-  return { title, artboards: {}, interaction: null, elements: [
+  return { title, artboards: {}, interactions: [], elements: [
     { id: 'window-header', kind: 'panel', x: 20, y: 20, width: 920, height: 62, text: '', tone: 'muted' },
     { id: 'window-title', kind: 'text', x: 42, y: 35, width: 620, height: 34, text: title.slice(0, 120), tone: 'plain' },
     { id: 'navigation', kind: 'panel', x: 20, y: 100, width: 204, height: 480, text: 'Navigation', tone: 'muted' },
@@ -317,8 +317,8 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
 
   function editElements(next: WireframeElement[], record = true) {
     if (!draft) return;
-    const interaction = draft.interaction && next.some((item) => item.id === draft.interaction?.triggerElementId && item.kind === 'button') && next.some((item) => item.id === draft.interaction?.panelElementId && item.kind === 'panel') ? draft.interaction : null;
-    edit(artboard === 'desktop' ? { ...draft, elements: next, interaction } : { ...draft, artboards: { ...draft.artboards, [artboard]: next } }, record);
+    const interactions = draft.interactions.filter((interaction) => next.some((item) => item.id === interaction.triggerElementId && item.kind === 'button') && next.some((item) => item.id === interaction.panelElementId && item.kind === 'panel'));
+    edit(artboard === 'desktop' ? { ...draft, elements: next, interactions } : { ...draft, artboards: { ...draft.artboards, [artboard]: next } }, record);
   }
   function createArtboard(target: WireframeVariant, fromDesktop: boolean) {
     if (!draft || interactionLocked.current || draft.artboards[target]) return;
@@ -375,7 +375,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
       const current = await window.studio.cardWireframe({ projectId, cardId: targetCardId });
       if (generation.current !== expectedGeneration) return;
       const retained = unsavedDrafts.get(draftKey(projectId, targetCardId));
-      setSaved(current); setDraft(retained ?? (current ? { title: current.title, elements: current.elements, artboards: current.artboards, interaction: current.interaction } : null));
+      setSaved(current); setDraft(retained ?? (current ? { title: current.title, elements: current.elements, artboards: current.artboards, interactions: current.interactions } : null));
       setEditingGroupId(null); setSelectedIds([]); setDirty(Boolean(retained)); setGeometryDraft(null); setStyleNumberDraft(null); updateInlineTextEdit(null);
       resetHistory();
       if (retained) setNotice('Ungespeicherter Entwurf aus dieser App-Sitzung wiederhergestellt.');
@@ -526,10 +526,10 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
     interactionLocked.current = true;
     setBusy(true); setError('');
     try {
-      const result = await window.studio.saveCardWireframe({ projectId, cardId: card.id, expectedRevision: saved?.revision ?? 0, title: draft.title, elements: draft.elements, artboards: draft.artboards, interaction: draft.interaction });
+      const result = await window.studio.saveCardWireframe({ projectId, cardId: card.id, expectedRevision: saved?.revision ?? 0, title: draft.title, elements: draft.elements, artboards: draft.artboards, interactions: draft.interactions });
       if (unsavedDrafts.get(key) === submittedDraft) unsavedDrafts.delete(key);
       if (generation.current !== currentGeneration) return;
-      setSaved(result); setDraft({ title: result.title, elements: result.elements, artboards: result.artboards, interaction: result.interaction }); setDirty(false);
+      setSaved(result); setDraft({ title: result.title, elements: result.elements, artboards: result.artboards, interactions: result.interactions }); setDirty(false);
       setNotice(result.approvedRevision === result.revision ? 'Entwurf unverändert; Freigabe bleibt bestehen.' : 'Entwurf gespeichert. Für Agentenläufe ist eine eigene Freigabe nötig.');
     } catch (reason) { if (generation.current === currentGeneration) setError(messageOf(reason)); }
     finally { if (generation.current === currentGeneration) { interactionLocked.current = false; setBusy(false); } }
@@ -567,7 +567,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
       const proposal = await window.studio.proposeCardWireframe({ projectId, cardId: card.id });
       if (generation.current !== currentGeneration) return;
       if (draft) recordHistory(draft);
-      retainDraft({ title: proposal.title, elements: proposal.elements, artboards: draft?.artboards ?? {}, interaction: null }); setArtboard('desktop'); setSelectedId(null);
+      retainDraft({ title: proposal.title, elements: proposal.elements, artboards: draft?.artboards ?? {}, interactions: [] }); setArtboard('desktop'); setSelectedId(null);
       setNotice('Agentenvorschlag geladen. Prüfe und bearbeite ihn, bevor du ihn speicherst und gesondert freigibst.');
     } catch (reason) { if (generation.current === currentGeneration) setError(messageOf(reason)); }
     finally { if (generation.current === currentGeneration) { interactionLocked.current = false; setBusy(false); } }
@@ -581,7 +581,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
     </div>
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
     {notice ? <p className="task-wireframe-notice" role="status">{notice}</p> : null}
-    {!card ? <p className="task-wireframe-empty">Wähle eine Karte. Der Entwurf bleibt lokal beim Projekt und startet keinen Agenten.</p> : loading ? <p role="status">Entwurf wird geladen…</p> : !draft ? <div className="task-wireframe-empty"><p>Für „{card.title}“ gibt es noch keinen Wireframe.</p><button type="button" className="primary-button" disabled={busy} onClick={() => edit(starterWireframe(card))}>Fenstergerüst vorbereiten</button><button type="button" className="secondary-button" disabled={busy} onClick={() => edit({ title: card.title.slice(0, 100), elements: [], artboards: {}, interaction: null })}>Leere Fläche beginnen</button><button type="button" className="secondary-button" disabled={busy} onClick={() => void propose()}>{busy ? 'Agent entwirft…' : 'Mit Agent vorschlagen'}</button><small>Die Vorlage ist lokal und deterministisch. Der optionale Agentenvorschlag nutzt den gewählten Codex-Workflow-Agenten lesend und bleibt bis zum Speichern ungespeichert.</small></div> : <>
+    {!card ? <p className="task-wireframe-empty">Wähle eine Karte. Der Entwurf bleibt lokal beim Projekt und startet keinen Agenten.</p> : loading ? <p role="status">Entwurf wird geladen…</p> : !draft ? <div className="task-wireframe-empty"><p>Für „{card.title}“ gibt es noch keinen Wireframe.</p><button type="button" className="primary-button" disabled={busy} onClick={() => edit(starterWireframe(card))}>Fenstergerüst vorbereiten</button><button type="button" className="secondary-button" disabled={busy} onClick={() => edit({ title: card.title.slice(0, 100), elements: [], artboards: {}, interactions: [] })}>Leere Fläche beginnen</button><button type="button" className="secondary-button" disabled={busy} onClick={() => void propose()}>{busy ? 'Agent entwirft…' : 'Mit Agent vorschlagen'}</button><small>Die Vorlage ist lokal und deterministisch. Der optionale Agentenvorschlag nutzt den gewählten Codex-Workflow-Agenten lesend und bleibt bis zum Speichern ungespeichert.</small></div> : <>
       {focusMode ? <WireframeArtboardOverview elements={draft.elements} artboards={draft.artboards} active={artboard} disabled={busy} onSelect={switchArtboard} />
         : <div className="task-wireframe-artboard-switch" role="group" aria-label="Wireframe-Zeichenfläche">{(Object.keys(WIREFRAME_ARTBOARDS) as WireframeArtboard[]).map((name) => <button key={name} type="button" className={artboard === name ? 'active' : ''} aria-pressed={artboard === name} disabled={busy} onClick={() => switchArtboard(name)}>{WIREFRAME_ARTBOARDS[name].label}<small>{WIREFRAME_ARTBOARDS[name].width} × {WIREFRAME_ARTBOARDS[name].height}{name !== 'desktop' && draft.artboards[name] === undefined ? ' · fehlt' : ''}</small></button>)}</div>}
       {artboard !== 'desktop' && elements === undefined ? <div className="task-wireframe-empty task-wireframe-variant-empty"><p>Für {canvas.label} gibt es noch keinen eigenen Entwurf. Desktop bleibt unverändert.</p><button type="button" className="secondary-button" disabled={busy} onClick={() => createArtboard(artboard, true)}>Desktop als Ausgangspunkt kopieren</button><button type="button" className="secondary-button" disabled={busy} onClick={() => createArtboard(artboard, false)}>Leere Zeichenfläche beginnen</button><small>Die Kopie passt nur Breiten an. Sie ist kein automatisch responsives Layout; prüfe die Anordnung selbst.</small></div> : null}
@@ -630,7 +630,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
           <button type="button" className="secondary-button small" disabled={busy} onClick={() => removeElement(selected.id)}>Element entfernen</button>
         </> : <p>Wähle ein Element auf der Fläche oder in der Ebenenliste.</p>}</aside>
       </div> : null}
-      {artboard === 'desktop' ? <WireframeInteractionEditor elements={draft.elements} interaction={draft.interaction} disabled={busy} onChange={(interaction) => edit({ ...draft, interaction })} /> : null}
+      {artboard === 'desktop' ? <WireframeInteractionEditor elements={draft.elements} interactions={draft.interactions} disabled={busy} onChange={(interactions) => edit({ ...draft, interactions })} /> : null}
       {artboard !== 'desktop' && elements ? <div className="task-wireframe-variant-tools"><span>Eigener {canvas.label}-Entwurf</span><button type="button" className="secondary-button small" disabled={busy} onClick={() => removeArtboard(artboard)}>Zeichenfläche entfernen</button></div> : null}
       <div className="task-wireframe-actions"><span>{saved ? `Version ${saved.revision}${saved.approvedRevision === saved.revision ? ' · freigegeben' : ' · nicht freigegeben'}` : 'Noch nicht gespeichert'}{dirty ? ' · geändert' : ''}</span><button type="button" className="secondary-button" disabled={!dirty || busy || !draft.title.trim()} onClick={() => void save()}>{busy && dirty ? 'Speichere…' : 'Entwurf speichern'}</button><button type="button" className="primary-button" disabled={!saved || dirty || busy || !(saved.elements.length || Object.values(saved.artboards).some((items) => items.length)) || saved.approvedRevision === saved.revision} onClick={() => void approve()}><Check size={15} aria-hidden="true" />Für Agenten freigeben</button>{saved && !dirty ? <button type="button" className="icon-button" disabled={busy} title="Gespeicherten Entwurf neu laden" aria-label="Gespeicherten Entwurf neu laden" onClick={() => void load(card.id)}><RotateCcw size={15} /></button> : null}</div>
       <p className="task-wireframe-help">Die Freigabe teilt nur die gespeicherte Anordnung beim nächsten Agentenstart. Kein Projektcode wird geändert. Nach einer Bearbeitung musst du erneut speichern und freigeben.</p>

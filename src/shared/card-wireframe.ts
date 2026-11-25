@@ -49,7 +49,7 @@ export interface WireframeElement {
   style?: WireframeElementStyle;
 }
 
-/** A deliberately small, testable interaction attached to one desktop wireframe. */
+/** A deliberately small, testable interaction attached to a desktop wireframe. */
 export interface WireframeInteraction {
   triggerElementId: string;
   panelElementId: string;
@@ -69,6 +69,9 @@ export interface CardWireframe {
   title: string;
   elements: WireframeElement[];
   artboards: Partial<Record<WireframeVariant, WireframeElement[]>>;
+  /** Ordered interactions. Older single-interaction drafts are normalized on read. */
+  interactions: WireframeInteraction[];
+  /** Compatibility alias for callers that still display the first interaction. */
   interaction: WireframeInteraction | null;
   revision: number;
   approvedRevision: number | null;
@@ -85,6 +88,8 @@ export interface SaveCardWireframeInput {
   artboards?: Partial<Record<WireframeVariant, WireframeElement[]>>;
   /** Omission by older callers preserves the current interaction. */
   interaction?: WireframeInteraction | null;
+  /** Preferred representation. An explicit empty list removes every interaction. */
+  interactions?: WireframeInteraction[];
 }
 
 export interface CardWireframeKey { projectId: string; cardId: string }

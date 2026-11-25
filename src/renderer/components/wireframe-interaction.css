@@ -15,6 +15,18 @@
 .wireframe-interaction-panel.is-open { opacity: 1; transform: translateX(0); visibility: visible; transition: transform var(--interaction-duration) ease, opacity var(--interaction-duration) ease, visibility 0s; }
 .wireframe-interaction-panel strong { font-size: .9rem; }
 .wireframe-interaction .text-button { margin-top: 3px; }
+.wireframe-interaction-track { list-style: none; margin: 14px 0 10px; padding: 0; border-top: 1px solid var(--border); }
+.wireframe-interaction-track li { border-bottom: 1px solid var(--border); }
+.wireframe-interaction-track button { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) minmax(95px, 35%); gap: 14px; align-items: center; padding: 10px 8px; border: 0; border-left: 2px solid transparent; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.wireframe-interaction-track button:hover { background: var(--surface-2); }
+.wireframe-interaction-track button.is-selected { border-left-color: var(--accent); background: var(--surface-2); }
+.wireframe-interaction-track button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.wireframe-interaction-track-label { min-width: 0; display: grid; gap: 2px; }
+.wireframe-interaction-track-label strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .84rem; font-weight: 600; }
+.wireframe-interaction-track-label small, .wireframe-interaction-track-time small { color: var(--muted); font-size: .72rem; }
+.wireframe-interaction-track-time { display: grid; gap: 5px; }
+.wireframe-interaction-track-bar { display: block; height: 5px; min-width: 10%; max-width: 100%; border-radius: 4px; background: var(--accent); }
+@media (max-width: 520px) { .wireframe-interaction-track button { grid-template-columns: minmax(0, 1fr) 80px; gap: 8px; } }
 @media (prefers-reduced-motion: reduce) {
   .wireframe-interaction-backdrop, .wireframe-interaction-panel, .wireframe-interaction-panel.is-open { transition-duration: 0ms; transition-delay: 0ms; }
 }

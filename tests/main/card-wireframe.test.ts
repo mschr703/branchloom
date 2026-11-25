@@ -27,6 +27,33 @@ const panel: WireframeElement = { id: 'drawer', kind: 'panel', x: 400, y: 100, w
 const interaction: WireframeInteraction = { triggerElementId: 'open', panelElementId: 'drawer', trigger: 'click', action: 'toggle-panel', durationMs: 240, enterOffsetPx: 24, closedOpacity: 0, reducedMotionDurationMs: 0, focusOnOpen: 'panel', focusOnClose: 'trigger' };
 
 describe('task-linked wireframes', () => {
+  it('keeps legacy single interactions readable and persists multiple approved timelines by revision', () => {
+    const { dbFile, store, key } = fixture();
+    const secondButton: WireframeElement = { ...button, id: 'settings', text: 'Einstellungen' };
+    const elements = [button, secondButton, panel];
+    const legacy = saveCardWireframe(store, { ...key, title: 'Timeline', elements, interaction, expectedRevision: 0 });
+    approveCardWireframe(store, { ...key, expectedRevision: legacy.revision });
+    store.db.prepare('UPDATE card_wireframes SET interaction_json = ? WHERE card_id = ?').run(JSON.stringify(interaction), key.cardId);
+    store.close();
+    const reopened = new StudioStore(dbFile);
+    expect(cardWireframe(reopened, key)?.interactions).toEqual([interaction]);
+    expect(approvedCardWireframeContext(reopened, key)).toContain('"interactions":[{');
+    const second = { ...interaction, triggerElementId: 'settings', durationMs: 420 };
+    const changed = saveCardWireframe(reopened, { ...key, title: 'Timeline', elements, interactions: [interaction, second], expectedRevision: 1 });
+    expect(changed).toMatchObject({ revision: 2, approvedRevision: null, interactions: [interaction, second] });
+    expect(approvedCardWireframeContext(reopened, key)).toBe('');
+    expect(() => approveCardWireframe(reopened, { ...key, expectedRevision: 1 })).toThrow('zwischenzeitlich');
+    expect(() => saveCardWireframe(reopened, { ...key, title: 'Timeline', elements, interactions: [interaction, interaction], expectedRevision: 2 })).toThrow('denselben Auslöser');
+    expect(() => saveCardWireframe(reopened, { ...key, title: 'Timeline', elements, interactions: Array(9).fill(interaction), expectedRevision: 2 })).toThrow('höchstens acht');
+    approveCardWireframe(reopened, { ...key, expectedRevision: 2 });
+    const context = approvedCardWireframeContext(reopened, key);
+    expect(context).toContain('"triggerElementId":"settings"');
+    expect(context).toContain('"durationMs":420');
+    reopened.close();
+    const restarted = new StudioStore(dbFile);
+    expect(cardWireframe(restarted, key)).toMatchObject({ revision: 2, approvedRevision: 2, interactions: [interaction, second] });
+    restarted.close();
+  });
   it('accepts hover and focus as new triggers without changing a previously approved click revision', () => {
     const { dbFile, store, key } = fixture();
     const elements = [button, panel];
