@@ -36,9 +36,11 @@ jobs:
       - run: node scripts/smoke-electron.mjs --usage --timeout-ms 120000
       - run: node scripts/smoke-electron.mjs --changelog --timeout-ms 120000
       - run: node scripts/smoke-electron.mjs --whiteboard --timeout-ms 120000
+      - run: node scripts/smoke-electron.mjs --chat-canvas --timeout-ms 120000
       - run: node scripts/check-public.mjs
       - run: npm run make:installer
       - run: node scripts/smoke-electron.mjs --executable out/installer/win-unpacked/Branchloom.exe
+      - run: node scripts/smoke-electron.mjs --executable out/installer/win-unpacked/Branchloom.exe --chat-canvas --timeout-ms 120000
       - run: node scripts/check-package.mjs out/installer/win-unpacked/resources/app
       - run: node scripts/check-installer.mjs
       - name: Publish verified installer and update metadata

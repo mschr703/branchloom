@@ -35,6 +35,7 @@ import { integrationResultFolder } from './integration-results';
 import { runG02VisibleSmoke } from './smoke-g02';
 import { runG02AutoSmoke } from './smoke-g02-auto';
 import { runUsageSmoke } from './smoke-usage';
+import { runChatCanvasSmoke } from './smoke-chat-canvas';
 import { runChangelogVisibleSmoke } from './smoke-changelog';
 import { runWhiteboardVisibleSmoke } from './smoke-whiteboard';
 import { applyManualRevision, captureManualRevision, manualRevisionFiles, manualRevisions, previewManualRevision, setManualRevisionConflictChoice } from './manual-revision';
@@ -83,7 +84,7 @@ import { assignDevAccount, createDevAccount, devAccountForProject, devAccountOve
 import { GuidedDevEnvironment, inspectDevEnvironment } from './guided-dev-environment';
 import { proposeWorkflow } from './workflow-planner';
 import { discussTaskDraft } from './task-draft';
-import { discussProject } from './project-chat';
+import { discussProject, projectChatSources } from './project-chat';
 import { convertIdeaToCard, discussIdea, listIdeas, saveIdea } from './ideas';
 import { linkIdeaMatch, previewIdeaMatches, unlinkIdeaMatch } from './idea-matches';
 import { acceptTrelloIdeas, applyTrelloIdeaSource, compareTrelloIdea, previewTrelloIdeas } from './trello-ideas';
@@ -122,7 +123,8 @@ const smokeG02Auto = process.argv.includes('--studio-smoke-g02-auto');
 const smokeUsage = process.argv.includes('--studio-smoke-usage');
 const smokeChangelog = process.argv.includes('--studio-smoke-changelog');
 const smokeWhiteboard = process.argv.includes('--studio-smoke-whiteboard');
-const smoke = process.argv.includes('--studio-smoke') || smokeF01 || smokeF03 || smokeF06 || g02Smoke || smokeG02Auto || smokeUsage || smokeChangelog || smokeWhiteboard;
+const smokeChatCanvas = process.argv.includes('--studio-smoke-chat-canvas');
+const smoke = process.argv.includes('--studio-smoke') || smokeF01 || smokeF03 || smokeF06 || g02Smoke || smokeG02Auto || smokeUsage || smokeChangelog || smokeWhiteboard || smokeChatCanvas;
 const smokeDataDirectory = smoke ? mkdtempSync(join(tmpdir(), 'branchloom-smoke-')) : null;
 const devDataDirectory = !app.isPackaged ? process.env.BRANCHLOOM_DEV_USER_DATA : undefined;
 if (smokeDataDirectory) {
@@ -521,7 +523,18 @@ function installIpc(): void {
   bind('createPlanComment', (input: Parameters<StudioAPI['createPlanComment']>[0]) => createPlanComment(db, input));
   bind('acceptReviewedPlan', (input: Parameters<StudioAPI['acceptReviewedPlan']>[0]) => acceptReviewedPlan(db, input));
   bind('discussTaskDraft', (input: Parameters<StudioAPI['discussTaskDraft']>[0]) => discussTaskDraft(db, input));
-  bind('discussProject', (input: Parameters<StudioAPI['discussProject']>[0]) => discussProject(db, input));
+  bind('discussProject', async (input: Parameters<StudioAPI['discussProject']>[0]) => {
+    // Only the isolated focused smoke answers its exact synthetic prompt without a model.
+    if (smokeChatCanvas && input.turns.length === 1 && input.turns[0]?.role === 'user'
+      && input.turns[0].text === 'BRANCHLOOM_CHAT_CANVAS_SMOKE') {
+      const { index, sources } = await projectChatSources(db, input.projectId, 'status');
+      const source = sources.find((item) => item.kind === 'task' && item.title === 'Canvas smoke source');
+      if (!source) throw new Error('Synthetic chat source was not indexed.');
+      return { answer: `The saved source is task:${source.sourceId}.`, sources: [source], index,
+        suggestion: { kind: 'canvas' as const, title: 'Draft from chat', body: 'Review the saved source.', steps: ['Inspect source'] } };
+    }
+    return discussProject(db, input);
+  });
   bind('acceptWorkflowProposal', (input: { projectId: string; proposal: WorkflowProposal }) => db.acceptWorkflowProposal(input));
   bind('previewTrelloImport', (input: { projectId: string; json: string }) => db.previewTrelloImport(input));
   bind('acceptTrelloImport', (input: Parameters<StudioAPI['acceptTrelloImport']>[0]) => db.acceptTrelloImport(input));
@@ -919,6 +932,13 @@ function createWindow(): void {
         process.stdout.write('STUDIO_SMOKE_WHITEBOARD_OK\n');
         app.quit();
       }).catch((error: unknown) => { console.error('STUDIO_SMOKE_WHITEBOARD_FAILED', error); app.exit(1); });
+    });
+  } else if (smokeChatCanvas) {
+    window.webContents.once('did-finish-load', () => {
+      void runChatCanvasSmoke(window!, mustStore(), smokeDataDirectory!).then(() => {
+        process.stdout.write('STUDIO_SMOKE_CHAT_CANVAS_OK\n');
+        app.quit();
+      }).catch((error: unknown) => { console.error('STUDIO_SMOKE_CHAT_CANVAS_FAILED', error); app.exit(1); });
     });
   } else if (smokeUsage) {
     window.webContents.once('did-finish-load', () => {
