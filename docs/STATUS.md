@@ -2,6 +2,10 @@
 
 Stand: 25.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## M01 graphischer Quellenfokus
+
+- Die Memory-Beziehungskarte hebt nach Auswahl eines Knotens nur seine direkt gespeicherten Kanten und Nachbarn hervor. Der Inspector listet diese Nachbarn mit Auswahlaktion; **Auswahl aufheben** stellt den Gesamtblick wieder her. Der Ausschnitt bleibt auf vier Aufgaben und begrenzte Quellen pro Seite beschränkt. Acht gezielte Graph-Tests, Typprüfung und Build bestanden nach Integration erneut. Der vollständige Quell-Electron-Smoke mit Memory-Inspector und Public-Scan bestanden im isolierten Zweig; die Windows-Paket-CI steht für diesen Commit aus.
+
 ## Gemeinsame Abnahme und nächste Windows-Version
 
 - Nach Übernahme von Memory-Pfadkorrektur, G02-Integrations-Worktree, Usage und Changelog bestand der vollständige Quell-Electron-Smoke mit temporärem Projekt und isoliertem Datenprofil. Für Version 0.1.1 folgen erneute Windows-CI und Paketabnahme; ein neueres Desktop-Paket und ein zweites Release gelten erst nach grünen Jobs als geprüft. Der vorbereitende G02-Merge erhält jetzt eine nur für den `--no-commit`-Befehl gesetzte neutrale Git-Identität, weil [CI 45553599258](https://github.com/mschr703/branchloom/actions/runs/45553599258) auf einem frischen Runner ohne globale Git-Identität drei G02-Tests stoppte. Der dort ebenfalls fehlgeschlagene Memory-Monorepo-Pfad ist separat in 776ca73 korrigiert. Vier gezielte G02-Tests bestanden lokal mit ausdrücklich deaktivierter globaler Git-Konfiguration; die vollständige gemeinsame CI steht aus.

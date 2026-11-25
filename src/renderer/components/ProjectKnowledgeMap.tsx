@@ -93,6 +93,15 @@ export function knowledgeMapFlow(groups: ReturnType<typeof projectKnowledgeMapPa
     if (commitId) edges.push({ id: `${commitId}-${id}`, source: commitId, target: id, type: 'smoothstep',
       className: 'knowledge-map-link indexed' });
   }
+  if (selectedId && nodes.some((node) => node.id === selectedId)) {
+    const adjacent = new Set([selectedId]);
+    for (const edge of edges) {
+      if (edge.source === selectedId) adjacent.add(edge.target);
+      if (edge.target === selectedId) adjacent.add(edge.source);
+      edge.className = `${edge.className ?? ''} ${edge.source === selectedId || edge.target === selectedId ? 'emphasized' : 'quiet'}`;
+    }
+    for (const node of nodes) node.className = `${node.className ?? ''} ${adjacent.has(node.id) ? 'in-focus' : 'quiet'}`;
+  }
   return { nodes, edges, shownCodeFiles };
 }
 
@@ -178,6 +187,10 @@ export function ProjectKnowledgeMap({ snapshot, indexRevision, onOpenCard, onOpe
     if (node.id.startsWith('source:file:')) return { id: node.id, title: `Datei · ${node.id.slice('source:file:'.length)}` };
     return { id: node.id, title: `Ordner · ${node.id.slice('source:folder:'.length)}` };
   });
+  const relatedItems = selected ? [...new Set(edges.filter((edge) => edge.source === selectedId || edge.target === selectedId)
+    .map((edge) => edge.source === selectedId ? edge.target : edge.source))]
+    .map((id) => listItems.find((item) => item.id === id))
+    .filter((item): item is (typeof listItems)[number] => Boolean(item)) : [];
 
   function onListKeyDown(event: React.KeyboardEvent<HTMLUListElement>) {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
@@ -189,7 +202,7 @@ export function ProjectKnowledgeMap({ snapshot, indexRevision, onOpenCard, onOpe
   }
 
   return <div className="knowledge-map-view">
-    <div className="knowledge-map-summary"><p>Aufgaben, gespeicherte Läufe und Git-Quellen. Linien zeigen Kartenbezüge oder Dateien im indexierten Git-Stand; keine vermutete Themenähnlichkeit.</p><span>{map.totalCards} {map.totalCards === 1 ? 'Aufgabe' : 'Aufgaben'} · {map.totalSessions} {map.totalSessions === 1 ? 'Lauf' : 'Läufe'}{indexed?.gitRef ? ` · ${indexed.totalCodeFiles} ${indexed.totalCodeFiles === 1 ? 'indexierte Datei' : 'indexierte Dateien'}` : ''}</span></div>
+    <div className="knowledge-map-summary"><p>Wähle eine Quelle, um ihre direkten Verbindungen zu sehen. Linien belegen Kartenbezüge oder Dateien im indexierten Git-Stand, keine Themenähnlichkeit.</p><span>{map.totalCards} {map.totalCards === 1 ? 'Aufgabe' : 'Aufgaben'} · {map.totalSessions} {map.totalSessions === 1 ? 'Lauf' : 'Läufe'}{indexed?.gitRef ? ` · ${indexed.totalCodeFiles} ${indexed.totalCodeFiles === 1 ? 'indexierte Datei' : 'indexierte Dateien'}` : ''}</span></div>
     <div className="knowledge-map-toolbar"><div className="knowledge-map-layers" role="group" aria-label="Beziehungen filtern">
       <button type="button" aria-pressed={layer === 'all'} onClick={() => { setLayer('all'); setSelectedId(''); }}>Alle</button>
       <button type="button" aria-pressed={layer === 'work'} onClick={() => { setLayer('work'); setSelectedId(''); }}>Arbeit</button>
@@ -218,11 +231,11 @@ export function ProjectKnowledgeMap({ snapshot, indexRevision, onOpenCard, onOpe
         {selected ? selected.kind === 'source' ? <><span>{selected.code ? 'Indexierte Datei' : selected.links[0]?.reference.kind === 'file' ? 'Kontextdatei' : 'Kontextordner'}</span><h3>{selected.code?.path ?? selected.links[0]?.reference.target}</h3>
           {selected.links.length ? <p>{selected.links[0]!.reference.available ? 'Als Kontext an eine Aufgabe geheftet.' : 'Gespeicherter Kartenbezug; die Arbeitsdatei ist derzeit nicht verfügbar.'} Verknüpft am {new Date(selected.links[0]!.reference.addedAt).toLocaleString('de-DE')}.</p> : null}
           {selected.code ? <><p>Indexierter Git-Stand {indexed?.gitRef?.slice(0, 12)}. Arbeitsdateien können inzwischen anders aussehen.</p>{sourceDetail ? <pre className="knowledge-map-source-preview">{sourceDetail.body}</pre> : <p role={sourceError ? 'alert' : 'status'}>{sourceError || 'Quellausschnitt wird geladen…'}</p>}</> : null}
-          {selected.links.length ? <div className="knowledge-map-related"><strong>Verknüpfte Aufgaben</strong>{selected.links.map(({ card }) => <button key={card.id} type="button" onClick={() => onOpenCard?.(card.id)} disabled={!onOpenCard}>{card.title} <ArrowUpRight size={13} aria-hidden="true" /></button>)}</div> : null}
         </> : selected.kind === 'commit' ? <><span>Git-Stand</span><h3>{selected.commit.title}</h3><code>{selected.commit.sourceId.slice(0, 12)}</code><p>Commit vom {new Date(selected.commit.updatedAt).toLocaleString('de-DE')}. Verbundene Dateien wurden aus genau diesem Git-Stand indexiert.</p>{sourceDetail ? <pre className="knowledge-map-source-preview">{sourceDetail.body}</pre> : <p role={sourceError ? 'alert' : 'status'}>{sourceError || 'Committext wird geladen…'}</p>}</> : <><span>{selected.kind === 'task' ? 'Aufgabe' : 'Agentenlauf'}</span><h3>{selected.kind === 'task' ? selected.card.title : snapshot.agents.find((agent) => agent.id === selected.session.agentId)?.name ?? 'Agentenlauf'}</h3>
           <p>{selected.kind === 'task' ? selected.card.description || 'Keine Beschreibung gespeichert.' : `Gehört zu „${selected.card.title}“. Beendet am ${new Date(selected.session.endedAt ?? selected.session.startedAt).toLocaleString('de-DE')}. Zustand: ${selected.session.state}.`}</p>
           {(selected.kind === 'task' ? onOpenCard : onOpenSession) ? <button className="secondary-button" type="button" onClick={() => selected.kind === 'task' ? onOpenCard?.(selected.card.id) : onOpenSession?.(selected.session.id)}>Quelle öffnen <ArrowUpRight size={15} aria-hidden="true" /></button> : null}
         </> : <><span>Beziehungen</span><h3>Quelle auswählen</h3><p>Wähle einen Knoten oder nutze die Quellenliste. Doppelklick öffnet Aufgaben und Agentenläufe.</p></>}
+        {selected ? <div className="knowledge-map-related"><div className="knowledge-map-related-heading"><strong>Direkt verbunden</strong><span>{relatedItems.length}</span></div>{relatedItems.length ? <ul>{relatedItems.map((item) => <li key={item.id}><button type="button" onClick={() => setSelectedId(item.id)}>{item.title}<ArrowRight size={13} aria-hidden="true" /></button>{item.id.startsWith('task:') && onOpenCard ? <button className="knowledge-map-open-related" type="button" aria-label={`${item.title} öffnen`} onClick={() => onOpenCard(item.id.slice(5))}><ArrowUpRight size={14} aria-hidden="true" /></button> : item.id.startsWith('conversation:') && onOpenSession ? <button className="knowledge-map-open-related" type="button" aria-label={`${item.title} öffnen`} onClick={() => onOpenSession(item.id.slice('conversation:'.length))}><ArrowUpRight size={14} aria-hidden="true" /></button> : null}</li>)}</ul> : <p>Für diese Quelle ist in diesem Ausschnitt keine Beziehung gespeichert.</p>}<button type="button" className="knowledge-map-clear" onClick={() => setSelectedId('')}>Auswahl aufheben</button></div> : null}
         <details className="knowledge-map-list" ref={sourceListRef}><summary>Quellen als Liste ({listItems.length})</summary><ul onKeyDown={onListKeyDown}>{listItems.map((item) => <li key={item.id}><button type="button" aria-current={selectedId === item.id ? 'true' : undefined} onClick={() => setSelectedId(item.id)}>{item.title}</button></li>)}</ul></details>
       </aside>
     </div> : !indexLoading ? <p className="knowledge-map-empty">{layer === 'code' ? fileQuery ? 'Keine indexierte Datei passt zu diesem Pfad.' : 'Für dieses Projekt ist noch kein Git-Quellstand indexiert.' : 'Noch keine gespeicherten Aufgaben oder Git-Quellen.'}</p> : null}

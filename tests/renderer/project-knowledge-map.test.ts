@@ -66,6 +66,20 @@ describe('project knowledge map', () => {
     expect(source.position.y).toBeGreaterThan(tasks[0]!.position.y);
   });
 
+  it('focuses only direct saved relationships for a selected source', () => {
+    const snapshot = { project, cards: [card('a'), card('b'), card('c')], sessions: [session('run-a', 'a')] };
+    const map = projectKnowledgeMapPage(snapshot, 0, [reference('1', 'a', 'src/shared.ts'), reference('2', 'b', 'src/shared.ts')]);
+    const flow = knowledgeMapFlow(map.groups, [], 'source:file:src/shared.ts');
+    expect(flow.nodes.filter((node) => node.className?.includes('in-focus')).map((node) => node.id).sort())
+      .toEqual(['source:file:src/shared.ts', 'task:a', 'task:b']);
+    expect(flow.nodes.find((node) => node.id === 'conversation:run-a')?.className).toContain('quiet');
+    expect(flow.nodes.find((node) => node.id === 'task:c')?.className).toContain('quiet');
+    expect(flow.edges.filter((edge) => edge.className?.includes('emphasized')).map((edge) => edge.source).sort())
+      .toEqual(['task:a', 'task:b']);
+    expect(flow.edges.find((edge) => edge.target === 'conversation:run-a')?.className).toContain('quiet');
+    expect(knowledgeMapFlow(map.groups, [], 'missing').nodes.some((node) => node.className?.includes('quiet'))).toBe(false);
+  });
+
   it('keeps multiple saved file nodes from covering one another', () => {
     const snapshot = { project, cards: [card('a')], sessions: [] };
     const map = projectKnowledgeMapPage(snapshot, 0, [reference('1', 'a', 'src/one.ts'), reference('2', 'a', 'src/two.ts')]);
