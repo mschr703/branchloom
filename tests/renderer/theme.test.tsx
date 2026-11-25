@@ -20,9 +20,10 @@ describe('theme preference', () => {
     expect(writes).toEqual([[THEME_STORAGE_KEY, 'light']]);
   });
 
-  it('provides a named theme control even before a project is loaded', () => {
+  it('provides a named theme control while project search stays hidden on first run', () => {
     const html = renderToStaticMarkup(createElement(App));
     expect(html).toContain(`aria-label="${themeToggleLabel('dark')}"`);
-    expect(html).toContain('Projekt durchsuchen');
+    expect(html).toContain('<h1>Start</h1>');
+    expect(html).not.toContain('Projekt durchsuchen');
   });
 });

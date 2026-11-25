@@ -1,7 +1,6 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { App } from '../../src/renderer/App';
 import { DecisionInbox, ReviewInboxList } from '../../src/renderer/components/DecisionInbox';
 import { decisionItems, filterDecisionItems } from '../../src/renderer/decision-inbox';
 import type { ProjectSnapshot, Workflow } from '../../src/shared/types';
@@ -95,11 +94,6 @@ describe('decision inbox', () => {
     expect(html).toContain('Aktualisiert');
     expect(html).not.toContain('Schritt freigeben');
     expect(html).not.toContain('Queue fortsetzen');
-  });
-
-  it('includes the decision view in the app navigation', () => {
-    const html = renderToStaticMarkup(createElement(App));
-    expect(html).toContain('Entscheidungen');
   });
 
   it('renders saved review sources as escaped text with navigation and acknowledgement, without approval controls', () => {

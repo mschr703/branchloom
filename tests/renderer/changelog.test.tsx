@@ -1,7 +1,6 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { App } from '../../src/renderer/App';
 import { ChangelogReport, ChangelogView, changelogMarkdown, changelogOverview } from '../../src/renderer/components/ChangelogView';
 import { changelogDigest } from '../../src/renderer/changelog-digest';
 import type { ProjectChangelog } from '../../src/shared/changelog';
@@ -22,7 +21,6 @@ describe('changelog presentation', () => {
     expect(html).toContain('Projekt-HEAD + Karten-Worktrees');
     expect(html).toContain('Markdown kopieren');
     expect(html).not.toContain('Fix &lt;script&gt;');
-    expect(renderToStaticMarkup(createElement(App))).toContain('Changelog');
   });
 
   it('names actual card and branch sources and exposes incomplete reads in copied Markdown', () => {
