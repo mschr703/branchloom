@@ -35,7 +35,7 @@ function referenceOf(draft: EditDraft): WhiteboardReference | null {
   return null;
 }
 
-export function WhiteboardView({ snapshot, mutate, onOpenCard }: { snapshot: ProjectSnapshot; mutate: Mutate; onOpenCard: (id: string) => void }) {
+export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { snapshot: ProjectSnapshot; mutate: Mutate; onOpenCard: (id: string) => void; openNodeId?: string | null }) {
   const projectId = snapshot.project.id;
   const [board, setBoard] = useState<WhiteboardSnapshot>({ nodes: [], edges: [] });
   const [flowNodes, setFlowNodes, onNodesChange] = useNodesState<Node>([]);
@@ -92,6 +92,22 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard }: { snapshot: Pro
       .finally(() => { if (live) setLoading(false); });
     return () => { live = false; };
   }, [projectId]);
+
+  useEffect(() => {
+    if (!openNodeId) return;
+    let live = true;
+    void window.studio.whiteboard(projectId).then((next) => {
+      if (!live) return;
+      setBoard(next);
+      if (next.nodes.some((item) => item.id === openNodeId)) {
+        setCanvasMode('board');
+        setSelected(openNodeId);
+        setSelectedEdge(null);
+        setCardDraft(null);
+      }
+    }).catch((reason: unknown) => { if (live) setError(message(reason)); });
+    return () => { live = false; };
+  }, [projectId, openNodeId]);
 
   useEffect(() => {
     if (loading || (board.nodes.length > 0 && canvasMode !== 'repository') || automaticProposal || automaticMapBusy || automaticMapError) return;

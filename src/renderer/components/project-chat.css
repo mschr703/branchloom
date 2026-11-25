@@ -30,6 +30,8 @@
 .project-chat-warning { color: var(--danger); font-size: 12px; }
 .project-chat-draft { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border); display: grid; gap: 11px; }
 .project-chat-draft > p { margin: 0; color: var(--muted); font-size: 12px; }
+.project-chat-draft .project-chat-canvas-note { line-height: 1.5; max-width: 52ch; }
+.project-chat-draft .project-chat-canvas-problem { color: var(--danger); line-height: 1.5; }
 .project-chat-draft button { justify-self: start; }
 .project-chat :is(button, input, textarea):focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 @media (max-width: 860px) { .project-chat-layout { grid-template-columns: 1fr; gap: 20px; } .project-chat-evidence { border-left: 0; border-top: 1px solid var(--border); padding: 20px 0 0; } }

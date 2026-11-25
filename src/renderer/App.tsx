@@ -23,6 +23,7 @@ import { ProjectConflictBanner } from './components/ProjectConflictBanner';
 import { ProjectSwitcher } from './components/ProjectSwitcher';
 import { projectNavigationStatus, WorkspaceNavigation, views, type View } from './components/WorkspaceNavigation';
 import { startConflictRadarRefresh } from './conflict-radar-schedule';
+import { savePreparedChatCanvasNode } from './project-chat-canvas';
 import './theme.css';
 import './brand.css';
 import './project-chat-dock.css';
@@ -43,6 +44,10 @@ export function App() {
   const [snapshot, setSnapshot] = useState<ProjectSnapshot | null>(null);
   const [view, setView] = useState<View>('board');
   const [chatDockOpen, setChatDockOpen] = useState(false);
+  const [whiteboardOpenNodeId, setWhiteboardOpenNodeId] = useState<string | null>(null);
+  const activeProjectId = useRef(projectId);
+  activeProjectId.current = projectId;
+  useEffect(() => { setWhiteboardOpenNodeId(null); }, [projectId]);
   const [designCardId, setDesignCardId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -378,7 +383,7 @@ export function App() {
           onOpenCard={(id) => navigateToEntity('card', id)} onOpenQaReport={navigateToQaReport} /> : null}
         {view === 'workflows' ? <WorkflowView snapshot={snapshot} mutate={mutate} openWorkflow={navigationTarget?.kind === 'workflow' ? navigationTarget : null} openPlan={openPlan} onOpenCard={(id) => navigateToEntity('card', id)} onOpenSession={(id) => void openSessionFromMemory(id)} /> : null}
         {view === 'decisions' ? <DecisionInbox snapshot={snapshot} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onOpenQueue={navigateToQueue} onOpenSession={(id) => void openSessionFromMemory(id)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenDiffComment={navigateToDiffComment} onOpenQaReport={navigateToQaReport} onOpenPlan={(id) => { setOpenPlan((old) => ({ id, token: (old?.token ?? 0) + 1 })); setView('workflows'); }} onAcknowledgeSession={(id) => void acknowledgeInterruptedSession(id)} onOpenGlobalItem={openGlobalItem} /> : null}
-        {view === 'whiteboard' ? <WhiteboardView snapshot={snapshot} mutate={mutate} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
+        {view === 'whiteboard' ? <WhiteboardView snapshot={snapshot} mutate={mutate} openNodeId={whiteboardOpenNodeId} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
         {view === 'memory' ? <MemoryView snapshot={snapshot} mutate={mutate} openNote={navigationTarget?.kind === 'note' ? navigationTarget : null} onOpenSession={(id) => void openSessionFromMemory(id)} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
         {view === 'milestones' ? <MilestonesView key={snapshot.project.id} projectId={snapshot.project.id} /> : null}
         {view === 'agents' ? <AgentView snapshot={snapshot} mutate={mutate} onOpenBrowserSettings={() => setView('settings')} /> : null}
@@ -396,6 +401,14 @@ export function App() {
           await refresh();
           setChatDockOpen(false);
           navigateToEntity('card', card.id);
+        }} onSaveCanvas={async (title, description) => {
+          const sourceProjectId = snapshot.project.id;
+          const node = await savePreparedChatCanvasNode(window.studio, sourceProjectId, title, description,
+            () => activeProjectId.current === sourceProjectId);
+          if (activeProjectId.current !== sourceProjectId) return;
+          setWhiteboardOpenNodeId(node.id);
+          setChatDockOpen(false);
+          setView('whiteboard');
         }} /></Suspense>
       </div> : null}
     </main>
