@@ -51,6 +51,59 @@ async function ready(runner: DevEnvironmentRunner, cardId: string) {
 }
 
 describe('guided development preview setup', () => {
+  it.skipIf(process.env.BRANCHLOOM_LIVE_CODEX !== '1')('uses live Codex advice, one confirmed profile and two independent card previews', async () => {
+    const f = fixture();
+    const agent = f.store.saveAgent({ name: 'Installed Codex', kind: 'codex', command: 'codex',
+      args: [], model: null, enabled: true });
+    f.store.saveWorkflowAgentSettings({ agentId: agent.id, model: null, effort: 'low' });
+    const guide = new GuidedDevEnvironment(f.store, f.runner);
+    const advice = await guide.advise({ projectId: f.project.id, cardId: f.card.id });
+    expect(advice.candidateId).toBe(advice.inspection.candidates[0]?.id);
+    expect(advice.diagnosis).toBeTruthy();
+    expect(advice.nextStep).toBeTruthy();
+    expect(devEnvironmentProfile(f.store, f.project.id)).toBeNull();
+    expect(f.runner.card(f.card.id)).toBeNull();
+    expect(devEnvironmentAudit(f.store, f.project.id, f.card.id)).toEqual([]);
+    const saved = guide.apply({ adviceId: advice.id, projectId: f.project.id, cardId: f.card.id });
+    expect(devEnvironmentProfile(f.store, f.project.id)?.fingerprint).toBe(saved.fingerprint);
+    const first = await startApprovedDevEnvironment(f.store, f.runner, { cardId: f.card.id,
+      expectedProfileFingerprint: saved.fingerprint });
+    const second = await startApprovedDevEnvironment(f.store, f.runner, { cardId: f.other.id,
+      expectedProfileFingerprint: saved.fingerprint });
+    expect((await ready(f.runner, f.card.id))?.state).toBe('ready');
+    expect((await ready(f.runner, f.other.id))?.state).toBe('ready');
+    expect(first.port).not.toBe(second.port);
+    expect(first.worktreePath).not.toBe(second.worktreePath);
+    expect(await (await fetch(first.url)).text()).toContain('Synthetic Shop');
+    expect(await (await fetch(second.url)).text()).toContain('Synthetic Shop');
+    f.runner.stop(first.id);
+    expect(f.runner.card(f.other.id)?.state).toBe('ready');
+    f.runner.stop(second.id);
+  });
+
+  it('uses standalone transport for an app-bundled Windows Codex CLI', async () => {
+    if (process.platform !== 'win32') return;
+    const f = fixture();
+    const packaged = join(f.root, 'WindowsApps', 'OpenAI.Codex_1.0.0', 'app', 'resources', 'codex.exe');
+    mkdirSync(join(f.root, 'WindowsApps', 'OpenAI.Codex_1.0.0', 'app', 'resources'), { recursive: true });
+    writeFileSync(packaged, 'synthetic executable');
+    const agent = f.store.saveAgent({ name: 'Packaged Codex', kind: 'codex', command: packaged,
+      args: [], model: null, enabled: true });
+    f.store.saveWorkflowAgentSettings({ agentId: agent.id, model: null, effort: 'high' });
+    const input = { projectId: f.project.id, cardId: f.card.id };
+    const candidate = inspectDevEnvironment(f.store, f.runner, input).candidates[0]!;
+    let invocation!: PlannerInvocation;
+    const guide = new GuidedDevEnvironment(f.store, f.runner, async (call) => {
+      invocation = call;
+      writeFileSync(call.outputPath, JSON.stringify({ candidateId: candidate.id, diagnosis: 'Source-backed Vite setup.',
+        nextStep: 'Review the profile.', citedEvidenceIds: candidate.evidenceIds }));
+    });
+    await guide.advise(input);
+    expect(invocation.executable).toBe(packaged);
+    expect(invocation.args.slice(0, 2)).toEqual(['--no-daemon', 'exec']);
+    expect(invocation.args).toContain('read-only');
+  });
+
   it('selects only a Git HEAD-backed candidate, saves on confirmation, records the start click and survives restart', async () => {
     const f = fixture();
     const input = { projectId: f.project.id, cardId: f.card.id };
@@ -89,6 +142,17 @@ describe('guided development preview setup', () => {
     expect(devEnvironmentProfile(reopened, f.project.id)?.fingerprint).toBe(saved.fingerprint);
     expect(devEnvironmentAudit(reopened, f.project.id, f.card.id).map((entry) => entry.kind)).toEqual(['start', 'profile']);
     expect(reopened.db.prepare('SELECT COUNT(*) AS count FROM dev_environment_runs WHERE card_id = ?').get(f.card.id)).toMatchObject({ count: 1 });
+    const restartedRunner = new DevEnvironmentRunner(reopened); runners.push(restartedRunner);
+    const second = await startApprovedDevEnvironment(reopened, restartedRunner, {
+      cardId: f.other.id, expectedProfileFingerprint: devEnvironmentProfile(reopened, f.project.id)!.fingerprint,
+    });
+    expect((await ready(restartedRunner, f.other.id))?.state).toBe('ready');
+    expect(second.cardId).toBe(f.other.id);
+    expect(second.port).not.toBe(launched.port);
+    expect(second.worktreePath).not.toBe(launched.worktreePath);
+    expect(await (await fetch(second.url)).text()).toContain('Synthetic Shop');
+    expect(devEnvironmentAudit(reopened, f.project.id, f.other.id).map((entry) => entry.kind)).toEqual(['start', 'profile']);
+    restartedRunner.stop(second.id);
   });
 
   it('rejects unsupported model commands and stale source evidence before changing the profile', async () => {

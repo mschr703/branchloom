@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { DevEnvironmentCandidate, DevEnvironmentInspection, GuidedDevEnvironmentAdvice } from '../shared/dev-environment';
-import { resolveAgentLauncher } from './cli';
+import { codexPackagedArgs, resolveAgentLauncher } from './cli';
 import { devEnvironmentProfile, saveDevEnvironmentProfile } from './dev-environment';
 import type { DevEnvironmentRunner } from './dev-environment';
 import { assertSafeModelContext } from './sensitive-content';
@@ -130,7 +130,7 @@ export class GuidedDevEnvironment {
         'Cite only evidence IDs supplied here. Respond in German with bounded plain text. Return JSON matching the schema.',
         `Inspection: ${JSON.stringify(context)}`,
       ].join('\n\n');
-      const args = [...launcher.prefixArgs, 'exec', '--ignore-user-config', '--ephemeral', '--sandbox', 'read-only', '--skip-git-repo-check',
+      const args = [...launcher.prefixArgs, ...codexPackagedArgs(launcher, agent), 'exec', '--ignore-user-config', '--ephemeral', '--sandbox', 'read-only', '--skip-git-repo-check',
         '--output-schema', schemaPath, '--output-last-message', outputPath];
       const model = settings.model ?? agent.model;
       if (model) args.push('--model', model);

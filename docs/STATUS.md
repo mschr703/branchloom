@@ -2,6 +2,10 @@
 
 Stand: 25.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## F01 geführtes Projektprofil (isolierter Zweig)
+
+- Der geführte Codex-Aufruf berücksichtigt jetzt die Standalone-Startargumente der mit der Windows-App ausgelieferten CLI. Ein synthetischer Backend-Ablauf bestätigt: belegten Kandidaten vorschlagen, erst auf ausdrücklichen Klick speichern, Karte A starten, Profil nach echtem SQLite-Neustart für Karte B mit eigenem Port und Worktree wiederverwenden. Ein weiterer Test prüft das Argument der paketierten CLI. Vier gezielte F01-Tests, Produktionsbuild und der sichtbare Zweikarten-`smoke:f01` bestanden im isolierten Zweig. Ein optionaler Live-Test mit der lokal angemeldeten Codex CLI wählte einen belegten Kandidaten aus Git HEAD; erst nach ausdrücklicher Bestätigung wurde das Profil gespeichert, und zwei Karten liefen auf getrennten Ports. Ein vollständiger sichtbarer Agenten-Klickpfad mit echtem Nutzerprojekt und die Paket-CI stehen noch aus. [Bedienung und Grenzen](DEV_ENVIRONMENTS.md).
+
 ## Aktuelle Windows-Abnahme
 
 - [CI 45543341615](https://github.com/mschr703/branchloom/actions/runs/45543341615) für `054615f` bestand vollständig: Verify, portables Windows-Paket und Installer samt Paket-Smoke und Paketprüfung. Damit ist der frühere 120-Sekunden-Smoke-Timeout behoben und der bis dahin integrierte F01/F08-Stand paketiert geprüft. Neuere G02-/F03-Commits brauchen noch ihre eigene CI-Abnahme.
