@@ -3218,12 +3218,17 @@ function createWindow(): void {
               throw new Error('Geladene native Design-Vorschau wurde vor dem Fokuswechsel nicht eingeblendet: ' + JSON.stringify({ observation, native: designInspector!.smokeLayoutState() }));
             }
             await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const draftTab = [...document.querySelectorAll('.design-workspace-modes button')].find((button) => button.textContent?.trim() === 'Entwurf');
+              if (!(draftTab instanceof HTMLButtonElement)) throw new Error('Entwurfs-Tab fehlt vor dem Fokuswechsel.');
+              draftTab.click();
+              for (let attempt = 0; attempt < 100 && document.querySelector('.design-workspace-draft[hidden]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('.design-workspace-draft[hidden]')) throw new Error('Wireframe blieb vor dem Fokuswechsel verborgen.');
               const liveFocus = document.querySelector('.task-wireframe-focus-toggle');
               for (let attempt = 0; attempt < 100 && liveFocus?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!(liveFocus instanceof HTMLButtonElement) || liveFocus.disabled) throw new Error('Arbeitsmodus blieb bei geladener Live-Vorschau gesperrt.');
               liveFocus.focus(); liveFocus.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('.design-inspection-tools[hidden]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              if (!(await window.studio.designInspectionState()).ready || !document.querySelector('.design-inspection.wireframe-focus') || document.activeElement !== liveFocus) throw new Error('Fokusmodus schloss die Live-Vorschau oder verlor den Rückweg.');
+              if (!(await window.studio.designInspectionState()).ready || !document.querySelector('.design-inspection.wireframe-focus') || !(document.activeElement instanceof HTMLButtonElement && document.activeElement.matches('.task-wireframe-focus-toggle[aria-pressed="true"]'))) throw new Error('Fokusmodus schloss die Live-Vorschau oder verlor den Rückweg: ' + JSON.stringify({ ready: (await window.studio.designInspectionState()).ready, focusMode: Boolean(document.querySelector('.design-inspection.wireframe-focus')), focused: document.activeElement?.outerHTML?.slice(0, 200), toggleConnected: liveFocus.isConnected, hidden: Boolean(document.querySelector('.design-inspection-tools[hidden]')) }));
               await new Promise((resolve) => setTimeout(resolve, 100));
               return true;
             })()`);
