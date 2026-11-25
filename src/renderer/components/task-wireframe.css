@@ -10,6 +10,18 @@
 .task-wireframe-empty { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 22px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 .task-wireframe-empty p { margin: 0 10px 0 0; flex-basis: 100%; }
 .task-wireframe-empty small { display: block; flex-basis: 100%; color: var(--muted); }
+.task-wireframe-start { display: grid; justify-items: start; gap: 12px; padding: 18px 0 23px; border-bottom: 1px solid var(--border); }
+.task-wireframe-start-intro { display: grid; gap: 5px; }
+.task-wireframe-start h3 { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: -.015em; }
+.task-wireframe-start p { max-width: 68ch; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.task-wireframe-start-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.task-wireframe-start-actions button { min-height: 38px; }
+.task-wireframe-start-agent { padding: 2px 0; border: 0; background: none; color: var(--text); font: inherit; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.task-wireframe-start-agent:hover { color: var(--accent); }
+.task-wireframe-start-agent:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 3px; }
+.task-wireframe-start-agent:disabled { opacity: .5; cursor: default; }
+.task-wireframe-start > small { max-width: 68ch; color: var(--muted); font-size: 12px; line-height: 1.5; }
+body .design-inspection:has(.task-wireframe-start) { align-content: start; }
 .task-wireframe-notice { margin: 0; color: var(--positive); font-size: 12px; }
 .task-wireframe-artboard-switch { display: flex; flex-wrap: wrap; align-items: stretch; gap: 7px; }
 .task-wireframe-artboard-switch button { min-width: 118px; display: grid; gap: 2px; padding: 9px 12px; text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 12px; font-weight: 650; }
@@ -173,3 +185,4 @@ body .design-workspace-draft .task-wireframe:not(.is-focused) .task-wireframe-to
 @media (max-width: 650px) { .task-wireframe { padding-inline: 12px; } .task-wireframe-layout { grid-template-columns: 1fr; } .task-wireframe-layers { min-height: 0; } .task-wireframe-layers ol { display: flex; overflow-x: auto; } .task-wireframe-layers li button { min-width: 110px; max-width: 160px; } .task-wireframe-properties { grid-column: auto; grid-template-columns: 1fr 1fr; min-height: 0; } .task-wireframe-properties h3, .task-wireframe-properties > label:first-of-type, .task-wireframe-properties p { grid-column: 1 / -1; } .task-wireframe-style { grid-template-columns: repeat(2, minmax(0, 1fr)); } .task-wireframe-resize { width: 30px; height: 30px; } }
 @media (max-width: 650px) { .task-wireframe.is-focused .task-wireframe-layout { grid-template-columns: 1fr; } .task-wireframe.is-focused .task-wireframe-properties { grid-column: auto; } .task-wireframe.is-focused .task-wireframe-layers, .task-wireframe.is-focused .task-wireframe-properties { max-height: none; } .task-wireframe.is-focused .task-wireframe-canvas-viewport { max-height: 62vh; } }
 @media (max-width: 650px) { .task-wireframe-overview { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; } .task-wireframe-overview-card { padding: 6px; } .task-wireframe-overview-title { display: grid; gap: 1px; } .task-wireframe.is-focused .task-wireframe-actions { position: static; } }
+@media (max-width: 650px) { .task-wireframe-start-actions { display: grid; width: 100%; } .task-wireframe-start-actions button { width: 100%; } }
