@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentCandidate, ComponentCatalog } from '../../shared/component-catalog';
+import type { ComponentRecommendationResult } from '../../shared/component-recommendations';
 import type { CardComponentChoiceState } from '../../shared/card-component-choice';
 import './card-component-choice.css';
 
@@ -21,9 +22,28 @@ function VariantSnapshot({ cardId, variantId, label }: { cardId: string; variant
   return <div className="card-component-choice__snapshot"><button type="button" className="text-button" disabled={busy} onClick={() => void open()}>{busy ? 'Lädt…' : image ? 'Bild schließen' : 'Gerenderte Variante ansehen'}</button>{error ? <small role="alert">{error}</small> : null}{image ? <img src={image} alt={`Momentaufnahme: ${label}`} /> : null}</div>;
 }
 
+export function ComponentRecommendationList({ result, disabled, selectedKeys, onInspect }: {
+  result: ComponentRecommendationResult;
+  disabled: boolean;
+  selectedKeys: string[];
+  onInspect: (candidate: ComponentCandidate) => void;
+}) {
+  return <section className="card-component-choice__suggestions" aria-label="Komponentenvorschläge">
+    <h4>Worttreffer aus dieser Karte</h4>
+    <p>Exportnamen und Pfade wurden mit Titel und Beschreibung verglichen. Ein Treffer belegt keine fachliche Eignung; bitte Quelle und Verwendung selbst prüfen.</p>
+    <p className="card-component-choice__meta">{result.scannedFiles} Dateien geprüft{result.partial ? ' · Inventur unvollständig' : ''}. {result.notes.join(' ')}</p>
+    {result.recommendations.length ? <ul>{result.recommendations.map(({ candidate, evidence }) => <li key={`${candidate.path}:${candidate.name}:${candidate.line}`}>
+      <div><strong>{candidate.name}</strong><code>{candidate.path}:{candidate.line} · SHA-256 {candidate.sourceFingerprint.slice(0, 12)}</code>
+        <small>{evidence.map((item) => `${item.cardField === 'title' ? 'Titel' : 'Beschreibung'} „${item.cardTerm}“ → ${item.sourceField === 'export' ? 'Export' : 'Pfad'} „${item.sourceTerm}“${item.rule === 'fixed-ui-term' ? ' (feste UI-Wortregel)' : ''}`).join(' · ')}</small></div>
+      <button type="button" className="text-button" disabled={disabled || selectedKeys.includes(`${candidate.path}:${candidate.name}`)} onClick={() => onInspect(candidate)}>Prüfen</button>
+    </li>)}</ul> : <p>Keine ausreichend eindeutigen Worttreffer. Du kannst alle Quellen durchsuchen.</p>}
+  </section>;
+}
+
 export function CardComponentChoicePanel({ cardId, projectId, archived }: Props) {
   const [state, setState] = useState<CardComponentChoiceState | null>(null);
   const [catalog, setCatalog] = useState<ComponentCatalog | null>(null);
+  const [recommendations, setRecommendations] = useState<ComponentRecommendationResult | null>(null);
   const [query, setQuery] = useState('');
   const [chosen, setChosen] = useState<ComponentCandidate | null>(null);
   const [purpose, setPurpose] = useState('');
@@ -37,7 +57,7 @@ export function CardComponentChoicePanel({ cardId, projectId, archived }: Props)
   useEffect(() => {
     const current = ++generation.current;
     let live = true;
-    setState(null); setCatalog(null); setChosen(null); setPurpose(''); setQuery(''); setError(''); setVariantChoiceId(null); setVariantLabel(''); setVariantUrl(''); setBusy(false);
+    setState(null); setCatalog(null); setRecommendations(null); setChosen(null); setPurpose(''); setQuery(''); setError(''); setVariantChoiceId(null); setVariantLabel(''); setVariantUrl(''); setBusy(false);
     void window.studio.cardComponentChoiceState(cardId).then((result) => { if (live && generation.current === current) setState(result); })
       .catch((reason: unknown) => { if (live && generation.current === current) setError(reasonText(reason)); });
     return () => { live = false; generation.current++; };
@@ -51,6 +71,26 @@ export function CardComponentChoicePanel({ cardId, projectId, archived }: Props)
     finally { if (generation.current === current) setBusy(false); }
   }
 
+  async function suggest() {
+    if (!state) return;
+    const current = generation.current;
+    setBusy(true); setError(''); setChosen(null); setRecommendations(null);
+    try {
+      const result = await window.studio.componentRecommendations(cardId);
+      if (generation.current !== current) return;
+      if (result.projectId !== projectId || result.cardId !== cardId || result.cardRevision !== state.contentRevision) {
+        throw new Error('Karte wurde geändert. Vorschläge erneut laden.');
+      }
+      setRecommendations(result);
+    } catch (reason) {
+      if (generation.current === current) {
+        setError(reasonText(reason));
+        try { const latest = await window.studio.cardComponentChoiceState(cardId); if (generation.current === current) setState(latest); }
+        catch { /* The original error remains visible. */ }
+      }
+    } finally { if (generation.current === current) setBusy(false); }
+  }
+
   async function add() {
     if (!chosen || !state) return;
     const current = generation.current;
@@ -58,7 +98,7 @@ export function CardComponentChoicePanel({ cardId, projectId, archived }: Props)
     try {
       const result = await window.studio.addCardComponentChoice({ cardId, expectedContentRevision: state.contentRevision,
         name: chosen.name, path: chosen.path, line: chosen.line, sourceFingerprint: chosen.sourceFingerprint, purpose });
-      if (generation.current === current) { setState(result); setChosen(null); setPurpose(''); }
+      if (generation.current === current) { setState(result); setRecommendations(null); setChosen(null); setPurpose(''); }
     } catch (reason) {
       if (generation.current === current) { setError(reasonText(reason)); const latest = await window.studio.cardComponentChoiceState(cardId); if (generation.current === current) setState(latest); }
     } finally { if (generation.current === current) setBusy(false); }
@@ -68,7 +108,7 @@ export function CardComponentChoicePanel({ cardId, projectId, archived }: Props)
     if (!state) return;
     const current = generation.current;
     setBusy(true); setError('');
-    try { const result = await window.studio.removeCardComponentChoice({ cardId, choiceId, expectedContentRevision: state.contentRevision }); if (generation.current === current) setState(result); }
+    try { const result = await window.studio.removeCardComponentChoice({ cardId, choiceId, expectedContentRevision: state.contentRevision }); if (generation.current === current) { setState(result); setRecommendations(null); } }
     catch (reason) { if (generation.current === current) { setError(reasonText(reason)); const latest = await window.studio.cardComponentChoiceState(cardId); if (generation.current === current) setState(latest); } }
     finally { if (generation.current === current) setBusy(false); }
   }
@@ -114,7 +154,9 @@ export function CardComponentChoicePanel({ cardId, projectId, archived }: Props)
         <button type="button" className="text-button" disabled={busy || archived} onClick={() => void remove(choice.id)}>Lösen</button>
       </li>)}</ul> : <p className="card-component-choice__empty">Noch keine Komponente verbunden.</p>}
       {variantChoiceId ? <form className="card-component-choice__variant-form" onSubmit={(event) => { event.preventDefault(); void captureVariant(); }}><h4>Variante aus der laufenden App</h4><p>Die Route muss die gewünschte Variante bereits rendern. Nutze für jede Variante einen eigenen Pfad; Query-Werte werden im Beleg aus Datenschutzgründen nicht gespeichert. Die Zuordnung zum Export bestätigst du selbst.</p><label>Variantenname<input maxLength={60} minLength={2} required value={variantLabel} onChange={(event) => setVariantLabel(event.target.value)} placeholder="Kompakter Dialog" /></label><label>Lokale Beispielroute<input type="url" maxLength={2048} required value={variantUrl} onChange={(event) => setVariantUrl(event.target.value)} placeholder="http://127.0.0.1:5173/stories/dialog/compact" /></label><div><button type="submit" className="secondary-button" disabled={busy || archived || variantLabel.trim().length < 2 || !variantUrl.trim()}>{busy ? 'Prüfe Route…' : 'Route prüfen und Variante sichern'}</button><button type="button" className="text-button" disabled={busy} onClick={() => setVariantChoiceId(null)}>Abbrechen</button></div></form> : null}
-      <button type="button" className="secondary-button" disabled={busy || archived || selected.length >= 6} onClick={() => void search()}>{busy ? 'Prüfe…' : catalog ? 'Quellen erneut suchen' : 'Quellen suchen'}</button>
+      <div className="card-component-choice__actions"><button type="button" className="secondary-button" disabled={busy || archived || !state || selected.length >= 6} onClick={() => void suggest()}>{busy ? 'Prüfe…' : 'Aus Kartentext vorschlagen'}</button><button type="button" className="text-button" disabled={busy || archived || selected.length >= 6} onClick={() => void search()}>{catalog ? 'Quellen erneut suchen' : 'Alle Quellen durchsuchen'}</button></div>
+      {recommendations ? <ComponentRecommendationList result={recommendations} disabled={busy || archived || selected.length >= 6}
+        selectedKeys={selected.map((item) => `${item.path}:${item.name}`)} onInspect={(candidate) => { setChosen(candidate); setPurpose(''); }} /> : null}
       {catalog ? <><p className="card-component-choice__meta">{catalog.candidates.length} Kandidaten aus {catalog.scannedFiles} Dateien{catalog.partial ? ' · Inventur unvollständig' : ''}</p>
         {catalog.notes.length ? <p className="card-component-choice__meta">{catalog.notes.join(' ')}</p> : null}
         <label className="card-component-choice__filter">Filtern<input type="search" maxLength={160} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name oder Pfad" /></label>
@@ -124,8 +166,8 @@ export function CardComponentChoicePanel({ cardId, projectId, archived }: Props)
           </button>
         </li>)}</ul>
         {candidates.length > 40 ? <p className="card-component-choice__meta">Nur 40 Treffer sichtbar. Filtere nach Name oder Pfad.</p> : null}
-        {chosen ? <div className="card-component-choice__confirm"><p><strong>{chosen.name}</strong> aus <code>{chosen.path}:{chosen.line}</code></p><label>Verwendungshinweis<input maxLength={300} value={purpose} onChange={(event) => setPurpose(event.target.value)} placeholder="Zum Beispiel: Dialog für Einstellungen" /></label><button type="button" disabled={busy || archived || !state || purpose.trim().length < 3} onClick={() => void add()}>Referenz übernehmen</button></div> : null}
       </> : null}
+      {chosen ? <div className="card-component-choice__confirm"><p><strong>{chosen.name}</strong> aus <code>{chosen.path}:{chosen.line}</code></p><label>Verwendungshinweis<input maxLength={300} value={purpose} onChange={(event) => setPurpose(event.target.value)} placeholder="Zum Beispiel: Dialog für Einstellungen" /></label><button type="button" disabled={busy || archived || !state || purpose.trim().length < 3} onClick={() => void add()}>Referenz übernehmen</button></div> : null}
       <p className="card-component-choice__meta">Die Inventur belegt Exportnamen und Dateien. Variantenbilder stammen aus ausdrücklich geprüften lokalen Routen; die Zuordnung zwischen Route und Export ist eine manuelle Angabe, keine Codeanalyse.</p>
     </div>
   </details>;

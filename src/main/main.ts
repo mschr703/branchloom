@@ -33,6 +33,7 @@ import { applyManualRevision, captureManualRevision, manualRevisionFiles, manual
 import { attestIntegrationReview, integrationEvidence, runIntegrationTest, setIntegrationTestScript } from './integration-evidence';
 import { previewPrDraft } from './pr-draft';
 import { scanProjectComponents } from './component-catalog';
+import { componentRecommendations } from './component-recommendations';
 import { addCardComponentChoice, addCardComponentVariant, cardComponentChoiceState, cardComponentVariantScreenshot, removeCardComponentChoice, removeCardComponentVariant } from './card-component-choice';
 import { checkoutMilestone, compareMilestone, createMilestone, createMilestoneWithPreview, listMilestones, milestonePreviewImage } from './milestones';
 import { createReviewComment, listReviewComments, previewCardDiff } from './diff-review';
@@ -193,6 +194,7 @@ function installIpc(): void {
   bind('assignProjectGroup', (input: { projectId: string; groupId: string | null }) => db.assignProjectGroup(input));
   bind('setProjectSort', (sort: 'name' | 'newest') => db.setProjectSort(sort));
   bind('componentCatalog', (projectId: string) => scanProjectComponents(db.project(projectId).path));
+  bind('componentRecommendations', (cardId: string) => componentRecommendations(db, cardId));
   bind('cardComponentChoiceState', (cardId: string) => cardComponentChoiceState(db, cardId));
   bind('addCardComponentChoice', (input: Parameters<StudioAPI['addCardComponentChoice']>[0]) => addCardComponentChoice(db, input));
   bind('removeCardComponentChoice', (input: Parameters<StudioAPI['removeCardComponentChoice']>[0]) => removeCardComponentChoice(db, input));
@@ -718,6 +720,12 @@ function createWindow(): void {
     let stateRouteHits = 0;
     const qaServerReady = new Promise<string>((resolve, reject) => {
       smokeQaServer = createServer((request, response) => {
+        if (request.url?.startsWith('/stories/dialog/')) {
+          const compact = request.url.startsWith('/stories/dialog/compact');
+          response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+          response.end(`<!doctype html><title>Dialog variant</title><main><dialog open style="position:static;margin:2rem;padding:${compact ? '1rem' : '3rem'};max-width:${compact ? '280px' : '560px'}"><h1>${compact ? 'Compact settings' : 'Wide settings'}</h1><button>Save</button></dialog></main>`);
+          return;
+        }
         if (request.url?.startsWith('/?state=empty')) stateRouteHits++;
         response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         response.end('<!doctype html><title>Branchloom QA Smoke</title><style>:root{--smoke-ink:#243b32}body{min-width:1600px;background:#fff}#design-smoke-target{color:var(--smoke-ink);padding:8px}</style><img id="qa-observation-image"><button id="design-smoke-target">Synthetic design target</button><script>window.__designSmokeClicks=0;document.querySelector("#design-smoke-target").addEventListener("click",()=>window.__designSmokeClicks++);console.error("BRANCHLOOM_QA_SMOKE_ERROR")</script>');
@@ -3577,6 +3585,61 @@ http.createServer((_request,response)=>{response.writeHead(200,{'Content-Type':'
               if (pixels[offset] !== pixels[0] || pixels[offset + 1] !== pixels[1] || pixels[offset + 2] !== pixels[2]) { hasDrawing = true; break; }
             }
             if (png.isEmpty() || png.getSize().width !== 390 || png.getSize().height !== 844 || !hasDrawing) throw new Error('PNG-Export enthielt keine gezeichnete Mobile-Fläche.');
+            writeFileSync(join(smokeDataDirectory!, 'src', 'SettingsDialog.tsx'), 'export function SettingsDialog() { return <dialog open>Settings</dialog>; }\n');
+            execFileSync('git', ['-C', smokeDataDirectory!, 'add', '--', 'src/SettingsDialog.tsx'], { windowsHide: true });
+            const f10Card = smokeStore.createCard({ projectId: smokeProject.id, columnId: smokeSnapshot.columns[0]!.id, title: 'Build settings dialog', description: 'Choose an existing settings dialog component.' });
+            await new Promise<void>((resolve) => { smokeWindow.webContents.once('did-finish-load', () => resolve()); smokeWindow.webContents.reload(); });
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const cardId = ${JSON.stringify(f10Card.id)};
+              const projectId = ${JSON.stringify(smokeProject.id)};
+              const origin = ${JSON.stringify(qaUrl)};
+              const wait = async (predicate, label) => {
+                for (let i = 0; i < 300; i++) { const value = await predicate(); if (value) return value; await new Promise((resolve) => setTimeout(resolve, 50)); }
+                throw new Error('F10 UI smoke timed out: ' + label);
+              };
+              const trigger = await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger:not(.is-compact)'), 'visible project picker');
+              trigger.click();
+              const projectChoice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project button')].find((item) => item.textContent?.trim() === 'Smoke-Projekt'), 'project picker choice');
+              projectChoice.click();
+              await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger')?.getAttribute('aria-label') === 'Projekt auswählen: Smoke-Projekt', 'selected project');
+              const nav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Board');
+              if (!nav) throw new Error('F10 board navigation missing.');
+              nav.click();
+              const task = await wait(() => document.getElementById('board-card-' + cardId), 'card');
+              task.click();
+              const panel = await wait(() => document.querySelector('.card-drawer .card-component-choice'), 'component panel');
+              panel.querySelector('summary')?.click();
+              const suggest = await wait(() => [...panel.querySelectorAll('button')].find((button) => button.textContent?.includes('Aus Kartentext vorschlagen') && !button.disabled), 'suggest button');
+              suggest.click();
+              const suggestion = await wait(() => [...panel.querySelectorAll('.card-component-choice__suggestions li')].find((item) => item.textContent?.includes('SettingsDialog')), 'source-backed suggestion');
+              if (!suggestion.textContent?.includes('src/SettingsDialog.tsx') || !suggestion.textContent.includes('SHA-256')) throw new Error('F10 suggestion source evidence missing.');
+              suggestion.querySelector('button')?.click();
+              const purpose = await wait(() => panel.querySelector('.card-component-choice__confirm input'), 'manual confirmation');
+              const setInput = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+              if (!setInput) throw new Error('F10 input setter missing.');
+              setInput.call(purpose, 'Use the existing settings dialog'); purpose.dispatchEvent(new Event('input', { bubbles: true }));
+              const confirm = await wait(() => [...panel.querySelectorAll('.card-component-choice__confirm button')].find((button) => !button.disabled), 'confirm button');
+              confirm.click();
+              await wait(async () => (await window.studio.cardComponentChoiceState(cardId)).choices.length === 1, 'stored choice');
+              for (const [label, path] of [['Compact', 'compact'], ['Wide', 'wide']]) {
+                const capture = await wait(() => [...panel.querySelectorAll('button')].find((button) => button.textContent?.includes('Beispielroute als Variante erfassen') && !button.disabled), 'capture variant');
+                capture.click();
+                const form = await wait(() => panel.querySelector('.card-component-choice__variant-form'), 'variant form');
+                const inputs = form.querySelectorAll('input');
+                if (inputs.length !== 2) throw new Error('F10 variant form inputs missing.');
+                setInput.call(inputs[0], label); inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+                setInput.call(inputs[1], origin + 'stories/dialog/' + path); inputs[1].dispatchEvent(new Event('input', { bubbles: true }));
+                const submit = await wait(() => form.querySelector('button[type="submit"]:not(:disabled)'), 'variant submit');
+                submit.click();
+                await wait(async () => (await window.studio.cardComponentChoiceState(cardId)).choices[0]?.variants.some((item) => item.label === label), 'captured ' + label);
+              }
+              const state = await window.studio.cardComponentChoiceState(cardId);
+              if (state.choices[0]?.variants.length !== 2 || !panel.textContent?.includes('Compact') || !panel.textContent.includes('Wide')) throw new Error('F10 two saved variants are not shown on the card.');
+              const view = [...panel.querySelectorAll('.card-component-choice__snapshot button')][0];
+              view?.click();
+              await wait(() => panel.querySelector('.card-component-choice__snapshot img'), 'rendered screenshot');
+              return true;
+            })()`);
             process.stdout.write('STUDIO_SMOKE_OK\n');
             app.quit();
           }).catch(failSmoke);

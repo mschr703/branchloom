@@ -5,6 +5,15 @@
 .card-component-choice button:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .card-component-choice__body { display: grid; gap: 12px; padding: 12px 0 4px; }
 .card-component-choice__body > p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.card-component-choice__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.card-component-choice__suggestions { display: grid; gap: 6px; border-block: 1px solid var(--border); padding: 9px 0; }
+.card-component-choice__suggestions h4, .card-component-choice__suggestions p { margin: 0; }
+.card-component-choice__suggestions h4 { font-size: 13px; }
+.card-component-choice__suggestions p { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.card-component-choice__suggestions ul { list-style: none; padding: 0; margin: 0; }
+.card-component-choice__suggestions li { display: flex; align-items: start; justify-content: space-between; gap: 12px; border-top: 1px solid var(--border); padding: 9px 0; }
+.card-component-choice__suggestions li > div { display: grid; gap: 4px; min-width: 0; }
+.card-component-choice__suggestions small { overflow-wrap: anywhere; }
 .card-component-choice__selected,
 .card-component-choice__candidates { list-style: none; padding: 0; margin: 0; }
 .card-component-choice__selected li { display: flex; align-items: start; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); }

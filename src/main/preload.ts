@@ -36,6 +36,7 @@ const studio: StudioAPI = {
   assignProjectGroup: (input) => invoke('assignProjectGroup', input),
   setProjectSort: (sort) => invoke('setProjectSort', sort),
   componentCatalog: (projectId) => invoke('componentCatalog', projectId),
+  componentRecommendations: (cardId) => invoke('componentRecommendations', cardId),
   cardComponentChoiceState: (cardId) => invoke('cardComponentChoiceState', cardId),
   addCardComponentChoice: (input) => invoke('addCardComponentChoice', input),
   removeCardComponentChoice: (input) => invoke('removeCardComponentChoice', input),
