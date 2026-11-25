@@ -4,6 +4,20 @@ import './manual-revision.css';
 
 const errorText = (reason: unknown): string => reason instanceof Error ? reason.message : String(reason);
 
+export function ManualConflictChoices({ preview, busy, onChoose }: { preview: ManualMergePreview; busy: boolean;
+  onChoose: (conflictId: string, choice: 'manual' | 'agent') => void }) {
+  if (!preview.conflicts.length) return null;
+  return <div className="manual-revision-conflicts" aria-label="Überschneidungen">
+    {preview.conflicts.map((conflict, index) => <fieldset key={conflict.id} disabled={busy || Boolean(preview.staleReason)}>
+      <legend>Überschneidung {index + 1} von {preview.conflicts.length}{conflict.choice ? ' · entschieden' : ' · Entscheidung offen'}</legend>
+      <div className="manual-revision-variants"><div><h4>Gemeinsame Basis</h4><pre>{conflict.base || '(leer)'}</pre></div><div><h4>Manuelle Fassung</h4><pre>{conflict.manual || '(leer)'}</pre></div><div><h4>Agentenfassung</h4><pre>{conflict.agent || '(leer)'}</pre></div></div>
+      <div className="manual-revision-choices"><label><input type="radio" name={`manual-conflict-${conflict.id}`} checked={conflict.choice === 'manual'} onChange={() => onChoose(conflict.id, 'manual')} />Manuelle Fassung übernehmen</label>
+        <label><input type="radio" name={`manual-conflict-${conflict.id}`} checked={conflict.choice === 'agent'} onChange={() => onChoose(conflict.id, 'agent')} />Agentenfassung übernehmen</label></div>
+      {conflict.chosenAt ? <small>Gespeichert: {new Date(conflict.chosenAt).toLocaleString('de-DE')}</small> : null}
+    </fieldset>)}
+  </div>;
+}
+
 export function ManualRevisionPanel({ cardId }: { cardId: string }) {
   const [open, setOpen] = useState(false);
   const [files, setFiles] = useState<string[]>([]);
@@ -57,13 +71,25 @@ export function ManualRevisionPanel({ cardId }: { cardId: string }) {
   }
 
   async function apply() {
-    if (!preview || busy || preview.hasConflicts || preview.staleReason) return;
+    if (!preview || busy || preview.resolvedCombined === null || preview.staleReason) return;
     setBusy(true); setError('');
     try {
-      const saved = await window.studio.applyManualRevision({ revisionId: preview.revision.id, previewToken: preview.previewToken, confirm: true });
+      const saved = await window.studio.applyManualRevision({ revisionId: preview.revision.id, previewToken: preview.previewToken, resolutionToken: preview.resolutionToken, confirm: true });
       setRevisions((old) => old.map((item) => item.id === saved.id ? saved : item));
       setPreview(await window.studio.previewManualRevision(saved.id));
       setFiles(await window.studio.manualRevisionFiles(cardId));
+    } catch (reason) {
+      setError(errorText(reason));
+      setPreview(await window.studio.previewManualRevision(preview.revision.id).catch(() => null));
+    } finally { setBusy(false); }
+  }
+
+  async function choose(conflictId: string, choice: 'manual' | 'agent') {
+    if (!preview || busy || preview.staleReason) return;
+    setBusy(true); setError('');
+    try {
+      setPreview(await window.studio.setManualRevisionConflictChoice({ revisionId: preview.revision.id,
+        previewToken: preview.previewToken, conflictId, choice }));
     } catch (reason) {
       setError(errorText(reason));
       setPreview(await window.studio.previewManualRevision(preview.revision.id).catch(() => null));
@@ -84,10 +110,11 @@ export function ManualRevisionPanel({ cardId }: { cardId: string }) {
     {preview ? <div className="manual-revision-result">
       <p><strong>{preview.hasConflicts ? 'Überschneidung' : 'Zusammenführbar'}</strong> · Basis {preview.revision.baseHead.slice(0, 8)} · Agent {preview.sourceHead.slice(0, 8)}</p>
       {preview.staleReason ? <p className="inline-error" role="alert">{preview.staleReason}</p> : null}
-      {preview.hasConflicts ? <p>Dieselbe Stelle wurde auf beiden Seiten geändert. Ausgangsstand und beide Fassungen stehen unten; diese Stufe schreibt bei Konflikten keine Datei.</p> : <p>Die Vorschau enthält beide Änderungen. Prüfe sie vor dem ausdrücklichen Schreiben in die Zieldatei.</p>}
-      <div className="manual-revision-variants"><div><h4>Gemeinsame Basis</h4><pre>{preview.base}</pre></div><div><h4>Manuelle Revision</h4><pre>{preview.manual}</pre></div><div><h4>Agenten-Commit</h4><pre>{preview.agent}</pre></div></div>
-      <details open={preview.hasConflicts}><summary>Zusammengeführte Vorschau</summary><pre>{preview.combined}</pre></details>
-      {!preview.hasConflicts && !preview.staleReason ? <><p>Es wird nur diese eine Zieldatei geschrieben. Der Ziel-Checkout bleibt danach absichtlich uncommittet; die Integrationswarteschlange übernimmt ihn nicht automatisch.</p>
+      {preview.hasConflicts ? <p>Beide Seiten haben dieselbe Stelle geändert. Wähle für jede Überschneidung eine Fassung. Die Wahl bleibt für diese Vorschau gespeichert.</p> : <p>Die Vorschau enthält beide Änderungen. Prüfe sie vor dem ausdrücklichen Schreiben in die Zieldatei.</p>}
+      <ManualConflictChoices preview={preview} busy={busy} onChoose={(id, choice) => void choose(id, choice)} />
+      <details><summary>Vollständige Quelldateien</summary><div className="manual-revision-variants"><div><h4>Gemeinsame Basis</h4><pre>{preview.base}</pre></div><div><h4>Manuelle Revision</h4><pre>{preview.manual}</pre></div><div><h4>Agenten-Commit</h4><pre>{preview.agent}</pre></div></div></details>
+      <details open={preview.hasConflicts}><summary>{preview.resolvedCombined === null ? 'Unentschiedener Vergleich' : 'Ergebnis vor dem Schreiben'}</summary><pre>{preview.resolvedCombined ?? preview.combined}</pre></details>
+      {preview.resolvedCombined !== null && !preview.staleReason ? <><p>Es wird nur diese eine Zieldatei geschrieben. Der Ziel-Checkout bleibt danach absichtlich uncommittet; die Integrationswarteschlange übernimmt ihn nicht automatisch.</p>
         <button className="secondary-button" type="button" disabled={busy} onClick={() => void apply()}>Diese Datei zusammengeführt schreiben</button></> : null}
     </div> : null}
     {error ? <p className="inline-error" role="alert">{error}</p> : null}

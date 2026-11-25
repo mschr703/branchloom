@@ -28,6 +28,14 @@ export function installManualRevisions(store: StudioStore): void {
     target_hash TEXT NOT NULL, manual_text TEXT NOT NULL, base_text TEXT NOT NULL,
     captured_at TEXT NOT NULL, applied_at TEXT, applied_hash TEXT);
     CREATE INDEX IF NOT EXISTS idx_manual_file_revisions_card ON manual_file_revisions(card_id, captured_at DESC);`);
+  store.db.exec(`CREATE TABLE IF NOT EXISTS manual_revision_conflict_choices (
+    revision_id TEXT NOT NULL REFERENCES manual_file_revisions(id) ON DELETE CASCADE,
+    preview_token TEXT NOT NULL, conflict_id TEXT NOT NULL,
+    choice TEXT NOT NULL CHECK (choice IN ('manual', 'agent')),
+    decision_id TEXT NOT NULL,
+    chosen_at TEXT NOT NULL,
+    PRIMARY KEY (revision_id, preview_token, conflict_id)
+  );`);
 }
 
 function git(cwd: string, args: string[]): Buffer {
@@ -75,7 +83,28 @@ function row(store: StudioStore, id: string): Row {
   return found;
 }
 
-function compareText(base: string, manual: string, agent: string): { combined: string; hasConflicts: boolean } {
+interface ConflictBlock { id: string; start: number; end: number; base: string; manual: string; agent: string }
+function conflictBlocks(combined: string, expectedCount: number): ConflictBlock[] {
+  const pattern = /^<<<<<<< Manual\r?\n([\s\S]*?)^\|\|\|\|\|\|\| Common base\r?\n([\s\S]*?)^=======\r?\n([\s\S]*?)^>>>>>>> Agent(?:\r?\n|$)/gm;
+  const blocks = [...combined.matchAll(pattern)].map((match, index): ConflictBlock => ({
+    id: hash(JSON.stringify([index, match[0]])), start: match.index, end: match.index + match[0].length,
+    manual: match[1]!, base: match[2]!, agent: match[3]!,
+  }));
+  if (blocks.length !== expectedCount) throw new Error('Git conflict markers could not be parsed safely; no file was written.');
+  return blocks;
+}
+
+function resolveBlocks(combined: string, blocks: ConflictBlock[], choices: Map<string, 'manual' | 'agent'>): string | null {
+  if (blocks.some((block) => !choices.has(block.id))) return null;
+  let result = ''; let position = 0;
+  for (const block of blocks) {
+    result += combined.slice(position, block.start) + (choices.get(block.id) === 'manual' ? block.manual : block.agent);
+    position = block.end;
+  }
+  return result + combined.slice(position);
+}
+
+function compareText(base: string, manual: string, agent: string): { combined: string; hasConflicts: boolean; blocks: ConflictBlock[] } {
   const folder = mkdtempSync(join(tmpdir(), 'branchloom-manual-merge-'));
   const ours = join(folder, 'manual'); const ancestor = join(folder, 'base'); const theirs = join(folder, 'agent');
   try {
@@ -85,7 +114,8 @@ function compareText(base: string, manual: string, agent: string): { combined: s
     if (result.error || result.status === null || result.status < 0 || result.status > 127
       || (result.status > 0 && !result.stdout?.length))
       throw new Error('Git could not make the three-way comparison.');
-    return { combined: textFile(result.stdout), hasConflicts: result.status > 0 };
+    const combined = textFile(result.stdout);
+    return { combined, hasConflicts: result.status > 0, blocks: conflictBlocks(combined, result.status) };
   } finally {
     for (const file of [ours, ancestor, theirs]) { try { unlinkSync(file); } catch { /* Temporary comparison cleanup only. */ } }
     rmdirSync(folder);
@@ -149,18 +179,46 @@ export function previewManualRevision(store: StudioStore, id: string): ManualMer
   }
   const previewToken = hash(JSON.stringify([saved.id, saved.base_head, saved.target_branch, saved.target_head, saved.target_hash,
     review.sourceHead, hash(comparison.combined), staleReason]));
+  const savedChoices = store.db.prepare('SELECT conflict_id, choice, chosen_at, decision_id FROM manual_revision_conflict_choices WHERE revision_id = ? AND preview_token = ?')
+    .all(saved.id, previewToken) as Array<{ conflict_id: string; choice: 'manual' | 'agent'; chosen_at: string; decision_id: string }>;
+  const byId = new Map(savedChoices.map((choice) => [choice.conflict_id, choice]));
+  const conflicts = comparison.blocks.map((block) => ({ id: block.id, base: block.base, manual: block.manual, agent: block.agent,
+    choice: byId.get(block.id)?.choice ?? null, chosenAt: byId.get(block.id)?.chosen_at ?? null }));
+  const chosen = new Map(conflicts.filter((conflict) => conflict.choice !== null).map((conflict) => [conflict.id, conflict.choice!]));
+  const resolvedCombined = resolveBlocks(comparison.combined, comparison.blocks, chosen);
+  const resolutionToken = hash(JSON.stringify([previewToken, conflicts.map((conflict) => [conflict.id, conflict.choice,
+    byId.get(conflict.id)?.decision_id ?? null])]));
   return { revision: publicRow(saved), sourceHead: review.sourceHead, targetHead: review.targetHead,
-    base: saved.base_text, manual: saved.manual_text, agent, ...comparison, staleReason, previewToken };
+    base: saved.base_text, manual: saved.manual_text, agent, combined: comparison.combined, hasConflicts: comparison.hasConflicts,
+    conflicts, resolvedCombined, resolutionToken, staleReason, previewToken };
 }
 
-/** Applies only a conflict-free, fresh single-file result; it does not merge Git branches. */
-export function applyManualRevision(store: StudioStore, input: { revisionId: string; previewToken: string; confirm: boolean }): ManualRevision {
+export function setManualRevisionConflictChoice(store: StudioStore, input: { revisionId: string; previewToken: string; conflictId: string; choice: 'manual' | 'agent' | null }): ManualMergePreview {
+  return store.db.transaction(() => {
+    const preview = previewManualRevision(store, input.revisionId);
+    if (preview.previewToken !== input.previewToken || preview.staleReason) throw new Error('The comparison is stale. Refresh it before choosing a conflict result.');
+    if (!preview.conflicts.some((conflict) => conflict.id === input.conflictId)) throw new Error('Conflict no longer belongs to this comparison.');
+    if (input.choice !== null && input.choice !== 'manual' && input.choice !== 'agent') throw new Error('Choose the manual or agent version.');
+    if (input.choice === null) store.db.prepare('DELETE FROM manual_revision_conflict_choices WHERE revision_id = ? AND preview_token = ? AND conflict_id = ?')
+      .run(input.revisionId, input.previewToken, input.conflictId);
+    else store.db.prepare(`INSERT INTO manual_revision_conflict_choices (revision_id, preview_token, conflict_id, choice, decision_id, chosen_at)
+      VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(revision_id, preview_token, conflict_id)
+      DO UPDATE SET choice=excluded.choice, decision_id=excluded.decision_id, chosen_at=excluded.chosen_at`)
+      .run(input.revisionId, input.previewToken, input.conflictId, input.choice, randomUUID(), stamp());
+    return previewManualRevision(store, input.revisionId);
+  }).immediate();
+}
+
+/** Applies only a fully resolved, fresh single-file result; it does not merge Git branches. */
+export function applyManualRevision(store: StudioStore, input: { revisionId: string; previewToken: string; resolutionToken?: string; confirm: boolean }): ManualRevision {
   if (input.confirm !== true) throw new Error('Explicit confirmation is required.');
   return store.db.transaction(() => {
     const preview = previewManualRevision(store, input.revisionId);
     if (preview.previewToken !== input.previewToken || preview.staleReason)
       throw new Error('The comparison is stale. Refresh it before applying.');
-    if (preview.hasConflicts) throw new Error('Overlapping changes need a separate resolution; no file was written.');
+    if (preview.resolvedCombined === null) throw new Error('Overlapping changes need a concrete manual or agent choice for every conflict; no file was written.');
+    if (preview.hasConflicts && preview.resolutionToken !== input.resolutionToken)
+      throw new Error('Conflict choices changed since review. Refresh the resolved preview before writing.');
     const review = reviewCardWorktree(store, preview.revision.cardId);
     if (!review || review.targetBranch !== preview.revision.targetBranch || review.targetHead !== preview.targetHead || review.sourceHead !== preview.sourceHead)
       throw new Error('Git changed since the comparison. Refresh it before applying.');
@@ -170,15 +228,20 @@ export function applyManualRevision(store: StudioStore, input: { revisionId: str
     const temporary = join(dirname(target), `.branchloom-manual-${randomUUID()}.tmp`);
     const handle = openSync(temporary, 'wx', lstatSync(target).mode);
     try {
-      try { writeFileSync(handle, preview.combined, 'utf8'); fsyncSync(handle); }
+      try { writeFileSync(handle, preview.resolvedCombined, 'utf8'); fsyncSync(handle); }
       finally { closeSync(handle); }
       if (hash(readFileSync(safePath(review.targetPath, preview.revision.path))) !== preview.revision.targetHash)
         throw new Error('Target file changed during preparation; no file was written.');
+      const finalReview = reviewCardWorktree(store, preview.revision.cardId);
+      if (!finalReview || finalReview.targetBranch !== preview.revision.targetBranch || finalReview.targetHead !== preview.targetHead
+        || finalReview.sourceHead !== preview.sourceHead || finalReview.sourceStatus.length
+        || mergeBase(finalReview.targetPath, finalReview.targetHead, finalReview.sourceHead) !== preview.revision.baseHead)
+        throw new Error('Git changed during preparation; no file was written.');
       renameSync(temporary, target);
     } finally { try { unlinkSync(temporary); } catch { /* Renamed or failed temporary file. */ } }
     const appliedAt = stamp();
     store.db.prepare('UPDATE manual_file_revisions SET applied_at = ?, applied_hash = ? WHERE id = ? AND applied_at IS NULL')
-      .run(appliedAt, hash(preview.combined), preview.revision.id);
+      .run(appliedAt, hash(preview.resolvedCombined), preview.revision.id);
     return publicRow(row(store, preview.revision.id));
   }).immediate();
 }

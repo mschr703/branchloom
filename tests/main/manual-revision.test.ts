@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ensureCardWorktree, reviewCardWorktree } from '../../src/main/git-worktree';
-import { applyManualRevision, captureManualRevision, manualRevisionFiles, manualRevisions, previewManualRevision } from '../../src/main/manual-revision';
+import { applyManualRevision, captureManualRevision, manualRevisionFiles, manualRevisions, previewManualRevision, setManualRevisionConflictChoice } from '../../src/main/manual-revision';
 import { StudioStore } from '../../src/main/store';
 
 const roots: string[] = [];
@@ -89,6 +89,68 @@ describe('manual file revisions', () => {
     expect(preview.combined).toContain('<<<<<<< Manual');
     expect(() => applyManualRevision(store, { revisionId: revision.id, previewToken: preview.previewToken, confirm: true })).toThrow('Overlapping');
     expect(readFileSync(join(repo, 'form.txt'), 'utf8')).toBe(manual);
+  });
+
+  it('persists a conflict choice across restart and keeps non-overlapping edits', () => {
+    const { store, card, repo, worktree, dbPath, base } = fixture();
+    const agent = base.replace('title=Old', 'title=Agent').replace('validation=none', 'validation=required');
+    commitAgent(worktree.path, agent);
+    const manual = base.replace('title=Old', 'title=Maxim');
+    writeFileSync(join(repo, 'form.txt'), manual);
+    const revision = captureManualRevision(store, { cardId: card.id, path: 'form.txt' });
+    const initial = previewManualRevision(store, revision.id);
+    expect(initial.conflicts).toHaveLength(1);
+    expect(initial.conflicts[0]).toMatchObject({ base: 'title=Old\n', manual: 'title=Maxim\n', agent: 'title=Agent\n', choice: null });
+    const selected = setManualRevisionConflictChoice(store, { revisionId: revision.id, previewToken: initial.previewToken,
+      conflictId: initial.conflicts[0]!.id, choice: 'manual' });
+    expect(selected.conflicts[0]?.choice).toBe('manual');
+    expect(selected.resolvedCombined).toBe(manual.replace('validation=none', 'validation=required'));
+    expect(() => applyManualRevision(store, { revisionId: revision.id, previewToken: selected.previewToken,
+      resolutionToken: initial.resolutionToken, confirm: true })).toThrow('choices changed');
+    const selectedAgain = setManualRevisionConflictChoice(store, { revisionId: revision.id, previewToken: selected.previewToken,
+      conflictId: selected.conflicts[0]!.id, choice: 'manual' });
+    expect(selectedAgain.resolutionToken).not.toBe(selected.resolutionToken);
+    store.close(); stores.splice(stores.indexOf(store), 1);
+    const reopened = new StudioStore(dbPath); stores.push(reopened);
+    const afterRestart = previewManualRevision(reopened, revision.id);
+    expect(afterRestart.conflicts[0]?.choice).toBe('manual');
+    expect(afterRestart.resolutionToken).toBe(selectedAgain.resolutionToken);
+    expect(() => applyManualRevision(reopened, { revisionId: revision.id, previewToken: afterRestart.previewToken,
+      resolutionToken: selected.resolutionToken, confirm: true })).toThrow('choices changed');
+    const oldHead = git(repo, 'rev-parse', 'HEAD');
+    const applied = applyManualRevision(reopened, { revisionId: revision.id, previewToken: afterRestart.previewToken,
+      resolutionToken: afterRestart.resolutionToken, confirm: true });
+    expect(readFileSync(join(repo, 'form.txt'), 'utf8')).toBe(selected.resolvedCombined);
+    expect(applied.appliedHash).toBeTruthy();
+    expect(git(repo, 'rev-parse', 'HEAD')).toBe(oldHead);
+    expect(reviewCardWorktree(reopened, card.id)?.targetStatus).toContain(' M form.txt');
+  });
+
+  it('requires a choice for each separate overlap and rejects stale selections', () => {
+    const { store, card, repo, worktree, base } = fixture();
+    commitAgent(worktree.path, base.replace('title=Old', 'title=Agent').replace('validation=none', 'validation=agent'));
+    const manual = base.replace('title=Old', 'title=Maxim').replace('validation=none', 'validation=manual');
+    writeFileSync(join(repo, 'form.txt'), manual);
+    const revision = captureManualRevision(store, { cardId: card.id, path: 'form.txt' });
+    const initial = previewManualRevision(store, revision.id);
+    expect(initial.conflicts).toHaveLength(2);
+    expect(() => setManualRevisionConflictChoice(store, { revisionId: revision.id, previewToken: initial.previewToken,
+      conflictId: 'invalid', choice: 'manual' })).toThrow('no longer belongs');
+    const first = setManualRevisionConflictChoice(store, { revisionId: revision.id, previewToken: initial.previewToken,
+      conflictId: initial.conflicts[0]!.id, choice: 'manual' });
+    expect(first.resolvedCombined).toBeNull();
+    expect(() => applyManualRevision(store, { revisionId: revision.id, previewToken: first.previewToken,
+      resolutionToken: first.resolutionToken, confirm: true })).toThrow('Overlapping');
+    const second = setManualRevisionConflictChoice(store, { revisionId: revision.id, previewToken: first.previewToken,
+      conflictId: first.conflicts[1]!.id, choice: 'agent' });
+    expect(second.resolvedCombined).toBe(base.replace('title=Old', 'title=Maxim').replace('validation=none', 'validation=agent'));
+    const newer = manual.replace('spacing=8', 'spacing=10');
+    writeFileSync(join(repo, 'form.txt'), newer);
+    expect(() => setManualRevisionConflictChoice(store, { revisionId: revision.id, previewToken: second.previewToken,
+      conflictId: second.conflicts[0]!.id, choice: 'agent' })).toThrow('stale');
+    expect(() => applyManualRevision(store, { revisionId: revision.id, previewToken: second.previewToken,
+      resolutionToken: second.resolutionToken, confirm: true })).toThrow('stale');
+    expect(readFileSync(join(repo, 'form.txt'), 'utf8')).toBe(newer);
   });
 
   it('keeps the captured revision after restart and refuses non-text or untracked files', () => {

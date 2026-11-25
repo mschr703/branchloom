@@ -21,6 +21,9 @@ export interface ManualMergePreview {
   agent: string;
   combined: string;
   hasConflicts: boolean;
+  conflicts: Array<{ id: string; base: string; manual: string; agent: string; choice: 'manual' | 'agent' | null; chosenAt: string | null }>;
+  resolvedCombined: string | null;
+  resolutionToken: string;
   staleReason: string | null;
   previewToken: string;
 }

@@ -240,6 +240,7 @@ const studio: StudioAPI = {
   manualRevisions: (cardId) => invoke('manualRevisions', cardId),
   captureManualRevision: (input) => invoke('captureManualRevision', input),
   previewManualRevision: (id) => invoke('previewManualRevision', id),
+  setManualRevisionConflictChoice: (input) => invoke('setManualRevisionConflictChoice', input),
   applyManualRevision: (input) => invoke('applyManualRevision', input),
   enqueueIntegration: (cardId) => invoke('enqueueIntegration', cardId),
   prepareIntegration: (cardId) => invoke('prepareIntegration', cardId),

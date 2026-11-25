@@ -29,7 +29,7 @@ import { confirmTaskRevision, submitTaskRevision, taskRevisionHistory } from './
 import { CommandTerminalRunner } from './command-terminal';
 import { ensureCardWorktree, previewCardWorktreeCleanup, reviewCardWorktree, verifiedCardWorktreePath } from './git-worktree';
 import { approveIntegration, enqueueIntegration, integrationQueue, prepareIntegration } from './integration-queue';
-import { applyManualRevision, captureManualRevision, manualRevisionFiles, manualRevisions, previewManualRevision } from './manual-revision';
+import { applyManualRevision, captureManualRevision, manualRevisionFiles, manualRevisions, previewManualRevision, setManualRevisionConflictChoice } from './manual-revision';
 import { attestIntegrationReview, integrationEvidence, runIntegrationTest, setIntegrationTestScript } from './integration-evidence';
 import { previewPrDraft } from './pr-draft';
 import { scanProjectComponents } from './component-catalog';
@@ -532,6 +532,7 @@ function installIpc(): void {
   bind('manualRevisions', (cardId: string) => manualRevisions(db, cardId));
   bind('captureManualRevision', (input: Parameters<StudioAPI['captureManualRevision']>[0]) => captureManualRevision(db, input));
   bind('previewManualRevision', (id: string) => previewManualRevision(db, id));
+  bind('setManualRevisionConflictChoice', (input: Parameters<StudioAPI['setManualRevisionConflictChoice']>[0]) => setManualRevisionConflictChoice(db, input));
   bind('applyManualRevision', (input: Parameters<StudioAPI['applyManualRevision']>[0]) => applyManualRevision(db, input));
   bind('enqueueIntegration', (cardId: string) => enqueueIntegration(db, cardId));
   bind('prepareIntegration', (cardId: string) => prepareIntegration(db, cardId));
