@@ -51,16 +51,17 @@ describe('card component references', () => {
     try {
       const chosen = await choose(store, card.id, projectPath, 'SettingsDialog', 'Use for settings');
       const choiceId = chosen.choices[0]!.id;
-      qaReport(store, card.id, project.id, chosen.contentRevision, 'qa-compact', 'http://127.0.0.1:5173/stories/dialog/compact');
+      qaReport(store, card.id, project.id, chosen.contentRevision, 'qa-compact', 'http://127.0.0.1:5173/stories/dialog/compact?token=synthetic-secret#internal');
       const one = addCardComponentVariant(store, { cardId: card.id, choiceId, expectedContentRevision: chosen.contentRevision, reportId: 'qa-compact', label: 'Compact' });
-      expect(one.choices[0]?.variants).toMatchObject([{ label: 'Compact', reportId: 'qa-compact' }]);
-      qaReport(store, card.id, project.id, one.contentRevision, 'qa-same-route', 'http://127.0.0.1:5173/stories/dialog/compact');
+      expect(one.choices[0]?.variants).toMatchObject([{ label: 'Compact', reportId: 'qa-compact', previewUrl: 'http://127.0.0.1:5173/stories/dialog/compact' }]);
+      qaReport(store, card.id, project.id, one.contentRevision, 'qa-same-route', 'http://127.0.0.1:5173/stories/dialog/compact?variant=other');
       expect(() => addCardComponentVariant(store, { cardId: card.id, choiceId, expectedContentRevision: one.contentRevision, reportId: 'qa-same-route', label: 'Duplicate route' })).toThrow('eigene Beispielroute');
       qaReport(store, card.id, project.id, one.contentRevision, 'qa-wide', 'http://127.0.0.1:5173/stories/dialog/wide');
       const two = addCardComponentVariant(store, { cardId: card.id, choiceId, expectedContentRevision: one.contentRevision, reportId: 'qa-wide', label: 'Wide' });
       expect(two.choices[0]?.variants).toHaveLength(2);
       const context = cardComponentChoiceContext(store, card.id, projectPath);
       expect(context).toContain('Compact'); expect(context).toContain('Wide'); expect(context).toContain('qaReportId');
+      expect(context).not.toContain('synthetic-secret');
       expect(() => addCardComponentVariant(store, { cardId: card.id, choiceId, expectedContentRevision: one.contentRevision, reportId: 'qa-wide', label: 'Stale' })).toThrow('Karte wurde geändert');
       const agent = store.saveAgent({ name: 'Synthetic', kind: 'custom', command: process.execPath, args: [], model: null, enabled: true });
       const session = reserveCardSession(store, { cardId: card.id, agentId: agent.id });

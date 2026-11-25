@@ -7,6 +7,7 @@ import type { AddCardComponentChoice, AddCardComponentVariant, CardComponentChoi
 import type { StudioStore } from './store';
 import { scanProjectComponents } from './component-catalog';
 import { normalizeCardQaUrl } from './card-qa';
+import { diagnosticSource } from './browser-policy';
 
 interface ChoiceRow {
   id: string; card_id: string; project_id: string; name: string; path: string;
@@ -119,13 +120,14 @@ export function addCardComponentVariant(store: StudioStore, input: AddCardCompon
       .get(input.reportId, card.id) as { card_id: string; project_id: string; requested_url: string; final_url: string | null; ended_at: string; status: string; content_revision: number; screenshot_png: Buffer | null } | undefined;
     if (!report || report.project_id !== card.projectId || report.status !== 'passed' || !report.final_url ||
       !Buffer.isBuffer(report.screenshot_png) || report.screenshot_png.length < 1 || report.screenshot_png.length > 1_000_000) throw new Error('Für diese Karte fehlt eine erfolgreiche lokale Vorschau mit Screenshot.');
-    normalizeCardQaUrl(report.requested_url);
+    const previewUrl = diagnosticSource(normalizeCardQaUrl(report.requested_url));
+    if (!previewUrl) throw new Error('Lokale Beispielroute ist ungültig.');
     if (new URL(normalizeCardQaUrl(report.final_url)).origin !== new URL(report.requested_url).origin) throw new Error('Vorschau wurde von einer anderen Origin geladen.');
     if (report.content_revision !== input.expectedContentRevision) throw new Error('Die Vorschau stammt aus einer älteren Kartenrevision. Erneut prüfen.');
-    if (variants.some((row) => row.preview_url === report.requested_url)) throw new Error('Jede Variante braucht eine eigene Beispielroute ohne bloße Query-Unterschiede.');
+    if (variants.some((row) => row.preview_url === previewUrl)) throw new Error('Jede Variante braucht eine eigene Beispielroute ohne bloße Query-Unterschiede.');
     if (variantRows(store, card.id).some((row) => row.report_id === input.reportId)) throw new Error('Dieser Vorschaubericht ist schon einer Variante zugeordnet.');
     store.db.prepare('INSERT INTO card_component_variants (id, choice_id, card_id, label, preview_url, report_id, captured_at, source_fingerprint, screenshot_png) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(randomUUID(), choice.id, card.id, input.label.trim(), report.requested_url, input.reportId, report.ended_at, choice.source_fingerprint, report.screenshot_png);
+      .run(randomUUID(), choice.id, card.id, input.label.trim(), previewUrl, input.reportId, report.ended_at, choice.source_fingerprint, report.screenshot_png);
     store.db.prepare('UPDATE cards SET content_revision = content_revision + 1, updated_at = ? WHERE id = ?').run(new Date().toISOString(), card.id);
   })();
   return cardComponentChoiceState(store, input.cardId);
