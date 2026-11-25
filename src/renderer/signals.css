@@ -27,6 +27,20 @@
 :root[data-theme] .board-card-wrap > .task-card[data-priority='urgent'] { border-left: 3px solid #b65b4e; padding-left: 34px; }
 :root[data-theme] .board-card-wrap > .task-card[data-priority='high']:not(.is-running) { border-left: 3px solid #bf8145; padding-left: 34px; }
 :root[data-theme] .task-card strong { padding-right: 0; font-size: 13px; line-height: 1.36; font-weight: 640; }
+:root[data-theme] .board-workflow-signal { display: flex; align-items: center; gap: 7px; min-width: 0; margin-top: 5px; color: var(--muted); font-size: 10px; line-height: 1.3; }
+:root[data-theme] .board-workflow-name { overflow: hidden; min-width: 0; max-width: 100px; text-overflow: ellipsis; white-space: nowrap; }
+:root[data-theme] .board-workflow-steps { display: flex; align-items: center; gap: 2px; min-width: 0; }
+:root[data-theme] .board-workflow-step { display: block; width: 8px; height: 3px; border-radius: 1px; background: var(--border); }
+:root[data-theme] .board-workflow-step.not-recorded { height: 0; border-bottom: 1px dotted var(--muted); background: none; }
+:root[data-theme] .board-workflow-step.complete { background: #7c879c; }
+:root[data-theme] .board-workflow-step.running { background: #4d78a4; }
+:root[data-theme] .board-workflow-step.needs_review,
+:root[data-theme] .board-workflow-step.manual_wait { background: #ba8150; }
+:root[data-theme] .board-workflow-overflow,
+:root[data-theme] .board-workflow-count { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
+:root[data-theme] .board-workflow-count { margin-left: auto; }
+:root[data-theme] .board-workflow-error { display: inline-flex; align-items: center; gap: 5px; color: var(--warning); font-size: 11px; }
+:root[data-theme] .board-workflow-error button { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
 :root[data-theme] .task-card-description { margin-top: 4px; font-size: 11px; line-height: 1.4; -webkit-line-clamp: 2; }
 :root[data-theme] .task-card-metadata { gap: 5px; margin-top: 7px; padding: 0; }
 :root[data-theme] .task-card-metadata .card-priority,
