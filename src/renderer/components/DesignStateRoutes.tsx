@@ -108,7 +108,7 @@ export function DesignStateRoutes({ projectId, active, previewBusy, themePreview
     </form>}
     {!loading ? <p className="design-state-routes-meta">{saved ? `Gespeichert: ${stateRouteSummary(saved.url)}` : `Für ${labelOf(selected)} fehlt noch eine Route.`}{origin ? ` Alle Zustände nutzen ${origin}.` : ''}</p> : null}
     {changed && saved ? <p className="design-state-routes-meta">Speichere die geänderte URL, bevor du sie öffnest.</p> : null}
-    {themePreviewActive ? <p className="design-state-routes-meta">Setze die flüchtige Theme-Vorschau zurück, bevor du die Route wechselst.</p> : null}
+    {themePreviewActive ? <p className="design-state-routes-meta">Setze die flüchtige Design-Vorschau zurück, bevor du die Route wechselst.</p> : null}
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
     {notice ? <p className="inline-note" role="status">{notice}</p> : null}
   </section>;

@@ -52,7 +52,7 @@ export function DesignViewportCanvas({ projectId, ready, themePreviewActive, rev
       <div className="design-viewport-canvas-actions"><button ref={captureButton} type="button" className="secondary-button" disabled={!ready || busy || themePreviewActive} onClick={() => void capture()}>Größen aufnehmen</button>
         {busy ? <button type="button" className="secondary-button" disabled={canceling} onClick={cancel}>{canceling ? 'Bricht ab…' : 'Abbrechen'}</button> : null}</div>
     </div>
-    {themePreviewActive ? <p className="inline-note">Setze die flüchtige Theme-Vorschau vor der Aufnahme zurück. Die neuen Browser übernehmen sie nicht.</p> : null}
+    {themePreviewActive ? <p className="inline-note">Setze die flüchtige Design-Vorschau vor der Aufnahme zurück. Die neuen Browser übernehmen sie nicht.</p> : null}
     {!ready ? <p className="section-copy">Öffne oben zuerst eine lokale Design-Vorschau.</p> : null}
     {busy ? <p role="status" className="section-copy">Desktop, Tablet und Mobile werden nacheinander geladen. Bis zu drei lokale Seitenaufrufe sind nötig.</p> : null}
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
