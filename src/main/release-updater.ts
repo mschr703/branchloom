@@ -1,5 +1,14 @@
 import type { ReleaseUpdateState } from '../shared/release-update';
 
+function checkFailureMessage(error: unknown): string {
+  const detail = error instanceof Error ? error.message : String(error);
+  if (/\b429\b|rate.?limit/i.test(detail)) return 'GitHub begrenzt die Updateprüfung gerade. Später erneut prüfen.';
+  if (/ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ECONN|offline|network/i.test(detail)) return 'Keine Verbindung für die Updateprüfung. Später erneut prüfen.';
+  if (/\b404\b|not found|missing|checksum|sha.?512|invalid|asset|parse/i.test(detail))
+    return 'Release-Daten fehlen oder sind ungültig. Es wurde nichts heruntergeladen.';
+  return 'Die Updateprüfung ist fehlgeschlagen. Später erneut prüfen.';
+}
+
 export interface ReleaseUpdateBackend {
   check(): Promise<void>;
   download(): Promise<void>;
@@ -35,7 +44,11 @@ export class ReleaseUpdateController {
       if (this.state.phase !== 'downloading') return;
       this.set({ percent: Number.isFinite(percent) ? Math.max(0, Math.min(100, Math.round(percent))) : null });
     });
-    backend?.onError(() => {
+    backend?.onError((error) => {
+      if (this.checking && !this.state.availableVersion) {
+        this.set({ phase: 'error', availableVersion: null, percent: null, message: checkFailureMessage(error) });
+        return;
+      }
       if (this.state.phase === 'downloading' || this.state.phase === 'installing') {
         this.set({ phase: 'error', percent: null, message: 'Der Download ist fehlgeschlagen. Du kannst es erneut versuchen.' });
       }
@@ -47,9 +60,10 @@ export class ReleaseUpdateController {
   async check(): Promise<void> {
     if (!this.backend || this.checking || this.state.phase === 'downloading' || this.state.phase === 'installing') return;
     this.checking = true;
+    if (this.state.phase === 'error' && !this.state.availableVersion) this.set({ phase: 'current', message: null });
     try { await this.backend.check(); }
-    catch {
-      // Checking is opportunistic. A network failure must not interrupt work.
+    catch (error) {
+      if (!this.state.availableVersion) this.set({ phase: 'error', availableVersion: null, percent: null, message: checkFailureMessage(error) });
     } finally { this.checking = false; }
   }
 
@@ -60,7 +74,11 @@ export class ReleaseUpdateController {
   }
 
   async update(): Promise<ReleaseUpdateState> {
-    if (!this.backend || !this.state.availableVersion) return this.snapshot();
+    if (!this.backend) return this.snapshot();
+    if (!this.state.availableVersion) {
+      if (this.state.phase === 'error') await this.check();
+      return this.snapshot();
+    }
     if (!['available', 'blocked', 'error'].includes(this.state.phase)) return this.snapshot();
     if (!this.downloadReady) {
       this.set({ phase: 'downloading', percent: 0, message: null });

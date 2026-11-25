@@ -76,4 +76,30 @@ describe('release updates', () => {
     await controller.check();
     expect(await controller.update()).toMatchObject({ phase: 'unsupported', availableVersion: null });
   });
+
+  it.each([
+    ['ENOTFOUND', 'Keine Verbindung'],
+    ['GitHub API returned 429 rate limit', 'GitHub begrenzt'],
+    ['404 release asset missing', 'Release-Daten fehlen'],
+    ['invalid sha512 manifest', 'Release-Daten fehlen'],
+  ])('shows a nonblocking update-check failure for %s and retries only on click', async (failure, message) => {
+    const item = fixture();
+    vi.mocked(item.backend.check).mockRejectedValueOnce(new Error(failure));
+    await item.controller.check();
+    expect(item.controller.snapshot()).toMatchObject({ phase: 'error', availableVersion: null, message: expect.stringContaining(message) });
+    expect(item.backend.download).not.toHaveBeenCalled();
+    expect(item.backend.install).not.toHaveBeenCalled();
+    await item.controller.update();
+    expect(item.backend.check).toHaveBeenCalledTimes(2);
+    expect(item.controller.snapshot()).toMatchObject({ phase: 'current', availableVersion: null });
+  });
+
+  it('shows an updater error event during a check without a rejected promise', async () => {
+    const item = fixture();
+    vi.mocked(item.backend.check).mockImplementationOnce(async () => { item.emit('error', new Error('Offline')); });
+    await item.controller.check();
+    expect(item.controller.snapshot()).toMatchObject({ phase: 'error', availableVersion: null, message: expect.stringContaining('Keine Verbindung') });
+    item.controller.later();
+    expect(item.controller.snapshot().phase).toBe('current');
+  });
 });

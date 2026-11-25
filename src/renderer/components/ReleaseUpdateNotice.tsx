@@ -13,17 +13,18 @@ export function ReleaseUpdateNotice() {
     return () => { active = false; unsubscribe(); };
   }, []);
 
-  if (!state || !state.availableVersion || state.phase === 'unsupported' || state.phase === 'current') return null;
+  if (!state || state.phase === 'unsupported' || state.phase === 'current' || (!state.availableVersion && state.phase !== 'error')) return null;
 
   const working = state.phase === 'downloading' || state.phase === 'installing';
   const title = state.phase === 'downloading' ? 'Update wird geladen'
     : state.phase === 'installing' ? 'Branchloom wird aktualisiert'
     : state.phase === 'blocked' ? 'Update bereit'
+    : !state.availableVersion ? 'Updateprüfung nicht möglich'
     : `Update ${state.availableVersion} verfügbar`;
   const detail = state.message ?? (state.phase === 'downloading'
     ? `Version ${state.availableVersion}${state.percent === null ? '' : ` · ${state.percent} %`}`
     : state.phase === 'installing' ? 'Die App wird für die Installation geschlossen und danach wieder geöffnet.'
-    : `Installiert: ${state.currentVersion} · Neu: ${state.availableVersion}`);
+    : state.availableVersion ? `Installiert: ${state.currentVersion} · Neu: ${state.availableVersion}` : 'Es wurde nichts heruntergeladen.');
 
   async function update() {
     setBusy(true);
@@ -46,7 +47,7 @@ export function ReleaseUpdateNotice() {
     {state.phase === 'downloading' ? <progress aria-label="Update-Download" max={100} value={state.percent ?? undefined} /> : null}
     {!working ? <div className="release-update-actions">
       <button type="button" className="release-update-later" disabled={busy} onClick={() => void later()}>Später</button>
-      <button type="button" className="release-update-now" disabled={busy} onClick={() => void update()}>{state.phase === 'blocked' ? 'Jetzt installieren' : state.phase === 'error' ? 'Erneut versuchen' : 'Aktualisieren'}</button>
+      <button type="button" className="release-update-now" disabled={busy} onClick={() => void update()}>{state.phase === 'blocked' ? 'Jetzt installieren' : state.phase === 'error' ? state.availableVersion ? 'Erneut versuchen' : 'Erneut prüfen' : 'Aktualisieren'}</button>
     </div> : null}
   </aside>;
 }
