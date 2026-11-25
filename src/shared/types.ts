@@ -153,6 +153,8 @@ export interface StudioAPI {
   openDevAccount(cardId: string): Promise<string>;
   probeDevAccount(cardId: string): Promise<import('./dev-account').DevAccountProbe>;
   forgetDevAccountSession(input: { projectId: string; accountId: string }): Promise<void>;
+  devAccountSavedLoginStatus(cardId: string): Promise<import('./dev-account').DevAccountSavedLoginStatus>;
+  saveDevAccountLogin(cardId: string): Promise<import('./dev-account').DevAccountSavedLoginStatus>;
   devAccountSeedConfig(cardId: string): Promise<import('./dev-account').DevAccountSeedConfig | null>;
   saveDevAccountSeedConfig(input: { cardId: string; path: string }): Promise<import('./dev-account').DevAccountSeedConfig>;
   lastDevAccountSeedAttempt(input: { cardId: string; targetId: string }): Promise<import('./dev-account').DevAccountSeedAttempt | null>;

@@ -36,6 +36,10 @@ export function installDevAccounts(db: Database.Database): void {
     provisioner_id TEXT NOT NULL REFERENCES dev_accounts(id) ON DELETE CASCADE,
     target_id TEXT NOT NULL REFERENCES dev_accounts(id) ON DELETE CASCADE,
     state TEXT NOT NULL, at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS dev_account_saved_logins (
+    account_id TEXT PRIMARY KEY REFERENCES dev_accounts(id) ON DELETE CASCADE,
+    sealed BLOB NOT NULL, saved_at TEXT NOT NULL
   );`);
   // A crashed POST has an unknown outcome. Never silently repeat it after restart.
   db.prepare("UPDATE dev_account_seed_attempts SET state = 'unknown' WHERE state = 'requested'").run();
@@ -147,4 +151,22 @@ export function devAccountForProject(store: StudioStore, projectId: string, acco
   const found = store.db.prepare('SELECT * FROM dev_accounts WHERE id = ? AND project_id = ?').get(accountId, projectId) as AccountRow | undefined;
   if (!found) throw new Error('Account does not belong to this project.');
   return account(found);
+}
+
+export function savedDevLogin(store: StudioStore, accountId: string): { sealed: Buffer; savedAt: string } | null {
+  const row = store.db.prepare('SELECT sealed, saved_at FROM dev_account_saved_logins WHERE account_id = ?')
+    .get(accountId) as { sealed: Buffer; saved_at: string } | undefined;
+  return row ? { sealed: row.sealed, savedAt: row.saved_at } : null;
+}
+
+export function saveDevLogin(store: StudioStore, accountId: string, sealed: Buffer): string {
+  const savedAt = new Date().toISOString();
+  store.db.prepare(`INSERT INTO dev_account_saved_logins (account_id, sealed, saved_at) VALUES (?, ?, ?)
+    ON CONFLICT(account_id) DO UPDATE SET sealed = excluded.sealed, saved_at = excluded.saved_at`)
+    .run(accountId, sealed, savedAt);
+  return savedAt;
+}
+
+export function forgetDevLogin(store: StudioStore, accountId: string): void {
+  store.db.prepare('DELETE FROM dev_account_saved_logins WHERE account_id = ?').run(accountId);
 }

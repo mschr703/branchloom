@@ -349,6 +349,8 @@ function installIpc(): void {
   });
   bind('openDevAccount', (cardId: string) => devAccountBrowser?.open(cardId));
   bind('probeDevAccount', (cardId: string) => devAccountBrowser?.probe(cardId));
+  bind('devAccountSavedLoginStatus', (cardId: string) => devAccountBrowser?.savedLoginStatus(cardId));
+  bind('saveDevAccountLogin', (cardId: string) => devAccountBrowser?.saveLogin(cardId));
   bind('devAccountSeedConfig', (cardId: string) => devAccountBrowser?.seedConfig(cardId));
   bind('saveDevAccountSeedConfig', (input: Parameters<StudioAPI['saveDevAccountSeedConfig']>[0]) => devAccountBrowser?.saveSeedConfig(input));
   bind('lastDevAccountSeedAttempt', (input: Parameters<StudioAPI['lastDevAccountSeedAttempt']>[0]) => devAccountBrowser?.lastSeedAttempt(input.cardId, input.targetId));
@@ -3499,6 +3501,20 @@ http.createServer((_request,response)=>{response.writeHead(200,{'Content-Type':'
             const f08Admin = await devAccountBrowser!.probe(f08Card.id);
             const f08UnloggedUser = await devAccountBrowser!.probe(f08Other.id);
             if (f08Admin.state !== 'verified' || f08UnloggedUser.state !== 'login-required') throw new Error('F08 real-session login isolation failed.');
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const panel = document.querySelector('.card-drawer .dev-account-panel');
+              if (!panel) throw new Error('F08 account panel is missing for protected-login action.');
+              const button = (label) => [...panel.querySelectorAll('button')].find((item) => item.textContent?.trim() === label);
+              button('Zugang prüfen')?.click();
+              for (let attempt = 0; attempt < 100 && !panel.textContent?.includes('Konto und Rolle bestätigt'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const save = button('Anmeldung für Neustart speichern');
+              if (!save || save.disabled) throw new Error('F08 protected-login opt-in did not become available after identity verification.');
+              save.click();
+              for (let attempt = 0; attempt < 100 && !panel.textContent?.includes('Login-Cookies dieses Kontos geschützt'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!panel.textContent?.includes('Login-Cookies dieses Kontos geschützt')) throw new Error('F08 protected-login save did not report success.');
+              return true;
+            })()`);
+            if (devAccountBrowser!.savedLoginStatus(f08Card.id).state !== 'saved') throw new Error('F08 protected-login state was not stored.');
             devAccountBrowser!.saveSeedConfig({ cardId: f08Card.id, path: '/__branchloom/accounts' });
             await smokeWindow.webContents.executeJavaScript(`(async () => {
               const panel = document.querySelector('.card-drawer .dev-account-panel');

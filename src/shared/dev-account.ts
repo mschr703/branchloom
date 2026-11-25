@@ -65,3 +65,9 @@ export interface DevAccountSeedCheck {
   state: 'missing' | 'exists' | 'login-required' | 'access-denied' | 'wrong-account' | 'unavailable';
   checkedAt: string;
 }
+
+export interface DevAccountSavedLoginStatus {
+  accountId: string;
+  savedAt: string | null;
+  state: 'none' | 'saved' | 'restored' | 'unavailable';
+}

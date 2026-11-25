@@ -1,10 +1,11 @@
-import { BrowserWindow, session, type Session } from 'electron';
+import { BrowserWindow, safeStorage, session, type Session } from 'electron';
 import { randomUUID } from 'node:crypto';
 import type { CardDevEnvironment } from '../shared/dev-environment';
-import type { DevAccountProbe, DevAccountSeedCheck, DevAccountSeedAttempt } from '../shared/dev-account';
+import type { DevAccountProbe, DevAccountSeedCheck, DevAccountSeedAttempt, DevAccountSavedLoginStatus } from '../shared/dev-account';
 import type { StudioStore } from './store';
 import type { DevEnvironmentRunner } from './dev-environment';
-import { cardDevAccountGrant, devAccountForProject, finishSeedAttempt, lastSeedAttempt, recordSeedAttempt, saveSeedConfig, seedConfig } from './dev-account';
+import { cardDevAccountGrant, devAccountForProject, finishSeedAttempt, forgetDevLogin, lastSeedAttempt, recordSeedAttempt, savedDevLogin, saveDevLogin, saveSeedConfig, seedConfig } from './dev-account';
+import { packAccountCookies, unpackAccountCookies } from './dev-account-login';
 import { probeDevIdentity } from './dev-account-probe';
 import { createSeedAccount, readSeedAccount, SeedEndpointError } from './dev-account-seed';
 import { isLocalDevUrl } from './browser-policy';
@@ -19,6 +20,9 @@ export class DevAccountBrowser {
   private readonly sessions = new Map<string, Session>();
   private readonly probes = new Map<string, Set<AccountTarget>>();
   private readonly seedTickets = new Map<string, SeedTicket>();
+  private readonly restoredLogins = new Map<string, 'saved' | 'restored' | 'unavailable'>();
+  private readonly restoringLogins = new Map<string, Promise<void>>();
+  private readonly loginGenerations = new Map<string, number>();
 
   constructor(private readonly store: StudioStore, private readonly environments: DevEnvironmentRunner,
     private readonly parentWindow: () => BrowserWindow | null) {}
@@ -64,6 +68,69 @@ export class DevAccountBrowser {
     return ses;
   }
 
+  private async encryptionAvailable(): Promise<boolean> {
+    // Other OS providers need an explicit verification before enabling this public feature.
+    return process.platform === 'win32' && await safeStorage.isAsyncEncryptionAvailable();
+  }
+
+  savedLoginStatus(cardId: string): DevAccountSavedLoginStatus {
+    const account = cardDevAccountGrant(this.store, cardId);
+    const saved = savedDevLogin(this.store, account.id);
+    return { accountId: account.id, savedAt: saved?.savedAt ?? null,
+      state: !saved ? 'none' : this.restoredLogins.get(account.id) ?? 'saved' };
+  }
+
+  private async restoreLogin(cardId: string, accountId: string, runId: string, origin: string): Promise<void> {
+    const saved = savedDevLogin(this.store, accountId);
+    if (!saved || this.restoredLogins.has(accountId)) return;
+    const pending = this.restoringLogins.get(accountId);
+    if (pending) return pending;
+    const generation = this.loginGenerations.get(accountId) ?? 0;
+    const restore = (async () => {
+      try {
+        if (!await this.encryptionAvailable()) throw new Error('Protected login storage is unavailable.');
+        const { result, shouldReEncrypt } = await safeStorage.decryptStringAsync(saved.sealed);
+        const cookies = unpackAccountCookies(result, accountId, origin);
+        if (!cookies.length) throw new Error('Saved login has expired.');
+        const ses = this.browserSession(accountId);
+        for (const cookie of cookies) {
+          if ((this.loginGenerations.get(accountId) ?? 0) !== generation || !this.stillAllowed(cardId, accountId, runId, origin)) return;
+          await ses.cookies.set(cookie);
+        }
+        if ((this.loginGenerations.get(accountId) ?? 0) !== generation || !this.stillAllowed(cardId, accountId, runId, origin)) return;
+        if (shouldReEncrypt) {
+          const renewed = await safeStorage.encryptStringAsync(result);
+          if ((this.loginGenerations.get(accountId) ?? 0) !== generation || !this.stillAllowed(cardId, accountId, runId, origin)) return;
+          saveDevLogin(this.store, accountId, renewed);
+        }
+        this.restoredLogins.set(accountId, 'restored');
+      } catch {
+        // The manual login window remains usable. Never log decrypted cookie data.
+        this.restoredLogins.set(accountId, 'unavailable');
+      }
+    })();
+    this.restoringLogins.set(accountId, restore);
+    try { await restore; } finally { this.restoringLogins.delete(accountId); }
+  }
+
+  async saveLogin(cardId: string): Promise<DevAccountSavedLoginStatus> {
+    const account = cardDevAccountGrant(this.store, cardId);
+    const run = this.ready(cardId);
+    const origin = new URL(run.url).origin;
+    if (!await this.encryptionAvailable()) throw new Error('Protected login storage is unavailable on this system.');
+    if ((await this.probe(cardId)).state !== 'verified') throw new Error('Verify the assigned account before saving its login.');
+    const generation = this.loginGenerations.get(account.id) ?? 0;
+    const cookies = await this.browserSession(account.id).cookies.get({});
+    const packed = packAccountCookies(account.id, origin, cookies);
+    const sealed = await safeStorage.encryptStringAsync(packed);
+    if ((this.loginGenerations.get(account.id) ?? 0) !== generation || !this.stillAllowed(cardId, account.id, run.id, origin)) {
+      throw new Error('Card grant or preview changed while saving the login.');
+    }
+    saveDevLogin(this.store, account.id, sealed);
+    this.restoredLogins.set(account.id, 'saved');
+    return this.savedLoginStatus(cardId);
+  }
+
   async open(cardId: string): Promise<string> {
     const account = cardDevAccountGrant(this.store, cardId);
     const run = this.ready(cardId);
@@ -77,6 +144,7 @@ export class DevAccountBrowser {
     const parent = this.parentWindow();
     if (!parent || parent.isDestroyed()) throw new Error('The Branchloom window is not available.');
     const ses = this.browserSession(account.id);
+    await this.restoreLogin(cardId, account.id, run.id, origin);
     const browser = new BrowserWindow({ parent, show: false, width: 1050, height: 760,
       title: `${account.service} · ${account.role}`, autoHideMenuBar: true,
       webPreferences: { session: ses, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, webviewTag: false } });
@@ -109,6 +177,7 @@ export class DevAccountBrowser {
     const opened = this.windows.get(cardId);
     if (opened && (opened.accountId !== account.id || opened.origin !== origin || opened.runId !== run.id)) this.closeCard(cardId);
     const ses = this.browserSession(account.id);
+    await this.restoreLogin(cardId, account.id, run.id, origin);
     const target: AccountTarget = { cardId, origin, runId: run.id };
     let active = this.probes.get(account.id);
     if (!active) { active = new Set<AccountTarget>(); this.probes.set(account.id, active); }
@@ -218,11 +287,15 @@ export class DevAccountBrowser {
   }
 
   async forget(accountId: string): Promise<void> {
+    this.loginGenerations.set(accountId, (this.loginGenerations.get(accountId) ?? 0) + 1);
+    forgetDevLogin(this.store, accountId);
+    await this.restoringLogins.get(accountId);
     for (const [cardId, found] of [...this.windows]) if (found.accountId === accountId) this.closeCard(cardId);
     const ses = this.sessions.get(accountId);
     if (ses) await ses.clearStorageData();
+    this.restoredLogins.delete(accountId);
   }
 
   closeAll(): void { for (const cardId of [...this.windows.keys()]) this.closeCard(cardId); }
-  dispose(): void { this.closeAll(); this.sessions.clear(); this.probes.clear(); this.seedTickets.clear(); }
+  dispose(): void { this.closeAll(); this.sessions.clear(); this.probes.clear(); this.seedTickets.clear(); this.restoredLogins.clear(); }
 }

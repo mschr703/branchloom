@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { CreateDevAccount, DevAccountOverview, DevAccountProbe, DevAccountSeedCheck, DevAccountSeedConfig, DevAccountSeedAttempt } from '../../shared/dev-account';
+import type { CreateDevAccount, DevAccountOverview, DevAccountProbe, DevAccountSeedCheck, DevAccountSeedConfig, DevAccountSeedAttempt, DevAccountSavedLoginStatus } from '../../shared/dev-account';
 import './dev-account-panel.css';
 
 const errorText = (reason: unknown): string => reason instanceof Error ? reason.message : String(reason);
@@ -12,6 +12,7 @@ export function DevAccountPanel({ projectId, cardId }: { projectId: string; card
   const [selectedId, setSelectedId] = useState('');
   const [previewReady, setPreviewReady] = useState(false);
   const [probe, setProbe] = useState<DevAccountProbe | null>(null);
+  const [savedLogin, setSavedLogin] = useState<DevAccountSavedLoginStatus | null>(null);
   const [seedConfig, setSeedConfig] = useState<DevAccountSeedConfig | null>(null);
   const [seedPath, setSeedPath] = useState('/__branchloom/accounts');
   const [seedTargetId, setSeedTargetId] = useState('');
@@ -22,7 +23,7 @@ export function DevAccountPanel({ projectId, cardId }: { projectId: string; card
   const [notice, setNotice] = useState('');
 
   useEffect(() => {
-    setOverview(null); setProbe(null); setSeedCheck(null); setSeedConfig(null); setSeedAttempt(null); setDraft(emptyDraft(projectId)); setSelectedId('');
+    setOverview(null); setProbe(null); setSavedLogin(null); setSeedCheck(null); setSeedConfig(null); setSeedAttempt(null); setDraft(emptyDraft(projectId)); setSelectedId('');
   }, [projectId, cardId]);
 
   useEffect(() => {
@@ -30,7 +31,7 @@ export function DevAccountPanel({ projectId, cardId }: { projectId: string; card
     let live = true;
     void Promise.all([window.studio.devAccountOverview({ projectId, cardId }), window.studio.cardDevEnvironment(cardId)])
       .then(async ([next, run]) => { if (live) { setOverview(next); setSelectedId(next.assignment?.accountId ?? next.accounts[0]?.id ?? ''); setPreviewReady(run?.state === 'ready' && run.managed); }
-        if (next.assignment) { const config = await window.studio.devAccountSeedConfig(cardId); if (live) { setSeedConfig(config); setSeedPath(config?.path ?? '/__branchloom/accounts'); } }
+        if (next.assignment) { const [config, login] = await Promise.all([window.studio.devAccountSeedConfig(cardId), window.studio.devAccountSavedLoginStatus(cardId)]); if (live) { setSeedConfig(config); setSeedPath(config?.path ?? '/__branchloom/accounts'); setSavedLogin(login); } }
       })
       .catch((reason: unknown) => { if (live) setError(errorText(reason)); });
     return () => { live = false; };
@@ -40,8 +41,8 @@ export function DevAccountPanel({ projectId, cardId }: { projectId: string; card
     const [next, run] = await Promise.all([window.studio.devAccountOverview({ projectId, cardId }), window.studio.cardDevEnvironment(cardId)]);
     setOverview(next); setPreviewReady(run?.state === 'ready' && run.managed);
     setSelectedId((current) => next.accounts.some((item) => item.id === current) ? current : next.assignment?.accountId ?? next.accounts[0]?.id ?? '');
-    if (next.assignment) { const config = await window.studio.devAccountSeedConfig(cardId); setSeedConfig(config); setSeedPath(config?.path ?? '/__branchloom/accounts'); }
-    else { setSeedConfig(null); setSeedCheck(null); }
+    if (next.assignment) { const [config, login] = await Promise.all([window.studio.devAccountSeedConfig(cardId), window.studio.devAccountSavedLoginStatus(cardId)]); setSeedConfig(config); setSeedPath(config?.path ?? '/__branchloom/accounts'); setSavedLogin(login); }
+    else { setSeedConfig(null); setSeedCheck(null); setSavedLogin(null); }
   }
 
   async function action(work: () => Promise<void>) {
@@ -69,12 +70,13 @@ export function DevAccountPanel({ projectId, cardId }: { projectId: string; card
   return <section className="dev-account-panel" aria-label="Dev-Konto der Karte">
     <div className="dev-account-heading"><div><h3>Dev-Konto</h3><p>{assigned ? `${assigned.service} · ${assigned.environment} · ${assigned.role}` : 'Kein Konto zugewiesen'}</p></div><button type="button" className="text-button" aria-expanded={open} onClick={() => setOpen((value) => !value)}>{open ? 'Schließen' : 'Öffnen'}</button></div>
     {open ? <>
-      <p className="dev-account-copy">Eine Karten-Vorschau bekommt ein eigenes, flüchtiges Browserprofil je Konto. Die Anmeldung erfolgt im sichtbaren Fenster. Branchloom speichert hier keine Passwörter und gibt die Sitzung keinem Agenten.</p>
+      <p className="dev-account-copy">Jedes Konto nutzt ein getrenntes, flüchtiges Browserprofil. Die Anmeldung erfolgt im sichtbaren Fenster. Auf Wunsch können nur lokale Login-Cookies für einen Neustart geschützt gespeichert werden; kein Agent erhält die Sitzung.</p>
       <div className="dev-account-row"><button type="button" className="text-button" disabled={busy} onClick={() => void action(refresh)}>Status aktualisieren</button><span>{previewReady ? 'Karten-Vorschau bereit' : 'Karten-Vorschau zuerst starten'}</span></div>
       {overview?.accounts.length ? <div className="dev-account-row"><label>Projektkonto<select value={selectedId} disabled={busy} onChange={(event) => { setSelectedId(event.target.value); setProbe(null); setSeedCheck(null); }}>
         {overview.accounts.map((item) => <option value={item.id} key={item.id}>{item.service} · {item.environment} · {item.role} · {item.subject}</option>)}
       </select></label><button type="button" className="secondary-button" disabled={busy || !selectedId || assigned?.id === selectedId} onClick={() => void action(async () => { setOverview(await window.studio.assignDevAccount({ projectId, cardId, accountId: selectedId, expectedCardRevision: overview.cardRevision })); setProbe(null); setSeedCheck(null); await refresh(); })}>Dieser Karte zuweisen</button></div> : null}
-      {assigned ? <div className="dev-account-actions"><button type="button" className="secondary-button" disabled={busy || !previewReady} onClick={() => void action(async () => { await window.studio.openDevAccount(cardId); setNotice('Anmeldefenster für dieses Konto geöffnet.'); })}>Anmeldefenster öffnen</button><button type="button" className="secondary-button" disabled={busy || !previewReady} onClick={() => void action(async () => { setProbe(await window.studio.probeDevAccount(cardId)); })}>Zugang prüfen</button><button type="button" className="text-button" disabled={busy} onClick={() => void action(async () => { setOverview(await window.studio.assignDevAccount({ projectId, cardId, accountId: null, expectedCardRevision: overview!.cardRevision })); setProbe(null); })}>Zuweisung entziehen</button><button type="button" className="text-button" disabled={busy} onClick={() => void action(async () => { await window.studio.forgetDevAccountSession({ projectId, accountId: assigned.id }); setProbe(null); setNotice('Diese Anmeldung wurde aus dem flüchtigen Browserprofil entfernt.'); })}>Anmeldung vergessen</button></div> : null}
+      {assigned ? <><div className="dev-account-actions"><button type="button" className="secondary-button" disabled={busy || !previewReady} onClick={() => void action(async () => { await window.studio.openDevAccount(cardId); setSavedLogin(await window.studio.devAccountSavedLoginStatus(cardId)); setNotice('Anmeldefenster für dieses Konto geöffnet.'); })}>Anmeldefenster öffnen</button><button type="button" className="secondary-button" disabled={busy || !previewReady} onClick={() => void action(async () => { setProbe(await window.studio.probeDevAccount(cardId)); setSavedLogin(await window.studio.devAccountSavedLoginStatus(cardId)); })}>Zugang prüfen</button><button type="button" className="text-button" disabled={busy} onClick={() => void action(async () => { setOverview(await window.studio.assignDevAccount({ projectId, cardId, accountId: null, expectedCardRevision: overview!.cardRevision })); setProbe(null); setSavedLogin(null); })}>Zuweisung entziehen</button><button type="button" className="text-button" disabled={busy} onClick={() => void action(async () => { await window.studio.forgetDevAccountSession({ projectId, accountId: assigned.id }); setProbe(null); setSavedLogin(await window.studio.devAccountSavedLoginStatus(cardId)); setNotice('Gespeicherte und aktuelle Anmeldung dieses Kontos entfernt.'); })}>Anmeldung vergessen</button></div>
+        <div className="dev-account-row"><span role="status">{savedLogin?.state === 'restored' ? 'Geschützte Cookies geladen · Zugang erneut prüfen' : savedLogin?.state === 'unavailable' ? 'Gespeicherte Anmeldung nicht verfügbar · erneut anmelden oder vergessen' : savedLogin?.state === 'saved' ? `Für Neustart geschützt gespeichert · ${new Date(savedLogin.savedAt!).toLocaleString('de-DE')}` : 'Für Neustart nicht gespeichert'}</span><button type="button" className="text-button" disabled={busy || !previewReady || probe?.state !== 'verified'} onClick={() => void action(async () => { setSavedLogin(await window.studio.saveDevAccountLogin(cardId)); setNotice('Login-Cookies dieses Kontos geschützt für den nächsten Start gespeichert.'); })}>Anmeldung für Neustart speichern</button></div></> : null}
       {probe ? <p className={probe.state === 'verified' ? 'dev-account-result' : 'inline-error'} role="status">{probe.state === 'verified' ? 'Konto und Rolle bestätigt' : probe.state === 'login-required' ? 'Anmeldung abgelaufen oder fehlt' : probe.state === 'access-denied' ? 'Zugriff entzogen oder nicht erlaubt' : probe.state === 'wrong-account' ? 'Anderes Konto oder andere Rolle angemeldet' : 'Identitätsprüfung nicht erreichbar'} · {new Date(probe.checkedAt).toLocaleTimeString('de-DE')}</p> : null}
       {assigned ? <details className="dev-account-create"><summary>Testkonto in dieser App anlegen</summary>
         <p>Nur für diese lokale Karten-Vorschau. Das angemeldete Konto muss über <code>{assigned.probePath}</code> bestätigt sein. Die Ziel-App muss den Seed-Vertrag selbst anbieten. Es werden weder Passwörter noch Sitzungen an Agenten gegeben.</p>

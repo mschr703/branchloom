@@ -9,7 +9,8 @@ import { StudioStore } from '../../src/main/store';
 import { assignDevAccount, createDevAccount, devAccountOverview } from '../../src/main/dev-account';
 
 const mocked = vi.hoisted(() => ({
-  sessions: new Map<string, { identity: { subject: string; role: string } | null; requestHandler: ((details: { url: string }, callback: (result: { cancel: boolean }) => void) => void) | null; fetches: string[]; seedRows: Map<string, string>; seedPosts: number; cleared: boolean }>(),
+  encryptionAvailable: true,
+  sessions: new Map<string, { identity: { subject: string; role: string } | null; requestHandler: ((details: { url: string }, callback: (result: { cancel: boolean }) => void) => void) | null; fetches: string[]; seedRows: Map<string, string>; seedPosts: number; cookieJar: Array<{ name: string; value: string; domain: string; hostOnly: boolean; path: string }>; cookies: { get(): Promise<Array<{ name: string; value: string; domain: string; hostOnly: boolean; path: string }>>; set(cookie: { url: string; name: string; value: string; path?: string }): Promise<void> }; cleared: boolean }>(),
   windows: [] as Array<{ options: { webPreferences: { session: unknown } }; url: string; destroyed: boolean }>,
 }));
 
@@ -27,13 +28,26 @@ vi.mock('electron', async () => {
   }
   return {
     BrowserWindow: FakeWindow,
+    safeStorage: {
+      isAsyncEncryptionAvailable: async () => mocked.encryptionAvailable,
+      encryptStringAsync: async (value: string) => Buffer.from(`sealed:${Buffer.from(value).toString('base64')}`),
+      decryptStringAsync: async (value: Buffer) => ({ result: Buffer.from(value.toString().slice(7), 'base64').toString(), shouldReEncrypt: false }),
+    },
     session: { fromPartition: (name: string) => {
       const existing = mocked.sessions.get(name);
       if (existing) return existing;
       const value = {
         identity: null as { subject: string; role: string } | null,
         requestHandler: null as ((details: { url: string }, callback: (result: { cancel: boolean }) => void) => void) | null,
-        fetches: [] as string[], seedRows: new Map<string, string>(), seedPosts: 0, cleared: false,
+        fetches: [] as string[], seedRows: new Map<string, string>(), seedPosts: 0,
+        cookieJar: [] as Array<{ name: string; value: string; domain: string; hostOnly: boolean; path: string }>, cleared: false,
+        cookies: {
+          async get() { return value.cookieJar; },
+          async set(cookie: { url: string; name: string; value: string; path?: string }) {
+            value.cookieJar = value.cookieJar.filter((item) => item.name !== cookie.name);
+            value.cookieJar.push({ name: cookie.name, value: cookie.value, domain: new URL(cookie.url).hostname, hostOnly: true, path: cookie.path ?? '/' });
+          },
+        },
         setPermissionRequestHandler: () => undefined, setPermissionCheckHandler: () => undefined, on: () => undefined,
         webRequest: { onBeforeRequest: (handler: typeof value.requestHandler) => { value.requestHandler = handler; } },
         async fetch(url: string, init?: RequestInit) {
@@ -51,9 +65,11 @@ vi.mock('electron', async () => {
             const role = new URL(url).searchParams.get('role') ?? '';
             return new Response(JSON.stringify({ subject, role, exists: value.seedRows.get(subject) === role }));
           }
-          return value.identity ? new Response(JSON.stringify(value.identity), { status: 200 }) : new Response('{}', { status: 401 });
+          const role = value.cookieJar.find((item) => item.name === 'f08')?.value;
+          const identity = value.identity ?? (role ? { subject: `${role}-fixture`, role } : null);
+          return identity ? new Response(JSON.stringify(identity), { status: 200 }) : new Response('{}', { status: 401 });
         },
-        async clearStorageData() { value.identity = null; value.cleared = true; },
+        async clearStorageData() { value.identity = null; value.cookieJar = []; value.cleared = true; },
       };
       mocked.sessions.set(name, value);
       return value;
@@ -69,6 +85,7 @@ afterEach(() => {
   for (const store of stores.splice(0)) store.close();
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
   mocked.sessions.clear(); mocked.windows.length = 0;
+  mocked.encryptionAvailable = true;
 });
 
 function fixture() {
@@ -89,7 +106,7 @@ function fixture() {
   const environment = { card: (id: string) => runs.get(id) ?? null } as unknown as DevEnvironmentRunner;
   const parent = { isDestroyed: () => false } as unknown as BrowserWindow;
   const browser = new DevAccountBrowser(store, environment, () => parent);
-  return { store, project, first, second, admin, user, runs, browser };
+  return { root, store, project, first, second, admin, user, runs, environment, parent, browser };
 }
 
 describe('isolated development account windows', () => {
@@ -170,6 +187,43 @@ describe('isolated development account windows', () => {
     f.browser.saveSeedConfig({ cardId: f.first.id, path: '/new-seed-path' });
     await expect(f.browser.createSeed(f.first.id, f.user.id, second.id!)).rejects.toThrow('expired');
     expect(ses.seedPosts).toBe(0);
+    f.browser.dispose();
+  });
+
+  it('saves two explicit, isolated cookies in sealed storage and restores only after restart and a card grant', async () => {
+    const f = fixture();
+    const firstSession = mocked.sessions.get(`branchloom-dev-account-${f.admin.id}`) ?? (await f.browser.probe(f.first.id), mocked.sessions.get(`branchloom-dev-account-${f.admin.id}`)!);
+    const secondSession = mocked.sessions.get(`branchloom-dev-account-${f.user.id}`) ?? (await f.browser.probe(f.second.id), mocked.sessions.get(`branchloom-dev-account-${f.user.id}`)!);
+    await firstSession.cookies.set({ url: f.runs.get(f.first.id)!.url, name: 'f08', value: 'admin' });
+    await secondSession.cookies.set({ url: f.runs.get(f.second.id)!.url, name: 'f08', value: 'user' });
+    expect((await f.browser.probe(f.first.id)).state).toBe('verified');
+    expect((await f.browser.probe(f.second.id)).state).toBe('verified');
+    expect((await f.browser.saveLogin(f.first.id)).state).toBe('saved');
+    expect((await f.browser.saveLogin(f.second.id)).state).toBe('saved');
+    const blobs = f.store.db.prepare('SELECT sealed FROM dev_account_saved_logins').all() as Array<{ sealed: Buffer }>;
+    expect(blobs).toHaveLength(2);
+    expect(blobs.every((row) => !row.sealed.toString().includes('admin') && !row.sealed.toString().includes('user'))).toBe(true);
+    f.browser.dispose(); mocked.sessions.clear();
+    const restarted = new DevAccountBrowser(f.store, f.environment, () => f.parent);
+    expect(restarted.savedLoginStatus(f.first.id).state).toBe('saved');
+    expect((await restarted.probe(f.first.id)).state).toBe('verified');
+    expect(restarted.savedLoginStatus(f.first.id).state).toBe('restored');
+    expect((await restarted.probe(f.second.id)).state).toBe('verified');
+    await restarted.forget(f.admin.id);
+    expect(restarted.savedLoginStatus(f.first.id).state).toBe('none');
+    expect((await restarted.probe(f.first.id)).state).toBe('login-required');
+    expect((await restarted.probe(f.second.id)).state).toBe('verified');
+    restarted.dispose();
+  });
+
+  it('never saves an unverified login or when OS protection is unavailable', async () => {
+    const f = fixture();
+    await expect(f.browser.saveLogin(f.first.id)).rejects.toThrow('Verify');
+    const ses = mocked.sessions.get(`branchloom-dev-account-${f.admin.id}`)!;
+    await ses.cookies.set({ url: f.runs.get(f.first.id)!.url, name: 'f08', value: 'admin' });
+    mocked.encryptionAvailable = false;
+    await expect(f.browser.saveLogin(f.first.id)).rejects.toThrow('unavailable');
+    expect(f.store.db.prepare('SELECT COUNT(*) AS count FROM dev_account_saved_logins').get()).toEqual({ count: 0 });
     f.browser.dispose();
   });
 });
