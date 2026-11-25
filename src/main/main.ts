@@ -786,6 +786,15 @@ async function runF06VisibleSmoke(smokeWindow: BrowserWindow, smokeStore: Studio
       for (let i = 0; i < 300; i++) { const result = await predicate(); if (result) return result; await new Promise((resolve) => setTimeout(resolve, 50)); }
       throw new Error('F06 reload timed out: ' + label);
     };
+    const picker = await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger:not(.is-compact)'), 'project picker');
+    picker.click();
+    const choice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project button')]
+      .find((item) => item.textContent?.trim() === 'Meilenstein-Vorschau'), 'milestone project');
+    choice.click();
+    await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger')?.getAttribute('aria-label') === 'Projekt auswählen: Meilenstein-Vorschau', 'selected project');
+    const nav = await wait(() => [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')]
+      .find((item) => item.querySelector('.nav-label')?.textContent?.trim() === 'Board'), 'Board navigation');
+    nav.click();
     const card = await wait(() => document.getElementById('board-card-' + cardId), 'reloaded card');
     card.click();
     const panel = await wait(() => document.querySelector('.card-drawer .task-revisions'), 'reloaded revision panel');
@@ -816,6 +825,15 @@ async function runF06VisibleSmoke(smokeWindow: BrowserWindow, smokeStore: Studio
       for (let i = 0; i < 300; i++) { const result = await predicate(); if (result) return result; await new Promise((resolve) => setTimeout(resolve, 50)); }
       throw new Error('F06 stopped-state UI timed out: ' + label);
     };
+    const picker = await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger:not(.is-compact)'), 'project picker');
+    picker.click();
+    const choice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project button')]
+      .find((item) => item.textContent?.trim() === 'Meilenstein-Vorschau'), 'milestone project');
+    choice.click();
+    await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger')?.getAttribute('aria-label') === 'Projekt auswählen: Meilenstein-Vorschau', 'selected project');
+    const nav = await wait(() => [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')]
+      .find((item) => item.querySelector('.nav-label')?.textContent?.trim() === 'Board'), 'Board navigation');
+    nav.click();
     const card = await wait(() => document.getElementById('board-card-' + cardId), 'revised card');
     card.click();
     const panel = await wait(() => document.querySelector('.card-drawer .task-revisions'), 'revision panel');
