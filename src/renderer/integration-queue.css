@@ -7,5 +7,9 @@
 .integration-checks label { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 12px; }
 .integration-checks label span, .integration-checks small { color: var(--muted); }
 .integration-checks input { width: 130px; min-width: 0; }
+.integration-policy { display: grid; gap: 4px; padding: 8px 0 12px; border-bottom: 1px solid var(--border); }
+.integration-policy label { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; }
+.integration-policy input { margin: 0; }
+.integration-policy small { color: var(--muted); font-size: 12px; }
 .integration-checks > small, .integration-checks > p, .integration-checks > details { flex-basis: 100%; margin: 0; }
 .integration-checks .terminal-output { max-height: 180px; overflow: auto; }

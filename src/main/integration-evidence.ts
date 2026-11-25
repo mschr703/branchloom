@@ -4,7 +4,7 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, sy
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import type { IntegrationEvidence, IntegrationTestEvidence, IntegrationTestState } from '../shared/integration-evidence';
-import { cardFingerprint, currentPreparedIntegration } from './integration-queue';
+import { cardFingerprint, currentPreparedIntegration, integrationPolicy } from './integration-queue';
 import type { StudioStore } from './store';
 import { assertProjectCanStart } from './project-pause';
 
@@ -72,6 +72,8 @@ export function setIntegrationTestScript(store: StudioStore, input: { projectId:
   if (typeof input.scriptName !== 'string') throw new Error('Select an npm script name.');
   const name = input.scriptName.trim();
   if (name && !SCRIPT_NAME.test(name)) throw new Error('Only a simple npm script name is allowed.');
+  if (!name && integrationPolicy(store, input.projectId).mode === 'automatic')
+    throw new Error('Disable automatic integration before removing its required npm test.');
   if (name) store.db.prepare('INSERT INTO integration_test_config (project_id, script_name) VALUES (?, ?) ON CONFLICT(project_id) DO UPDATE SET script_name = excluded.script_name')
     .run(input.projectId, name);
   else store.db.prepare('DELETE FROM integration_test_config WHERE project_id = ?').run(input.projectId);

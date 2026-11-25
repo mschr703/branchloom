@@ -13,4 +13,11 @@ export interface IntegrationItem {
   createdAt: string;
   updatedAt: string;
   integratedHead: string | null;
+  approvalMode: 'manual' | 'automatic' | null;
+}
+
+export interface IntegrationPolicy {
+  projectId: string;
+  mode: 'manual' | 'automatic';
+  updatedAt: string | null;
 }

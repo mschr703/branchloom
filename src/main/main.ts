@@ -29,7 +29,7 @@ import { confirmTaskRevision, submitTaskRevision, taskRevisionHistory } from './
 import { previewTaskRevisionCleanup } from './task-revision-cleanup';
 import { CommandTerminalRunner } from './command-terminal';
 import { ensureCardWorktree, previewCardWorktreeCleanup, reviewCardWorktree, verifiedCardWorktreePath } from './git-worktree';
-import { approveIntegration, enqueueIntegration, integrationQueue, prepareIntegration } from './integration-queue';
+import { advanceAutomaticIntegrations, approveIntegration, enqueueIntegration, integrationPolicy, integrationQueue, prepareIntegration, setIntegrationPolicy } from './integration-queue';
 import { runG02VisibleSmoke } from './smoke-g02';
 import { applyManualRevision, captureManualRevision, manualRevisionFiles, manualRevisions, previewManualRevision, setManualRevisionConflictChoice } from './manual-revision';
 import { runF03Acceptance } from './f03-acceptance-smoke';
@@ -105,6 +105,7 @@ let agentBrowserBridge: AgentBrowserBridge | null = null;
 let releaseUpdater: ReleaseUpdateController;
 let releaseCheckTimer: NodeJS.Timeout | null = null;
 let releaseStartTimer: NodeJS.Timeout | null = null;
+let integrationAutoTimer: NodeJS.Timeout | null = null;
 let smokeQaServer: ReturnType<typeof createServer> | null = null;
 const smokeF06 = process.argv.includes('--studio-smoke-f06');
 const smokeF03 = process.argv.includes('--studio-smoke-f03');
@@ -554,6 +555,8 @@ function installIpc(): void {
   bind('reviewCardConflicts', (cardId: string) => reviewCardWorktreeConflicts(db, cardId));
   bind('reviewProjectConflicts', (projectId: string) => reviewProjectConflicts(db, projectId));
   bind('integrationQueue', (projectId: string) => integrationQueue(db, projectId));
+  bind('integrationPolicy', (projectId: string) => integrationPolicy(db, projectId));
+  bind('setIntegrationPolicy', (input: Parameters<StudioAPI['setIntegrationPolicy']>[0]) => setIntegrationPolicy(db, input));
   bind('manualRevisionFiles', (cardId: string) => manualRevisionFiles(db, cardId));
   bind('manualRevisions', (cardId: string) => manualRevisions(db, cardId));
   bind('captureManualRevision', (input: Parameters<StudioAPI['captureManualRevision']>[0]) => captureManualRevision(db, input));
@@ -4264,6 +4267,12 @@ if (ownsSharedProfile) app.whenReady().then(async () => {
   void agentBrowserBridge.start().catch((error) => console.error('[Branchloom] optional agent browser bridge unavailable', error));
   installIpc();
   createWindow();
+  integrationAutoTimer = setInterval(() => {
+    if (!store) return;
+    try { advanceAutomaticIntegrations(store); }
+    catch (error) { console.error('[Branchloom] automatic integration scan failed', error); }
+  }, 10_000);
+  integrationAutoTimer.unref();
   app.on('activate', () => { if (!window) createWindow(); });
 }).catch((error: unknown) => {
   console.error('[Branchloom] startup failed', error);
@@ -4274,6 +4283,7 @@ else app.quit();
 app.on('before-quit', () => {
   if (releaseStartTimer) clearTimeout(releaseStartTimer);
   if (releaseCheckTimer) clearInterval(releaseCheckTimer);
+  if (integrationAutoTimer) clearInterval(integrationAutoTimer);
   trelloSignIn?.cancel();
   trelloSignIn = null;
   smokeQaServer?.close();
