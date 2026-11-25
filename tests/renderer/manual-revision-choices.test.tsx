@@ -42,6 +42,23 @@ describe('manual conflict choice view', () => {
     expect(saved).toContain('title=Both');
   });
 
+  it('locks other conflict choices while a draft is open but leaves save and cancel reachable', () => {
+    const twoConflicts: ManualMergePreview = { ...preview, conflicts: [
+      preview.conflicts[0]!, { ...preview.conflicts[0]!, id: 'second' },
+    ] };
+    const html = renderToStaticMarkup(createElement(ManualConflictChoices, { preview: twoConflicts, busy: false,
+      editingConflictId: 'conflict', editedText: 'title=Both\n', onChoose: () => {}, onEdit: () => {},
+      onEditText: () => {}, onCancelEdit: () => {} }));
+    const fields = html.match(/<fieldset[\s\S]*?<\/fieldset>/gu) ?? [];
+    expect(fields).toHaveLength(2);
+    expect(fields[0]).toMatch(/<input[^>]*disabled=""/u);
+    expect(fields[0]).not.toMatch(/<textarea[^>]*disabled=""/u);
+    expect(fields[0]).toMatch(/<button[^>]*>Auswahl speichern<\/button>/u);
+    expect(fields[0]).toMatch(/<button[^>]*>Abbrechen<\/button>/u);
+    expect(fields[0]).not.toMatch(/<button[^>]*disabled=""[^>]*>(Auswahl speichern|Abbrechen)<\/button>/u);
+    expect(fields[1]).toMatch(/^<fieldset disabled=""/u);
+  });
+
   it('shows the persisted choice and disables inputs when the preview is stale', () => {
     const html = renderToStaticMarkup(createElement(ManualConflictChoices, { preview: {
       ...preview, staleReason: 'Target changed', conflicts: [{ ...preview.conflicts[0]!, choice: 'agent', chosenAt: '2026-01-01T00:00:00Z' }],

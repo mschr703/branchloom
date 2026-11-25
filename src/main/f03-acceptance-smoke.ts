@@ -98,6 +98,15 @@ export async function runF03Acceptance(smokeWindow: BrowserWindow, smokeStore: S
     if (!(field instanceof HTMLTextAreaElement) || !setText) throw new Error('F03 custom editor is unavailable.');
     const pendingApply = [...panel.querySelectorAll('button')].find((item) => item.textContent?.includes('Diese Datei zusammengeführt schreiben'));
     if (!(pendingApply instanceof HTMLButtonElement) || !pendingApply.disabled) throw new Error('F03 unsaved conflict edit still allows writing the target file.');
+    const lockedButtons = ['Schließen', 'Dateien aktualisieren', 'Änderung festhalten', 'Dreifachvergleich öffnen', 'Manuelle Fassung übernehmen'];
+    if (lockedButtons.some((label) => {
+      if (label === 'Manuelle Fassung übernehmen') return !panel.querySelector('.manual-revision-choices input[type="radio"]')?.disabled;
+      const button = [...panel.querySelectorAll('button')].find((item) => item.textContent?.trim() === label);
+      return !(button instanceof HTMLButtonElement) || !button.disabled;
+    }) || [...panel.querySelectorAll('.manual-revision-row select')].some((item) => !item.disabled))
+      throw new Error('F03 open draft still permits another file, revision or conflict decision.');
+    const cancel = [...panel.querySelectorAll('button')].find((item) => item.textContent?.trim() === 'Abbrechen');
+    if (!(cancel instanceof HTMLButtonElement) || cancel.disabled) throw new Error('F03 cannot cancel the open conflict draft.');
     setText.call(field, 'title=Both\\n'); field.dispatchEvent(new Event('input', { bubbles: true }));
     const save = await wait(() => [...panel.querySelectorAll('button')].find((item) => item.textContent?.includes('Auswahl speichern') && !item.disabled), 'custom conflict save button');
     save.click();

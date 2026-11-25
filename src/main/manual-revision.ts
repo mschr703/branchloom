@@ -261,7 +261,7 @@ export function applyManualRevision(store: StudioStore, input: { revisionId: str
       throw new Error('The comparison is stale. Refresh it before applying.');
     if (preview.resolvedCombined === null) throw new Error('Overlapping changes need a concrete manual or agent choice for every conflict; no file was written.');
     if (preview.hasConflicts && preview.resolutionToken !== input.resolutionToken)
-      throw new Error('Conflict choices changed since review. Refresh the resolved preview before writing.');
+      throw new Error('Conflict choices changed, including any edited text, since review. Refresh the resolved preview before writing.');
     const review = reviewCardWorktree(store, preview.revision.cardId);
     if (!review || review.targetBranch !== preview.revision.targetBranch || review.targetHead !== preview.targetHead || review.sourceHead !== preview.sourceHead)
       throw new Error('Git changed since the comparison. Refresh it before applying.');
