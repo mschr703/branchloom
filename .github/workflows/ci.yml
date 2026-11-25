@@ -13,7 +13,16 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-      - run: npm ci
+      - name: Install dependencies with bounded retry
+        shell: pwsh
+        run: |
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            npm ci
+            $result = $LASTEXITCODE
+            if ($result -eq 0) { exit 0 }
+            if ($attempt -eq 3) { exit $result }
+            Start-Sleep -Seconds (5 * $attempt)
+          }
       - run: npm audit --audit-level=critical
       - run: npm run doctor
       - run: npm run typecheck
@@ -43,7 +52,16 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-      - run: npm ci
+      - name: Install dependencies with bounded retry
+        shell: pwsh
+        run: |
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            npm ci
+            $result = $LASTEXITCODE
+            if ($result -eq 0) { exit 0 }
+            if ($attempt -eq 3) { exit $result }
+            Start-Sleep -Seconds (5 * $attempt)
+          }
       - run: npm run make:win
       - run: npm run smoke:package
       - run: node scripts/check-package.mjs
@@ -65,7 +83,16 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-      - run: npm ci
+      - name: Install dependencies with bounded retry
+        shell: pwsh
+        run: |
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            npm ci
+            $result = $LASTEXITCODE
+            if ($result -eq 0) { exit 0 }
+            if ($attempt -eq 3) { exit $result }
+            Start-Sleep -Seconds (5 * $attempt)
+          }
       - run: npm run make:installer
       - run: node scripts/smoke-electron.mjs --executable out/installer/win-unpacked/Branchloom.exe
       - run: node scripts/check-package.mjs out/installer/win-unpacked/resources/app
