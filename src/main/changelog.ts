@@ -1,7 +1,8 @@
 import { execFile } from 'node:child_process';
 import { lstat, realpath, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { ChangelogCommit, ChangelogIssue, ChangelogPeriod, ChangelogQaObservation, ChangelogReviewActivity, ChangelogScope, ChangelogSource, ProjectChangelog } from '../shared/changelog';
+import type { ChangelogCommit, ChangelogIntegrationReceipt, ChangelogIssue, ChangelogPeriod, ChangelogQaObservation, ChangelogReviewActivity, ChangelogScope, ChangelogSource, ProjectChangelog } from '../shared/changelog';
+import { worktreeRepositoryKey } from './git-worktree';
 import type { CardWorktree } from './store';
 import type { StudioStore } from './store';
 
@@ -12,9 +13,18 @@ const MAX_WORKTREES = 12;
 const WORKTREE_BUDGET_MS = 30_000;
 const MAX_QA_OBSERVATIONS = 20;
 const MAX_REVIEW_CARDS = 10;
+const MAX_INTEGRATIONS = 10;
 
 type QaRow = { id: string; card_id: string; card_title: string; ended_at: string; status: ChangelogQaObservation['status']; git_evidence_json: string };
 type ReviewRow = { card_id: string; card_title: string; count: number; last_at: string };
+type IntegrationRow = {
+  card_id: string; card_title: string; updated_at: string; integrated_head: string | null;
+  target_branch: string; approval_mode: 'manual' | 'automatic' | null; repository_key: string;
+  source_head: string; target_head: string; card_fingerprint: string;
+  reviewed_at: string | null; review_source_head: string | null; review_target_head: string | null; review_card_fingerprint: string | null;
+  test_script_name: string | null; test_state: string | null; test_exit_code: number | null;
+  test_source_head: string | null; test_target_head: string | null; test_card_fingerprint: string | null;
+};
 
 function oneLine(value: string): string { return value.replace(/[\x00-\x1f\x7f]/g, ' ').trim().slice(0, 120); }
 
@@ -48,7 +58,37 @@ function localEvidence(store: StudioStore, projectId: string, since: string, unt
   return { qaObservations, qaTotal, reviewActivity, reviewTotal };
 }
 
-function git(cwd: string, args: string[], timeout = GIT_TIMEOUT_MS): Promise<{ stdout: string; failed: boolean }> {
+function integrationEvidence(store: StudioStore, projectId: string, since: string, until: string):
+  { rows: IntegrationRow[]; receipts: ChangelogIntegrationReceipt[]; total: number } {
+  const from = 'FROM integration_items i JOIN cards c ON c.id = i.card_id';
+  const where = "WHERE i.project_id = ? AND c.project_id = ? AND i.state = 'integrated' AND i.updated_at >= ? AND i.updated_at <= ?";
+  const args = [projectId, projectId, since, until];
+  const total = (store.db.prepare(`SELECT COUNT(*) AS count ${from} ${where}`).get(...args) as { count: number }).count;
+  const rows = store.db.prepare(`SELECT i.card_id, c.title AS card_title, i.updated_at, i.integrated_head,
+    i.target_branch, i.approval_mode, i.repository_key, i.source_head, i.target_head, i.card_fingerprint,
+    r.reviewed_at, r.source_head AS review_source_head, r.target_head AS review_target_head,
+    r.card_fingerprint AS review_card_fingerprint,
+    t.script_name AS test_script_name, t.state AS test_state, t.exit_code AS test_exit_code,
+    t.source_head AS test_source_head, t.target_head AS test_target_head, t.card_fingerprint AS test_card_fingerprint
+    ${from}
+    LEFT JOIN integration_reviews r ON r.item_id = i.id
+    LEFT JOIN integration_test_runs t ON t.id = (SELECT id FROM integration_test_runs WHERE item_id = i.id ORDER BY id DESC LIMIT 1)
+    ${where}
+    ORDER BY i.updated_at DESC, i.id DESC LIMIT ${MAX_INTEGRATIONS}`).all(...args) as IntegrationRow[];
+  const matches = (row: IntegrationRow, prefix: 'review' | 'test') =>
+    row[`${prefix}_source_head`] === row.source_head && row[`${prefix}_target_head`] === row.target_head
+    && row[`${prefix}_card_fingerprint`] === row.card_fingerprint;
+  const receipts = rows.map((row): ChangelogIntegrationReceipt => ({
+    cardId: row.card_id, cardTitle: oneLine(row.card_title), integratedAt: row.updated_at,
+    integratedHead: row.integrated_head, targetBranch: oneLine(row.target_branch), approvalMode: row.approval_mode,
+    headPresence: 'unverified', review: row.reviewed_at ? { reviewedAt: row.reviewed_at, matchesSnapshot: matches(row, 'review') } : null,
+    test: row.test_script_name ? { scriptName: oneLine(row.test_script_name), state: row.test_state ?? 'unknown',
+      exitCode: row.test_exit_code, matchesSnapshot: matches(row, 'test') } : null,
+  }));
+  return { rows, receipts, total };
+}
+
+function git(cwd: string, args: string[], timeout = GIT_TIMEOUT_MS): Promise<{ stdout: string; failed: boolean; exitCode: number | null }> {
   return new Promise((resolve, reject) => {
     execFile('git', ['-c', 'core.fsmonitor=false', '-c', 'log.showSignature=false', ...args], {
       cwd, encoding: 'utf8', timeout, maxBuffer: MAX_OUTPUT, windowsHide: true,
@@ -57,9 +97,23 @@ function git(cwd: string, args: string[], timeout = GIT_TIMEOUT_MS): Promise<{ s
       if (error?.killed || error?.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') { reject(new Error('Git-Changelog überschritt das Zeit- oder Größenlimit.')); return; }
       if (error && error.code === 'ENOENT') { reject(new Error('Git ist nicht installiert oder nicht erreichbar.')); return; }
       if (stdout.includes('\uFFFD')) { reject(new Error('Git-Historie enthält unlesbare Zeichen.')); return; }
-      resolve({ stdout, failed: Boolean(error) });
+      resolve({ stdout, failed: Boolean(error), exitCode: error ? typeof error.code === 'number' ? error.code : null : 0 });
     });
   });
+}
+
+async function verifyIntegrationPresence(path: string, head: string, evidence: ReturnType<typeof integrationEvidence>): Promise<ChangelogIntegrationReceipt[]> {
+  let currentRepositoryKey: string | null = null;
+  try { currentRepositoryKey = worktreeRepositoryKey(path); } catch { /* A changed repository remains unverified. */ }
+  return Promise.all(evidence.rows.map(async (row, index) => {
+    const receipt = evidence.receipts[index]!;
+    if (!currentRepositoryKey || row.repository_key !== currentRepositoryKey || !row.integrated_head || !/^[a-f0-9]{40,64}$/i.test(row.integrated_head))
+      return receipt;
+    try {
+      const result = await git(path, ['merge-base', '--is-ancestor', row.integrated_head, head]);
+      return { ...receipt, headPresence: result.exitCode === 0 ? 'present' as const : result.exitCode === 1 ? 'missing' as const : 'unverified' as const };
+    } catch { return receipt; }
+  }));
 }
 
 function remaining(deadline: number): number {
@@ -124,14 +178,17 @@ export async function projectChangelog(store: StudioStore, projectId: string, pe
   const checkedAt = now.toISOString();
   const since = new Date(now.getTime() - (period === 'day' ? 24 : 7 * 24) * 60 * 60 * 1_000).toISOString();
   const evidence = localEvidence(store, projectId, since, checkedAt);
+  const integration = integrationEvidence(store, projectId, since, checkedAt);
   const base = { projectId, period, scope, since, until: checkedAt, checkedAt, head: null, commits: [] as ChangelogCommit[], moreAvailable: false,
-    issues: [] as ChangelogIssue[], checkedWorktrees: 0, ...evidence };
+    issues: [] as ChangelogIssue[], checkedWorktrees: 0, ...evidence,
+    integrationReceipts: integration.receipts, integrationTotal: integration.total };
   const inside = await git(project.path, ['rev-parse', '--is-inside-work-tree']);
   if (inside.failed || inside.stdout.trim() !== 'true') return { ...base, state: 'no-repository' };
   const head = await git(project.path, ['rev-parse', '--verify', 'HEAD']);
   if (head.failed) return { ...base, state: 'no-commits' };
   const hash = head.stdout.trim();
   if (!/^[a-f0-9]{40,64}$/i.test(hash)) throw new Error('Git-HEAD ist ungültig.');
+  base.integrationReceipts = await verifyIntegrationPresence(project.path, hash, integration);
   const result = await git(project.path, [
     'log', '--no-show-signature', '--no-decorate', '--no-ext-diff', '-z',
     `--since=${since}`, `--until=${checkedAt}`, `--max-count=${MAX_VISIBLE + 1}`,

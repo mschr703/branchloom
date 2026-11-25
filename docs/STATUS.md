@@ -2,6 +2,10 @@
 
 Stand: 25.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Aussagekräftigerer Changelog
+
+- Eine begrenzte, lesende Ergänzung stellt gespeicherte Karten-Übernahmen vor den Git-Zeitverlauf. Die Quittung nennt Karte, Zielbranch, Modus, Zeitpunkt, Ergebnis-Commit und die für genau dieselbe Quell-/Ziel-/Kartenrevision gespeicherten Diff-/npm-Testbelege. Für bis zu zehn Übernahmen im gewählten Zeitraum prüft der lokale Git-HEAD die aktuelle Erreichbarkeit des Ergebnis-Commits erneut; ein gewechselter Git-Ursprung oder ein Git-Fehler bleibt ausdrücklich **nicht prüfbar**. Die jüngsten QA-Berichte öffnen ihren konkreten Kartenbericht, Diff-Aktivität öffnet die Karte. QA wird keinem Commit als Erfolg zugeordnet. Die Markdown-Kopie enthält dieselben Übernahmebelege. Nach Integration bestanden 23 gezielte Changelog-/Usage-Tests, Typprüfung, Build und der fokussierte Quell-Electron-Smoke mit synthetischer gespeicherter Quittung, sichtbarer Karten-Navigation und zurückgesetztem Git-HEAD. Eine manuelle Abnahme mit echten Projektbelegen und die Windows-Paket-CI stehen aus. Automatische Textzusammenfassung und garantierte Zuordnung einer Browser-Vorschau zum Commit bleiben offen. [Bedienung und Grenzen](CHANGELOG.md).
+
 ## Nutzung mit belegten Startwegen
 
 - Die Nutzungsansicht unterscheidet direkte Agentenstarts, Workflow-Schritte und Läufe aus der Projektwarteschlange anhand einer mit der Sitzung gespeicherten Zuordnung. Pro Workflow zeigt sie echte Laufanzahl, bekannte Laufzeit und Fehlerzahl; ein Klick öffnet den gespeicherten Workflow. Bereits vorhandene Sitzungen werden beim Datenbank-Upgrade nur bei genau einer belegten Workflow-Verknüpfung rückwirkend zugeordnet. Nicht belegbare alte Starts bleiben „Historisch ungeklärt“. Token und Kosten stehen ausdrücklich als nicht verfügbar da, bis eine verlässliche Provider-Quelle implementiert ist. Nach Integration bestanden sieben gezielte SQLite-/Renderer-Tests, Typprüfung, Build und der sichtbare `smoke:usage` mit Workflow-Navigation. Die Windows-Paket-CI steht noch aus. [Bedienung und Grenzen](ACTIVITY.md).

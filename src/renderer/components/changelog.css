@@ -5,6 +5,31 @@
 .changelog-controls button { display: inline-flex; align-items: center; gap: 7px; }
 .changelog-source { display: flex; flex-wrap: wrap; gap: 8px 20px; color: var(--muted); font-size: 12px; border-bottom: 1px solid var(--border); padding-bottom: 13px; }
 .changelog-source code, .changelog-commit-meta code, .changelog-editorial code { font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; font-variant-numeric: tabular-nums; color: var(--soft); }
+.changelog-deliveries, .changelog-checks { display: grid; grid-template-columns: minmax(140px, 190px) minmax(0, 1fr); gap: 8px 24px; padding: 22px 0; border-bottom: 1px solid var(--border); }
+.changelog-deliveries header, .changelog-checks header { grid-column: 1; }
+.changelog-deliveries header h3, .changelog-checks header h3 { margin: 0 0 8px; font-size: 16px; letter-spacing: -.015em; }
+.changelog-deliveries header p, .changelog-checks header p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.changelog-deliveries ol, .changelog-checks ol { grid-column: 2; list-style: none; margin: 0; padding: 0; }
+.changelog-deliveries li, .changelog-checks li { padding: 8px 0 10px; border-bottom: 1px solid var(--border); }
+.changelog-deliveries li:first-child, .changelog-checks li:first-child { padding-top: 0; }
+.changelog-deliveries li:last-child, .changelog-checks li:last-child { border-bottom: 0; }
+.changelog-deliveries li > div { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 14px; }
+.changelog-deliveries li p, .changelog-deliveries li small, .changelog-checks li small { display: block; margin: 3px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.changelog-deliveries li code { font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; }
+.changelog-integration-status, .changelog-check-status { color: var(--muted); font-size: 12px; }
+.changelog-deliveries .is-present .changelog-integration-status { color: var(--accent); }
+.changelog-deliveries .is-uncertain .changelog-integration-status { color: var(--danger); }
+.changelog-source-link { display: inline-flex; align-items: center; gap: 5px; min-height: 30px; padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 13px; font-weight: 600; text-align: left; cursor: pointer; }
+.changelog-source-link:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.changelog-source-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+.changelog-source-link:disabled { color: var(--text); cursor: default; }
+.changelog-checks li { display: grid; grid-template-columns: 105px minmax(0, 1fr); gap: 2px 10px; align-items: baseline; }
+.changelog-checks li small { grid-column: 2; margin-top: 0; }
+.changelog-checks .changelog-qa-passed { color: var(--accent); }
+.changelog-checks .changelog-qa-failed, .changelog-checks .changelog-qa-error { color: var(--danger); }
+.changelog-deliveries > .changelog-empty, .changelog-checks > .changelog-empty, .changelog-deliveries > .changelog-limit { grid-column: 2; margin: 0; padding: 4px 0; }
+.changelog-review-line { grid-column: 2; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 15px; padding-top: 10px; border-top: 1px solid var(--border); }
+.changelog-review-line > strong { color: var(--muted); font-size: 12px; font-weight: 600; }
 .changelog-digest { padding: 24px 0 12px; border-bottom: 1px solid var(--border); }
 .changelog-digest > header { margin-bottom: 22px; }
 .changelog-digest > header h3 { margin: 0 0 6px; font-size: clamp(20px, 2vw, 26px); letter-spacing: -.025em; }
@@ -64,6 +89,8 @@
 .changelog-error { color: var(--danger); }
 .changelog-scope, .changelog-limit { color: var(--muted); font-size: 12px; line-height: 1.5; max-width: 75ch; }
 @media (max-width: 700px) {
+  .changelog-deliveries, .changelog-checks { display: block; }
+  .changelog-deliveries header, .changelog-checks header { margin-bottom: 14px; }
   .changelog-day { display: block; }
   .changelog-day h4 { margin-bottom: 14px; }
   .changelog-editorial, .changelog-evidence { display: block; }

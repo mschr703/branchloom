@@ -10,7 +10,7 @@ const result: ProjectChangelog = {
   projectId: 'synthetic', period: 'day', since: '2026-01-02T12:00:00.000Z', until: '2026-01-03T12:00:00.000Z',
   checkedAt: '2026-01-03T12:00:00.000Z', state: 'ready', head: 'a'.repeat(40), moreAvailable: false,
   scope: 'head', issues: [], checkedWorktrees: 0,
-  qaObservations: [], qaTotal: 0, reviewActivity: [], reviewTotal: 0,
+  qaObservations: [], qaTotal: 0, reviewActivity: [], reviewTotal: 0, integrationReceipts: [], integrationTotal: 0,
   commits: [{ hash: 'a'.repeat(40), committedAt: '2026-01-03T10:00:00Z', subject: 'Fix <script>unsafe</script>' }],
 };
 
@@ -39,7 +39,7 @@ describe('changelog presentation', () => {
     const markdown = changelogMarkdown(result);
     expect(markdown).toContain('Fix &lt;script&gt;unsafe&lt;/script&gt;');
     expect(markdown).toContain(`(${result.head}, 2026-01-03T10:00:00Z)`);
-    expect(markdown).toContain('Tests und Reviews sind hier keinem Commit als Ergebnis zugeordnet.');
+    expect(markdown).toContain('Ein gespeicherter Integrations-Test-/Reviewbeleg gilt nur für die oben ausdrücklich als passend markierte Quell-/Ziel-/Kartenrevision.');
     expect(changelogMarkdown({ ...result, commits: [], state: 'no-repository' })).toContain('kein Git-Repository');
   });
 
@@ -83,5 +83,31 @@ describe('changelog presentation', () => {
     expect(html).toContain('Weitere QA- oder Review-Einträge liegen außerhalb');
     expect(html).toContain('QA beobachtet eine lokale Vorschau');
     expect(html).not.toContain('freigegeben');
+  });
+
+  it('leads with verified card delivery and opens exact local evidence without claiming QA proved the shipped page', () => {
+    const report: ProjectChangelog = { ...result, integrationTotal: 2, integrationReceipts: [
+      { cardId: 'card-1', cardTitle: 'Login flow', integratedAt: '2026-01-03T11:00:00Z', integratedHead: 'b'.repeat(40),
+        targetBranch: 'main', approvalMode: 'manual', headPresence: 'present',
+        review: { reviewedAt: '2026-01-03T10:00:00Z', matchesSnapshot: true },
+        test: { scriptName: 'test:integration', state: 'passed', exitCode: 0, matchesSnapshot: true } },
+      { cardId: 'card-2', cardTitle: 'Stale work', integratedAt: '2026-01-03T09:00:00Z', integratedHead: 'c'.repeat(40),
+        targetBranch: 'main', approvalMode: 'automatic', headPresence: 'missing',
+        review: { reviewedAt: '2026-01-03T08:00:00Z', matchesSnapshot: false }, test: null },
+    ], qaTotal: 1, qaObservations: [{ id: 'qa-1', cardId: 'card-1', cardTitle: 'Login flow',
+      endedAt: '2026-01-03T11:30:00Z', status: 'failed', checkoutState: 'clean', checkoutHead: 'b'.repeat(40) }],
+      reviewTotal: 1, reviewActivity: [{ cardId: 'card-1', cardTitle: 'Login flow', count: 1, lastAt: '2026-01-03T11:40:00Z' }] };
+    const html = renderToStaticMarkup(createElement(ChangelogReport, { result: report, onOpenCard: () => {}, onOpenQaReport: () => {} }));
+    expect(html).toContain('Was übernommen wurde');
+    expect(html).toContain('Im aktuellen Projekt-HEAD nachweisbar');
+    expect(html).toContain('Nicht mehr im aktuellen Projekt-HEAD');
+    expect(html).toContain('test:integration: passed, Exit 0');
+    expect(html).toContain('Was geprüft wurde');
+    expect(html).toContain('Login flow');
+    expect(html).not.toContain('disabled=""');
+    const markdown = changelogMarkdown(report);
+    expect(markdown).toContain('## Karten-Übernahmen');
+    expect(markdown).toContain('Nicht mehr im aktuellen Projekt-HEAD');
+    expect(markdown).toContain('QA beobachtet eine lokale Vorschau');
   });
 });

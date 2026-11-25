@@ -36,6 +36,19 @@ export interface ChangelogReviewActivity {
   lastAt: string;
 }
 
+/** A durable integration receipt; Git presence is checked again for the displayed HEAD. */
+export interface ChangelogIntegrationReceipt {
+  cardId: string;
+  cardTitle: string;
+  integratedAt: string;
+  integratedHead: string | null;
+  targetBranch: string;
+  approvalMode: 'manual' | 'automatic' | null;
+  headPresence: 'present' | 'missing' | 'unverified';
+  review: { reviewedAt: string; matchesSnapshot: boolean } | null;
+  test: { scriptName: string; state: string; exitCode: number | null; matchesSnapshot: boolean } | null;
+}
+
 export interface ProjectChangelog {
   projectId: string;
   period: ChangelogPeriod;
@@ -53,4 +66,6 @@ export interface ProjectChangelog {
   qaTotal: number;
   reviewActivity: ChangelogReviewActivity[];
   reviewTotal: number;
+  integrationReceipts: ChangelogIntegrationReceipt[];
+  integrationTotal: number;
 }

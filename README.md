@@ -113,4 +113,6 @@ Auf dem Board zeigt die [UI-Abdeckung](docs/QA_COVERAGE.md) nur ausdrücklich au
 
 ## Stand und Grenzen
 
+Der [Changelog](docs/CHANGELOG.md) zeigt gespeicherte Karten-Übernahmen mit erneut geprüftem Git-Stand, passenden Diff-/Testbelegen und direkten Links zu Karten und QA-Berichten. Browser-QA wird nicht als Beweis für einen ausgelieferten Commit ausgegeben.
+
 [STATUS.md](docs/STATUS.md) nennt den tatsächlich geprüften Stand. Die App ist eine frühe Entwicklungsfassung. Weitere Importquellen, Konflikt-Merge und Worktree-Aufräumen, zusätzliche CLI-Adapter, Live-Diktat, kontrollierte Browsersteuerung durch Agenten, Remote-Mobilzugriff und automatisch berechnete Beziehungen im Knowledge-Graph stehen noch auf der [Paritätsliste](docs/PARITY.md). [Produktvision](docs/PRODUCT_VISION.md), [Open-Source-Referenzen](docs/OPEN_SOURCE_REFERENCES.md) und [technische Orientierung](docs/HANDOVER.md) beschreiben Ziel und Einstieg. Der persönliche Jarvis-Assistent und seine privaten Module sind separate Projekte.

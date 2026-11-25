@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { limitChangelogCommits, parseChangelogLog, projectChangelog } from '../../src/main/changelog';
-import { ensureCardWorktree } from '../../src/main/git-worktree';
+import { ensureCardWorktree, worktreeRepositoryKey } from '../../src/main/git-worktree';
 import { StudioStore } from '../../src/main/store';
 
 const roots: string[] = [];
@@ -130,6 +130,38 @@ describe('project changelog', () => {
         expect(result.reviewTotal).toBe(1);
         expect(result.reviewActivity).toEqual([{ cardId: card.id, cardTitle: 'Synthetic preview', count: 1, lastAt: '2026-01-03T10:30:00.000Z' }]);
         expect(result.commits.map((item) => item.hash)).toEqual([head]);
+    } finally { store.close(); }
+  });
+
+  it('checks a saved integration receipt against the current HEAD and keeps review/test evidence bound to its snapshot', async () => {
+    const { repository, store, project } = fixture();
+    try {
+      const base = commit(repository, 1, 'Base', '2026-01-02T09:00:00+00:00');
+      const landed = commit(repository, 2, 'Add synthetic flow', '2026-01-03T10:00:00+00:00');
+      const card = store.createCard({ projectId: project.id, columnId: store.snapshot(project.id).columns[0]!.id, title: 'Visible flow' });
+      const fingerprint = 'f'.repeat(64);
+      const row = store.db.prepare(`INSERT INTO integration_items
+        (project_id,card_id,repository_key,target_branch,source_head,target_head,card_fingerprint,preview_token,state,reason,created_at,updated_at,integrated_head,approval_mode)
+        VALUES (?,?,?,?,?,?,?,NULL,'integrated',NULL,?,?,?,'manual')`)
+        .run(project.id, card.id, worktreeRepositoryKey(repository), git(repository, ['branch', '--show-current']),
+          landed, base, fingerprint, '2026-01-03T09:00:00.000Z', '2026-01-03T11:00:00.000Z', landed);
+      store.db.prepare(`INSERT INTO integration_reviews (item_id,card_id,source_head,target_head,card_fingerprint,reviewed_at)
+        VALUES (?,?,?,?,?,'2026-01-03T10:15:00.000Z')`).run(row.lastInsertRowid, card.id, landed, base, fingerprint);
+      store.db.prepare(`INSERT INTO integration_test_runs
+        (item_id,card_id,source_head,target_head,card_fingerprint,script_name,script_hash,state,exit_code,output_tail,started_at,ended_at)
+        VALUES (?,?,?,?,?,'test:integration','script-hash','passed',0,'synthetic','2026-01-03T10:20:00.000Z','2026-01-03T10:21:00.000Z')`)
+        .run(row.lastInsertRowid, card.id, landed, base, fingerprint);
+      const now = new Date('2026-01-03T12:00:00.000Z');
+      const present = await projectChangelog(store, project.id, 'week', now);
+      expect(present.integrationTotal).toBe(1);
+      expect(present.integrationReceipts).toEqual([{ cardId: card.id, cardTitle: 'Visible flow', integratedAt: '2026-01-03T11:00:00.000Z',
+        integratedHead: landed, targetBranch: expect.any(String), approvalMode: 'manual', headPresence: 'present',
+        review: { reviewedAt: '2026-01-03T10:15:00.000Z', matchesSnapshot: true },
+        test: { scriptName: 'test:integration', state: 'passed', exitCode: 0, matchesSnapshot: true } }]);
+      git(repository, ['reset', '--hard', base]);
+      store.db.prepare('UPDATE integration_test_runs SET card_fingerprint = ? WHERE item_id = ?').run('e'.repeat(64), row.lastInsertRowid);
+      const missing = await projectChangelog(store, project.id, 'week', now);
+      expect(missing.integrationReceipts[0]).toMatchObject({ headPresence: 'missing', test: { matchesSnapshot: false } });
     } finally { store.close(); }
   });
 
