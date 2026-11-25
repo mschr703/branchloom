@@ -6,7 +6,7 @@ Branchloom (früher Jarvis Studio) ist eine eigenständige lokale Agenten-App. K
 - Das öffentliche Repository enthält nur allgemeine Software, synthetische Tests und Dokumentation. Schlüssel, persönliche Inhalte, Board-Daten, Agentenprotokolle und lokale Profile liegen außerhalb des Repositories.
 - Ein Agent darf für schreibende oder externe Aktionen nicht allein wegen einer Modellantwort zusätzliche Berechtigungen erhalten. Automatischer Start ist eine bewusste Projekt-/Spalteneinstellung; Stop/Pause muss zuverlässig sein.
 - Änderungen an Karten und Workflows müssen nach einem App-Neustart erhalten bleiben. Fehler und Grenzen bleiben in `docs/STATUS.md` sichtbar.
-- Für UI-Arbeit den installierten `anti-slop-design`-Skill anwenden. Branchloom nutzt ruhige, warme und gut lesbare Oberflächen; keine dunkelblauen Grundflächen, Neon-Effekte, dekorativen Gradients oder erfundenen Kennzahlen. Bestehende Bedienlogik und Tastaturzugänglichkeit erhalten.
+- Für UI-Arbeit den installierten `anti-slop-design`-Skill und [DESIGN.md](DESIGN.md) anwenden. Branchloom nutzt ruhige, warme und gut lesbare Oberflächen; keine dunkelblauen Grundflächen, Neon-Effekte, dekorativen Gradients oder erfundenen Kennzahlen. Bestehende Bedienlogik und Tastaturzugänglichkeit erhalten.
 - Vor einem öffentlichen Push: Diff, `npm audit`, Tests, Typprüfung und Build prüfen. Keine personenbezogenen Pfade oder Secrets committen.
 
 Aktuelle Priorität für **dieses Repository**: [Produktvision](docs/PRODUCT_VISION.md) in überprüfbaren vertikalen Schritten umsetzen. Bestehende Nutzerdaten und interne Formate beim Namenswechsel erhalten. Neue Verhaltenswünsche des Nutzers gehen vor dieser Datei.
