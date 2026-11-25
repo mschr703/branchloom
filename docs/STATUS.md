@@ -2,6 +2,10 @@
 
 Stand: 25.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Aktuelle Windows-Abnahme
+
+- [CI 45543341615](https://github.com/mschr703/branchloom/actions/runs/45543341615) für `054615f` bestand vollständig: Verify, portables Windows-Paket und Installer samt Paket-Smoke und Paketprüfung. Damit ist der frühere 120-Sekunden-Smoke-Timeout behoben und der bis dahin integrierte F01/F08-Stand paketiert geprüft. Neuere G02-/F03-Commits brauchen noch ihre eigene CI-Abnahme.
+
 ## F03 eigene Fassung je Konfliktblock (isolierter Zweig)
 
 - Ein Konfliktblock kann nach Basis-/Manuell-/Agentenvergleich als begrenzter Text bearbeitet und ausdrücklich als eigene Wahl gespeichert werden. Die Entscheidung liegt in einer separaten lokalen SQLite-Tabelle und übersteht das erneute Öffnen der Datenbank; bestehende manuelle/Agentenwahlen bleiben kompatibel. Eine offene, noch nicht gespeicherte Texteingabe sperrt den Schreibknopf. Alte Vorschau-/Entscheidungstoken, zu große oder ungültige UTF-8-Eingaben und eine zwischenzeitlich geänderte Zieldatei werden abgelehnt. Zwölf gezielte Main-/Renderer-Tests, Typprüfung, Produktionsbuild, Audit ohne kritischen Fund, Public-Scan und der erweiterte sichtbare F03-Quell-Electron-Smoke bestanden im isolierten Zweig. Der Smoke prüfte eigene Texteingabe, gesperrtes Schreiben während des Entwurfs, Speicherung, Wiederöffnen nach Renderer-Neuladen und veraltete Zieldatei. Der Dateiumfang und die Git-Integrationsgrenze bleiben wie in [MANUAL_REVISIONS.md](MANUAL_REVISIONS.md) beschrieben.
