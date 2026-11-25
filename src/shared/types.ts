@@ -123,7 +123,7 @@ export interface StudioAPI {
   checkApiContractEndpoint(input: { projectId: string; revision: number; baseUrl: string }): Promise<import('./api-contract').ApiContractLiveCheck>;
   apiContractLiveChecks(projectId: string): Promise<import('./api-contract').ApiContractLiveCheck[]>;
   requirementConflictBoard(projectId: string): Promise<import('./requirement-conflicts').RequirementConflictBoard>;
-  addRequirementClaim(input: { projectId: string; cardId: string; criterionId: string; component: string; scope: string; property: string; stance: import('./requirement-conflicts').RequirementStance; expectedCardRevision: number }): Promise<import('./requirement-conflicts').RequirementConflictBoard>;
+  addRequirementClaim(input: { projectId: string; cardId: string; criterionId: string; component: string; scope: string; property: string; stance: import('./requirement-conflicts').RequirementStance; expectedCardRevision: number; expectedCriterionText?: string; suggestionEvidence?: import('./requirement-conflicts').RequirementSuggestionEvidence }): Promise<import('./requirement-conflicts').RequirementConflictBoard>;
   refreshRequirementClaim(input: { projectId: string; claimId: string; expectedCardRevision: number }): Promise<import('./requirement-conflicts').RequirementConflictBoard>;
   removeRequirementClaim(input: { projectId: string; claimId: string }): Promise<import('./requirement-conflicts').RequirementConflictBoard>;
   resolveRequirementConflict(input: { projectId: string; pairKey: string; fingerprint: string; status: 'chosen' | 'dismissed'; winnerClaimId?: string | null; reason: string }): Promise<import('./requirement-conflicts').RequirementConflictBoard>;

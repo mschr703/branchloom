@@ -1,6 +1,14 @@
 .requirement-conflicts { margin: 24px 0 32px; padding: 19px 0 24px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .requirement-conflicts__intro h3 { margin: 0 0 5px; font-size: 17px; }
 .requirement-conflicts__intro p { max-width: 75ch; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.requirement-conflicts__suggestions { display: grid; gap: 8px; max-width: 1050px; margin-top: 18px; padding-block: 12px; border-block: 1px solid var(--border); }
+.requirement-conflicts__suggestions h4, .requirement-conflicts__suggestions p { margin: 0; }
+.requirement-conflicts__suggestions h4 { font-size: 14px; }
+.requirement-conflicts__suggestions > p, .requirement-conflicts__suggestions article > p, .requirement-conflicts__suggestions > small, .requirement-conflicts__prefill { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.requirement-conflicts__suggestions article { padding: 11px 0; border-top: 1px solid var(--border); }
+.requirement-conflicts__suggestions article > button { margin-top: 8px; }
+.requirement-conflicts__suggestions .requirement-conflicts__pair { margin-block: 8px; }
+.requirement-conflicts__prefill { margin: 0; }
 .requirement-conflicts__setup { margin-top: 14px; }
 .requirement-conflicts__setup summary, .requirement-conflicts__rules summary, .requirement-conflicts__history summary { width: fit-content; cursor: pointer; font-size: 13px; font-weight: 600; }
 .requirement-conflicts__setup form { display: grid; gap: 12px; margin-top: 15px; max-width: 900px; }

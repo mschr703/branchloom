@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type Database from 'better-sqlite3';
-import type { RequirementClaim, RequirementConflict, RequirementConflictBoard, RequirementDecision, RequirementStance } from '../shared/requirement-conflicts';
+import { explicitOppositeRequirement } from '../shared/requirement-conflicts';
+import type { RequirementClaim, RequirementConflict, RequirementConflictBoard, RequirementConflictSuggestion, RequirementDecision, RequirementStance, RequirementSuggestionEvidence } from '../shared/requirement-conflicts';
 import type { StudioStore } from './store';
 
 interface ClaimRow {
@@ -71,17 +72,30 @@ export function installRequirementConflicts(db: Database.Database): void {
   CREATE UNIQUE INDEX IF NOT EXISTS requirement_decisions_once ON requirement_conflict_decisions(project_id, pair_key, fingerprint);`);
 }
 
-export function addRequirementClaim(store: StudioStore, input: { projectId: string; cardId: string; criterionId: string; component: string; scope: string; property: string; stance: RequirementStance; expectedCardRevision: number }): RequirementConflictBoard {
+export function addRequirementClaim(store: StudioStore, input: { projectId: string; cardId: string; criterionId: string; component: string; scope: string; property: string; stance: RequirementStance; expectedCardRevision: number; expectedCriterionText?: string; suggestionEvidence?: RequirementSuggestionEvidence }): RequirementConflictBoard {
   store.db.transaction(() => {
     store.project(input.projectId);
     const card = store.card(input.cardId);
     if (card.projectId !== input.projectId || card.archivedAt) throw new Error('Card is outside this active project.');
     if (cardRevision(store, card.id) !== input.expectedCardRevision) throw new Error('Card changed. Reload its criteria before adding a rule.');
     const source = criterion(store, card.id, input.criterionId);
+    if (input.expectedCriterionText !== undefined && source.text !== input.expectedCriterionText) throw new Error('Criterion changed. Reload the source statement before adding a rule.');
     if (input.stance !== 'required' && input.stance !== 'forbidden') throw new Error('Choose required or forbidden.');
     const component = label(input.component, 'Component', 80);
     const scope = label(input.scope, 'Scope', 120);
     const property = label(input.property, 'Property', 80);
+    if (input.suggestionEvidence) {
+      const evidence = input.suggestionEvidence;
+      if (!input.expectedCriterionText || typeof evidence.sourceClaimId !== 'string' || typeof evidence.sourceStatement !== 'string' || !Number.isInteger(evidence.sourceCardRevision)) throw new Error('Suggestion evidence is incomplete. Reload the hint.');
+      const board = requirementConflictBoard(store, input.projectId);
+      const prior = board.claims.find((item) => item.id === evidence.sourceClaimId);
+      const opposed = prior && explicitOppositeRequirement(source.text, prior.statement);
+      if (!prior || !prior.current || !(prior.cardId in board.cardRevisions) || !opposed || opposed.first !== input.stance || opposed.second !== prior.stance ||
+        prior.cardId === card.id || prior.statement !== evidence.sourceStatement || prior.cardRevision !== evidence.sourceCardRevision ||
+        key(prior.component) !== key(component) || key(prior.scope) !== key(scope) || key(prior.property) !== key(property)) {
+        throw new Error('Suggestion source changed or classification differs. Reload and review both statements.');
+      }
+    }
     const existing = store.db.prepare('SELECT id, component, scope, property FROM requirement_claims WHERE card_id = ? AND criterion_id = ? AND active = 1').all(card.id, input.criterionId) as Array<{ id: string; component: string; scope: string; property: string }>;
     if (existing.some((row) => key(row.component) === key(component) && key(row.scope) === key(scope) && key(row.property) === key(property))) throw new Error('This criterion already has a rule for that component, scope, and property.');
     store.db.prepare(`INSERT INTO requirement_claims (id, project_id, card_id, criterion_id, statement, card_revision, component, scope, property, stance, created_at)
@@ -142,7 +156,24 @@ export function requirementConflictBoard(store: StudioStore, projectId: string):
   const newest = new Map(decisionHistory.map((item) => [`${item.pairKey}:${item.fingerprint}`, item]));
   for (const item of conflicts) item.decision = newest.get(`${item.pairKey}:${item.fingerprint}`) ?? null;
   const cardRevisions = Object.fromEntries((store.db.prepare('SELECT id, content_revision FROM cards WHERE project_id = ? AND archived_at IS NULL').all(projectId) as Array<{ id: string; content_revision: number }>).map((row) => [row.id, row.content_revision]));
-  return { claims, conflicts, decisionHistory, cardRevisions, limited: limited || saved.length > 500 || conflicts.length >= 100 };
+  const criterionRows = store.db.prepare(`SELECT a.id, a.card_id, a.text, c.title, c.content_revision
+    FROM card_acceptance_criteria a JOIN cards c ON c.id = a.card_id
+    WHERE c.project_id = ? AND c.archived_at IS NULL ORDER BY a.updated_at DESC, a.id LIMIT 301`).all(projectId) as Array<{
+      id: string; card_id: string; text: string; title: string; content_revision: number;
+    }>;
+  const suggestions: RequirementConflictSuggestion[] = [];
+  let suggestionsLimited = criterionRows.length > 300 || limited;
+  suggestionSearch: for (const row of criterionRows.slice(0, 300)) for (const source of claims) {
+    if (!source.current || !(source.cardId in cardRevisions) || source.cardId === row.card_id ||
+      claims.some((item) => item.cardId === row.card_id && item.criterionId === row.id &&
+        key(item.component) === key(source.component) && key(item.scope) === key(source.scope) && key(item.property) === key(source.property))) continue;
+    const opposed = explicitOppositeRequirement(row.text, source.statement);
+    if (!opposed || opposed.second !== source.stance) continue;
+    suggestions.push({ criterionId: row.id, cardId: row.card_id, cardTitle: row.title, statement: row.text,
+      cardRevision: row.content_revision, proposedStance: opposed.first, source });
+    if (suggestions.length >= 50) { suggestionsLimited = true; break suggestionSearch; }
+  }
+  return { claims, conflicts, suggestions, suggestionsLimited, decisionHistory, cardRevisions, limited: limited || saved.length > 500 || conflicts.length >= 100 };
 }
 
 export function resolveRequirementConflict(store: StudioStore, input: { projectId: string; pairKey: string; fingerprint: string; status: 'chosen' | 'dismissed'; winnerClaimId?: string | null; reason: string }): RequirementConflictBoard {

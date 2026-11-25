@@ -3658,6 +3658,61 @@ http.createServer((_request,response)=>{response.writeHead(200,{'Content-Type':'
               await wait(() => panel.querySelector('.card-component-choice__snapshot img'), 'rendered screenshot');
               return true;
             })()`);
+
+            const f04SourceCard = smokeStore.createCard({ projectId: smokeProject.id, columnId: smokeSnapshot.columns[0]!.id, title: 'F04 source navigation' });
+            const f04CandidateCard = smokeStore.createCard({ projectId: smokeProject.id, columnId: smokeSnapshot.columns[0]!.id, title: 'F04 candidate navigation' });
+            const f04SourceText = 'Navigation must be visible at widths up to 768 px.';
+            const f04CandidateText = 'Navigation must not be visible at widths up to 768 px.';
+            const f04SourceCriterion = createCardCriterion(smokeStore, { cardId: f04SourceCard.id, text: f04SourceText }).at(-1)!;
+            addRequirementClaim(smokeStore, { projectId: smokeProject.id, cardId: f04SourceCard.id, criterionId: f04SourceCriterion.id,
+              component: 'Navigation', scope: 'Widths up to 768 px', property: 'Visibility', stance: 'required',
+              expectedCardRevision: requirementConflictBoard(smokeStore, smokeProject.id).cardRevisions[f04SourceCard.id]! });
+            const f04CandidateCriterion = createCardCriterion(smokeStore, { cardId: f04CandidateCard.id, text: f04CandidateText }).at(-1)!;
+            await new Promise<void>((resolve) => { smokeWindow.webContents.once('did-finish-load', () => resolve()); smokeWindow.webContents.reload(); });
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const projectId = ${JSON.stringify(smokeProject.id)};
+              const sourceId = ${JSON.stringify(f04SourceCard.id)};
+              const candidateId = ${JSON.stringify(f04CandidateCard.id)};
+              const criterionId = ${JSON.stringify(f04CandidateCriterion.id)};
+              const sourceText = ${JSON.stringify(f04SourceText)};
+              const candidateText = ${JSON.stringify(f04CandidateText)};
+              const wait = async (predicate, label) => { for (let i = 0; i < 300; i++) { const result = await predicate(); if (result) return result; await new Promise((resolve) => setTimeout(resolve, 50)); } throw new Error('F04 UI smoke timed out: ' + label); };
+              const picker = await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger:not(.is-compact)'), 'visible project picker');
+              picker.click();
+              const project = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project button')].find((item) => item.textContent?.trim() === 'Smoke-Projekt'), 'project');
+              project.click();
+              await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger')?.getAttribute('aria-label') === 'Projekt auswählen: Smoke-Projekt', 'selected project');
+              const nav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Entscheidungen');
+              if (!nav) throw new Error('F04 Decisions navigation missing.');
+              nav.click();
+              const panel = await wait(() => document.querySelector('.requirement-conflicts'), 'conflict panel');
+              const hint = await wait(() => [...panel.querySelectorAll('.requirement-conflicts__suggestions article')].find((item) => item.textContent?.includes(candidateText)), 'new criterion hint');
+              if (!hint.textContent?.includes(sourceText) || !hint.textContent.includes('Vermuteter Bereich: Widths up to 768 px') || !hint.textContent.includes('Unsicher:')) throw new Error('F04 hint omitted source, scope or uncertainty.');
+              [...hint.querySelectorAll('button')].find((item) => item.textContent?.includes('Regelmarkierung prüfen'))?.click();
+              const setup = await wait(() => panel.querySelector('.requirement-conflicts__setup[open]'), 'review form');
+              await wait(() => setup.querySelectorAll('select')[1]?.value === criterionId, 'candidate criterion selected');
+              const mark = await wait(() => setup.querySelector('button[type="submit"]:not(:disabled)'), 'mark rule button');
+              mark.click();
+              const conflict = await wait(async () => (await window.studio.requirementConflictBoard(projectId)).conflicts.find((item) =>
+                [item.left.cardId, item.right.cardId].includes(sourceId) && [item.left.cardId, item.right.cardId].includes(candidateId)), 'classified conflict');
+              const row = await wait(() => [...panel.querySelectorAll('.requirement-conflicts__item')].find((item) => item.textContent?.includes(candidateText)), 'visible conflict');
+              if (!row.textContent?.includes(sourceText)) throw new Error('F04 conflict omitted source statement.');
+              [...row.querySelectorAll('button')].find((item) => item.textContent?.includes('Hinweis entscheiden'))?.click();
+              const form = await wait(() => row.querySelector('.requirement-conflicts__resolve'), 'decision form');
+              const choice = form.querySelector('select');
+              const reason = form.querySelector('input');
+              const selectSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+              const inputSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+              if (!choice || !reason || !selectSetter || !inputSetter) throw new Error('F04 decision controls missing.');
+              selectSetter.call(choice, 'dismissed'); choice.dispatchEvent(new Event('change', { bubbles: true }));
+              inputSetter.call(reason, 'Different navigation instances in this synthetic scenario.'); reason.dispatchEvent(new Event('input', { bubbles: true }));
+              const submit = await wait(() => form.querySelector('button[type="submit"]:not(:disabled)'), 'decision submit');
+              submit.click();
+              await wait(async () => (await window.studio.requirementConflictBoard(projectId)).conflicts.find((item) => item.pairKey === conflict.pairKey)?.decision?.status === 'dismissed', 'saved dismissal');
+              if ((await window.studio.cardCriteria(sourceId)).find((item) => item.id === conflict.left.criterionId || item.id === conflict.right.criterionId)?.text !== sourceText ||
+                (await window.studio.cardCriteria(candidateId)).find((item) => item.id === criterionId)?.text !== candidateText) throw new Error('F04 decision changed a source statement.');
+              return true;
+            })()`);
             process.stdout.write('STUDIO_SMOKE_OK\n');
             app.quit();
           }).catch(failSmoke);

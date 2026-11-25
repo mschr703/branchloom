@@ -30,6 +30,71 @@ function add(store: StudioStore, projectId: string, cardId: string, criterionId:
 }
 
 describe('explicit requirement conflicts', () => {
+  it('suggests a newly written opposite criterion, then preserves the manual classification and dismissal', () => {
+    const { file, store, project, first, second } = fixture();
+    try {
+      const source = createCardCriterion(store, { cardId: first.id, text: 'Navigation must be visible at widths up to 768 px.' }).at(-1)!;
+      add(store, project.id, first.id, source.id, 'required');
+      const candidate = createCardCriterion(store, { cardId: second.id, text: 'Navigation must not be visible at widths up to 768 px.' }).at(-1)!;
+      const board = requirementConflictBoard(store, project.id);
+      expect(board.conflicts).toHaveLength(0);
+      expect(board.suggestions).toMatchObject([{ criterionId: candidate.id, cardId: second.id, statement: candidate.text,
+        proposedStance: 'forbidden', source: { criterionId: source.id, statement: source.text, scope: 'Width up to 768 px' } }]);
+      const hint = board.suggestions[0]!;
+      const classified = addRequirementClaim(store, { projectId: project.id, cardId: second.id, criterionId: candidate.id,
+        component: hint.source.component, scope: hint.source.scope, property: hint.source.property, stance: hint.proposedStance,
+        expectedCardRevision: hint.cardRevision, expectedCriterionText: hint.statement,
+        suggestionEvidence: { sourceClaimId: hint.source.id, sourceStatement: hint.source.statement, sourceCardRevision: hint.source.cardRevision } });
+      expect(classified.suggestions).toHaveLength(0);
+      expect(classified.conflicts).toHaveLength(1);
+      const conflict = classified.conflicts[0]!;
+      const dismissed = resolveRequirementConflict(store, { projectId: project.id, pairKey: conflict.pairKey, fingerprint: conflict.fingerprint,
+        status: 'dismissed', reason: 'The two cards cover different navigation instances.' });
+      expect(dismissed.conflicts[0]?.decision).toMatchObject({ status: 'dismissed', current: true });
+    } finally { store.close(); }
+    const reopened = new StudioStore(file);
+    try { expect(requirementConflictBoard(reopened, project.id).decisionHistory[0]?.reason).toContain('different navigation'); }
+    finally { reopened.close(); }
+  });
+
+  it('rejects stale criterion, stale source, and changed suggested classification', () => {
+    const { store, project, first, second } = fixture();
+    try {
+      const source = createCardCriterion(store, { cardId: first.id, text: 'Navigation must be visible at widths up to 768 px.' }).at(-1)!;
+      add(store, project.id, first.id, source.id, 'required');
+      const candidate = createCardCriterion(store, { cardId: second.id, text: 'Navigation must not be visible at widths up to 768 px.' }).at(-1)!;
+      const hint = requirementConflictBoard(store, project.id).suggestions[0]!;
+      const input = { projectId: project.id, cardId: second.id, criterionId: candidate.id,
+        component: hint.source.component, scope: hint.source.scope, property: hint.source.property, stance: hint.proposedStance,
+        expectedCardRevision: hint.cardRevision, expectedCriterionText: hint.statement,
+        suggestionEvidence: { sourceClaimId: hint.source.id, sourceStatement: hint.source.statement, sourceCardRevision: hint.source.cardRevision } };
+      expect(() => addRequirementClaim(store, { ...input, scope: 'Desktop' })).toThrow('classification differs');
+      updateCardCriterion(store, { cardId: second.id, criterionId: candidate.id, text: 'Navigation must not be visible at widths up to 900 px.' });
+      expect(() => addRequirementClaim(store, input)).toThrow('Card changed');
+      updateCardCriterion(store, { cardId: second.id, criterionId: candidate.id, text: candidate.text });
+      const refreshedCandidate = { ...input, expectedCardRevision: requirementConflictBoard(store, project.id).cardRevisions[second.id]! };
+      updateCardCriterion(store, { cardId: first.id, criterionId: source.id, text: 'Navigation must be visible at widths up to 900 px.' });
+      expect(() => addRequirementClaim(store, refreshedCandidate)).toThrow('Suggestion source changed');
+      expect(requirementConflictBoard(store, project.id).suggestions).toHaveLength(0);
+    } finally { store.close(); }
+  });
+
+  it('does not suggest a rule from an archived source card or another project', () => {
+    const { root, store, project, first, second } = fixture();
+    try {
+      const source = createCardCriterion(store, { cardId: first.id, text: 'Navigation must be visible at widths up to 768 px.' }).at(-1)!;
+      add(store, project.id, first.id, source.id, 'required');
+      createCardCriterion(store, { cardId: second.id, text: 'Navigation must not be visible at widths up to 768 px.' });
+      const otherPath = join(root, 'other-project'); mkdirSync(otherPath);
+      const other = store.createProject({ name: 'Other', path: otherPath });
+      const otherCard = store.createCard({ projectId: other.id, columnId: store.snapshot(other.id).columns[0]!.id, title: 'Other navigation' });
+      createCardCriterion(store, { cardId: otherCard.id, text: 'Navigation must not be visible at widths up to 768 px.' });
+      expect(requirementConflictBoard(store, other.id).suggestions).toHaveLength(0);
+      expect(requirementConflictBoard(store, project.id).suggestions).toHaveLength(1);
+      store.setCardArchived({ id: first.id, archived: true });
+      expect(requirementConflictBoard(store, project.id).suggestions).toHaveLength(0);
+    } finally { store.close(); }
+  });
   it('shows opposite source statements with exact cards and keeps the chosen decision after restart', () => {
     const { file, store, project, first, second, a, b } = fixture();
     add(store, project.id, first.id, a.id, 'required');
