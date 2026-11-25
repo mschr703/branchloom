@@ -1,12 +1,35 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ProjectSnapshot } from '../../shared/types';
 import type { UsageSessionPage } from '../../shared/usage';
-import { formatUsageDuration, projectUsage, usageStart, type UsagePeriod } from '../usage-data';
+import { formatUsageDuration, projectUsage, usageStart, type ProjectUsage, type UsagePeriod } from '../usage-data';
 import '../usage.css';
 
-interface Props { snapshot: ProjectSnapshot; now: number; onShowAgent: (name: string) => void }
+interface Props { snapshot: ProjectSnapshot; now: number; onShowAgent: (name: string) => void; onOpenWorkflow: (id: string) => void }
 
-export function UsagePanel({ snapshot, now, onShowAgent }: Props) {
+export function UsageSourceBreakdown({ usage, availableWorkflowIds, onOpenWorkflow }: {
+  usage: ProjectUsage; availableWorkflowIds: ReadonlySet<string>; onOpenWorkflow: (id: string) => void;
+}) {
+  return <>
+    <div className="usage-origin"><div className="usage-section-head"><h3>Startwege</h3><span>gespeicherte Zuordnung</span></div>
+      <dl>{([
+        ['queue', 'Projektwarteschlange'], ['workflow', 'Workflow'], ['direct', 'Ohne Workflow'], ['unknown', 'Historisch ungeklärt'],
+      ] as const).map(([key, label]) => <div key={key}><dt>{label}</dt><dd>{usage.origins[key]}</dd></div>)}</dl>
+    </div>
+    <div className="usage-workflows"><div className="usage-section-head"><h3>Workflows</h3><span>{usage.workflows.length} mit belegtem Lauf</span></div>
+      {usage.workflows.length ? <div className="usage-workflow-list">{usage.workflows.slice(0, 6).map((workflow) =>
+        availableWorkflowIds.has(workflow.id) ? <button type="button" key={workflow.id} onClick={() => onOpenWorkflow(workflow.id)}>
+          <span><strong>{workflow.name}</strong><small>{workflow.origin === 'queue' ? 'Projektwarteschlange' : 'Workflow'} · {formatUsageDuration(workflow.durationMs)}{workflow.failed ? ` · ${workflow.failed} fehlgeschlagen` : ''}</small></span>
+          <span>{workflow.runs} {workflow.runs === 1 ? 'Lauf' : 'Läufe'}</span>
+        </button> : <div className="usage-workflow-missing" key={workflow.id}>
+          <span><strong>{workflow.name}</strong><small>Workflow entfernt · {formatUsageDuration(workflow.durationMs)}</small></span>
+          <span>{workflow.runs} {workflow.runs === 1 ? 'Lauf' : 'Läufe'}</span>
+        </div>)}</div> : <p className="usage-empty">Noch kein verknüpfter Workflow-Lauf in diesem Zeitraum.</p>}
+      {usage.workflows.length > 6 ? <p className="usage-more">{usage.workflows.length - 6} weitere Workflows im Zeitraum.</p> : null}
+    </div>
+  </>;
+}
+
+export function UsagePanel({ snapshot, now, onShowAgent, onOpenWorkflow }: Props) {
   const [period, setPeriod] = useState<UsagePeriod>(7);
   const [page, setPage] = useState<UsageSessionPage | null>(null);
   const [error, setError] = useState(false);
@@ -39,6 +62,7 @@ export function UsagePanel({ snapshot, now, onShowAgent }: Props) {
       <div><strong>{usage.failed}</strong><span>fehlgeschlagen</span></div>
       <div><strong>{formatUsageDuration(usage.knownDurationMs)}</strong><span>summierte Laufzeit{usage.unknownDurationCount ? ` · ${usage.unknownDurationCount} ohne Zeitbeleg` : ''}</span></div>
     </div>
+    <p className="usage-telemetry"><strong>Token und Kosten</strong><span>Kein verifizierter Wert verfügbar. Branchloom liest derzeit keine Abrechnungsdaten der CLI-Anbieter; Terminaltext wird nicht als Verbrauch gezählt.</span></p>
     <div className="usage-analysis">
       <section className="usage-history" aria-label="Läufe nach Tag"><div className="usage-section-head"><h3>Verlauf</h3><span>Starts pro Tag</span></div>
         <div className="usage-bars" role="img" aria-label={`${usage.runs} Agentenläufe im gewählten Zeitraum`}>
@@ -54,9 +78,10 @@ export function UsagePanel({ snapshot, now, onShowAgent }: Props) {
           <span className="usage-agent-count">{agent.runs} {agent.runs === 1 ? 'Lauf' : 'Läufe'}</span>
           <small>{formatUsageDuration(agent.durationMs)}{agent.failed ? ` · ${agent.failed} fehlgeschlagen` : ''}{agent.active ? ` · ${agent.active} aktiv` : ''}</small>
         </button>)}</div> : <p className="usage-empty">In diesem Zeitraum wurde kein Agentenlauf gestartet.</p>}
+        <UsageSourceBreakdown usage={usage} availableWorkflowIds={new Set(snapshot.workflows.map((workflow) => workflow.id))} onOpenWorkflow={onOpenWorkflow} />
       </section>
     </div>
-    <p className="usage-provenance">Quelle: lokale Sitzungseinträge. Laufzeiten sind summiert; parallele Läufe überschneiden sich. Token und Providerkosten werden derzeit nicht verlässlich erfasst und deshalb nicht geschätzt.</p>
+    <p className="usage-provenance">Quelle: lokale Sitzungseinträge und gespeicherte Startzuordnung. Laufzeiten sind summiert; parallele Läufe überschneiden sich. Vor dieser Zuordnung gespeicherte Sitzungen ohne eindeutigen Workflow-Beleg erscheinen als „Historisch ungeklärt“.</p>
     </>}
   </section>;
 }

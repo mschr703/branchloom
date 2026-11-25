@@ -2,6 +2,10 @@
 
 Stand: 25.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Nutzung mit belegten Startwegen
+
+- Die Nutzungsansicht unterscheidet direkte Agentenstarts, Workflow-Schritte und Läufe aus der Projektwarteschlange anhand einer mit der Sitzung gespeicherten Zuordnung. Pro Workflow zeigt sie echte Laufanzahl, bekannte Laufzeit und Fehlerzahl; ein Klick öffnet den gespeicherten Workflow. Bereits vorhandene Sitzungen werden beim Datenbank-Upgrade nur bei genau einer belegten Workflow-Verknüpfung rückwirkend zugeordnet. Nicht belegbare alte Starts bleiben „Historisch ungeklärt“. Token und Kosten stehen ausdrücklich als nicht verfügbar da, bis eine verlässliche Provider-Quelle implementiert ist. Nach Integration bestanden sieben gezielte SQLite-/Renderer-Tests, Typprüfung, Build und der sichtbare `smoke:usage` mit Workflow-Navigation. Die Windows-Paket-CI steht noch aus. [Bedienung und Grenzen](ACTIVITY.md).
+
 ## F01 geführtes Projektprofil
 
 - Der geführte Codex-Aufruf berücksichtigt jetzt die Standalone-Startargumente der mit der Windows-App ausgelieferten CLI. Ein synthetischer Backend-Ablauf bestätigt: belegten Kandidaten vorschlagen, erst auf ausdrücklichen Klick speichern, Karte A starten, Profil nach echtem SQLite-Neustart für Karte B mit eigenem Port und Worktree wiederverwenden. Ein weiterer Test prüft das Argument der paketierten CLI. Vier gezielte F01-Tests, Produktionsbuild und der sichtbare Zweikarten-`smoke:f01` bestanden nach Integration auf `main`. Ein optionaler Live-Test mit der lokal angemeldeten Codex CLI wählte einen belegten Kandidaten aus Git HEAD; erst nach ausdrücklicher Bestätigung wurde das Profil gespeichert, und zwei Karten liefen auf getrennten Ports. [CI 45549266833](https://github.com/mschr703/branchloom/actions/runs/45549266833) bestand vollständig mit Verify, portablem ZIP, Installer und beiden Paket-Smokes. Ein vollständiger sichtbarer Agenten-Klickpfad mit echtem Nutzerprojekt steht aus. [Bedienung und Grenzen](DEV_ENVIRONMENTS.md).

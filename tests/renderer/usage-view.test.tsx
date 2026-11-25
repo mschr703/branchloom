@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import type { AgentPreset } from '../../src/shared/types';
 import type { UsageSession, UsageSessionPage } from '../../src/shared/usage';
 import { formatUsageDuration, projectUsage, usageStart } from '../../src/renderer/usage-data';
+import { UsageSourceBreakdown } from '../../src/renderer/components/UsagePanel';
 
 const now = Date.parse('2026-11-24T12:00:00.000Z');
 const agent = { id: 'a', name: 'Codex' } as AgentPreset;
-function session(id: string, state: UsageSession['state'], start: string, end: string | null, agentId = 'a', exitCode: number | null = null): UsageSession {
-  return { id, state, agentId, startedAt: start, endedAt: end, exitCode };
+function session(id: string, state: UsageSession['state'], start: string, end: string | null, agentId = 'a', exitCode: number | null = null,
+  source: Pick<UsageSession, 'origin' | 'workflowId' | 'workflowName'> = { origin: 'direct', workflowId: null, workflowName: null }): UsageSession {
+  return { id, state, agentId, startedAt: start, endedAt: end, exitCode, ...source };
 }
 
 describe('local usage aggregation', () => {
@@ -24,7 +28,29 @@ describe('local usage aggregation', () => {
       { id: 'b', name: 'Entfernter Agent', runs: 1, durationMs: 5 * 60_000, active: 0, failed: 1 },
     ]);
     expect(usage.days.slice(-2).map((day) => day.runs)).toEqual([1, 2]);
+    expect(usage.origins).toEqual({ direct: 3, workflow: 0, queue: 0, unknown: 0 });
     expect(projectUsage(page, [agent], now, 30).runs).toBe(4);
+  });
+
+  it('separates queue, workflow, direct and historical unknown runs without guessing tokens', () => {
+    const page: UsageSessionPage = { truncated: false, sessions: [
+      session('queue', 'exited', '2026-11-24T08:00:00.000Z', '2026-11-24T08:30:00.000Z', 'a', 0,
+        { origin: 'queue', workflowId: 'q', workflowName: 'Night queue' }),
+      session('workflow', 'failed', '2026-11-24T09:00:00.000Z', '2026-11-24T09:10:00.000Z', 'a', 1,
+        { origin: 'workflow', workflowId: 'w', workflowName: 'Review route' }),
+      session('unknown', 'stopped', '2026-11-24T10:00:00.000Z', null, 'a', null,
+        { origin: 'unknown', workflowId: null, workflowName: null }),
+      session('inconsistent', 'exited', '2026-11-24T11:00:00.000Z', '2026-11-24T11:05:00.000Z', 'a', 0,
+        { origin: 'workflow', workflowId: null, workflowName: null }),
+    ] };
+    const usage = projectUsage(page, [agent], now, 7);
+    expect(usage.origins).toEqual({ direct: 0, workflow: 1, queue: 1, unknown: 2 });
+    expect(usage.workflows).toEqual([
+      { id: 'q', name: 'Night queue', origin: 'queue', runs: 1, durationMs: 30 * 60_000, failed: 0 },
+      { id: 'w', name: 'Review route', origin: 'workflow', runs: 1, durationMs: 10 * 60_000, failed: 1 },
+    ]);
+    expect('tokens' in usage).toBe(false);
+    expect('cost' in usage).toBe(false);
   });
 
   it('does not invent duration for missing or invalid end times, or model tokens and cost', () => {
@@ -48,5 +74,27 @@ describe('local usage aggregation', () => {
     const end = new Date(start);
     end.setDate(end.getDate() + 6);
     expect(end.toDateString()).toBe(new Date(now).toDateString());
+  });
+
+  it('renders explicit source evidence and workflow actions without a token estimate', () => {
+    const usage = projectUsage({ truncated: false, sessions: [
+      session('queue', 'exited', '2026-11-24T08:00:00.000Z', '2026-11-24T08:30:00.000Z', 'a', 0,
+        { origin: 'queue', workflowId: 'queue-id', workflowName: 'Night queue' }),
+      session('unknown', 'stopped', '2026-11-24T09:00:00.000Z', null, 'a', null,
+        { origin: 'unknown', workflowId: null, workflowName: null }),
+    ] }, [agent], now, 7);
+    const markup = renderToStaticMarkup(createElement(UsageSourceBreakdown, {
+      usage, availableWorkflowIds: new Set(['queue-id']), onOpenWorkflow: () => undefined,
+    }));
+    expect(markup).toContain('Projektwarteschlange');
+    expect(markup).toContain('Historisch ungeklärt');
+    expect(markup).toContain('<button type="button"');
+    expect(markup).toContain('Night queue');
+    expect(markup).not.toContain('Token');
+    const removedMarkup = renderToStaticMarkup(createElement(UsageSourceBreakdown, {
+      usage, availableWorkflowIds: new Set<string>(), onOpenWorkflow: () => undefined,
+    }));
+    expect(removedMarkup).toContain('Workflow entfernt');
+    expect(removedMarkup).not.toContain('<button');
   });
 });

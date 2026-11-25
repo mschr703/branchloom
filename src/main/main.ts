@@ -34,6 +34,7 @@ import { divergentIntegration, divergentIntegrationDiff, retryMissingDivergentIn
 import { integrationResultFolder } from './integration-results';
 import { runG02VisibleSmoke } from './smoke-g02';
 import { runG02AutoSmoke } from './smoke-g02-auto';
+import { runUsageSmoke } from './smoke-usage';
 import { applyManualRevision, captureManualRevision, manualRevisionFiles, manualRevisions, previewManualRevision, setManualRevisionConflictChoice } from './manual-revision';
 import { runF03Acceptance } from './f03-acceptance-smoke';
 import { attestIntegrationReview, integrationEvidence, runIntegrationTest, setIntegrationTestScript } from './integration-evidence';
@@ -116,7 +117,8 @@ const smokeF01 = process.argv.includes('--studio-smoke-f01');
 const smokeF03 = process.argv.includes('--studio-smoke-f03');
 const g02Smoke = process.argv.includes('--studio-smoke-g02');
 const smokeG02Auto = process.argv.includes('--studio-smoke-g02-auto');
-const smoke = process.argv.includes('--studio-smoke') || smokeF01 || smokeF03 || smokeF06 || g02Smoke || smokeG02Auto;
+const smokeUsage = process.argv.includes('--studio-smoke-usage');
+const smoke = process.argv.includes('--studio-smoke') || smokeF01 || smokeF03 || smokeF06 || g02Smoke || smokeG02Auto || smokeUsage;
 const smokeDataDirectory = smoke ? mkdtempSync(join(tmpdir(), 'branchloom-smoke-')) : null;
 const devDataDirectory = !app.isPackaged ? process.env.BRANCHLOOM_DEV_USER_DATA : undefined;
 if (smokeDataDirectory) {
@@ -907,7 +909,14 @@ function createWindow(): void {
   // source modes, so it cannot decide this on its own.
   if (!app.isPackaged && process.env.JARVIS_STUDIO_DEV_SERVER === '1') void window.loadURL('http://127.0.0.1:5181');
   else void window.loadFile(join(__dirname, '../../dist/renderer/index.html'));
-  if (smokeF01) {
+  if (smokeUsage) {
+    window.webContents.once('did-finish-load', () => {
+      void runUsageSmoke(window!, mustStore(), smokeDataDirectory!).then(() => {
+        process.stdout.write('STUDIO_SMOKE_USAGE_OK\n');
+        app.quit();
+      }).catch((error: unknown) => { console.error('STUDIO_SMOKE_USAGE_FAILED', error); app.exit(1); });
+    });
+  } else if (smokeF01) {
     window.webContents.once('did-finish-load', () => {
       void runF01VisibleSmoke(window!, mustStore(), devEnvironmentRunner!, smokeDataDirectory!).then(() => {
         process.stdout.write('STUDIO_SMOKE_F01_OK\n');

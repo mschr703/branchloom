@@ -24,6 +24,7 @@ jobs:
       - run: node scripts/smoke-electron.mjs --f03 --timeout-ms 180000
       - run: node scripts/smoke-electron.mjs --g02 --timeout-ms 240000
       - run: node scripts/smoke-electron.mjs --g02-auto --timeout-ms 180000
+      - run: node scripts/smoke-electron.mjs --usage --timeout-ms 120000
       - run: node scripts/check-public.mjs
 
   portable-windows:

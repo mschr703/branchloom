@@ -104,6 +104,7 @@ export class StudioStore {
     this.db = new Database(file);
     this.db.pragma('foreign_keys = ON');
     this.db.pragma('journal_mode = WAL');
+    const hadUsageOrigins = Boolean(this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'session_usage_origins'").get());
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, path TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS project_groups (id TEXT PRIMARY KEY, name TEXT NOT NULL COLLATE NOCASE UNIQUE);
@@ -117,6 +118,7 @@ export class StudioStore {
       CREATE TABLE IF NOT EXISTS command_terminals (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, shell TEXT NOT NULL, state TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT, exit_code INTEGER, output TEXT NOT NULL DEFAULT '');
       CREATE TABLE IF NOT EXISTS workflows (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, name TEXT NOT NULL, card_ids_json TEXT NOT NULL, steps_json TEXT NOT NULL, state TEXT NOT NULL, current_step INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS workflow_progress (workflow_id TEXT NOT NULL REFERENCES workflows(id) ON DELETE CASCADE, step_index INTEGER NOT NULL, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, session_id TEXT REFERENCES sessions(id), state TEXT NOT NULL, PRIMARY KEY (workflow_id, step_index, card_id));
+      CREATE TABLE IF NOT EXISTS session_usage_origins (session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE, origin TEXT NOT NULL CHECK (origin IN ('direct', 'workflow', 'queue')), workflow_id TEXT, workflow_name TEXT);
       CREATE TABLE IF NOT EXISTS workflow_start_errors (workflow_id TEXT PRIMARY KEY REFERENCES workflows(id) ON DELETE CASCADE, message TEXT NOT NULL, failed_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS workflow_step_approvals (workflow_id TEXT NOT NULL REFERENCES workflows(id) ON DELETE CASCADE, step_index INTEGER NOT NULL, approved_at TEXT NOT NULL, PRIMARY KEY (workflow_id, step_index));
       CREATE TABLE IF NOT EXISTS workflow_step_haltpoints (id TEXT PRIMARY KEY, workflow_id TEXT NOT NULL REFERENCES workflows(id) ON DELETE CASCADE, after_step_index INTEGER NOT NULL, step_id TEXT NOT NULL, state TEXT NOT NULL CHECK (state IN ('requested', 'reached', 'released', 'cancelled')), requested_at TEXT NOT NULL, reached_at TEXT, closed_at TEXT);
@@ -134,10 +136,20 @@ export class StudioStore {
       CREATE INDEX IF NOT EXISTS idx_card_attachments_card ON card_attachments(card_id, added_at);
       CREATE INDEX IF NOT EXISTS idx_sessions_card ON sessions(card_id, started_at DESC);
       CREATE INDEX IF NOT EXISTS idx_sessions_usage ON sessions(project_id, started_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_workflow_progress_session ON workflow_progress(session_id) WHERE session_id IS NOT NULL;
       CREATE INDEX IF NOT EXISTS idx_command_terminals_project ON command_terminals(project_id, started_at DESC);
       CREATE INDEX IF NOT EXISTS idx_workflows_project ON workflows(project_id, state);
       CREATE INDEX IF NOT EXISTS idx_notes_project ON notes(project_id, updated_at DESC);
     `);
+    // Older runs only receive attribution where a single persisted workflow link proves it.
+    // Unlinked historical runs remain unknown instead of being called manual/direct.
+    if (!hadUsageOrigins) this.db.exec(`INSERT OR IGNORE INTO session_usage_origins (session_id, origin, workflow_id, workflow_name)
+      SELECT p.session_id, CASE WHEN q.workflow_id IS NULL THEN 'workflow' ELSE 'queue' END, p.workflow_id, w.name
+      FROM workflow_progress p JOIN workflows w ON w.id = p.workflow_id
+      JOIN sessions s ON s.id = p.session_id AND s.project_id = w.project_id
+      LEFT JOIN queue_runs q ON q.workflow_id = p.workflow_id
+      WHERE p.session_id IS NOT NULL
+        AND (SELECT COUNT(*) FROM workflow_progress other WHERE other.session_id = p.session_id) = 1`);
     const sessionColumns = this.db.pragma('table_info(sessions)') as Array<{ name: string }>;
     const terminalColumns = this.db.pragma('table_info(command_terminals)') as Array<{ name: string }>;
     if (!terminalColumns.some((item) => item.name === 'card_id')) this.db.exec('ALTER TABLE command_terminals ADD COLUMN card_id TEXT');
@@ -356,12 +368,17 @@ export class StudioStore {
     const sinceMs = Date.parse(input.since);
     if (!Number.isFinite(sinceMs) || sinceMs > Date.now() || Date.now() - sinceMs > 35 * 86_400_000) throw new Error('Usage range must be within 35 days.');
     this.project(input.projectId);
-    const rows = this.db.prepare(`SELECT id, agent_id, state, started_at, ended_at, exit_code
-      FROM sessions WHERE project_id = ? AND started_at >= ? ORDER BY started_at DESC, id DESC LIMIT 10001`)
-      .all(input.projectId, input.since) as Array<Pick<SessionRow, 'id' | 'agent_id' | 'state' | 'started_at' | 'ended_at' | 'exit_code'>>;
+    const rows = this.db.prepare(`SELECT s.id, s.agent_id, s.state, s.started_at, s.ended_at, s.exit_code,
+      COALESCE(u.origin, 'unknown') AS origin, u.workflow_id, u.workflow_name
+      FROM sessions s LEFT JOIN session_usage_origins u ON u.session_id = s.id
+      WHERE s.project_id = ? AND s.started_at >= ? ORDER BY s.started_at DESC, s.id DESC LIMIT 10001`)
+      .all(input.projectId, input.since) as Array<Pick<SessionRow, 'id' | 'agent_id' | 'state' | 'started_at' | 'ended_at' | 'exit_code'> & {
+        origin: 'direct' | 'workflow' | 'queue' | 'unknown'; workflow_id: string | null; workflow_name: string | null;
+      }>;
     return { truncated: rows.length > 10000, sessions: rows.slice(0, 10000).map((row) => ({
       id: row.id, agentId: row.agent_id, state: row.state, startedAt: row.started_at,
       endedAt: row.ended_at, exitCode: row.exit_code,
+      origin: row.origin, workflowId: row.workflow_id, workflowName: row.workflow_name,
     })) };
   }
 
@@ -788,7 +805,10 @@ export class StudioStore {
     this.agent(input.agentId);
     if (input.codexThreadId && (this.agent(input.agentId).kind !== 'codex' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(input.codexThreadId))) throw new Error('Ungültige Codex-Gesprächs-ID.');
     const value: Session = { id: randomUUID(), projectId: source.projectId, cardId: source.id, agentId: input.agentId, state: 'running', startedAt: now(), endedAt: null, exitCode: null, output: '', worktreePath: input.worktreePath ?? null, codexThreadId: input.codexThreadId ?? null };
-    this.db.prepare('INSERT INTO sessions (id, project_id, card_id, agent_id, state, started_at, ended_at, exit_code, output, worktree_path, codex_thread_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(value.id, value.projectId, value.cardId, value.agentId, value.state, value.startedAt, value.endedAt, value.exitCode, value.output, value.worktreePath, value.codexThreadId);
+    this.db.transaction(() => {
+      this.db.prepare('INSERT INTO sessions (id, project_id, card_id, agent_id, state, started_at, ended_at, exit_code, output, worktree_path, codex_thread_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(value.id, value.projectId, value.cardId, value.agentId, value.state, value.startedAt, value.endedAt, value.exitCode, value.output, value.worktreePath, value.codexThreadId);
+      this.db.prepare("INSERT INTO session_usage_origins (session_id, origin, workflow_id, workflow_name) VALUES (?, 'direct', NULL, NULL)").run(value.id);
+    })();
     return value;
   }
   linkCodexThread(sessionId: string, threadId: string): void {
@@ -1005,7 +1025,18 @@ export class StudioStore {
     return rows.map((row) => ({ cardId: row.card_id, sessionId: row.session_id, state: row.state }));
   }
   beginWorkflowCard(id: string, stepIndex: number, cardId: string, sessionId: string): void {
-    this.db.prepare("UPDATE workflow_progress SET state = 'running', session_id = ? WHERE workflow_id = ? AND step_index = ? AND card_id = ? AND state IN ('pending', 'needs_review')").run(sessionId, id, stepIndex, cardId);
+    this.db.transaction(() => {
+      const changed = this.db.prepare("UPDATE workflow_progress SET state = 'running', session_id = ? WHERE workflow_id = ? AND step_index = ? AND card_id = ? AND state IN ('pending', 'needs_review')").run(sessionId, id, stepIndex, cardId);
+      if (!changed.changes) return;
+      const row = this.db.prepare(`SELECT w.project_id, w.name, s.project_id AS session_project,
+        EXISTS(SELECT 1 FROM queue_runs q WHERE q.workflow_id = w.id) AS queued
+        FROM workflows w JOIN sessions s ON s.id = ? WHERE w.id = ?`).get(sessionId, id) as {
+        project_id: string; name: string; session_project: string; queued: number;
+      } | undefined;
+      if (!row || row.project_id !== row.session_project) return;
+      this.db.prepare(`UPDATE session_usage_origins SET origin = ?, workflow_id = ?, workflow_name = ? WHERE session_id = ?`)
+        .run(row.queued ? 'queue' : 'workflow', id, row.name, sessionId);
+    })();
   }
   markManualWait(id: string, stepIndex: number, cardId: string): void {
     this.db.prepare("UPDATE workflow_progress SET state = 'manual_wait' WHERE workflow_id = ? AND step_index = ? AND card_id = ? AND state = 'pending'").run(id, stepIndex, cardId);
