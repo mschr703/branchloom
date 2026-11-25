@@ -12,7 +12,7 @@
     "package:win": "npm run build && electron-forge package --platform=win32",
     "make:win": "node scripts/prepare-trello-public-app.mjs && npm run build && electron-forge make --platform=win32",
     "make:installer": "node scripts/prepare-trello-public-app.mjs && npm run build && electron-builder --win nsis --publish never",
-    "smoke:source": "node scripts/smoke-electron.mjs",
+    "smoke:source": "npm run build && node scripts/smoke-electron.mjs",
     "smoke:dev-accounts": "node scripts/smoke-dev-account-restart.mjs",
     "smoke:package": "node scripts/smoke-electron.mjs --package",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
