@@ -66,9 +66,10 @@ import { AgentCardMetadataBridge } from './agent-card-metadata-bridge';
 import { agentBrowserPolicy, setAgentBrowserPolicy } from './agent-browser-policy';
 import { AgentBrowserBridge } from './agent-browser-bridge';
 import { inspectAgentBrowserPage } from './agent-browser-inspector';
-import { DevEnvironmentRunner, devEnvironmentProfile, saveDevEnvironmentProfile } from './dev-environment';
+import { DevEnvironmentRunner, devEnvironmentAudit, devEnvironmentProfile, saveDevEnvironmentProfile, startApprovedDevEnvironment } from './dev-environment';
 import { DevAccountBrowser } from './dev-account-browser';
 import { assignDevAccount, createDevAccount, devAccountForProject, devAccountOverview } from './dev-account';
+import { GuidedDevEnvironment, inspectDevEnvironment } from './guided-dev-environment';
 import { proposeWorkflow } from './workflow-planner';
 import { discussTaskDraft } from './task-draft';
 import { discussProject } from './project-chat';
@@ -170,8 +171,10 @@ function installIpc(): void {
   commandRunner = new CommandTerminalRunner(db, (event: CommandTerminalEvent) => {
     if (window && !window.isDestroyed()) window.webContents.send('studio:command-terminal-event', event);
   });
-  devEnvironmentRunner = new DevEnvironmentRunner(db);
-  devAccountBrowser = new DevAccountBrowser(db, devEnvironmentRunner, () => window);
+  const devRunner = new DevEnvironmentRunner(db);
+  devEnvironmentRunner = devRunner;
+  const devGuide = new GuidedDevEnvironment(db, devRunner);
+  devAccountBrowser = new DevAccountBrowser(db, devRunner, () => window);
 
   const bind = <K extends keyof StudioAPI>(name: K, handler: (...args: never[]) => unknown): void => {
     ipcMain.handle(`studio:${String(name)}`, (event, ...args: unknown[]) => {
@@ -318,10 +321,14 @@ function installIpc(): void {
   });
   bind('devEnvironmentProfile', (projectId: string) => devEnvironmentProfile(db, projectId));
   bind('saveDevEnvironmentProfile', (input: Parameters<StudioAPI['saveDevEnvironmentProfile']>[0]) => saveDevEnvironmentProfile(db, input));
+  bind('devEnvironmentAudit', (input: Parameters<StudioAPI['devEnvironmentAudit']>[0]) => devEnvironmentAudit(db, input.projectId, input.cardId));
+  bind('inspectDevEnvironment', (input: Parameters<StudioAPI['inspectDevEnvironment']>[0]) => devGuide.inspect(input));
+  bind('adviseDevEnvironment', (input: Parameters<StudioAPI['adviseDevEnvironment']>[0]) => devGuide.advise(input));
+  bind('applyGuidedDevEnvironment', (input: Parameters<StudioAPI['applyGuidedDevEnvironment']>[0]) => devGuide.apply(input));
   bind('cardDevEnvironment', (cardId: string) => devEnvironmentRunner?.card(cardId) ?? null);
-  bind('startCardDevEnvironment', async (cardId: string) => {
-    const run = await devEnvironmentRunner?.start(cardId);
-    if (run) devAccountBrowser?.closeCard(cardId);
+  bind('startCardDevEnvironment', async (input: Parameters<StudioAPI['startCardDevEnvironment']>[0]) => {
+    const run = await startApprovedDevEnvironment(db, devRunner, input);
+    if (run) devAccountBrowser?.closeCard(input.cardId);
     return run;
   });
   bind('stopCardDevEnvironment', (runId: string) => {
@@ -3393,6 +3400,20 @@ http.createServer((request, response) => {
               const overview = devAccountOverview(smokeStore, { projectId: f08Project.id, cardId });
               assignDevAccount(smokeStore, { projectId: f08Project.id, cardId, accountId, expectedCardRevision: overview.cardRevision });
             }
+            // F01 guided setup: source evidence, a visible card click and a real local server.
+            mkdirSync(join(milestonePath, 'node_modules', 'vite', 'bin'), { recursive: true });
+            writeFileSync(join(milestonePath, 'package.json'), JSON.stringify({ name: 'smoke-guided-app', scripts: { dev: 'vite' }, devDependencies: { vite: '^7.0.0' } }));
+            writeFileSync(join(milestonePath, 'index.html'), '<!doctype html><title>Smoke Guided App</title>');
+            writeFileSync(join(milestonePath, 'node_modules', 'vite', 'bin', 'vite.js'), `const http=require('node:http');
+const port=Number(process.argv[process.argv.indexOf('--port')+1]);
+http.createServer((_request,response)=>{response.writeHead(200,{'Content-Type':'text/html'});response.end('<title>Smoke Guided App</title>')}).listen(port,'127.0.0.1');`);
+            execFileSync('git', ['-C', milestonePath, 'add', '-f', 'package.json', 'index.html', 'node_modules/vite/bin/vite.js'], { windowsHide: true });
+            execFileSync('git', ['-C', milestonePath, '-c', 'user.name=Branchloom Smoke', '-c', 'user.email=smoke@example.invalid', 'commit', '-qm', 'Synthetic guided preview app'], { windowsHide: true });
+            const guidedCard = smokeStore.createCard({ projectId: milestoneProjectId, columnId: smokeStore.snapshot(milestoneProjectId).columns[0]!.id, title: 'Guided preview smoke card' });
+            const guidedInspection = inspectDevEnvironment(smokeStore, devEnvironmentRunner!, { projectId: milestoneProjectId, cardId: guidedCard.id });
+            if (guidedInspection.candidates.length !== 1 || !guidedInspection.evidence.some((item) => item.id === 'html-title')) throw new Error('F01 guided Git HEAD evidence is missing.');
+            const guidedProfile = saveDevEnvironmentProfile(smokeStore, guidedInspection.candidates[0]!.profile);
+            if (devEnvironmentAudit(smokeStore, milestoneProjectId, guidedCard.id)[0]?.profileFingerprint !== guidedProfile.fingerprint) throw new Error('F01 profile save receipt is missing.');
             await new Promise<void>((resolve) => { smokeWindow.webContents.once('did-finish-load', () => resolve()); smokeWindow.webContents.reload(); });
             await smokeWindow.webContents.executeJavaScript(`(async () => {
               for (let attempt = 0; attempt < 100 && !document.querySelector('#project-select'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
@@ -3454,6 +3475,43 @@ http.createServer((request, response) => {
             devEnvironmentRunner!.stop(f08FirstRun.id);
             devEnvironmentRunner!.stop(f08SecondRun.id);
             devAccountBrowser!.closeAll();
+            await new Promise<void>((resolve) => { smokeWindow.webContents.once('did-finish-load', () => resolve()); smokeWindow.webContents.reload(); });
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              for (let attempt = 0; attempt < 100 && !document.querySelector('#project-select'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const select = document.querySelector('#project-select');
+              const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+              if (!(select instanceof HTMLSelectElement) || !setter) throw new Error('F01 guided project picker is missing.');
+              setter.call(select, ${JSON.stringify(milestoneProjectId)}); select.dispatchEvent(new Event('change', { bubbles: true }));
+              [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Board')?.click();
+              let card;
+              for (let attempt = 0; attempt < 100 && !card; attempt++) {
+                card = [...document.querySelectorAll('.task-card')].find((item) => item.textContent?.includes('Guided preview smoke card'));
+                if (!card) await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!(card instanceof HTMLElement)) throw new Error('F01 guided card is not visible: ' + JSON.stringify({
+                project: select.value, tasks: [...document.querySelectorAll('.task-card')].slice(0, 8).map((item) => item.textContent?.slice(0, 80)),
+                board: document.querySelector('.board-view')?.textContent?.slice(0, 300),
+              }));
+              card.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.card-drawer .card-dev-env'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const panel = document.querySelector('.card-drawer .card-dev-env');
+              const inspect = [...(panel?.querySelectorAll('button') ?? [])].find((item) => item.textContent?.trim() === 'Projektstand prüfen');
+              if (!(inspect instanceof HTMLButtonElement)) throw new Error('F01 guided inspection action is missing.');
+              inspect.click();
+              for (let attempt = 0; attempt < 100 && !panel?.textContent?.includes('1 belegter Startvorschlag'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!panel?.textContent?.includes('1 belegter Startvorschlag') || !panel.textContent.includes('Einrichtung mit Agent besprechen')) throw new Error('F01 guided evidence did not render.');
+              const start = [...panel.querySelectorAll('button')].find((item) => item.textContent?.includes('Für diese Karte starten'));
+              if (!(start instanceof HTMLButtonElement) || start.disabled) throw new Error('F01 explicit start action is missing.');
+              start.click();
+              for (let attempt = 0; attempt < 100 && !panel.textContent?.includes('Bereit'); attempt++) await new Promise((resolve) => setTimeout(resolve, 100));
+              if (!panel.textContent?.includes('Bereit')) throw new Error('F01 synthetic preview did not become ready through the card action.');
+              const audit = await window.studio.devEnvironmentAudit({ projectId: ${JSON.stringify(milestoneProjectId)}, cardId: ${JSON.stringify(guidedCard.id)} });
+              if (!audit.some((item) => item.kind === 'start' && item.outcome === 'started')) throw new Error('F01 start approval receipt is missing.');
+              return true;
+            })()`);
+            const guidedRun = devEnvironmentRunner!.card(guidedCard.id);
+            if (!guidedRun || guidedRun.state !== 'ready' || !guidedRun.managed || !(await (await fetch(guidedRun.url)).text()).includes('Smoke Guided App')) throw new Error('F01 guided card preview opened the wrong app.');
+            devEnvironmentRunner!.stop(guidedRun.id);
             if (!await safeStorage.isAsyncEncryptionAvailable()) throw new Error('Trello-Smoke: Windows-Verschlüsselung ist nicht verfügbar.');
             const sealed = await safeStorage.encryptStringAsync('branchloom-trello-smoke');
             if ((await safeStorage.decryptStringAsync(sealed)).result !== 'branchloom-trello-smoke') throw new Error('Trello-Smoke: Windows-Verschlüsselung konnte nicht lesen.');

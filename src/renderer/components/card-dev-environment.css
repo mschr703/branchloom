@@ -10,6 +10,16 @@
 .card-dev-env-form > button { justify-self: start; }
 .card-dev-env-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
 .card-dev-env-actions button { display: inline-flex; align-items: center; gap: 5px; }
+.card-dev-env-guide-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.card-dev-env-guide { display: grid; gap: 7px; border-left: 2px solid var(--border); padding-left: 12px; font-size: 12px; line-height: 1.5; }
+.card-dev-env-guide p, .card-dev-env-proposal p { margin: 0; }
+.card-dev-env-guide details summary, .card-dev-env-audit summary { cursor: pointer; color: var(--muted); }
+.card-dev-env-guide ul, .card-dev-env-audit ol { margin: 6px 0 0; padding-left: 18px; color: var(--muted); }
+.card-dev-env-proposal { display: grid; gap: 6px; min-width: 0; }
+.card-dev-env-proposal code { overflow-wrap: anywhere; }
+.card-dev-env-proposal small { color: var(--muted); }
+.card-dev-env-proposal button { justify-self: start; }
+.card-dev-env-audit { font-size: 12px; }
 .card-dev-env-state { display: grid; gap: 4px; min-width: 0; font-size: 12px; }
 .card-dev-env-state > span { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .card-dev-env-state > small, .card-dev-env-state > p { margin: 0; color: var(--muted); overflow-wrap: anywhere; line-height: 1.45; }

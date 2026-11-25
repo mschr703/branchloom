@@ -1,7 +1,7 @@
 import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
-import type { CardDevEnvironment, DevEnvironmentProfile, DevEnvironmentState, SaveDevEnvironmentProfile } from '../shared/dev-environment';
+import type { CardDevEnvironment, DevEnvironmentAuditEvent, DevEnvironmentProfile, DevEnvironmentState, SaveDevEnvironmentProfile } from '../shared/dev-environment';
 import { ensureCardWorktree } from './git-worktree';
 import type { StudioStore } from './store';
 
@@ -25,7 +25,21 @@ export function installDevEnvironments(store: StudioStore): void {
     started_at TEXT NOT NULL, ready_at TEXT, ended_at TEXT, exit_code INTEGER, output TEXT NOT NULL DEFAULT '');
     CREATE UNIQUE INDEX IF NOT EXISTS idx_dev_environment_active_card ON dev_environment_runs(card_id) WHERE state IN ('starting','ready');
     CREATE UNIQUE INDEX IF NOT EXISTS idx_dev_environment_active_port ON dev_environment_runs(port) WHERE state IN ('starting','ready');
-    CREATE INDEX IF NOT EXISTS idx_dev_environment_card_history ON dev_environment_runs(card_id, started_at DESC);`);
+    CREATE INDEX IF NOT EXISTS idx_dev_environment_card_history ON dev_environment_runs(card_id, started_at DESC);
+    CREATE TABLE IF NOT EXISTS dev_environment_actions (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      card_id TEXT REFERENCES cards(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL CHECK (kind IN ('profile','start')),
+      source TEXT NOT NULL CHECK (source IN ('manual','guided','card-button')),
+      at TEXT NOT NULL, outcome TEXT NOT NULL CHECK (outcome IN ('saved','requested','started','rejected')),
+      profile_fingerprint TEXT NOT NULL, run_id TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_dev_environment_actions_project ON dev_environment_actions(project_id, at DESC);`);
+}
+
+export function devEnvironmentProfileFingerprint(profile: SaveDevEnvironmentProfile): string {
+  return createHash('sha256').update(JSON.stringify({ executable: profile.executable, args: profile.args,
+    healthPath: profile.healthPath, healthMarker: profile.healthMarker })).digest('hex');
 }
 
 export function checkedDevEnvironmentProfile(input: SaveDevEnvironmentProfile): SaveDevEnvironmentProfile {
@@ -46,19 +60,58 @@ export function checkedDevEnvironmentProfile(input: SaveDevEnvironmentProfile): 
 export function devEnvironmentProfile(store: StudioStore, projectId: string): DevEnvironmentProfile | null {
   store.project(projectId);
   const row = store.db.prepare('SELECT * FROM dev_environment_profiles WHERE project_id = ?').get(projectId) as ProfileRow | undefined;
-  return row ? { projectId, executable: row.executable, args: JSON.parse(row.args_json) as string[], healthPath: row.health_path,
-    healthMarker: row.health_marker, updatedAt: row.updated_at } : null;
+  if (!row) return null;
+  const profile = { projectId, executable: row.executable, args: JSON.parse(row.args_json) as string[], healthPath: row.health_path,
+    healthMarker: row.health_marker, updatedAt: row.updated_at };
+  return { ...profile, fingerprint: devEnvironmentProfileFingerprint(profile) };
 }
 
-export function saveDevEnvironmentProfile(store: StudioStore, input: SaveDevEnvironmentProfile): DevEnvironmentProfile {
+export function saveDevEnvironmentProfile(store: StudioStore, input: SaveDevEnvironmentProfile,
+  source: 'manual' | 'guided' = 'manual'): DevEnvironmentProfile {
   const checked = checkedDevEnvironmentProfile(input);
   store.project(checked.projectId);
   const updatedAt = stamp();
-  store.db.prepare(`INSERT INTO dev_environment_profiles (project_id, executable, args_json, health_path, health_marker, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(project_id) DO UPDATE SET executable = excluded.executable,
-    args_json = excluded.args_json, health_path = excluded.health_path, health_marker = excluded.health_marker, updated_at = excluded.updated_at`)
-    .run(checked.projectId, checked.executable, JSON.stringify(checked.args), checked.healthPath, checked.healthMarker, updatedAt);
-  return { ...checked, updatedAt };
+  const fingerprint = devEnvironmentProfileFingerprint(checked);
+  store.db.transaction(() => {
+    store.db.prepare(`INSERT INTO dev_environment_profiles (project_id, executable, args_json, health_path, health_marker, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(project_id) DO UPDATE SET executable = excluded.executable,
+      args_json = excluded.args_json, health_path = excluded.health_path, health_marker = excluded.health_marker, updated_at = excluded.updated_at`)
+      .run(checked.projectId, checked.executable, JSON.stringify(checked.args), checked.healthPath, checked.healthMarker, updatedAt);
+    store.db.prepare(`INSERT INTO dev_environment_actions (id,project_id,card_id,kind,source,at,outcome,profile_fingerprint,run_id)
+      VALUES (?,?,NULL,'profile',?,?,'saved',?,NULL)`).run(randomUUID(), checked.projectId, source, updatedAt, fingerprint);
+  }).immediate();
+  return { ...checked, updatedAt, fingerprint };
+}
+
+/** Only a specific UI start click calls this; the stored receipt never contains command arguments. */
+export async function startApprovedDevEnvironment(store: StudioStore, runner: DevEnvironmentRunner,
+  input: { cardId: string; expectedProfileFingerprint: string }): Promise<CardDevEnvironment> {
+  const card = store.card(input.cardId);
+  const profile = devEnvironmentProfile(store, card.projectId);
+  if (!profile || profile.fingerprint !== input.expectedProfileFingerprint) throw new Error('Project preview profile changed. Reload it before starting.');
+  const approvalId = randomUUID();
+  store.db.prepare(`INSERT INTO dev_environment_actions (id,project_id,card_id,kind,source,at,outcome,profile_fingerprint,run_id)
+    VALUES (?,?,?,'start','card-button',?,'requested',?,NULL)`)
+    .run(approvalId, card.projectId, card.id, stamp(), profile.fingerprint);
+  try {
+    const run = await runner.start(card.id);
+    store.db.prepare("UPDATE dev_environment_actions SET outcome = 'started', run_id = ? WHERE id = ?").run(run.id, approvalId);
+    return run;
+  } catch (reason) {
+    store.db.prepare("UPDATE dev_environment_actions SET outcome = 'rejected' WHERE id = ?").run(approvalId);
+    throw reason;
+  }
+}
+
+export function devEnvironmentAudit(store: StudioStore, projectId: string, cardId: string): DevEnvironmentAuditEvent[] {
+  const card = store.card(cardId);
+  if (card.projectId !== projectId) throw new Error('Card belongs to another project.');
+  const rows = store.db.prepare(`SELECT id,kind,source,at,outcome,profile_fingerprint,run_id FROM dev_environment_actions
+    WHERE project_id = ? AND (card_id IS NULL OR card_id = ?) ORDER BY at DESC, rowid DESC LIMIT 16`)
+    .all(projectId, cardId) as Array<{ id: string; kind: DevEnvironmentAuditEvent['kind']; source: DevEnvironmentAuditEvent['source'];
+      at: string; outcome: DevEnvironmentAuditEvent['outcome']; profile_fingerprint: string; run_id: string | null }>;
+  return rows.map((row) => ({ id: row.id, kind: row.kind, source: row.source, at: row.at,
+    outcome: row.outcome, profileFingerprint: row.profile_fingerprint, runId: row.run_id }));
 }
 
 function portAvailable(port: number): Promise<boolean> {

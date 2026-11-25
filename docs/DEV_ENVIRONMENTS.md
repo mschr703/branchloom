@@ -1,4 +1,4 @@
-# Manuelle Karten-Vorschau (F01, erster Teil)
+# Karten-Vorschau und geführte Einrichtung (F01)
 
 Eine Karte kann ihren eigenen Git-Worktree als lokalen Dev-Server starten. Die Konfiguration gilt pro Projekt und wird nur in Branchlooms lokaler SQLite-Datenbank gespeichert. Sie wird nicht in das Git-Repository geschrieben. Weder ein Agent noch ein Workflow startet einen Server automatisch.
 
@@ -8,6 +8,16 @@ Eine Karte kann ihren eigenen Git-Worktree als lokalen Dev-Server starten. Die K
 2. Speichere ein Projektprofil: ein **direkt ausführbares Programm**, eine Argumentzeile pro Argument, einen HTTP-Prüfpfad und einen Text, der auf der fertigen Seite vorkommt. Mindestens ein Argument muss `{port}` enthalten und ein Argument `127.0.0.1`. Der Server muss tatsächlich an diese Adresse und den eingesetzten Port binden.
 3. Wähle **Für diese Karte starten**. Branchloom legt bei Bedarf den Karten-Worktree an, startet das Programm dort und prüft die lokale HTTP-Antwort auf den angegebenen Text. **Bereit** erscheint erst nach dieser Antwort. **Vorschau öffnen** öffnet den geprüften Port in einem neuen Tab der Webvorschau.
 4. **Stoppen** beendet den von dieser App-Sitzung gestarteten Prozessbaum. Unter Windows nutzt Branchloom dafür einen begrenzten `taskkill /T /F`-Aufruf; unter POSIX eine eigene Prozessgruppe. Erst nach einem erfolgreichen Stopp meldet die Karte **Gestoppt**. Eine zweite Karte kann gleichzeitig mit demselben Profil auf einem anderen Port laufen.
+
+## Geführte Einrichtung und Fehlerprüfung
+
+**Projektstand prüfen** liest ausschließlich `package.json` und `index.html` aus dem Git-HEAD des Projekts. Bei einem direkten Vite-Dev-Skript und einem unterscheidbaren HTML-Titel zeigt Branchloom einen festen Kandidaten: `node` startet Vite im Karten-Worktree mit `--host 127.0.0.1 --port {port}`; der Titel ist der HTTP-Marker. Ungespeicherte Projektdateien erscheinen nicht in einem neuen Worktree und zählen daher nicht als Beleg. Andere Frameworks und generische Titel werden nicht geraten. Prüfe, ob die Abhängigkeiten **im Karten-Worktree** vorhanden sind; Branchloom installiert sie nicht.
+
+**Einrichtung mit Agent besprechen** beziehungsweise **Fehler mit Agent besprechen** startet nach einem eigenen Klick die konfigurierte Codex CLI mit einem kurzlebigen, lesenden Kontext außerhalb des Projektordners. Der Agent sieht nur die belegten Kandidaten, die Quellen-IDs, Profil-Abweichungsarten und eine Fehlerklasse. Die rohe Prozessausgabe, Zugangsdaten und lokale Projektpfade werden ihm nicht übergeben. Er darf lediglich einen vorhandenen Kandidaten auswählen oder keinen; frei erfundene Startbefehle werden abgewiesen. Ohne aktiven Codex-Workflow-Agenten lässt sich ein belegter Kandidat in das noch ungespeicherte Formular übernehmen oder das Profil manuell einrichten.
+
+Der ausgewählte Befehl, Prüfpfad und Marker erscheinen vor **Profil übernehmen**. Erst dieser Klick speichert das Projektprofil; er startet keinen Server. Der Vorschlag verfällt nach 20 Minuten und wird bei geändertem Git-HEAD, Profil oder Kartenlauf zurückgewiesen. **Für diese Karte starten** ist eine weitere bewusste Aktion und verlangt den Fingerprint des gerade angezeigten Profils. Geänderte Profile werden vor dem Start abgewiesen. **Einrichtungsbelege** zeigt die letzten lokalen Profiländerungen und Startfreigaben einschließlich abgewiesener Startversuche; der Beleg speichert Fingerprint und Lauf-ID, keine Befehlsargumente oder Geheimnisse. Frühere Profiländerungen vor dieser Erweiterung haben keinen nachträglichen Beleg.
+
+Bei fehlender Abhängigkeit, belegtem Port oder ausbleibender HTTP-Bereitschaft zeigt die Kartenansicht die Fehlerklasse und die lokale Prozessausgabe getrennt. Der Agent kann eine Erklärung und einen manuellen Prüfhinweis geben. Er installiert nichts, editiert keine Projektdateien und startet den Server nicht. Nach einer bewussten Korrektur muss das Profil erneut bestätigt und die Vorschau erneut gestartet werden. Die gespeicherte Einrichtung bleibt nach einem App-Neustart erhalten; ein Agentenvorschlag im Speicher verfällt, und kein Prozess wird automatisch wiederholt.
 
 Beispiel für ein bereits installiertes Vite-Projekt im Karten-Worktree:
 
@@ -30,4 +40,4 @@ Die **Prozessausgabe** im Kartendialog zeigt die letzten 32.000 Zeichen und den 
 - Die Readiness-Prüfung belegt einen antwortenden HTTP-Dienst und den konfigurierten Text, aber keine kryptografische Zuordnung zwischen Antwort und Kindprozess. Branchloom prüft nicht automatisch die visuelle Darstellung, Browserfehler, Abhängigkeiten oder erfolgreiche Agentenarbeit. Dafür bleiben die gesonderten Browser-QA- und Review-Abläufe zuständig.
 - Der Stop-Knopf beendet auch normale Kindprozesse im Prozessbaum. Wenn sich ein Kind vor dem Stoppen vollständig vom Elternprozess gelöst hat oder der Elternprozess vorher unerwartet endet, kann Branchloom es nicht mehr sicher diesem Lauf zuordnen. Prüfe in diesem Fall den belegten Port und beende den alten Server manuell.
 
-Agentengeführte Profilvorschläge, automatische Fehlerbehebung, Port-Forwarding und ein vollständig gekapselter Container gehören noch nicht zu diesem ersten Teil von F01.
+Die geführte Profilwahl deckt bisher nur belegte Vite-Standardprojekte ab. Agentengeführte Einrichtung anderer Frameworks, automatische Code- oder Abhängigkeitsreparatur, Testdaten-Reset, Port-Forwarding und ein vollständig gekapselter Container bleiben offen.

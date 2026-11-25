@@ -139,8 +139,12 @@ export interface StudioAPI {
   setAgentBrowserPolicy(input: import('./agent-browser').AgentBrowserPolicy): Promise<import('./agent-browser').AgentBrowserPolicy>;
   devEnvironmentProfile(projectId: string): Promise<import('./dev-environment').DevEnvironmentProfile | null>;
   saveDevEnvironmentProfile(input: import('./dev-environment').SaveDevEnvironmentProfile): Promise<import('./dev-environment').DevEnvironmentProfile>;
+  devEnvironmentAudit(input: { projectId: string; cardId: string }): Promise<import('./dev-environment').DevEnvironmentAuditEvent[]>;
+  inspectDevEnvironment(input: { projectId: string; cardId: string }): Promise<import('./dev-environment').DevEnvironmentInspection>;
+  adviseDevEnvironment(input: { projectId: string; cardId: string }): Promise<import('./dev-environment').GuidedDevEnvironmentAdvice>;
+  applyGuidedDevEnvironment(input: { adviceId: string; projectId: string; cardId: string }): Promise<import('./dev-environment').DevEnvironmentProfile>;
   cardDevEnvironment(cardId: string): Promise<import('./dev-environment').CardDevEnvironment | null>;
-  startCardDevEnvironment(cardId: string): Promise<import('./dev-environment').CardDevEnvironment>;
+  startCardDevEnvironment(input: { cardId: string; expectedProfileFingerprint: string }): Promise<import('./dev-environment').CardDevEnvironment>;
   stopCardDevEnvironment(runId: string): Promise<import('./dev-environment').CardDevEnvironment>;
   devAccountOverview(input: { projectId: string; cardId: string }): Promise<import('./dev-account').DevAccountOverview>;
   createDevAccount(input: import('./dev-account').CreateDevAccount): Promise<import('./dev-account').DevAccount>;
