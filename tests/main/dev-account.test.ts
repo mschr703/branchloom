@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { StudioStore } from '../../src/main/store';
-import { assignDevAccount, cardDevAccountGrant, createDevAccount, devAccountForProject, devAccountOverview } from '../../src/main/dev-account';
+import { assignDevAccount, cardDevAccountGrant, createDevAccount, devAccountForProject, devAccountOverview, finishSeedAttempt, lastSeedAttempt, recordSeedAttempt, saveSeedConfig, seedConfig } from '../../src/main/dev-account';
 
 const roots: string[] = [];
 const stores: StudioStore[] = [];
@@ -66,5 +66,22 @@ describe('local development accounts', () => {
     expect(() => createDevAccount(f.store, { ...valid, probePath: '//elsewhere.example/api/me' })).toThrow('local path');
     expect(() => createDevAccount(f.store, { ...valid, probePath: '/api/../me' })).toThrow('local path');
     expect(() => createDevAccount(f.store, { ...valid, service: 'Shop\nsecret' })).toThrow('one line');
+  });
+
+  it('persists local seed config and treats an interrupted request as unknown after restart', () => {
+    const f = fixture();
+    const admin = createDevAccount(f.store, { projectId: f.project.id, service: 'Shop', environment: 'local', role: 'admin', subject: 'admin-fixture', probePath: '/api/me' });
+    const user = createDevAccount(f.store, { projectId: f.project.id, service: 'Shop', environment: 'local', role: 'user', subject: 'user-fixture', probePath: '/api/me' });
+    const saved = saveSeedConfig(f.store, { projectId: f.project.id, service: 'Shop', environment: 'local', path: '/__branchloom/accounts' });
+    expect(seedConfig(f.store, f.project.id, 'Shop', 'local')?.revision).toBe(saved.revision);
+    expect(() => saveSeedConfig(f.store, { projectId: f.project.id, service: 'Shop', environment: 'local', path: '//external.example' })).toThrow('local path');
+    recordSeedAttempt(f.store, { id: 'pending-request', projectId: f.project.id, cardId: f.first.id, provisionerId: admin.id, targetId: user.id, state: 'requested' });
+    f.store.close(); stores.splice(stores.indexOf(f.store), 1);
+    const reopened = new StudioStore(f.dbPath); stores.push(reopened);
+    expect(seedConfig(reopened, f.project.id, 'Shop', 'local')?.path).toBe('/__branchloom/accounts');
+    expect(lastSeedAttempt(reopened, f.project.id, user.id)?.state).toBe('unknown');
+    finishSeedAttempt(reopened, 'pending-request', 'created');
+    expect(lastSeedAttempt(reopened, f.project.id, user.id)?.state).toBe('unknown');
+    expect(JSON.stringify(reopened.exportProjectPackage(f.project.id))).not.toContain('pending-request');
   });
 });

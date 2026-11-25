@@ -9,7 +9,7 @@ import { StudioStore } from '../../src/main/store';
 import { assignDevAccount, createDevAccount, devAccountOverview } from '../../src/main/dev-account';
 
 const mocked = vi.hoisted(() => ({
-  sessions: new Map<string, { identity: { subject: string; role: string } | null; requestHandler: ((details: { url: string }, callback: (result: { cancel: boolean }) => void) => void) | null; fetches: string[]; cleared: boolean }>(),
+  sessions: new Map<string, { identity: { subject: string; role: string } | null; requestHandler: ((details: { url: string }, callback: (result: { cancel: boolean }) => void) => void) | null; fetches: string[]; seedRows: Map<string, string>; seedPosts: number; cleared: boolean }>(),
   windows: [] as Array<{ options: { webPreferences: { session: unknown } }; url: string; destroyed: boolean }>,
 }));
 
@@ -33,10 +33,26 @@ vi.mock('electron', async () => {
       const value = {
         identity: null as { subject: string; role: string } | null,
         requestHandler: null as ((details: { url: string }, callback: (result: { cancel: boolean }) => void) => void) | null,
-        fetches: [] as string[], cleared: false,
+        fetches: [] as string[], seedRows: new Map<string, string>(), seedPosts: 0, cleared: false,
         setPermissionRequestHandler: () => undefined, setPermissionCheckHandler: () => undefined, on: () => undefined,
         webRequest: { onBeforeRequest: (handler: typeof value.requestHandler) => { value.requestHandler = handler; } },
-        async fetch(url: string) { value.fetches.push(url); return value.identity ? new Response(JSON.stringify(value.identity), { status: 200 }) : new Response('{}', { status: 401 }); },
+        async fetch(url: string, init?: RequestInit) {
+          value.fetches.push(url);
+          if (new URL(url).pathname === '/__branchloom/accounts') {
+            if (!value.identity) return new Response('{}', { status: 401 });
+            if (init?.method === 'POST') {
+              value.seedPosts++;
+              const body = JSON.parse(String(init.body)) as { subject: string; role: string; requestId: string };
+              const created = !value.seedRows.has(body.subject);
+              value.seedRows.set(body.subject, body.role);
+              return new Response(JSON.stringify({ ...body, exists: true, created }), { status: created ? 201 : 200 });
+            }
+            const subject = new URL(url).searchParams.get('subject') ?? '';
+            const role = new URL(url).searchParams.get('role') ?? '';
+            return new Response(JSON.stringify({ subject, role, exists: value.seedRows.get(subject) === role }));
+          }
+          return value.identity ? new Response(JSON.stringify(value.identity), { status: 200 }) : new Response('{}', { status: 401 });
+        },
         async clearStorageData() { value.identity = null; value.cleared = true; },
       };
       mocked.sessions.set(name, value);
@@ -115,6 +131,45 @@ describe('isolated development account windows', () => {
     assignDevAccount(f.store, { projectId: f.project.id, cardId: f.first.id, accountId: null, expectedCardRevision: revision });
     f.browser.closeCard(f.first.id);
     await expect(f.browser.probe(f.first.id)).rejects.toThrow('No development account');
+    f.browser.dispose();
+  });
+
+  it('checks a local target, requires confirmation, persists the attempt, and detects a reset target', async () => {
+    const f = fixture();
+    f.browser.saveSeedConfig({ cardId: f.first.id, path: '/__branchloom/accounts' });
+    const sessionName = `branchloom-dev-account-${f.admin.id}`;
+    expect((await f.browser.checkSeed(f.first.id, f.user.id)).state).toBe('login-required');
+    const ses = mocked.sessions.get(sessionName)!;
+    expect(ses.seedPosts).toBe(0);
+    ses.identity = { subject: f.admin.subject, role: f.admin.role };
+    const check = await f.browser.checkSeed(f.first.id, f.user.id);
+    expect(check.state).toBe('missing');
+    expect(ses.seedPosts).toBe(0);
+    await expect(f.browser.createSeed(f.first.id, f.user.id, 'invalid')).rejects.toThrow('expired');
+    const attempt = await f.browser.createSeed(f.first.id, f.user.id, check.id!);
+    expect(attempt.state).toBe('created');
+    expect(ses.seedPosts).toBe(1);
+    expect(f.browser.lastSeedAttempt(f.first.id, f.user.id)?.state).toBe('created');
+    await expect(f.browser.createSeed(f.first.id, f.user.id, check.id!)).rejects.toThrow('expired');
+    expect((await f.browser.checkSeed(f.first.id, f.user.id)).state).toBe('exists');
+    ses.seedRows.clear(); // The target app reset its own database.
+    expect((await f.browser.checkSeed(f.first.id, f.user.id)).state).toBe('missing');
+    f.browser.dispose();
+  });
+
+  it('rejects stale preview/config/grant before a seed POST', async () => {
+    const f = fixture();
+    f.browser.saveSeedConfig({ cardId: f.first.id, path: '/__branchloom/accounts' });
+    const ses = mocked.sessions.get(`branchloom-dev-account-${f.admin.id}`) ?? (await f.browser.probe(f.first.id), mocked.sessions.get(`branchloom-dev-account-${f.admin.id}`)!);
+    ses.identity = { subject: f.admin.subject, role: f.admin.role };
+    const first = await f.browser.checkSeed(f.first.id, f.user.id);
+    f.runs.set(f.first.id, { ...f.runs.get(f.first.id)!, id: 'restarted-run' });
+    await expect(f.browser.createSeed(f.first.id, f.user.id, first.id!)).rejects.toThrow('changed');
+    expect(ses.seedPosts).toBe(0);
+    const second = await f.browser.checkSeed(f.first.id, f.user.id);
+    f.browser.saveSeedConfig({ cardId: f.first.id, path: '/new-seed-path' });
+    await expect(f.browser.createSeed(f.first.id, f.user.id, second.id!)).rejects.toThrow('expired');
+    expect(ses.seedPosts).toBe(0);
     f.browser.dispose();
   });
 });

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type Database from 'better-sqlite3';
-import type { CreateDevAccount, DevAccount, DevAccountAssignment, DevAccountOverview } from '../shared/dev-account';
+import type { CreateDevAccount, DevAccount, DevAccountAssignment, DevAccountOverview, DevAccountSeedConfig, DevAccountSeedAttempt } from '../shared/dev-account';
 import type { StudioStore } from './store';
 
 interface AccountRow {
@@ -24,7 +24,21 @@ export function installDevAccounts(db: Database.Database): void {
     card_id TEXT PRIMARY KEY REFERENCES cards(id) ON DELETE CASCADE,
     account_id TEXT NOT NULL REFERENCES dev_accounts(id) ON DELETE CASCADE,
     assigned_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS dev_account_seed_configs (
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    service TEXT NOT NULL, environment TEXT NOT NULL, path TEXT NOT NULL, revision TEXT NOT NULL,
+    PRIMARY KEY(project_id, service, environment)
+  );
+  CREATE TABLE IF NOT EXISTS dev_account_seed_attempts (
+    id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+    provisioner_id TEXT NOT NULL REFERENCES dev_accounts(id) ON DELETE CASCADE,
+    target_id TEXT NOT NULL REFERENCES dev_accounts(id) ON DELETE CASCADE,
+    state TEXT NOT NULL, at TEXT NOT NULL
   );`);
+  // A crashed POST has an unknown outcome. Never silently repeat it after restart.
+  db.prepare("UPDATE dev_account_seed_attempts SET state = 'unknown' WHERE state = 'requested'").run();
 }
 
 function label(value: unknown, field: string): string {
@@ -34,11 +48,48 @@ function label(value: unknown, field: string): string {
   return result;
 }
 
-function checkedPath(value: unknown): string {
+export function checkedPath(value: unknown): string {
   if (typeof value !== 'string' || !/^\/[A-Za-z0-9_/-]{1,120}$/u.test(value) || value.includes('//') || value.includes('..')) {
     throw new Error('Identity endpoint must be a local path such as /api/me, without query or fragment.');
   }
   return value;
+}
+
+export function seedConfig(store: StudioStore, projectId: string, service: string, environment: string): DevAccountSeedConfig | null {
+  store.project(projectId);
+  const row = store.db.prepare('SELECT * FROM dev_account_seed_configs WHERE project_id = ? AND service = ? AND environment = ?')
+    .get(projectId, service, environment) as { project_id: string; service: string; environment: string; path: string; revision: string } | undefined;
+  return row ? { projectId: row.project_id, service: row.service, environment: row.environment, path: row.path, revision: row.revision } : null;
+}
+
+export function saveSeedConfig(store: StudioStore, input: { projectId: string; service: string; environment: string; path: string }): DevAccountSeedConfig {
+  store.project(input.projectId);
+  const service = label(input.service, 'Service');
+  const environment = label(input.environment, 'Environment');
+  const path = checkedPath(input.path);
+  const revision = randomUUID();
+  store.db.prepare(`INSERT INTO dev_account_seed_configs (project_id, service, environment, path, revision) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(project_id, service, environment) DO UPDATE SET path = excluded.path, revision = excluded.revision`)
+    .run(input.projectId, service, environment, path, revision);
+  return { projectId: input.projectId, service, environment, path, revision };
+}
+
+export function lastSeedAttempt(store: StudioStore, projectId: string, targetId: string): DevAccountSeedAttempt | null {
+  devAccountForProject(store, projectId, targetId);
+  const row = store.db.prepare('SELECT * FROM dev_account_seed_attempts WHERE project_id = ? AND target_id = ? ORDER BY at DESC, rowid DESC LIMIT 1')
+    .get(projectId, targetId) as { id: string; project_id: string; card_id: string; provisioner_id: string; target_id: string; state: DevAccountSeedAttempt['state']; at: string } | undefined;
+  return row ? { id: row.id, projectId: row.project_id, cardId: row.card_id, provisionerId: row.provisioner_id, targetId: row.target_id, state: row.state, at: row.at } : null;
+}
+
+export function recordSeedAttempt(store: StudioStore, input: Omit<DevAccountSeedAttempt, 'at'>): DevAccountSeedAttempt {
+  const at = new Date().toISOString();
+  store.db.prepare('INSERT INTO dev_account_seed_attempts (id, project_id, card_id, provisioner_id, target_id, state, at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(input.id, input.projectId, input.cardId, input.provisionerId, input.targetId, input.state, at);
+  return { ...input, at };
+}
+
+export function finishSeedAttempt(store: StudioStore, id: string, state: DevAccountSeedAttempt['state']): void {
+  store.db.prepare("UPDATE dev_account_seed_attempts SET state = ? WHERE id = ? AND state = 'requested'").run(state, id);
 }
 
 export function createDevAccount(store: StudioStore, input: CreateDevAccount): DevAccount {

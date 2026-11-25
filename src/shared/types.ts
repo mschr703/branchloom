@@ -152,6 +152,11 @@ export interface StudioAPI {
   openDevAccount(cardId: string): Promise<string>;
   probeDevAccount(cardId: string): Promise<import('./dev-account').DevAccountProbe>;
   forgetDevAccountSession(input: { projectId: string; accountId: string }): Promise<void>;
+  devAccountSeedConfig(cardId: string): Promise<import('./dev-account').DevAccountSeedConfig | null>;
+  saveDevAccountSeedConfig(input: { cardId: string; path: string }): Promise<import('./dev-account').DevAccountSeedConfig>;
+  lastDevAccountSeedAttempt(input: { cardId: string; targetId: string }): Promise<import('./dev-account').DevAccountSeedAttempt | null>;
+  checkDevAccountSeed(input: { cardId: string; targetId: string }): Promise<import('./dev-account').DevAccountSeedCheck>;
+  createDevAccountSeed(input: { cardId: string; targetId: string; checkId: string }): Promise<import('./dev-account').DevAccountSeedAttempt>;
   projects(): Promise<Project[]>;
   projectOrganization(): Promise<ProjectOrganization>;
   createProjectGroup(name: string): Promise<ProjectOrganization>;

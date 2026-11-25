@@ -1,20 +1,24 @@
 import { BrowserWindow, session, type Session } from 'electron';
+import { randomUUID } from 'node:crypto';
 import type { CardDevEnvironment } from '../shared/dev-environment';
-import type { DevAccountProbe } from '../shared/dev-account';
+import type { DevAccountProbe, DevAccountSeedCheck, DevAccountSeedAttempt } from '../shared/dev-account';
 import type { StudioStore } from './store';
 import type { DevEnvironmentRunner } from './dev-environment';
-import { cardDevAccountGrant } from './dev-account';
+import { cardDevAccountGrant, devAccountForProject, finishSeedAttempt, lastSeedAttempt, recordSeedAttempt, saveSeedConfig, seedConfig } from './dev-account';
 import { probeDevIdentity } from './dev-account-probe';
+import { createSeedAccount, readSeedAccount, SeedEndpointError } from './dev-account-seed';
 import { isLocalDevUrl } from './browser-policy';
 
 interface AccountWindow { window: BrowserWindow; accountId: string; origin: string; runId: string }
 interface AccountTarget { cardId: string; origin: string; runId: string }
+interface SeedTicket { cardId: string; targetId: string; accountId: string; runId: string; origin: string; revision: string; expires: number }
 
 /** Login remains in a separate, memory-only Chromium partition for each account. */
 export class DevAccountBrowser {
   private readonly windows = new Map<string, AccountWindow>();
   private readonly sessions = new Map<string, Session>();
   private readonly probes = new Map<string, Set<AccountTarget>>();
+  private readonly seedTickets = new Map<string, SeedTicket>();
 
   constructor(private readonly store: StudioStore, private readonly environments: DevEnvironmentRunner,
     private readonly parentWindow: () => BrowserWindow | null) {}
@@ -116,6 +120,96 @@ export class DevAccountBrowser {
     } finally { active.delete(target); if (!active.size) this.probes.delete(account.id); }
   }
 
+  seedConfig(cardId: string) {
+    const account = cardDevAccountGrant(this.store, cardId);
+    return seedConfig(this.store, account.projectId, account.service, account.environment);
+  }
+
+  saveSeedConfig(input: { cardId: string; path: string }) {
+    const account = cardDevAccountGrant(this.store, input.cardId);
+    this.seedTickets.clear();
+    return saveSeedConfig(this.store, { projectId: account.projectId, service: account.service, environment: account.environment, path: input.path });
+  }
+
+  lastSeedAttempt(cardId: string, targetId: string): DevAccountSeedAttempt | null {
+    const account = cardDevAccountGrant(this.store, cardId);
+    const target = devAccountForProject(this.store, account.projectId, targetId);
+    if (account.service !== target.service || account.environment !== target.environment) throw new Error('Seed target belongs to another service or environment.');
+    return lastSeedAttempt(this.store, account.projectId, target.id);
+  }
+
+  private seedContext(cardId: string, targetId: string) {
+    const account = cardDevAccountGrant(this.store, cardId);
+    const target = devAccountForProject(this.store, account.projectId, targetId);
+    if (account.id === target.id || account.service !== target.service || account.environment !== target.environment) {
+      throw new Error('Choose another account in the same service and environment.');
+    }
+    const config = seedConfig(this.store, account.projectId, account.service, account.environment);
+    if (!config) throw new Error('Set the local seed endpoint first.');
+    const run = this.ready(cardId);
+    const origin = new URL(run.url).origin;
+    return { account, target, config, run, origin };
+  }
+
+  private async withSeedSession<T>(cardId: string, accountId: string, runId: string, origin: string,
+    work: (request: (url: string, init: RequestInit) => Promise<Response>, stillAllowed: () => boolean) => Promise<T>): Promise<T> {
+    const ses = this.browserSession(accountId);
+    const target: AccountTarget = { cardId, origin, runId };
+    let active = this.probes.get(accountId);
+    if (!active) { active = new Set<AccountTarget>(); this.probes.set(accountId, active); }
+    active.add(target);
+    try { return await work((url, init) => ses.fetch(url, init), () => this.stillAllowed(cardId, accountId, runId, origin)); }
+    finally { active.delete(target); if (!active.size) this.probes.delete(accountId); }
+  }
+
+  async checkSeed(cardId: string, targetId: string): Promise<DevAccountSeedCheck> {
+    const { account, target, config, run, origin } = this.seedContext(cardId, targetId);
+    const checkedAt = new Date().toISOString();
+    const result = (state: DevAccountSeedCheck['state'], id: string | null = null): DevAccountSeedCheck => ({ id, targetId, state, checkedAt });
+    const identity = await this.probe(cardId);
+    if (identity.state !== 'verified') return result(identity.state);
+    try {
+      const state = await this.withSeedSession(cardId, account.id, run.id, origin, (request, stillAllowed) =>
+        readSeedAccount({ origin, path: config.path, target, request, stillAllowed }));
+      if (state === 'exists') return result('exists');
+      const id = randomUUID();
+      this.seedTickets.set(id, { cardId, targetId, accountId: account.id, runId: run.id, origin, revision: config.revision, expires: Date.now() + 300_000 });
+      return result('missing', id);
+    } catch (error) {
+      if (error instanceof SeedEndpointError && error.status === 401) return result('login-required');
+      if (error instanceof SeedEndpointError && error.status === 403) return result('access-denied');
+      return result('unavailable');
+    }
+  }
+
+  async createSeed(cardId: string, targetId: string, checkId: string): Promise<DevAccountSeedAttempt> {
+    const ticket = this.seedTickets.get(checkId);
+    this.seedTickets.delete(checkId);
+    if (!ticket || ticket.cardId !== cardId || ticket.targetId !== targetId || ticket.expires < Date.now()) throw new Error('Seed check expired. Check the target again.');
+    const { account, target, config, run, origin } = this.seedContext(cardId, targetId);
+    if (account.id !== ticket.accountId || run.id !== ticket.runId || origin !== ticket.origin || config.revision !== ticket.revision) {
+      throw new Error('Card grant, preview or seed config changed. Check the target again.');
+    }
+    const identity = await this.probe(cardId);
+    if (identity.state !== 'verified') throw new Error('Provisioner login is no longer verified.');
+    return this.withSeedSession(cardId, account.id, run.id, origin, async (request, stillAllowed) => {
+      const present = await readSeedAccount({ origin, path: config.path, target, request, stillAllowed });
+      const id = randomUUID();
+      const attempt = recordSeedAttempt(this.store, { id, projectId: account.projectId, cardId, provisionerId: account.id,
+        targetId, state: present === 'exists' ? 'already-exists' : 'requested' });
+      if (present === 'exists') return attempt;
+      try {
+        await createSeedAccount({ origin, path: config.path, target, requestId: id, request, stillAllowed });
+        finishSeedAttempt(this.store, id, 'created');
+        return { ...attempt, state: 'created' };
+      } catch (error) {
+        // A POST can reach the app before a timeout or malformed reply. Preserve uncertainty.
+        finishSeedAttempt(this.store, id, 'unknown');
+        throw error;
+      }
+    });
+  }
+
   closeCard(cardId: string): void {
     const found = this.windows.get(cardId);
     if (!found) return;
@@ -130,5 +224,5 @@ export class DevAccountBrowser {
   }
 
   closeAll(): void { for (const cardId of [...this.windows.keys()]) this.closeCard(cardId); }
-  dispose(): void { this.closeAll(); this.sessions.clear(); this.probes.clear(); }
+  dispose(): void { this.closeAll(); this.sessions.clear(); this.probes.clear(); this.seedTickets.clear(); }
 }

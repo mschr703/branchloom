@@ -40,3 +40,28 @@ export interface DevAccountProbe {
   checkedAt: string;
   detail: string;
 }
+
+export interface DevAccountSeedConfig {
+  projectId: string;
+  service: string;
+  environment: string;
+  path: string;
+  revision: string;
+}
+
+export interface DevAccountSeedAttempt {
+  id: string;
+  projectId: string;
+  cardId: string;
+  provisionerId: string;
+  targetId: string;
+  state: 'requested' | 'created' | 'already-exists' | 'denied' | 'unknown';
+  at: string;
+}
+
+export interface DevAccountSeedCheck {
+  id: string | null;
+  targetId: string;
+  state: 'missing' | 'exists' | 'login-required' | 'access-denied' | 'wrong-account' | 'unavailable';
+  checkedAt: string;
+}

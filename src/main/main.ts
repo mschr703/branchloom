@@ -345,6 +345,11 @@ function installIpc(): void {
   });
   bind('openDevAccount', (cardId: string) => devAccountBrowser?.open(cardId));
   bind('probeDevAccount', (cardId: string) => devAccountBrowser?.probe(cardId));
+  bind('devAccountSeedConfig', (cardId: string) => devAccountBrowser?.seedConfig(cardId));
+  bind('saveDevAccountSeedConfig', (input: Parameters<StudioAPI['saveDevAccountSeedConfig']>[0]) => devAccountBrowser?.saveSeedConfig(input));
+  bind('lastDevAccountSeedAttempt', (input: Parameters<StudioAPI['lastDevAccountSeedAttempt']>[0]) => devAccountBrowser?.lastSeedAttempt(input.cardId, input.targetId));
+  bind('checkDevAccountSeed', (input: Parameters<StudioAPI['checkDevAccountSeed']>[0]) => devAccountBrowser?.checkSeed(input.cardId, input.targetId));
+  bind('createDevAccountSeed', (input: Parameters<StudioAPI['createDevAccountSeed']>[0]) => devAccountBrowser?.createSeed(input.cardId, input.targetId, input.checkId));
   bind('forgetDevAccountSession', async (input: Parameters<StudioAPI['forgetDevAccountSession']>[0]) => {
     devAccountForProject(db, input.projectId, input.accountId);
     await devAccountBrowser?.forget(input.accountId);
@@ -3360,11 +3365,31 @@ function createWindow(): void {
             const identityServerPath = join(smokeDataDirectory!, 'f08-identity-server.cjs');
             writeFileSync(identityServerPath, `const http = require('node:http');
 const port = Number(process.argv[2]);
+const accounts = new Map();
 http.createServer((request, response) => {
   if (request.url === '/api/me') {
     const found = /(?:^|; )f08=(admin|user)(?:;|$)/.exec(request.headers.cookie || '');
     response.writeHead(found ? 200 : 401, { 'Content-Type': 'application/json' });
     response.end(found ? JSON.stringify({ subject: found[1] + '-fixture', role: found[1] }) : '{}');
+  } else if (request.url?.startsWith('/__branchloom/accounts')) {
+    const admin = /(?:^|; )f08=admin(?:;|$)/.test(request.headers.cookie || '');
+    if (!admin) { response.writeHead(403); response.end(); return; }
+    if (request.method === 'GET') {
+      const subject = new URL(request.url, 'http://localhost').searchParams.get('subject');
+      const role = new URL(request.url, 'http://localhost').searchParams.get('role');
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ subject, role, exists: accounts.get(subject) === role }));
+    } else if (request.method === 'POST') {
+      let body = '';
+      request.on('data', (part) => { body += part; });
+      request.on('end', () => {
+        const input = JSON.parse(body);
+        const created = !accounts.has(input.subject);
+        accounts.set(input.subject, input.role);
+        response.writeHead(created ? 201 : 200, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ ...input, exists: true, created }));
+      });
+    } else { response.writeHead(405); response.end(); }
   } else if (request.url?.startsWith('/login?as=')) {
     const role = new URL(request.url, 'http://localhost').searchParams.get('as');
     response.writeHead(200, { 'Set-Cookie': 'f08=' + role + '; Path=/; SameSite=Strict', 'Content-Type': 'text/html' });
@@ -3464,6 +3489,29 @@ http.createServer((_request,response)=>{response.writeHead(200,{'Content-Type':'
             const f08Admin = await devAccountBrowser!.probe(f08Card.id);
             const f08UnloggedUser = await devAccountBrowser!.probe(f08Other.id);
             if (f08Admin.state !== 'verified' || f08UnloggedUser.state !== 'login-required') throw new Error('F08 real-session login isolation failed.');
+            devAccountBrowser!.saveSeedConfig({ cardId: f08Card.id, path: '/__branchloom/accounts' });
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const panel = document.querySelector('.card-drawer .dev-account-panel');
+              if (!panel) throw new Error('F08 seed panel is missing.');
+              const button = (label) => [...panel.querySelectorAll('button')].find((item) => item.textContent?.trim() === label);
+              button('Status aktualisieren')?.click();
+              for (let attempt = 0; attempt < 100 && button('Zielkonto prüfen')?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const section = [...panel.querySelectorAll('details')].find((item) => item.querySelector('summary')?.textContent?.includes('Testkonto'));
+              if (!section) throw new Error('F08 visible seed section is missing.');
+              section.open = true;
+              const check = button('Zielkonto prüfen');
+              if (!check || check.disabled) throw new Error('F08 visible seed lookup is unavailable.');
+              check.click();
+              for (let attempt = 0; attempt < 100 && !panel.textContent?.includes('Zielkonto fehlt'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!panel.textContent?.includes('Zielkonto fehlt')) throw new Error('F08 visible seed lookup did not see the missing target.');
+              const create = button('Jetzt anlegen');
+              if (!create || create.disabled) throw new Error('F08 separate creation confirmation is missing.');
+              create.click();
+              for (let attempt = 0; attempt < 100 && !panel.textContent?.includes('Ziel-App hat die Kontoanlage bestätigt'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!panel.textContent?.includes('Ziel-App hat die Kontoanlage bestätigt')) throw new Error('F08 visible seed creation was not confirmed.');
+              return true;
+            })()`);
+            if (devAccountBrowser!.lastSeedAttempt(f08Card.id, secondAccount.id)?.state !== 'created' || (await devAccountBrowser!.checkSeed(f08Card.id, secondAccount.id)).state !== 'exists') throw new Error('F08 target account did not persist in the live preview.');
             await userWindow.loadURL(`${f08SecondRun.url}login?as=user`);
             if ((await devAccountBrowser!.probe(f08Other.id)).state !== 'verified') throw new Error('F08 second real-session login failed.');
             await devAccountBrowser!.forget(firstAccount.id);
