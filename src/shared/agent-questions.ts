@@ -20,6 +20,13 @@ export interface AgentQuestion {
   delivery: AgentQuestionDelivery;
   deliveredAt: string | null;
   deliveryNote: string | null;
+  /** Current server-side delivery eligibility, including the exact active card session. */
+  receivable: boolean;
+}
+
+export interface AgentQuestionSuggestion {
+  questionIds: string[];
+  commonTerms: string[];
 }
 
 export interface AnswerAgentQuestions {

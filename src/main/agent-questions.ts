@@ -42,7 +42,7 @@ function questionRow(store: StudioStore, id: string): Row | undefined {
     WHERE q.id = ?`).get(id) as Row | undefined;
 }
 
-function asQuestion(row: Row): AgentQuestion {
+function asQuestion(store: StudioStore, row: Row): AgentQuestion {
   return {
     id: row.id, projectId: row.project_id, cardId: row.card_id, cardTitle: row.card_title,
     sessionId: row.session_id, agentName: row.agent_name, cardRevision: row.card_revision,
@@ -50,6 +50,8 @@ function asQuestion(row: Row): AgentQuestion {
     askedAt: row.asked_at, answerId: row.answer_id, answer: row.answer, answerSource: row.answer_source,
     answeredAt: row.answered_at, delivery: row.delivery, deliveredAt: row.delivered_at,
     deliveryNote: row.delivery_note,
+    receivable: row.delivery === 'open' && !row.answer_id && !row.card_archived_at && row.session_state === 'running' &&
+      row.current_revision === row.card_revision && store.latestSession(row.card_id)?.id === row.session_id,
   };
 }
 
@@ -58,7 +60,7 @@ export function agentQuestions(store: StudioStore, projectId: string): AgentQues
   const rows = store.db.prepare(`SELECT q.id FROM agent_questions q WHERE q.project_id = ?
     ORDER BY CASE WHEN q.answer_id IS NULL THEN 0 ELSE 1 END, q.asked_at DESC, q.id DESC LIMIT 100`)
     .all(projectId) as Array<{ id: string }>;
-  return rows.map((row) => questionRow(store, row.id)).filter((row): row is Row => Boolean(row)).map(asQuestion);
+  return rows.map((row) => questionRow(store, row.id)).filter((row): row is Row => Boolean(row)).map((row) => asQuestion(store, row));
 }
 
 /** The local token bridge supplies the session ID; the agent cannot select another card or run. */
@@ -81,14 +83,14 @@ export function recordAgentQuestion(store: StudioStore, input: { sessionId: stri
       .get(session.id, input.requestId) as { id: string; question: string } | undefined;
     if (existing) {
       if (existing.question !== input.question.trim()) throw new Error('Request ID already belongs to a different question.');
-      return asQuestion(questionRow(store, existing.id)!);
+      return asQuestion(store, questionRow(store, existing.id)!);
     }
     const count = store.db.prepare('SELECT COUNT(*) AS count FROM agent_questions WHERE session_id = ?').get(session.id) as { count: number };
     if (count.count >= 20) throw new Error('This session already recorded 20 questions.');
     const id = randomUUID();
     store.db.prepare(`INSERT INTO agent_questions (id, project_id, card_id, session_id, request_id, card_revision, question, asked_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(id, card.projectId, card.id, session.id, input.requestId, current.content_revision, input.question.trim(), new Date().toISOString());
-    return asQuestion(questionRow(store, id)!);
+    return asQuestion(store, questionRow(store, id)!);
   }).immediate();
 }
 
@@ -155,5 +157,5 @@ export function answerAgentQuestions(store: StudioStore, input: AnswerAgentQuest
         .run(stale ? 'stale' : 'failed', note, id);
     }
   }
-  return prepared.map((id) => asQuestion(questionRow(store, id)!));
+  return prepared.map((id) => asQuestion(store, questionRow(store, id)!));
 }

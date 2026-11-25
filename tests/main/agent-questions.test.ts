@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AgentCardMetadataBridge } from '../../src/main/agent-card-metadata-bridge';
 import { agentQuestions, answerAgentQuestions, recordAgentQuestion } from '../../src/main/agent-questions';
+import { suggestAgentQuestionGroups } from '../../src/shared/agent-question-suggestions';
 import { SessionRunner } from '../../src/main/cli';
 import { StudioStore } from '../../src/main/store';
 
@@ -46,6 +47,23 @@ function answerInput(fixture: ReturnType<typeof fixture>, ids = [0, 1]) {
 }
 
 describe('shared agent questions', () => {
+  it('suggests two currently receivable questions without writing an answer, then drops a stale card', () => {
+    const f = fixture();
+    try {
+      const a = recordAgentQuestion(f.store, { sessionId: f.runs[0]!.id, requestId: randomUUID(), question: 'Can members edit archived projects?' });
+      const b = recordAgentQuestion(f.store, { sessionId: f.runs[1]!.id, requestId: randomUUID(), question: 'Are members allowed to edit archived projects?' });
+      const initial = agentQuestions(f.store, f.project.id);
+      expect(initial.find((item) => item.id === a.id)?.receivable).toBe(true);
+      expect(initial.find((item) => item.id === b.id)?.receivable).toBe(true);
+      expect(suggestAgentQuestionGroups(initial)[0]?.questionIds).toHaveLength(2);
+      expect(suggestAgentQuestionGroups(initial)[0]?.questionIds).toEqual(expect.arrayContaining([a.id, b.id]));
+      expect(initial.every((item) => item.answerId === null && item.delivery === 'open')).toBe(true);
+      f.store.updateCard({ id: f.cards[1]!.id, description: 'Revised scope' });
+      const changed = agentQuestions(f.store, f.project.id);
+      expect(changed.find((item) => item.id === b.id)?.receivable).toBe(false);
+      expect(suggestAgentQuestionGroups(changed)).toEqual([]);
+    } finally { f.store.close(); }
+  });
   it('answers two exact live sessions once, leaves a third untouched and retains source after restart', () => {
     const f = fixture();
     const sent: Array<{ sessionId: string; text: string }> = [];
