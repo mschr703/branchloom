@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Archive, ArrowDown, ArrowRight, ArrowUp, Copy, FileJson2, FolderOpen, GripVertical, MessageCircle, MoreHorizontal, Pencil, Plus, Search, Terminal, X } from 'lucide-react';
 import type { Card, CardPriority, Column, ColumnEffort, ProjectSnapshot } from '../../shared/types';
+import type { WorkflowRunEvidence } from '../../shared/workflow-evidence';
 import { CARD_PRIORITIES } from '../../shared/card-metadata';
 import { COLUMN_EFFORTS } from '../../shared/column-settings';
 import type { Mutate } from './shared';
@@ -12,6 +13,8 @@ import { QaCoveragePanel } from './QaCoveragePanel';
 import { ColumnSettingsSheet } from './ColumnSettingsSheet';
 import { BoardDependencyTrace } from './BoardDependencyTrace';
 import { BoardSessionDock } from './BoardSessionDock';
+import { BoardWorkflowMarkers } from './BoardWorkflowMarkers';
+import { cardWorkflowSignal, type BoardWorkflowSignal } from '../board-workflow-signals';
 import { filterBoardCards, type BoardVisibility } from '../board-filters';
 import '../board-metadata.css';
 import '../board-order.css';
@@ -60,7 +63,12 @@ export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenBrow
   const [confirmBulkArchive, setConfirmBulkArchive] = useState(false);
   const [confirmBulkPriority, setConfirmBulkPriority] = useState<{ cardIds: string[]; priority: CardPriority; changeCount: number } | null>(null);
   const [focusMoved, setFocusMoved] = useState<{ cardId: string; columnId: string } | null>(null);
+  const [workflowEvidence, setWorkflowEvidence] = useState<Record<string, WorkflowRunEvidence>>({});
+  const [workflowEvidenceError, setWorkflowEvidenceError] = useState(false);
+  const [workflowEvidenceRetry, setWorkflowEvidenceRetry] = useState(0);
   const focusBeforeDrawer = useRef<HTMLElement | null>(null);
+  const activeWorkflows = snapshot.workflows.filter((item) => item.state === 'running' || item.state === 'paused');
+  const workflowEvidenceKey = JSON.stringify([activeWorkflows.map((item) => [item.id, item.state, item.updatedAt, item.currentStep]), snapshot.sessions.map((item) => [item.id, item.state])]);
   const columns = useMemo(() => [...snapshot.columns].sort((a, b) => a.position - b.position), [snapshot.columns]);
   const visibleCards = useMemo(() => filterBoardCards(snapshot.cards, { query, columnId: filterColumnId, visibility, priority: filterPriority, label: filterLabel }), [snapshot.cards, query, filterColumnId, visibility, filterPriority, filterLabel]);
   const labels = useMemo(() => {
@@ -88,6 +96,21 @@ export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenBrow
   useEffect(() => { setBulkIds(new Set()); setConfirmBulkArchive(false); setConfirmBulkPriority(null); setBulkNotice(''); }, [snapshot.project.id, query, filterColumnId, visibility, filterPriority, filterLabel]);
   useEffect(() => { setBulkIds((previous) => new Set([...previous].filter((id) => selectableCards.some((card) => card.id === id)))); setConfirmBulkPriority(null); }, [snapshot.cards]);
   useEffect(() => { if (!columns.some((column) => column.id === bulkDestinationId)) setBulkDestinationId(columns[0]?.id ?? ''); }, [columns, bulkDestinationId]);
+  useEffect(() => {
+    let cancelled = false;
+    setWorkflowEvidence({});
+    setWorkflowEvidenceError(false);
+    if (!activeWorkflows.length || !window.studio?.workflowRunEvidence) return;
+    void Promise.allSettled(activeWorkflows.map((workflow) => window.studio.workflowRunEvidence({ projectId: snapshot.project.id, workflowId: workflow.id })))
+      .then((results) => {
+        if (cancelled) return;
+        const next: Record<string, WorkflowRunEvidence> = {};
+        results.forEach((result, index) => { if (result.status === 'fulfilled') next[activeWorkflows[index]!.id] = result.value; });
+        setWorkflowEvidence(next);
+        setWorkflowEvidenceError(results.some((result) => result.status === 'rejected' || (result.status === 'fulfilled' && result.value.moreAvailable)));
+      });
+    return () => { cancelled = true; };
+  }, [snapshot.project.id, workflowEvidenceKey, workflowEvidenceRetry]);
   // A cross-view navigation can arrive before the refreshed snapshot contains
   // a newly created card. Open it when that card becomes available as well.
   useEffect(() => { if (openCard && requestedCardAvailable) openBoardCard(openCard.id); }, [openCard?.id, openCard?.token, snapshot.project.id, requestedCardAvailable]);
@@ -218,6 +241,7 @@ export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenBrow
       <label><span className="sr-only">Archivstatus filtern</span><select value={visibility} onChange={(event) => setVisibility(event.target.value as BoardVisibility)} aria-label="Archivstatus filtern"><option value="active">Aktive Karten</option><option value="archived">Archiv ({archivedCount})</option><option value="all">Alle Karten</option></select></label>
       </div></details>
       <span className="board-filter-count" role="status" aria-live="polite">{visibleCards.length} Treffer</span>
+      {workflowEvidenceError ? <span className="board-workflow-error" role="status">Workflow-Verlauf nicht vollständig geladen. <button type="button" onClick={() => setWorkflowEvidenceRetry((value) => value + 1)}>Erneut laden</button></span> : null}
       <span id="board-filter-help" className="sr-only">Karten mit Tab erreichen. Enter öffnet Details, M öffnet die Verschiebeauswahl. Pfeiltasten-Schaltflächen ändern die Reihenfolge innerhalb der vollständigen Spalte, auch wenn Karten ausgefiltert sind. Archivierte Karten bleiben an ihrem Platz.</span>
     </div>
     {selectableCards.length > 0 || selectedBulkCards.length > 0 ? <div className="board-bulk-actions" aria-label="Sammelaktionen">
@@ -252,7 +276,7 @@ export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenBrow
     {bulkNotice ? <p className="board-bulk-result" role="status">{bulkNotice}</p> : null}
     <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
     <div className="board-scroll"><div className="board-columns">
-      {visibleColumns.map((column, index) => <BoardColumn key={column.id} column={column} columns={columns} cards={visibleCards.filter((card) => card.columnId === column.id).sort(compareCardOrder)} snapshot={snapshot} emptyMessage={boardEmptyMessage(index, hasActiveCards, filtersActive)} onSelect={openBoardCard} onOpenSession={(id) => openBoardCard(id, true)} onAnnounce={setAnnouncement} onMove={moveCard} onReorder={reorderCard} onReorderColumn={reorderColumn} onDrop={onDrop} onCreate={() => { setCreatingIn(column.id); setTitle(''); }} canCreate={visibility !== 'archived'} mutate={mutate} bulkIds={bulkIds} onToggleBulk={toggleBulk}>
+      {visibleColumns.map((column, index) => <BoardColumn key={column.id} column={column} columns={columns} cards={visibleCards.filter((card) => card.columnId === column.id).sort(compareCardOrder)} snapshot={snapshot} workflowEvidence={workflowEvidence} emptyMessage={boardEmptyMessage(index, hasActiveCards, filtersActive)} onSelect={openBoardCard} onOpenSession={(id) => openBoardCard(id, true)} onAnnounce={setAnnouncement} onMove={moveCard} onReorder={reorderCard} onReorderColumn={reorderColumn} onDrop={onDrop} onCreate={() => { setCreatingIn(column.id); setTitle(''); }} canCreate={visibility !== 'archived'} mutate={mutate} bulkIds={bulkIds} onToggleBulk={toggleBulk}>
         {creatingIn === column.id && visibility !== 'archived' ? <form className="new-card-form" onSubmit={(event) => void addCard(event, column.id)}><input autoFocus required maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Aufgabe benennen…" aria-label="Neue Karte" /><div className="inline-actions"><button className="primary-button small" type="submit">Hinzufügen</button><button className="icon-button" type="button" onClick={() => setCreatingIn(null)} aria-label="Abbrechen"><X size={15} /></button></div></form> : null}
       </BoardColumn>)}
       {visibility !== 'archived' && !filterColumnId ? <form className="new-column-form" onSubmit={(event) => void addColumn(event)}><span><Plus size={17} /> Spalte hinzufügen</span><input value={newColumn} onChange={(event) => setNewColumn(event.target.value)} placeholder="Spaltenname" aria-label="Neue Spalte" maxLength={80} required /><button className="secondary-button small" type="submit">Erstellen</button></form> : null}
@@ -282,8 +306,8 @@ function compareCardOrder(a: Card, b: Card): number {
   return a.position - b.position || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
 }
 
-function BoardColumn({ column, columns, cards, snapshot, emptyMessage, onSelect, onOpenSession, onAnnounce, onMove, onReorder, onReorderColumn, onDrop, onCreate, canCreate, mutate, bulkIds, onToggleBulk, children }: {
-  column: Column; columns: Column[]; cards: Card[]; snapshot: ProjectSnapshot; emptyMessage: string | null; onSelect: (id: string) => void; onOpenSession: (id: string) => void; onAnnounce: (message: string) => void;
+function BoardColumn({ column, columns, cards, snapshot, workflowEvidence, emptyMessage, onSelect, onOpenSession, onAnnounce, onMove, onReorder, onReorderColumn, onDrop, onCreate, canCreate, mutate, bulkIds, onToggleBulk, children }: {
+  column: Column; columns: Column[]; cards: Card[]; snapshot: ProjectSnapshot; workflowEvidence: Record<string, WorkflowRunEvidence>; emptyMessage: string | null; onSelect: (id: string) => void; onOpenSession: (id: string) => void; onAnnounce: (message: string) => void;
   onMove: (card: Card, columnId: string) => Promise<boolean>;
   onReorder: (card: Card, direction: 'up' | 'down') => Promise<void>;
   onReorderColumn: (column: Column, direction: 'left' | 'right') => Promise<void>;
@@ -306,7 +330,7 @@ function BoardColumn({ column, columns, cards, snapshot, emptyMessage, onSelect,
     <div className="column-body">
       {cards.map((card) => {
         const index = activeOrder.findIndex((item) => item.id === card.id);
-        return <BoardCard key={card.id} card={card} column={column} columns={columns} snapshot={snapshot} onSelect={onSelect} onOpenSession={onOpenSession} onAnnounce={onAnnounce} onMove={onMove} onReorder={onReorder} bulkSelected={bulkIds.has(card.id)} onToggleBulk={onToggleBulk} previousTitle={index > 0 ? activeOrder[index - 1]?.title : undefined} nextTitle={index >= 0 ? activeOrder[index + 1]?.title : undefined} />;
+        return <BoardCard key={card.id} card={card} column={column} columns={columns} snapshot={snapshot} workflowSignal={cardWorkflowSignal(card.id, snapshot.workflows, workflowEvidence)} onSelect={onSelect} onOpenSession={onOpenSession} onAnnounce={onAnnounce} onMove={onMove} onReorder={onReorder} bulkSelected={bulkIds.has(card.id)} onToggleBulk={onToggleBulk} previousTitle={index > 0 ? activeOrder[index - 1]?.title : undefined} nextTitle={index >= 0 ? activeOrder[index + 1]?.title : undefined} />;
       })}
       {children}
       {cards.length === 0 && !children && emptyMessage ? <p className="empty-column">{emptyMessage}</p> : null}
@@ -340,8 +364,8 @@ export function ColumnAgentSettings({ column, agents, mutate }: { column: Column
   </form>;
 }
 
-function BoardCard({ card, column, columns, snapshot, onSelect, onOpenSession, onAnnounce, onMove, onReorder, bulkSelected, onToggleBulk, previousTitle, nextTitle }: {
-  card: Card; column: Column; columns: Column[]; snapshot: ProjectSnapshot;
+function BoardCard({ card, column, columns, snapshot, workflowSignal, onSelect, onOpenSession, onAnnounce, onMove, onReorder, bulkSelected, onToggleBulk, previousTitle, nextTitle }: {
+  card: Card; column: Column; columns: Column[]; snapshot: ProjectSnapshot; workflowSignal: BoardWorkflowSignal | null;
   onSelect: (id: string) => void; onOpenSession: (id: string) => void; onAnnounce: (message: string) => void; onMove: (card: Card, columnId: string) => Promise<boolean>;
   onReorder: (card: Card, direction: 'up' | 'down') => Promise<void>;
   bulkSelected: boolean; onToggleBulk: (id: string) => void;
@@ -431,9 +455,10 @@ function BoardCard({ card, column, columns, snapshot, onSelect, onOpenSession, o
 
   return <div className="board-card-wrap" data-card-id={card.id}>
     {!card.archivedAt ? <label className="board-bulk-card-select"><input type="checkbox" checked={bulkSelected} onChange={() => onToggleBulk(card.id)} aria-label={`„${card.title}“ für Sammelaktion auswählen`} /><span className="sr-only">Auswählen</span></label> : null}
-    <button ref={cardButton} id={`board-card-${card.id}`} type="button" draggable={!card.archivedAt} onDragStart={(event) => { if (!card.archivedAt) event.dataTransfer.setData('text/card-id', card.id); }} className={`task-card${card.archivedAt ? ' archived' : ''}${active ? ' is-running' : ''}`} data-priority={card.priority} aria-label={`Karte „${card.title}“ in „${column.name}“ öffnen${card.archivedAt ? ', archiviert' : ''}${active ? ', Agent läuft' : ''}`} aria-describedby={card.description ? `board-card-description-${card.id}` : undefined} aria-keyshortcuts={destinations.length ? 'M' : undefined} onKeyDown={(event) => { if (destinations.length && isMoveShortcut(event)) { event.preventDefault(); setMoveOpen(true); } }} onClick={() => onSelect(card.id)}>
+    <button ref={cardButton} id={`board-card-${card.id}`} type="button" draggable={!card.archivedAt} onDragStart={(event) => { if (!card.archivedAt) event.dataTransfer.setData('text/card-id', card.id); }} className={`task-card${card.archivedAt ? ' archived' : ''}${active ? ' is-running' : ''}`} data-priority={card.priority} aria-label={`Karte „${card.title}“ in „${column.name}“ öffnen${card.archivedAt ? ', archiviert' : ''}${active ? ', Agent läuft' : ''}`} aria-describedby={[card.description ? `board-card-description-${card.id}` : null, workflowSignal ? `board-card-workflow-${card.id}` : null].filter(Boolean).join(' ') || undefined} aria-keyshortcuts={destinations.length ? 'M' : undefined} onKeyDown={(event) => { if (destinations.length && isMoveShortcut(event)) { event.preventDefault(); setMoveOpen(true); } }} onClick={() => onSelect(card.id)}>
       <span className="task-card-grip" aria-hidden="true">{card.archivedAt ? <Archive size={15} /> : <GripVertical size={15} />}</span>
       <strong>{card.title}</strong>
+      {workflowSignal ? <BoardWorkflowMarkers cardId={card.id} signal={workflowSignal} /> : null}
       {card.archivedAt ? <span className="task-card-archive-label">Archiviert</span> : null}
       {card.priority !== 'none' || card.labels.length > 0 ? <span className="task-card-metadata">
         {card.priority !== 'none' ? <span className={`card-priority ${card.priority}`}>{priority?.label ?? card.priority}</span> : null}
