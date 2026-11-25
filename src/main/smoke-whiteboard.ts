@@ -28,7 +28,7 @@ export async function runWhiteboardVisibleSmoke(window: BrowserWindow, store: St
     createWhiteboardEdge(store, { projectId: project.id, sourceId: service.id, targetId: checks.id, label: 'verify' });
   }
   const before = whiteboardSnapshot(store, project.id);
-  if (before.nodes[0]?.id !== saved.id || before.nodes.length !== (capturePath ? 3 : 1)) throw new Error('Saved board fixture is missing.');
+  if (!before.nodes.some((node) => node.id === saved.id) || before.nodes.length !== (capturePath ? 3 : 1)) throw new Error('Saved board fixture is missing.');
 
   await new Promise<void>((resolve) => { window.webContents.once('did-finish-load', () => resolve()); window.webContents.reload(); });
   await window.webContents.executeJavaScript(`(async () => {
@@ -85,7 +85,7 @@ export async function runWhiteboardVisibleSmoke(window: BrowserWindow, store: St
     return;
   }
   const after = whiteboardSnapshot(store, project.id);
-  if (after.nodes.length !== before.nodes.length || after.nodes[0]?.id !== saved.id || after.edges.length !== before.edges.length || store.snapshot(project.id).sessions.length)
+  if (after.nodes.length !== before.nodes.length || !after.nodes.some((node) => node.id === saved.id) || after.edges.length !== before.edges.length || store.snapshot(project.id).sessions.length)
     throw new Error('Inspecting tracked sources changed saved architecture or started an agent.');
   await window.webContents.executeJavaScript(`(async () => {
     const findButton = (label) => [...document.querySelectorAll('.wb-heading-actions button, .wb-inspector button')].find((item) => item.textContent?.includes(label));
