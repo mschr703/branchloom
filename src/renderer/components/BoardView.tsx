@@ -11,6 +11,7 @@ import { TaskDraftAssistant } from './TaskDraftAssistant';
 import { QaCoveragePanel } from './QaCoveragePanel';
 import { ColumnSettingsSheet } from './ColumnSettingsSheet';
 import { BoardDependencyTrace } from './BoardDependencyTrace';
+import { BoardSessionDock } from './BoardSessionDock';
 import { filterBoardCards, type BoardVisibility } from '../board-filters';
 import '../board-metadata.css';
 import '../board-order.css';
@@ -39,6 +40,7 @@ export function boardEmptyMessage(index: number, hasActiveCards: boolean, filter
 export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenBrowser, onOpenQaReport }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focusSession, setFocusSession] = useState(false);
+  const [focusSessionId, setFocusSessionId] = useState<string | null>(null);
   const [creatingIn, setCreatingIn] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [newColumn, setNewColumn] = useState('');
@@ -101,9 +103,10 @@ export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenBrow
     if (created) { setCreatingIn(null); setTitle(''); openBoardCard(created.id); }
   }
 
-  function openBoardCard(cardId: string, showSession = false) {
+  function openBoardCard(cardId: string, showSession = false, sessionId: string | null = null) {
     if (!selectedId) focusBeforeDrawer.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setFocusSession(showSession);
+    setFocusSessionId(sessionId);
     setSelectedId(cardId);
   }
 
@@ -255,7 +258,8 @@ export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenBrow
       {visibility !== 'archived' && !filterColumnId ? <form className="new-column-form" onSubmit={(event) => void addColumn(event)}><span><Plus size={17} /> Spalte hinzufügen</span><input value={newColumn} onChange={(event) => setNewColumn(event.target.value)} placeholder="Spaltenname" aria-label="Neue Spalte" maxLength={80} required /><button className="secondary-button small" type="submit">Erstellen</button></form> : null}
     </div></div>
     <BoardDependencyTrace projectId={snapshot.project.id} cards={snapshot.cards} onOpenCard={openBoardCard} />
-    {selected ? <CardPanel card={selected} snapshot={snapshot} mutate={mutate} onClose={closeBoardCard} onOpenCard={openBoardCard} onOpenDesign={onOpenDesign} onOpenBrowser={onOpenBrowser} focusSession={focusSession} focusReviewComment={openCard?.id === selected.id && openCard.reviewCommentId ? { id: openCard.reviewCommentId, token: openCard.token } : null} focusQaReport={openCard?.id === selected.id && openCard.qaReportId ? { id: openCard.qaReportId, token: openCard.token } : null} /> : null}
+    <BoardSessionDock key={snapshot.project.id} snapshot={snapshot} onOpenSession={(cardId, sessionId) => openBoardCard(cardId, true, sessionId)} />
+    {selected ? <CardPanel card={selected} snapshot={snapshot} mutate={mutate} onClose={closeBoardCard} onOpenCard={openBoardCard} onOpenDesign={onOpenDesign} onOpenBrowser={onOpenBrowser} focusSession={focusSession} focusSessionId={focusSessionId} focusReviewComment={openCard?.id === selected.id && openCard.reviewCommentId ? { id: openCard.reviewCommentId, token: openCard.token } : null} focusQaReport={openCard?.id === selected.id && openCard.qaReportId ? { id: openCard.qaReportId, token: openCard.token } : null} /> : null}
     {showTaskDraft ? <TaskDraftAssistant key={snapshot.project.id} snapshot={snapshot} mutate={mutate} onClose={() => setShowTaskDraft(false)} onCreated={(card) => { setShowTaskDraft(false); openBoardCard(card.id); }} /> : null}
     {showImport ? <TrelloImportPanel key={snapshot.project.id} projectId={snapshot.project.id} columns={columns} mutate={mutate} onClose={() => setShowImport(false)} /> : null}
   </div>;

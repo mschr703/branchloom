@@ -35,9 +35,9 @@ import '../card-label-editor.css';
 const SessionTerminal = lazy(() => import('./SessionTerminal').then((module) => ({ default: module.SessionTerminal })));
 const ReviewDiffPanel = lazy(() => import('./ReviewDiffPanel').then((module) => ({ default: module.ReviewDiffPanel })));
 
-interface Props { card: Card; snapshot: ProjectSnapshot; mutate: Mutate; onClose: () => void; onOpenCard: (id: string) => void; onOpenDesign?: (cardId: string) => void; onOpenBrowser?: () => void; focusSession?: boolean; focusReviewComment?: { id: string; token: number } | null; focusQaReport?: { id: string; token: number } | null }
+interface Props { card: Card; snapshot: ProjectSnapshot; mutate: Mutate; onClose: () => void; onOpenCard: (id: string) => void; onOpenDesign?: (cardId: string) => void; onOpenBrowser?: () => void; focusSession?: boolean; focusSessionId?: string | null; focusReviewComment?: { id: string; token: number } | null; focusQaReport?: { id: string; token: number } | null }
 
-export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenDesign, onOpenBrowser, focusSession, focusReviewComment, focusQaReport }: Props) {
+export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenDesign, onOpenBrowser, focusSession, focusSessionId, focusReviewComment, focusQaReport }: Props) {
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description);
   const [priority, setPriority] = useState<CardPriority>(card.priority);
@@ -49,6 +49,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
   const [useWorktree, setUseWorktree] = useState(false);
   const [runGate, setRunGate] = useState<CardRunGate | null>(null);
   const [message, setMessage] = useState('');
+  const [sessionChoice, setSessionChoice] = useState<string | null>(focusSessionId ?? null);
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [voiceError, setVoiceError] = useState('');
@@ -77,12 +78,13 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
   const bugReplayRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => { cleanupRequest.current += 1; setTitle(card.title); setDescription(card.description); setPriority(card.priority); setLabels(card.labels); setLabelDraft(''); setMetadataError(''); setPrompt(''); setMessage(''); setUseWorktree(false); setWorktreeReview(undefined); setCleanupPreview(undefined); setWorktreeBusy(false); setWorktreeError(''); setShowDiffReview(false); setCriterionQaFocus(null); setCriterionReviewFocus(null); setConflictRadar(null); setConflictError(''); }, [card.id]);
+  useEffect(() => { setSessionChoice(focusSessionId ?? null); }, [card.id, focusSessionId]);
   useEffect(() => {
     if (focusSession && sessionHeadingRef.current) {
       sessionHeadingRef.current.scrollIntoView({ block: 'start' });
       sessionHeadingRef.current.focus();
     } else closeButtonRef.current?.focus();
-  }, [card.id, focusSession]);
+  }, [card.id, focusSession, focusSessionId]);
   useEffect(() => { if (focusReviewComment) setShowDiffReview(true); }, [card.id, focusReviewComment?.id, focusReviewComment?.token]);
   useEffect(() => { setCriterionReviewFocus(null); }, [focusReviewComment?.token]);
   useEffect(() => { setCriterionQaFocus(null); }, [focusQaReport?.token]);
@@ -90,7 +92,8 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
   useEffect(() => () => { conflictRequest.current += 1; conflictInFlight.current = false; }, []);
 
   const sessions = useMemo(() => snapshot.sessions.filter((item) => item.cardId === card.id).sort((a, b) => b.startedAt.localeCompare(a.startedAt)), [snapshot.sessions, card.id]);
-  const session = sessions.find((item) => item.state === 'running') ?? sessions[0] ?? null;
+  const session = sessions.find((item) => item.id === sessionChoice) ?? sessions.find((item) => item.state === 'running') ?? sessions[0] ?? null;
+  const hasRunningSession = sessions.some((item) => item.state === 'running');
   const workflowHaltpoints = snapshot.workflows.filter((flow) => flow.cardIds.includes(card.id) && flow.haltpoint);
   useEffect(() => {
     // A drawer can stay open across periodic snapshots. Check at most once per
@@ -284,18 +287,19 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
         <label className="field-label"><span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" style={{ width: 'auto' }} checked={useWorktree} disabled={Boolean(card.archivedAt)} onChange={(event) => setUseWorktree(event.target.checked)} /> Isolierten Git-Worktree für diese Sitzung verwenden</span></label>
         <ParallelRunPanel key={card.id} card={card} cards={snapshot.cards} mutate={mutate} onGate={acceptRunGate} />
         {parallelWarning ? <p className="inline-note">{parallelWarning}</p> : null}
-        <div className="agent-actions"><button className="primary-button" type="button" disabled={Boolean(card.archivedAt) || !chosenAgentId || session?.state === 'running' || startBlocked} onClick={() => void mutate(() => window.studio.startSession({ cardId: card.id, agentId: chosenAgentId, prompt: prompt.trim() || undefined, useWorktree }))}><Play size={16} /> Agent starten</button><button type="button" className={recording ? 'voice-button recording' : 'voice-button'} disabled={Boolean(card.archivedAt) || transcribing} onClick={() => recording ? recorderRef.current?.stop() : void startRecording()} title={recording ? 'Aufnahme beenden' : 'Spracheingabe'}>{recording ? <MicOff size={17} /> : <Mic size={17} />}{transcribing ? 'Transkribiere…' : recording ? 'Aufnahme beenden' : 'Sprechen'}</button></div>
+        <div className="agent-actions"><button className="primary-button" type="button" disabled={Boolean(card.archivedAt) || !chosenAgentId || hasRunningSession || startBlocked} onClick={() => void mutate(() => window.studio.startSession({ cardId: card.id, agentId: chosenAgentId, prompt: prompt.trim() || undefined, useWorktree }))}><Play size={16} /> Agent starten</button><button type="button" className={recording ? 'voice-button recording' : 'voice-button'} disabled={Boolean(card.archivedAt) || transcribing} onClick={() => recording ? recorderRef.current?.stop() : void startRecording()} title={recording ? 'Aufnahme beenden' : 'Spracheingabe'}>{recording ? <MicOff size={17} /> : <Mic size={17} />}{transcribing ? 'Transkribiere…' : recording ? 'Aufnahme beenden' : 'Sprechen'}</button></div>
         <AgentHandoffPanel key={`handoff-${card.id}`} card={card} sourceSession={session} targetAgentId={chosenAgentId} useWorktree={useWorktree} queueRunning={snapshot.queue?.state === 'running'} mutate={mutate} />
         {voiceError ? <p className="inline-error" role="alert">{voiceError}</p> : null}
         {enabledAgents.length === 0 ? <p className="inline-note">Noch kein Agent eingerichtet. Unter „Agenten“ kannst du installierte CLIs erkennen und einen Startbefehl speichern.</p> : null}
         <div className="drawer-divider" />
         <div ref={sessionHeadingRef} className="section-heading" tabIndex={-1}><Terminal size={19} /><h3>Terminal</h3><span className={session?.state === 'running' ? 'session-state running' : 'session-state'}>{session?.state === 'running' ? 'Läuft' : session?.state === 'failed' ? 'Fehlgeschlagen' : session?.state === 'exited' ? 'Beendet' : session?.state === 'stopped' ? 'Gestoppt' : 'Kein Lauf'}</span></div>
+        {sessions.length > 1 ? <label className="field-label">Sitzung auswählen<select aria-label="Sitzung auswählen" value={session?.id ?? ''} onChange={(event) => setSessionChoice(event.target.value)}>{sessions.map((item) => <option key={item.id} value={item.id}>{snapshot.agents.find((agent) => agent.id === item.agentId)?.name ?? 'Agent unbekannt'} · {new Date(item.startedAt).toLocaleString('de-DE')} · {item.state === 'running' ? 'Läuft' : item.state === 'failed' ? 'Fehlgeschlagen' : item.state === 'stopped' ? 'Gestoppt' : 'Beendet'}</option>)}</select></label> : null}
         {workflowHaltpoints.map((flow) => <p className="section-copy" role="status" key={flow.id}><strong>{flow.name}:</strong> Haltepunkt nach Schritt {flow.haltpoint!.afterStepIndex + 1} {flow.haltpoint!.state === 'reached' ? 'erreicht. Der nächste Agentenlauf wartet auf Fortsetzung.' : 'angefordert. Dieser Schritt kann noch laufen.'}</p>)}
         {session ? <>
           <Suspense fallback={<div className="terminal-empty">Terminal wird geladen…</div>}><SessionTerminal key={session.id} session={session} /></Suspense>
           <SessionRecoveryPanel key={`recovery-${session.id}`} session={session} />
           {session.state === 'running' ? <div className="terminal-controls"><form onSubmit={(event) => void send(event)}><input aria-label="Nachricht an Agent" value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Nachricht an Agent senden…" /><button type="submit" className="icon-button" disabled={!message.trim()} aria-label="Senden"><Send size={17} /></button></form><button type="button" className="danger-button" onClick={() => void mutate(() => window.studio.stopSession(session.id))}><CircleStop size={15} /> Stoppen</button></div> : null}
-          {sessionAgent?.kind === 'codex' && session.state !== 'running' && !card.archivedAt ? <div className="resume-controls">
+          {sessionAgent?.kind === 'codex' && session.state !== 'running' && !hasRunningSession && !card.archivedAt ? <div className="resume-controls">
             {session.codexThreadId ? <p className="section-copy">Codex hat dieses Gespräch als <code>{session.codexThreadId}</code> gemeldet. Prüfe vorher den Kartenverlauf und mögliche Dateiänderungen. Der alte Auftrag wird nicht erneut gesendet.</p>
               : <p className="section-copy">Für diesen Lauf wurde keine Codex-Gesprächs-ID zuverlässig erfasst. Wähle das passende Gespräch im Codex-Terminal selbst aus; der alte Auftrag wird nicht erneut gesendet.</p>}
             <div className="agent-actions">
