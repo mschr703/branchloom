@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { initialKnowledgeNetworkViewport, layoutKnowledgeNetwork } from '../../src/renderer/knowledge-network-layout';
+import { defaultKnowledgeFocus, initialKnowledgeNetworkViewport, knowledgeNeighborhood, layoutKnowledgeNetwork } from '../../src/renderer/knowledge-network-layout';
 
 const nodes = [
   { id: 'task:a', width: 174, height: 42 },
@@ -19,6 +19,37 @@ const edges = [
 ];
 
 describe('source-backed network arrangement', () => {
+  it('starts at a linked task even when a newer visible task has no relationships', () => {
+    expect(defaultKnowledgeFocus([{ id: 'task:isolated' }, { id: 'task:linked' }, { id: 'source:file' }],
+      [{ source: 'task:linked', target: 'source:file' }], 'task:')).toBe('task:linked');
+    expect(defaultKnowledgeFocus([{ id: 'task:isolated' }], [], 'task:')).toBe('task:isolated');
+  });
+
+  it('shows a one-step neighborhood first and adds only stored second-step relationships on request', () => {
+    const direct = knowledgeNeighborhood(nodes, edges, 'task:a', 1);
+    expect([...direct.ids].sort()).toEqual(['run:a', 'source:shared', 'task:a']);
+    expect(direct.edges).toEqual(edges.filter((edge) => edge.source === 'task:a'));
+    expect(direct.positions.get('task:a')!.x).toBeLessThan(direct.positions.get('run:a')!.x);
+    expect(direct.positions.get('run:a')!.y).not.toBe(direct.positions.get('source:shared')!.y);
+    const extended = knowledgeNeighborhood(nodes, edges, 'task:a', 2);
+    expect([...extended.ids].sort()).toEqual(['commit:head', 'run:a', 'source:shared', 'task:a', 'task:b']);
+    expect(extended.edges).toEqual(edges.filter((edge) => extended.ids.has(edge.source) && extended.ids.has(edge.target)));
+    expect(extended.positions.get('task:b')!.x).toBeGreaterThan(direct.positions.get('run:a')!.x);
+    expect([...knowledgeNeighborhood(nodes, edges, 'missing', 1).ids]).toEqual([]);
+  });
+
+  it('can open the selected source and a real neighbor inside a narrow initial viewport', () => {
+    const focus = knowledgeNeighborhood(nodes, edges, 'source:shared', 1);
+    const positioned = nodes.filter((node) => focus.ids.has(node.id)).map((node) => ({ ...node, ...focus.positions.get(node.id)! }));
+    const viewport = initialKnowledgeNetworkViewport(positioned, focus.edges, 358, 'source:shared');
+    const inside = (id: string) => {
+      const node = positioned.find((item) => item.id === id)!;
+      return node.x * viewport.zoom + viewport.x >= 0 && (node.x + node.width) * viewport.zoom + viewport.x <= 358;
+    };
+    expect(inside('source:shared')).toBe(true);
+    expect(inside('task:a')).toBe(true);
+  });
+
   it('is stable across input ordering and leaves room for every compact label', () => {
     const layout = layoutKnowledgeNetwork(nodes, edges);
     expect([...layout]).toEqual([...layoutKnowledgeNetwork([...nodes].reverse(), [...edges].reverse())]);

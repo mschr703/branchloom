@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { Card, CardContextReference, Project, Session } from '../../src/shared/types';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import type { Card, CardContextReference, Project, ProjectSnapshot, Session } from '../../src/shared/types';
 import { projectKnowledgeMapPage, visibleKnowledgeCodeFiles } from '../../src/renderer/project-knowledge-map';
-import { knowledgeMapFlow } from '../../src/renderer/components/ProjectKnowledgeMap';
+import { knowledgeMapFlow, ProjectKnowledgeMap } from '../../src/renderer/components/ProjectKnowledgeMap';
 import type { ProjectMemoryMapSources } from '../../src/shared/project-memory-index';
 
 const project: Project = { id: 'p', name: 'Project', path: 'synthetic', createdAt: '2026-01-01T00:00:00Z' };
@@ -16,6 +18,24 @@ function reference(id: string, cardId: string, target: string, projectId = 'p', 
 }
 
 describe('project knowledge map', () => {
+  it('starts with a bounded local view while keeping the complete source list reachable', () => {
+    const snapshot = { project, cards: [card('a'), card('b')], sessions: [session('run-a', 'a')], agents: [], columns: [], workflows: [], notes: [] } as ProjectSnapshot;
+    const html = renderToStaticMarkup(createElement(ProjectKnowledgeMap, { snapshot }));
+    expect(html).toContain('aria-label="Netzumfang"');
+    expect(html).toContain('aria-pressed="true">Umgebung</button>');
+    expect(html).toContain('aria-label="Verbindungstiefe"');
+    expect(html).toContain('Quellen als Liste (3)');
+    expect(html).toContain('2/3 Quellen im Ausschnitt');
+  });
+
+  it('shows all isolated sources when the current excerpt has no saved relationships', () => {
+    const snapshot = { project, cards: [card('a'), card('b')], sessions: [], agents: [], columns: [], workflows: [], notes: [] } as ProjectSnapshot;
+    const html = renderToStaticMarkup(createElement(ProjectKnowledgeMap, { snapshot }));
+    expect(html).not.toContain('aria-label="Netzumfang"');
+    expect(html).toContain('Quellen als Liste (2)');
+    expect(html).toContain('Quelle auswählen');
+  });
+
   it('connects only saved finished sessions to cards in the same project', () => {
     const map = projectKnowledgeMapPage({ project, cards: [card('a'), card('b'), card('foreign', 'other')], sessions: [
       session('real', 'a'), session('running', 'a', 'running'), session('blank', 'a', 'exited', '  '),

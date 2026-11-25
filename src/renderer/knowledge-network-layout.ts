@@ -2,14 +2,26 @@ interface NetworkNode { id: string; width: number; height: number }
 interface NetworkEdge { source: string; target: string }
 interface Point { x: number; y: number }
 
+/** Prefer a source with saved links over an isolated newest task. */
+export function defaultKnowledgeFocus(nodes: readonly Pick<NetworkNode, 'id'>[], edges: readonly NetworkEdge[], prefix: string): string {
+  const candidates = nodes.filter((node) => node.id.startsWith(prefix));
+  const pool = candidates.length ? candidates : nodes;
+  const degree = new Map<string, number>();
+  for (const edge of edges) {
+    degree.set(edge.source, (degree.get(edge.source) ?? 0) + 1);
+    degree.set(edge.target, (degree.get(edge.target) ?? 0) + 1);
+  }
+  return pool.reduce((best, node) => (degree.get(node.id) ?? 0) > (degree.get(best?.id ?? '') ?? 0) ? node : best, pool[0])?.id ?? '';
+}
+
 /** Focus one task and a directly connected run on narrow canvases. */
-export function initialKnowledgeNetworkViewport(nodes: readonly (NetworkNode & Point)[], edges: readonly NetworkEdge[], canvasWidth: number) {
-  const focus = nodes.find((node) => node.id.startsWith('task:')) ?? nodes[0];
+export function initialKnowledgeNetworkViewport(nodes: readonly (NetworkNode & Point)[], edges: readonly NetworkEdge[], canvasWidth: number, rootId?: string) {
+  const focus = nodes.find((node) => node.id === rootId) ?? nodes.find((node) => node.id.startsWith('task:')) ?? nodes[0];
   if (!focus) return { x: 18, y: 12, zoom: 1 };
-  const runs = edges.filter((edge) => edge.source === focus.id && edge.target.startsWith('conversation:'))
-    .map((edge) => nodes.find((node) => node.id === edge.target))
+  const peers = edges.filter((edge) => edge.source === focus.id || edge.target === focus.id)
+    .map((edge) => nodes.find((node) => node.id === (edge.source === focus.id ? edge.target : edge.source)))
     .filter((node): node is NetworkNode & Point => Boolean(node));
-  const peer = runs.sort((a, b) => b.x - a.x)[0];
+  const peer = peers.sort((a, b) => (b.x + b.width) - (a.x + a.width) || a.y - b.y)[0];
   const cluster = peer ? [focus, peer] : [focus];
   const left = Math.min(...cluster.map((node) => node.x));
   const right = Math.max(...cluster.map((node) => node.x + node.width));
@@ -20,6 +32,37 @@ export function initialKnowledgeNetworkViewport(nodes: readonly (NetworkNode & P
     y: Math.round(85 - top * zoom),
     zoom,
   };
+}
+
+/** A local, source-backed neighborhood. Positions encode hop count, not semantic similarity. */
+export function knowledgeNeighborhood(nodes: readonly NetworkNode[], edges: readonly NetworkEdge[], rootId: string, depth: 1 | 2) {
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  if (!nodeIds.has(rootId)) return { ids: new Set<string>(), positions: new Map<string, Point>(), edges: [] as NetworkEdge[] };
+  const neighbors = new Map(nodes.map((node) => [node.id, new Set<string>()]));
+  for (const edge of edges) {
+    if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) continue;
+    neighbors.get(edge.source)!.add(edge.target);
+    neighbors.get(edge.target)!.add(edge.source);
+  }
+  const levels = new Map([[rootId, 0]]);
+  let frontier = [rootId];
+  for (let step = 1; step <= depth; step++) {
+    const next = [...new Set(frontier.flatMap((id) => [...(neighbors.get(id) ?? [])]))]
+      .filter((id) => !levels.has(id)).sort();
+    for (const id of next) levels.set(id, step);
+    frontier = next;
+  }
+  const positions = new Map<string, Point>();
+  const direct = [...levels].filter(([, level]) => level === 1).map(([id]) => id);
+  const second = [...levels].filter(([, level]) => level === 2).map(([id]) => id)
+    .sort((a, b) => {
+      const parent = (id: string) => Math.min(...[...(neighbors.get(id) ?? [])].filter((peer) => levels.get(peer) === 1).map((peer) => direct.indexOf(peer)));
+      return parent(a) - parent(b) || a.localeCompare(b);
+    });
+  positions.set(rootId, { x: 24, y: 38 + (Math.max(1, direct.length) - 1) * 41 });
+  direct.forEach((id, index) => positions.set(id, { x: 310, y: 38 + index * 82 }));
+  second.forEach((id, index) => positions.set(id, { x: 596, y: 38 + index * 82 }));
+  return { ids: new Set(levels.keys()), positions, edges: edges.filter((edge) => levels.has(edge.source) && levels.has(edge.target)) };
 }
 
 /** A stable, bounded layout for already verified links. It never derives new edges. */

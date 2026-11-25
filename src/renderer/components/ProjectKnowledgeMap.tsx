@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Background, Controls, ReactFlow, type Edge, type Node } from '@xyflow/react';
+import { Background, Controls, Position, ReactFlow, type Edge, type Node } from '@xyflow/react';
 import { ArrowLeft, ArrowRight, ArrowUpRight, Search } from 'lucide-react';
 import type { Card, CardContextReference, ProjectSnapshot, Session } from '../../shared/types';
 import type { ProjectMemoryMapSources, ProjectMemorySourceDetail } from '../../shared/project-memory-index';
 import { projectKnowledgeMapPage, visibleKnowledgeCodeFiles } from '../project-knowledge-map';
-import { initialKnowledgeNetworkViewport, layoutKnowledgeNetwork } from '../knowledge-network-layout';
+import { defaultKnowledgeFocus, initialKnowledgeNetworkViewport, knowledgeNeighborhood, layoutKnowledgeNetwork } from '../knowledge-network-layout';
 import '@xyflow/react/dist/style.css';
 import './project-knowledge-map.css';
 
@@ -121,6 +121,8 @@ export function ProjectKnowledgeMap({ snapshot, indexRevision, onOpenCard, onOpe
   const [selectedId, setSelectedId] = useState('');
   const [layer, setLayer] = useState<KnowledgeMapLayer>('work');
   const [arrangement, setArrangement] = useState<KnowledgeMapArrangement>('network');
+  const [networkScope, setNetworkScope] = useState<'focus' | 'all'>('focus');
+  const [focusDepth, setFocusDepth] = useState<1 | 2>(1);
   const [fileQuery, setFileQuery] = useState('');
   const [indexed, setIndexed] = useState<ProjectMemoryMapSources | null>(null);
   const [indexLoading, setIndexLoading] = useState(true);
@@ -162,21 +164,42 @@ export function ProjectKnowledgeMap({ snapshot, indexRevision, onOpenCard, onOpe
       .finally(() => { if (active) setIndexLoading(false); });
     return () => { active = false; };
   }, [snapshot.project.id, indexRevision]);
-  const { nodes, edges, shownCodeFiles } = useMemo(() => knowledgeMapFlow(map.groups, snapshot.agents, selectedId, indexed, layer, fileQuery, arrangement),
+  const { nodes: allNodes, edges: allEdges, shownCodeFiles } = useMemo(() => knowledgeMapFlow(map.groups, snapshot.agents, selectedId, indexed, layer, fileQuery, arrangement),
     [map.groups, snapshot.agents, selectedId, indexed, layer, fileQuery, arrangement]);
-  const layoutKey = `${snapshot.project.id}:${map.page}:${layer}:${arrangement}:${fileQuery}:${viewportWidth <= 860 ? 'narrow' : 'wide'}:${nodes.map((node) => node.id).join('|')}`;
+  const focusRoot = allNodes.some((node) => node.id === selectedId) ? selectedId
+    : defaultKnowledgeFocus(allNodes, allEdges, layer === 'code' ? 'commit:' : 'task:');
+  const neighborhood = useMemo(() => knowledgeNeighborhood(allNodes.map((node) => ({ id: node.id,
+    width: node.id.startsWith('task:') ? 220 : 190, height: 52 })), allEdges, focusRoot, focusDepth),
+  [allNodes, allEdges, focusRoot, focusDepth]);
+  const focusedNetwork = arrangement === 'network' && networkScope === 'focus' && allEdges.length > 0;
+  const inspectedId = selectedId || (focusedNetwork ? focusRoot : '');
+  const nodes = focusedNetwork ? allNodes.filter((node) => neighborhood.ids.has(node.id)).map((node) => ({ ...node,
+    position: neighborhood.positions.get(node.id) ?? node.position,
+    sourcePosition: Position.Right, targetPosition: Position.Left,
+    className: `${node.className ?? ''} neighborhood${node.id === focusRoot ? ' focal' : ''}` })) : allNodes;
+  const edges = focusedNetwork ? allEdges.filter((edge) => neighborhood.ids.has(edge.source) && neighborhood.ids.has(edge.target)).map((edge) => {
+    // These edges have no arrows; orient their rendering left-to-right while
+    // the saved source/target pair remains unchanged in allEdges and the inspector.
+    const sourceX = neighborhood.positions.get(edge.source)?.x ?? 0;
+    const targetX = neighborhood.positions.get(edge.target)?.x ?? 0;
+    return sourceX <= targetX ? { ...edge, type: 'straight' } : { ...edge, source: edge.target, target: edge.source, type: 'straight' };
+  }) : allEdges;
+  const layoutKey = `${snapshot.project.id}:${map.page}:${layer}:${arrangement}:${networkScope}:${focusDepth}:${focusRoot}:${fileQuery}:${viewportWidth <= 860 ? 'narrow' : 'wide'}:${nodes.map((node) => node.id).join('|')}`;
   const narrowNetwork = arrangement === 'network' && viewportWidth <= 860;
   const initialViewport = narrowNetwork
     ? initialKnowledgeNetworkViewport(nodes.map((node) => ({ id: node.id, x: node.position.x, y: node.position.y,
-      width: node.id.startsWith('task:') ? 174 : 146, height: 42 })), edges, Math.max(280, viewportWidth - 32))
-    : { x: 18, y: 12, zoom: 1 };
-  const selectedCard = selectedId.startsWith('task:') ? map.groups.find((group) => group.card.id === selectedId.slice(5))?.card : null;
-  const selectedRun = selectedId.startsWith('conversation:') ? map.groups.flatMap((group) => group.sessions.map((session) => ({ session, card: group.card })))
-    .find((item) => item.session.id === selectedId.slice('conversation:'.length)) : null;
-  const selectedSources = selectedId.startsWith('source:') ? map.groups.flatMap((group) => group.references.map((reference) => ({ reference, card: group.card })))
-    .filter((item) => referenceNodeId(item.reference) === selectedId) : [];
-  const selectedCode = selectedId.startsWith('source:file:') ? indexed?.codeFiles.find((file) => `source:file:${file.path}` === selectedId) ?? null : null;
-  const selectedCommit = selectedId.startsWith('commit:') && indexed?.headCommit?.sourceId === selectedId.slice(7) ? indexed.headCommit : null;
+      width: focusedNetwork ? node.id.startsWith('task:') ? 220 : 190 : node.id.startsWith('task:') ? 174 : 146,
+      height: focusedNetwork ? 52 : 42 })), edges, Math.max(280, viewportWidth - 32), focusedNetwork ? focusRoot : undefined)
+    : focusedNetwork && (focusDepth === 2 || nodes.length > 5)
+      ? { x: 64, y: 170 - (neighborhood.positions.get(focusRoot)?.y ?? 38), zoom: 1 }
+      : { x: 18, y: 12, zoom: 1 };
+  const selectedCard = inspectedId.startsWith('task:') ? map.groups.find((group) => group.card.id === inspectedId.slice(5))?.card : null;
+  const selectedRun = inspectedId.startsWith('conversation:') ? map.groups.flatMap((group) => group.sessions.map((session) => ({ session, card: group.card })))
+    .find((item) => item.session.id === inspectedId.slice('conversation:'.length)) : null;
+  const selectedSources = inspectedId.startsWith('source:') ? map.groups.flatMap((group) => group.references.map((reference) => ({ reference, card: group.card })))
+    .filter((item) => referenceNodeId(item.reference) === inspectedId) : [];
+  const selectedCode = inspectedId.startsWith('source:file:') ? indexed?.codeFiles.find((file) => `source:file:${file.path}` === inspectedId) ?? null : null;
+  const selectedCommit = inspectedId.startsWith('commit:') && indexed?.headCommit?.sourceId === inspectedId.slice(7) ? indexed.headCommit : null;
   const selected: { kind: 'task'; card: Card } | { kind: 'conversation'; card: Card; session: Session }
     | { kind: 'source'; links: typeof selectedSources; code: typeof selectedCode }
     | { kind: 'commit'; commit: NonNullable<typeof selectedCommit> } | null = selectedCard
@@ -197,7 +220,7 @@ export function ProjectKnowledgeMap({ snapshot, indexRevision, onOpenCard, onOpe
 
   function changePage(next: number) { setPage(next); setSelectedId(''); }
 
-  const listItems = nodes.map((node) => {
+  const listItems = allNodes.map((node) => {
     if (node.id.startsWith('task:')) return { id: node.id, title: `Aufgabe · ${map.groups.find((group) => group.card.id === node.id.slice(5))?.card.title ?? node.id}` };
     if (node.id.startsWith('conversation:')) {
       const related = map.groups.flatMap((group) => group.sessions.map((session) => ({ session, card: group.card })))
@@ -209,8 +232,8 @@ export function ProjectKnowledgeMap({ snapshot, indexRevision, onOpenCard, onOpe
     if (node.id.startsWith('source:file:')) return { id: node.id, title: `Datei · ${node.id.slice('source:file:'.length)}` };
     return { id: node.id, title: `Ordner · ${node.id.slice('source:folder:'.length)}` };
   });
-  const relatedItems = selected ? [...new Set(edges.filter((edge) => edge.source === selectedId || edge.target === selectedId)
-    .map((edge) => edge.source === selectedId ? edge.target : edge.source))]
+  const relatedItems = selected ? [...new Set(allEdges.filter((edge) => edge.source === inspectedId || edge.target === inspectedId)
+    .map((edge) => edge.source === inspectedId ? edge.target : edge.source))]
     .map((id) => listItems.find((item) => item.id === id))
     .filter((item): item is (typeof listItems)[number] => Boolean(item)) : [];
 
@@ -230,12 +253,13 @@ export function ProjectKnowledgeMap({ snapshot, indexRevision, onOpenCard, onOpe
       <button type="button" aria-pressed={layer === 'work'} onClick={() => { setLayer('work'); setSelectedId(''); }}>Arbeit</button>
       <button type="button" aria-pressed={layer === 'code'} onClick={() => { setLayer('code'); setSelectedId(''); }}>Git-Quellen</button>
     </div><div className="knowledge-map-toolbar-end">{layer !== 'work' ? <label className="knowledge-map-file-search"><Search size={15} aria-hidden="true" /><input aria-label="Indexierte Dateien filtern" value={fileQuery} onChange={(event) => { setFileQuery(event.target.value); setSelectedId(''); }} placeholder="Dateipfad suchen" /></label> : null}<div className="knowledge-map-arrangements" role="group" aria-label="Kartenanordnung"><button type="button" aria-pressed={arrangement === 'network'} onClick={() => setArrangement('network')}>Netz</button><button type="button" aria-pressed={arrangement === 'structure'} onClick={() => setArrangement('structure')}>Struktur</button></div></div></div>
+    {arrangement === 'network' && allEdges.length > 0 ? <div className="knowledge-map-scope"><div role="group" aria-label="Netzumfang"><button type="button" aria-pressed={networkScope === 'focus'} onClick={() => setNetworkScope('focus')}>Umgebung</button><button type="button" aria-pressed={networkScope === 'all'} onClick={() => setNetworkScope('all')}>Gesamtbild</button></div>{networkScope === 'focus' ? <label>Verbindungen <select aria-label="Verbindungstiefe" value={focusDepth} onChange={(event) => setFocusDepth(Number(event.target.value) as 1 | 2)}><option value={1}>1 Schritt</option><option value={2}>2 Schritte</option></select></label> : null}<span>{nodes.length}/{allNodes.length} Quellen im Ausschnitt</span></div> : null}
     {referenceState?.key !== referenceKey ? <p className="knowledge-map-source-status" role="status">Dateibezüge werden gelesen…</p> : referenceState.failed ? <p className="knowledge-map-source-status" role="status">{referenceState.failed} Kartenbezüge konnten nicht gelesen werden; die Karte ist unvollständig.</p> : null}
     {indexLoading ? <p className="knowledge-map-source-status" role="status">Git-Quellen werden gelesen…</p> : null}
     {indexError ? <p className="knowledge-map-source-status error" role="alert">Git-Quellen konnten nicht gelesen werden: {indexError}</p> : null}
-    {nodes.length ? <div className={`knowledge-map-layout ${arrangement}`}>
+    {nodes.length ? <div className={`knowledge-map-layout ${arrangement}${focusedNetwork ? ' focus-view' : ''}`}>
       <div className="knowledge-map-canvas" role="region" aria-label="Beziehungskarte aus Aufgaben, Agentenläufen und Git-Quellen">
-        <ReactFlow key={layoutKey} nodes={nodes} edges={edges} defaultViewport={initialViewport} fitView={arrangement === 'structure'} fitViewOptions={{ padding: .14, maxZoom: 1.2 }}
+        <ReactFlow key={layoutKey} nodes={nodes} edges={edges} defaultViewport={initialViewport} fitView={arrangement === 'structure' || (focusedNetwork && focusDepth === 1 && nodes.length <= 5 && viewportWidth > 860)} fitViewOptions={{ padding: .14, maxZoom: 1.1 }}
           nodesDraggable={false} nodesConnectable={false} edgesFocusable={false}
           onNodeClick={(_, node) => setSelectedId(node.id)} onNodeDoubleClick={(_, node) => {
             if (node.id.startsWith('task:')) onOpenCard?.(node.id.slice(5));
@@ -245,7 +269,7 @@ export function ProjectKnowledgeMap({ snapshot, indexRevision, onOpenCard, onOpe
               if (linkedCard) onOpenCard?.(linkedCard.id);
             }
           }}>
-          <Background color="var(--border)" gap={28} size={1} />
+          {!focusedNetwork ? <Background color="var(--border)" gap={28} size={1} /> : null}
           <Controls showInteractive={false} />
         </ReactFlow>
       </div>
@@ -257,8 +281,8 @@ export function ProjectKnowledgeMap({ snapshot, indexRevision, onOpenCard, onOpe
           <p>{selected.kind === 'task' ? selected.card.description || 'Keine Beschreibung gespeichert.' : `Gehört zu „${selected.card.title}“. Beendet am ${new Date(selected.session.endedAt ?? selected.session.startedAt).toLocaleString('de-DE')}. Zustand: ${selected.session.state}.`}</p>
           {(selected.kind === 'task' ? onOpenCard : onOpenSession) ? <button className="secondary-button" type="button" onClick={() => selected.kind === 'task' ? onOpenCard?.(selected.card.id) : onOpenSession?.(selected.session.id)}>Quelle öffnen <ArrowUpRight size={15} aria-hidden="true" /></button> : null}
         </> : <><span>Beziehungen</span><h3>Quelle auswählen</h3><p>Wähle einen Knoten oder nutze die Quellenliste. Doppelklick öffnet Aufgaben und Agentenläufe.</p></>}
-        {selected ? <div className="knowledge-map-related"><div className="knowledge-map-related-heading"><strong>Direkt verbunden</strong><span>{relatedItems.length}</span></div>{relatedItems.length ? <ul>{relatedItems.map((item) => <li key={item.id}><button type="button" onClick={() => setSelectedId(item.id)}>{item.title}<ArrowRight size={13} aria-hidden="true" /></button>{item.id.startsWith('task:') && onOpenCard ? <button className="knowledge-map-open-related" type="button" aria-label={`${item.title} öffnen`} onClick={() => onOpenCard(item.id.slice(5))}><ArrowUpRight size={14} aria-hidden="true" /></button> : item.id.startsWith('conversation:') && onOpenSession ? <button className="knowledge-map-open-related" type="button" aria-label={`${item.title} öffnen`} onClick={() => onOpenSession(item.id.slice('conversation:'.length))}><ArrowUpRight size={14} aria-hidden="true" /></button> : null}</li>)}</ul> : <p>Für diese Quelle ist in diesem Ausschnitt keine Beziehung gespeichert.</p>}<button type="button" className="knowledge-map-clear" onClick={() => setSelectedId('')}>Auswahl aufheben</button></div> : null}
-        <details className="knowledge-map-list" ref={sourceListRef}><summary>Quellen als Liste ({listItems.length})</summary><ul onKeyDown={onListKeyDown}>{listItems.map((item) => <li key={item.id}><button type="button" aria-current={selectedId === item.id ? 'true' : undefined} onClick={() => setSelectedId(item.id)}>{item.title}</button></li>)}</ul></details>
+        {selected ? <div className="knowledge-map-related"><div className="knowledge-map-related-heading"><strong>Direkt verbunden</strong><span>{relatedItems.length}</span></div>{relatedItems.length ? <ul>{relatedItems.map((item) => <li key={item.id}><button type="button" onClick={() => setSelectedId(item.id)}>{item.title}<ArrowRight size={13} aria-hidden="true" /></button>{item.id.startsWith('task:') && onOpenCard ? <button className="knowledge-map-open-related" type="button" aria-label={`${item.title} öffnen`} onClick={() => onOpenCard(item.id.slice(5))}><ArrowUpRight size={14} aria-hidden="true" /></button> : item.id.startsWith('conversation:') && onOpenSession ? <button className="knowledge-map-open-related" type="button" aria-label={`${item.title} öffnen`} onClick={() => onOpenSession(item.id.slice('conversation:'.length))}><ArrowUpRight size={14} aria-hidden="true" /></button> : null}</li>)}</ul> : <p>Für diese Quelle ist in diesem Ausschnitt keine Beziehung gespeichert.</p>}<button type="button" className="knowledge-map-clear" onClick={() => { setSelectedId(''); if (focusedNetwork) setNetworkScope('all'); }}>{focusedNetwork ? 'Gesamtbild zeigen' : 'Auswahl aufheben'}</button></div> : null}
+        <details className="knowledge-map-list" ref={sourceListRef}><summary>Quellen als Liste ({listItems.length})</summary><ul onKeyDown={onListKeyDown}>{listItems.map((item) => <li key={item.id}><button type="button" aria-current={inspectedId === item.id ? 'true' : undefined} onClick={() => setSelectedId(item.id)}>{item.title}</button></li>)}</ul></details>
       </aside>
     </div> : !indexLoading ? <p className="knowledge-map-empty">{layer === 'code' ? fileQuery ? 'Keine indexierte Datei passt zu diesem Pfad.' : 'Für dieses Projekt ist noch kein Git-Quellstand indexiert.' : 'Noch keine gespeicherten Aufgaben oder Git-Quellen.'}</p> : null}
     <div className="knowledge-map-pagination"><span>Aufgaben {map.page + 1}/{map.pages}{map.hiddenSessions ? ` · ${map.hiddenSessions} ältere Läufe ausgeblendet` : ''}{map.hiddenReferences ? ` · ${map.hiddenReferences} weitere Dateibezüge ausgeblendet` : ''}{layer !== 'work' && indexed ? ` · ${shownCodeFiles.length}/${indexed.totalCodeFiles} Dateien im Ausschnitt` : ''}</span><div><button className="icon-button" type="button" aria-label="Neuere Aufgaben zeigen" disabled={map.page === 0} onClick={() => changePage(map.page - 1)}><ArrowLeft size={16} /></button><button className="icon-button" type="button" aria-label="Weitere Aufgaben zeigen" disabled={map.page >= map.pages - 1} onClick={() => changePage(map.page + 1)}><ArrowRight size={16} /></button></div></div>
