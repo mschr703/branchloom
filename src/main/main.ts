@@ -3190,6 +3190,10 @@ function createWindow(): void {
               if (wireframe.querySelectorAll('.task-wireframe-element').length !== 8 || (await window.studio.cardWireframe({ projectId: ${JSON.stringify(smokeProject.id)}, cardId: ${JSON.stringify(smokeCard.id)} }))?.approvedRevision !== 1) throw new Error('Baustein-Einfügen ließ sich nicht rückgängig machen oder änderte Freigabe.');
               desktopArtboard.click();
               for (let attempt = 0; attempt < 100 && !wireframe.querySelector('.task-wireframe-canvas-wrap[data-artboard="desktop"]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const liveDesignMode = [...document.querySelectorAll('.design-workspace-modes button')].find((item) => item.textContent?.includes('Laufende App prüfen'));
+              if (!(liveDesignMode instanceof HTMLButtonElement)) throw new Error('Live-Design-Ansicht fehlt.');
+              liveDesignMode.click();
+              for (let attempt = 0; attempt < 100 && document.querySelector('.design-inspection-tools')?.hasAttribute('hidden'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               for (let attempt = 0; attempt < 100 && !document.querySelector('.design-inspection-toolbar'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const input = document.querySelector('.design-inspection-toolbar input');
               const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
