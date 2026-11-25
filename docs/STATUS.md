@@ -4,6 +4,8 @@ Stand: 25.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollst�
 
 ## Neue Abnahmen im Hauptzweig
 
+- G02 manueller Übernahmepfad (integriert): Ein eigener Quell-Electron-Smoke öffnete zwei synthetische Boardkarten und prüfte per Klick Vormerken, Git-Vorprüfung, Datei-Diff, bestätigten Review, ein konfiguriertes npm-Skript im separaten Checkout und den manuell bestätigten Fast-Forward. Abgelehnte Review- und Merge-Dialoge änderten den gespeicherten Zustand nicht. Nach der Übernahme blieb die zweite, vom alten gemeinsamen Stand abgezweigte Karte sichtbar blockiert und ihr Worktree unverändert; Git-Ziel-HEAD und SQLite-Queue stimmten mit der Oberfläche überein. Vierzehn bestehende Backend-Tests, Typprüfung, Build, Audit und Public-Scan bestanden isoliert. Die integrierte CI-Abnahme steht aus. Automatikmodus, Konflikt-Integrations-Worktree und gemeinsame Ergebnismappe fehlen noch; G02 bleibt In Arbeit. [Ablauf und Prüfbefehl](INTEGRATION_QUEUE.md).
+
 - F03 nach Integration: Neun gezielte Backend-/Renderer-Tests, Produktionsbuild und der separate sichtbare `npm run smoke:f03` bestanden. Der Klickpfad prüft den Drei-Wege-Vergleich, eine gespeicherte Konfliktwahl nach Renderer-Neuladen, veraltete Zieldateien und die unveränderte Datei bei Ablehnung. Der Windows-CI-Schritt und eine paketierte Prüfung folgen; freie Bearbeitung innerhalb eines Konfliktblocks und komplette Kartenintegration bleiben offen.
 
 - Gemeinsamer Prüfstand vor dem ersten Paketlauf: 206 Testdateien mit 850 bestandenen Tests, sieben optionale Skips, Typprüfung, Produktionsbuild, gezielter F06-Electron-Smoke, vollständiger Quell-Electron-Smoke, Audit ohne kritische Befunde und Public-Scan bestanden. Windows-CI und paketierte Abnahme für diesen Stand folgen.
