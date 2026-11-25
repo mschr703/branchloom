@@ -35,7 +35,7 @@ import { attestIntegrationReview, integrationEvidence, runIntegrationTest, setIn
 import { previewPrDraft } from './pr-draft';
 import { scanProjectComponents } from './component-catalog';
 import { componentRecommendations } from './component-recommendations';
-import { addCardComponentChoice, addCardComponentVariant, cardComponentChoiceState, cardComponentVariantScreenshot, removeCardComponentChoice, removeCardComponentVariant } from './card-component-choice';
+import { addCardComponentChoice, addCardComponentVariant, cardComponentChoiceState, cardComponentVariantScreenshot, projectComponentLibrary, removeCardComponentChoice, removeCardComponentVariant } from './card-component-choice';
 import { checkoutMilestone, compareMilestone, createMilestone, createMilestoneWithPreview, listMilestones, milestonePreviewImage } from './milestones';
 import { createReviewComment, listReviewComments, previewCardDiff } from './diff-review';
 import { acknowledgeQaInboxReport, acknowledgeReviewInboxComment, reviewInboxItems } from './review-inbox';
@@ -204,6 +204,7 @@ function installIpc(): void {
   bind('componentCatalog', (projectId: string) => scanProjectComponents(db.project(projectId).path));
   bind('componentRecommendations', (cardId: string) => componentRecommendations(db, cardId));
   bind('cardComponentChoiceState', (cardId: string) => cardComponentChoiceState(db, cardId));
+  bind('projectComponentLibrary', (projectId: string) => projectComponentLibrary(db, projectId));
   bind('addCardComponentChoice', (input: Parameters<StudioAPI['addCardComponentChoice']>[0]) => addCardComponentChoice(db, input));
   bind('removeCardComponentChoice', (input: Parameters<StudioAPI['removeCardComponentChoice']>[0]) => removeCardComponentChoice(db, input));
   bind('addCardComponentVariant', (input: Parameters<StudioAPI['addCardComponentVariant']>[0]) => addCardComponentVariant(db, input));
@@ -3811,6 +3812,43 @@ http.createServer((_request,response)=>{response.writeHead(200,{'Content-Type':'
               const view = [...panel.querySelectorAll('.card-component-choice__snapshot button')][0];
               view?.click();
               await wait(() => panel.querySelector('.card-component-choice__snapshot img'), 'rendered screenshot');
+              return true;
+            })()`);
+
+            const f10ReuseCard = smokeStore.createCard({ projectId: smokeProject.id, columnId: smokeSnapshot.columns[0]!.id, title: 'Reuse settings dialog' });
+            await new Promise<void>((resolve) => { smokeWindow.webContents.once('did-finish-load', () => resolve()); smokeWindow.webContents.reload(); });
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const cardId = ${JSON.stringify(f10ReuseCard.id)};
+              const wait = async (predicate, label) => { for (let i = 0; i < 300; i++) { const result = await predicate(); if (result) return result; await new Promise((resolve) => setTimeout(resolve, 50)); } throw new Error('F10 library UI smoke timed out: ' + label); };
+              const picker = await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger:not(.is-compact)'), 'project picker');
+              picker.click();
+              const project = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project button')].find((item) => item.textContent?.trim() === 'Smoke-Projekt'), 'project');
+              project.click();
+              await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger')?.getAttribute('aria-label') === 'Projekt auswählen: Smoke-Projekt', 'selected project');
+              const nav = await wait(() => [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Board'), 'board navigation');
+              nav.click();
+              const task = await wait(() => document.getElementById('board-card-' + cardId), 'card');
+              task.click();
+              const panel = await wait(() => document.querySelector('.card-drawer .card-component-choice'), 'component panel');
+              panel.querySelector('summary')?.click();
+              const libraryButton = await wait(() => [...panel.querySelectorAll('button')].find((item) => item.textContent?.includes('Im Projekt verwendet')), 'library button');
+              libraryButton.click();
+              const source = await wait(() => [...panel.querySelectorAll('.card-component-choice__library li')].find((item) => item.textContent?.includes('SettingsDialog')), 'source row');
+              if (!source.textContent?.includes('src/SettingsDialog.tsx') || !source.textContent.includes('SHA-256') || !source.textContent.includes('Compact') || !source.textContent.includes('Wide')) throw new Error('F10 project library omitted source or QA evidence.');
+              const snapshot = [...source.querySelectorAll('button')].find((item) => item.textContent?.includes('Gerenderte Variante ansehen'));
+              snapshot?.click();
+              await wait(() => source.querySelector('.card-component-choice__snapshot img'), 'QA screenshot');
+              const inspect = [...source.querySelectorAll('button')].find((item) => item.textContent?.includes('Für diese Karte prüfen'));
+              if (!(inspect instanceof HTMLButtonElement) || inspect.disabled) throw new Error('F10 source cannot be inspected for another card.');
+              inspect.click();
+              const purpose = await wait(() => panel.querySelector('.card-component-choice__confirm input'), 'purpose');
+              const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+              if (!setter) throw new Error('F10 input setter missing.');
+              setter.call(purpose, 'Reuse the reviewed settings dialog'); purpose.dispatchEvent(new Event('input', { bubbles: true }));
+              const confirm = await wait(() => [...panel.querySelectorAll('.card-component-choice__confirm button')].find((item) => !item.disabled), 'confirmation');
+              confirm.click();
+              const state = await wait(async () => { const current = await window.studio.cardComponentChoiceState(cardId); return current.choices.length ? current : null; }, 'saved choice');
+              if (state.choices[0]?.name !== 'SettingsDialog' || state.choices[0]?.variants.length !== 0) throw new Error('F10 reuse copied old QA variants or saved the wrong source.');
               return true;
             })()`);
 

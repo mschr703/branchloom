@@ -38,6 +38,7 @@ const studio: StudioAPI = {
   componentCatalog: (projectId) => invoke('componentCatalog', projectId),
   componentRecommendations: (cardId) => invoke('componentRecommendations', cardId),
   cardComponentChoiceState: (cardId) => invoke('cardComponentChoiceState', cardId),
+  projectComponentLibrary: (projectId) => invoke('projectComponentLibrary', projectId),
   addCardComponentChoice: (input) => invoke('addCardComponentChoice', input),
   removeCardComponentChoice: (input) => invoke('removeCardComponentChoice', input),
   addCardComponentVariant: (input) => invoke('addCardComponentVariant', input),

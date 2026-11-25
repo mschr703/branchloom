@@ -14,7 +14,7 @@ import type { DesignA11yCheck } from './design-a11y';
 import type { DesignViewportResult } from './design-viewports';
 import type { ComponentCatalog } from './component-catalog';
 import type { ComponentRecommendationResult } from './component-recommendations';
-import type { AddCardComponentChoice, AddCardComponentVariant, CardComponentChoiceState } from './card-component-choice';
+import type { AddCardComponentChoice, AddCardComponentVariant, CardComponentChoiceState, ProjectComponentLibrary } from './card-component-choice';
 import type { GlobalInboxPage, GlobalInboxQuery } from './global-inbox';
 import type { QaGitEvidence } from './qa-git-evidence';
 import type { CardCriterion, CardCriterionEvidenceKind } from './card-acceptance';
@@ -170,6 +170,7 @@ export interface StudioAPI {
   componentCatalog(projectId: string): Promise<ComponentCatalog>;
   componentRecommendations(cardId: string): Promise<ComponentRecommendationResult>;
   cardComponentChoiceState(cardId: string): Promise<CardComponentChoiceState>;
+  projectComponentLibrary(projectId: string): Promise<ProjectComponentLibrary>;
   addCardComponentChoice(input: AddCardComponentChoice): Promise<CardComponentChoiceState>;
   removeCardComponentChoice(input: { cardId: string; choiceId: string; expectedContentRevision: number }): Promise<CardComponentChoiceState>;
   addCardComponentVariant(input: AddCardComponentVariant): Promise<CardComponentChoiceState>;

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentCandidate, ComponentCatalog } from '../../shared/component-catalog';
 import type { ComponentRecommendationResult } from '../../shared/component-recommendations';
-import type { CardComponentChoiceState } from '../../shared/card-component-choice';
+import type { CardComponentChoiceState, ProjectComponentLibrary } from '../../shared/card-component-choice';
 import './card-component-choice.css';
 
 interface Props { cardId: string; projectId: string; archived: boolean }
@@ -40,9 +40,35 @@ export function ComponentRecommendationList({ result, disabled, selectedKeys, on
   </section>;
 }
 
+export function ProjectComponentLibraryList({ library, disabled, selectedKeys, onInspect }: {
+  library: ProjectComponentLibrary;
+  disabled: boolean;
+  selectedKeys: string[];
+  onInspect: (candidate: ComponentCandidate) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const needle = query.trim().toLocaleLowerCase('de-DE');
+  const visible = library.entries.filter((entry) =>
+    `${entry.name} ${entry.path} ${entry.sourceCardTitle} ${entry.purpose}`.toLocaleLowerCase('de-DE').includes(needle));
+  return <section className="card-component-choice__library" aria-label="Im Projekt verwendete Komponenten">
+    <h4>Im Projekt verwendet</h4>
+    {library.entries.length ? <label>Filtern<input type="search" maxLength={120} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Komponente, Datei oder Karte" /></label> : null}
+    {visible.length ? <ul>{visible.map((entry) => <li key={`${entry.path}:${entry.name}:${entry.sourceFingerprint}`}>
+      <div className="card-component-choice__library-source"><strong>{entry.name}</strong><code>{entry.path}:{entry.line} · SHA-256 {entry.sourceFingerprint.slice(0, 12)}</code>
+        <small>Aus „{entry.sourceCardTitle}“ · {entry.usedByCards} {entry.usedByCards === 1 ? 'Karte' : 'Karten'} · {entry.currentCandidate ? 'Quelle aktuell' : 'Quelle geändert oder nicht im Git-Scan'}</small>
+        <small>Letzter Verwendungshinweis: {entry.purpose}</small></div>
+      {entry.variants.length ? <div className="card-component-choice__library-variants">{entry.variants.map((variant) => <div key={variant.id}><small>{variant.label} · Bild aus „{variant.sourceCardTitle}“ · {new Date(variant.capturedAt).toLocaleString('de-DE')}</small>
+        <VariantSnapshot cardId={variant.sourceCardId} variantId={variant.id} label={variant.label} /></div>)}</div> : <small>Keine gerenderte Beispielroute gespeichert.</small>}
+      <button type="button" className="text-button" disabled={disabled || !entry.currentCandidate || selectedKeys.includes(`${entry.path}:${entry.name}`)} onClick={() => { if (entry.currentCandidate) onInspect(entry.currentCandidate); }}>Für diese Karte prüfen</button>
+    </li>)}</ul> : <p>{library.entries.length ? 'Keine passenden Projektbeispiele.' : 'Für dieses Projekt wurden noch keine Komponenten bewusst an Karten gebunden.'}</p>}
+    {library.limited || library.catalogPartial ? <small>Die Liste oder Git-Inventur ist begrenzt. Weitere Quellen können fehlen.</small> : null}
+  </section>;
+}
+
 export function CardComponentChoicePanel({ cardId, projectId, archived }: Props) {
   const [state, setState] = useState<CardComponentChoiceState | null>(null);
   const [catalog, setCatalog] = useState<ComponentCatalog | null>(null);
+  const [library, setLibrary] = useState<ProjectComponentLibrary | null>(null);
   const [recommendations, setRecommendations] = useState<ComponentRecommendationResult | null>(null);
   const [query, setQuery] = useState('');
   const [chosen, setChosen] = useState<ComponentCandidate | null>(null);
@@ -57,7 +83,7 @@ export function CardComponentChoicePanel({ cardId, projectId, archived }: Props)
   useEffect(() => {
     const current = ++generation.current;
     let live = true;
-    setState(null); setCatalog(null); setRecommendations(null); setChosen(null); setPurpose(''); setQuery(''); setError(''); setVariantChoiceId(null); setVariantLabel(''); setVariantUrl(''); setBusy(false);
+    setState(null); setCatalog(null); setLibrary(null); setRecommendations(null); setChosen(null); setPurpose(''); setQuery(''); setError(''); setVariantChoiceId(null); setVariantLabel(''); setVariantUrl(''); setBusy(false);
     void window.studio.cardComponentChoiceState(cardId).then((result) => { if (live && generation.current === current) setState(result); })
       .catch((reason: unknown) => { if (live && generation.current === current) setError(reasonText(reason)); });
     return () => { live = false; generation.current++; };
@@ -68,6 +94,14 @@ export function CardComponentChoicePanel({ cardId, projectId, archived }: Props)
     setBusy(true); setError(''); setChosen(null);
     try { const result = await window.studio.componentCatalog(projectId); if (generation.current === current) setCatalog(result); }
     catch (reason) { if (generation.current === current) { setCatalog(null); setError(reasonText(reason)); } }
+    finally { if (generation.current === current) setBusy(false); }
+  }
+
+  async function loadLibrary() {
+    const current = generation.current;
+    setBusy(true); setError(''); setChosen(null);
+    try { const result = await window.studio.projectComponentLibrary(projectId); if (generation.current === current) setLibrary(result); }
+    catch (reason) { if (generation.current === current) { setLibrary(null); setError(reasonText(reason)); } }
     finally { if (generation.current === current) setBusy(false); }
   }
 
@@ -98,7 +132,7 @@ export function CardComponentChoicePanel({ cardId, projectId, archived }: Props)
     try {
       const result = await window.studio.addCardComponentChoice({ cardId, expectedContentRevision: state.contentRevision,
         name: chosen.name, path: chosen.path, line: chosen.line, sourceFingerprint: chosen.sourceFingerprint, purpose });
-      if (generation.current === current) { setState(result); setRecommendations(null); setChosen(null); setPurpose(''); }
+      if (generation.current === current) { setState(result); setLibrary(null); setRecommendations(null); setChosen(null); setPurpose(''); }
     } catch (reason) {
       if (generation.current === current) { setError(reasonText(reason)); const latest = await window.studio.cardComponentChoiceState(cardId); if (generation.current === current) setState(latest); }
     } finally { if (generation.current === current) setBusy(false); }
@@ -154,7 +188,9 @@ export function CardComponentChoicePanel({ cardId, projectId, archived }: Props)
         <button type="button" className="text-button" disabled={busy || archived} onClick={() => void remove(choice.id)}>Lösen</button>
       </li>)}</ul> : <p className="card-component-choice__empty">Noch keine Komponente verbunden.</p>}
       {variantChoiceId ? <form className="card-component-choice__variant-form" onSubmit={(event) => { event.preventDefault(); void captureVariant(); }}><h4>Variante aus der laufenden App</h4><p>Die Route muss die gewünschte Variante bereits rendern. Nutze für jede Variante einen eigenen Pfad; Query-Werte werden im Beleg aus Datenschutzgründen nicht gespeichert. Die Zuordnung zum Export bestätigst du selbst.</p><label>Variantenname<input maxLength={60} minLength={2} required value={variantLabel} onChange={(event) => setVariantLabel(event.target.value)} placeholder="Kompakter Dialog" /></label><label>Lokale Beispielroute<input type="url" maxLength={2048} required value={variantUrl} onChange={(event) => setVariantUrl(event.target.value)} placeholder="http://127.0.0.1:5173/stories/dialog/compact" /></label><div><button type="submit" className="secondary-button" disabled={busy || archived || variantLabel.trim().length < 2 || !variantUrl.trim()}>{busy ? 'Prüfe Route…' : 'Route prüfen und Variante sichern'}</button><button type="button" className="text-button" disabled={busy} onClick={() => setVariantChoiceId(null)}>Abbrechen</button></div></form> : null}
-      <div className="card-component-choice__actions"><button type="button" className="secondary-button" disabled={busy || archived || !state || selected.length >= 6} onClick={() => void suggest()}>{busy ? 'Prüfe…' : 'Aus Kartentext vorschlagen'}</button><button type="button" className="text-button" disabled={busy || archived || selected.length >= 6} onClick={() => void search()}>{catalog ? 'Quellen erneut suchen' : 'Alle Quellen durchsuchen'}</button></div>
+      <div className="card-component-choice__actions"><button type="button" className="secondary-button" disabled={busy || archived || !state || selected.length >= 6} onClick={() => void suggest()}>{busy ? 'Prüfe…' : 'Aus Kartentext vorschlagen'}</button><button type="button" className="text-button" disabled={busy || archived || selected.length >= 6} onClick={() => void loadLibrary()}>{library ? 'Projektbeispiele aktualisieren' : 'Im Projekt verwendet'}</button><button type="button" className="text-button" disabled={busy || archived || selected.length >= 6} onClick={() => void search()}>{catalog ? 'Quellen erneut suchen' : 'Alle Quellen durchsuchen'}</button></div>
+      {library ? <ProjectComponentLibraryList library={library} disabled={busy || archived || selected.length >= 6}
+        selectedKeys={selected.map((item) => `${item.path}:${item.name}`)} onInspect={(candidate) => { setChosen(candidate); setPurpose(''); }} /> : null}
       {recommendations ? <ComponentRecommendationList result={recommendations} disabled={busy || archived || selected.length >= 6}
         selectedKeys={selected.map((item) => `${item.path}:${item.name}`)} onInspect={(candidate) => { setChosen(candidate); setPurpose(''); }} /> : null}
       {catalog ? <><p className="card-component-choice__meta">{catalog.candidates.length} Kandidaten aus {catalog.scannedFiles} Dateien{catalog.partial ? ' · Inventur unvollständig' : ''}</p>

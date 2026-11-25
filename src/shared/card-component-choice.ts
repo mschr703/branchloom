@@ -1,3 +1,5 @@
+import type { ComponentCandidate } from './component-catalog';
+
 export interface CardComponentChoice {
   id: string;
   cardId: string;
@@ -19,6 +21,31 @@ export interface CardComponentVariant {
   reportId: string;
   capturedAt: string;
   sourceFingerprint: string;
+}
+
+export interface ProjectComponentLibraryVariant extends CardComponentVariant {
+  sourceCardId: string;
+  sourceCardTitle: string;
+}
+
+export interface ProjectComponentLibraryEntry {
+  name: string;
+  path: string;
+  line: number;
+  sourceFingerprint: string;
+  purpose: string;
+  sourceCardId: string;
+  sourceCardTitle: string;
+  usedByCards: number;
+  currentCandidate: ComponentCandidate | null;
+  variants: ProjectComponentLibraryVariant[];
+}
+
+export interface ProjectComponentLibrary {
+  projectId: string;
+  entries: ProjectComponentLibraryEntry[];
+  limited: boolean;
+  catalogPartial: boolean;
 }
 
 export interface AddCardComponentVariant {

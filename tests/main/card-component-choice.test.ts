@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudioStore } from '../../src/main/store';
 import { scanProjectComponents } from '../../src/main/component-catalog';
-import { addCardComponentChoice, addCardComponentVariant, assertCardComponentChoiceResume, cardComponentChoiceContext, cardComponentChoiceState, cardComponentVariantScreenshot, recordSessionComponentChoices, removeCardComponentChoice, removeCardComponentVariant } from '../../src/main/card-component-choice';
+import { addCardComponentChoice, addCardComponentVariant, assertCardComponentChoiceResume, cardComponentChoiceContext, cardComponentChoiceState, cardComponentVariantScreenshot, projectComponentLibrary, recordSessionComponentChoices, removeCardComponentChoice, removeCardComponentVariant } from '../../src/main/card-component-choice';
 import { reserveCardSession } from '../../src/main/parallel-runs';
 import { SessionRunner } from '../../src/main/cli';
 import { sessionRunEvidence } from '../../src/main/session-evidence';
@@ -46,6 +46,49 @@ function qaReport(store: StudioStore, cardId: string, projectId: string, revisio
 }
 
 describe('card component references', () => {
+  it('reuses a project-only source with prior rendered examples after an explicit new-card confirmation', async () => {
+    const { root, dbPath, projectPath, store, project, card } = fixture();
+    const second = store.createCard({ projectId: project.id, columnId: store.snapshot(project.id).columns[0]!.id, title: 'Second settings task' });
+    const third = store.createCard({ projectId: project.id, columnId: store.snapshot(project.id).columns[0]!.id, title: 'Third settings task' });
+    try {
+      const first = await choose(store, card.id, projectPath, 'SettingsDialog', 'Use for settings');
+      qaReport(store, card.id, project.id, first.contentRevision, 'qa-library', 'http://127.0.0.1:5173/stories/dialog/compact');
+      addCardComponentVariant(store, { cardId: card.id, choiceId: first.choices[0]!.id, expectedContentRevision: first.contentRevision,
+        reportId: 'qa-library', label: 'Compact' });
+      await choose(store, second.id, projectPath, 'SettingsDialog', 'Use for account settings');
+      const library = await projectComponentLibrary(store, project.id);
+      expect(library.entries).toHaveLength(1);
+      expect(library.entries[0]).toMatchObject({ name: 'SettingsDialog', path: 'src/Dialogs.tsx', usedByCards: 2,
+        variants: [{ label: 'Compact', sourceCardId: card.id }] });
+      const candidate = library.entries[0]!.currentCandidate!;
+      expect(candidate).toMatchObject({ name: 'SettingsDialog', path: 'src/Dialogs.tsx' });
+      const bound = await addCardComponentChoice(store, { cardId: third.id, expectedContentRevision: cardComponentChoiceState(store, third.id).contentRevision,
+        name: candidate.name, path: candidate.path, line: candidate.line, sourceFingerprint: candidate.sourceFingerprint,
+        purpose: 'Use for the third settings task' });
+      expect(bound.choices[0]?.purpose).toBe('Use for the third settings task');
+      expect(bound.choices[0]?.variants).toHaveLength(0);
+      expect(() => cardComponentVariantScreenshot(store, { cardId: third.id, variantId: library.entries[0]!.variants[0]!.id })).toThrow('gehört nicht');
+    } finally { store.close(); }
+    const reopened = new StudioStore(dbPath);
+    try {
+      expect((await projectComponentLibrary(reopened, project.id)).entries[0]?.usedByCards).toBe(3);
+      writeFileSync(join(projectPath, 'src', 'Dialogs.tsx'), 'export function SettingsDialog() { return <dialog>Changed</dialog>; }\n');
+      const changed = await projectComponentLibrary(reopened, project.id);
+      expect(changed.entries[0]?.currentCandidate).toBeNull();
+      expect(changed.entries[0]?.variants[0]?.label).toBe('Compact');
+      const foreignPath = join(root, 'foreign'); mkdirSync(foreignPath); mkdirSync(join(foreignPath, 'src'));
+      git(foreignPath, 'init', '-q');
+      writeFileSync(join(foreignPath, 'src', 'Dialogs.tsx'), 'export function ForeignDialog() { return <dialog>Foreign</dialog>; }\n');
+      git(foreignPath, 'add', 'src/Dialogs.tsx');
+      git(foreignPath, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'foreign dialog');
+      const foreign = reopened.createProject({ name: 'Foreign', path: foreignPath });
+      const foreignCard = reopened.createCard({ projectId: foreign.id, columnId: reopened.snapshot(foreign.id).columns[0]!.id, title: 'Other project' });
+      await choose(reopened, foreignCard.id, foreignPath, 'ForeignDialog', 'Foreign only');
+      expect((await projectComponentLibrary(reopened, project.id)).entries.map((entry) => entry.name)).not.toContain('ForeignDialog');
+      expect((await projectComponentLibrary(reopened, foreign.id)).entries.map((entry) => entry.name)).toEqual(['ForeignDialog']);
+    } finally { reopened.close(); }
+  });
+
   it('binds two rendered local dialog variants to one checked export and preserves their images across restart', async () => {
     const { dbPath, projectPath, store, project, card } = fixture();
     try {

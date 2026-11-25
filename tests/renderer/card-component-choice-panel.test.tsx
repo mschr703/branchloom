@@ -1,9 +1,27 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { CardComponentChoicePanel, ComponentRecommendationList } from '../../src/renderer/components/CardComponentChoicePanel';
+import { CardComponentChoicePanel, ComponentRecommendationList, ProjectComponentLibraryList } from '../../src/renderer/components/CardComponentChoicePanel';
 
 describe('card component references', () => {
+  it('shows a searchable project source with screenshot provenance and manual inspection', () => {
+    const html = renderToStaticMarkup(createElement(ProjectComponentLibraryList, {
+      library: { projectId: 'project', limited: false, catalogPartial: false, entries: [{
+        name: 'SettingsDialog', path: 'src/SettingsDialog.tsx', line: 5, sourceFingerprint: 'a'.repeat(64),
+        purpose: 'Use for account settings', sourceCardId: 'source', sourceCardTitle: 'Settings task', usedByCards: 2,
+        currentCandidate: { name: 'SettingsDialog', path: 'src/SettingsDialog.tsx', line: 5, sourceFingerprint: 'a'.repeat(64), kind: 'function' },
+        variants: [{ id: 'variant', label: 'Compact', previewUrl: 'http://127.0.0.1:5173/compact', reportId: 'qa',
+          capturedAt: '2026-11-25T00:00:00.000Z', sourceFingerprint: 'a'.repeat(64), sourceCardId: 'source', sourceCardTitle: 'Settings task' }],
+      }] }, disabled: false, selectedKeys: [], onInspect: () => {},
+    }));
+    expect(html).toContain('Komponente, Datei oder Karte');
+    expect(html).toContain('src/SettingsDialog.tsx:5');
+    expect(html).toContain('Bild aus „Settings task“');
+    expect(html).toContain('Gerenderte Variante ansehen');
+    expect(html).toContain('Für diese Karte prüfen');
+    expect(html).not.toContain('Referenz übernehmen');
+  });
+
   it('keeps source search optional and states the real local-app prerequisite for variants', () => {
     const html = renderToStaticMarkup(createElement(CardComponentChoicePanel, { cardId: 'card', projectId: 'project', archived: false }));
     expect(html).toContain('Komponentenreferenzen');

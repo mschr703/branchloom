@@ -14,6 +14,18 @@
 .card-component-choice__suggestions li { display: flex; align-items: start; justify-content: space-between; gap: 12px; border-top: 1px solid var(--border); padding: 9px 0; }
 .card-component-choice__suggestions li > div { display: grid; gap: 4px; min-width: 0; }
 .card-component-choice__suggestions small { overflow-wrap: anywhere; }
+.card-component-choice__library { display: grid; gap: 7px; border-block: 1px solid var(--border); padding: 11px 0; }
+.card-component-choice__library h4, .card-component-choice__library p { margin: 0; }
+.card-component-choice__library h4 { font-size: 13px; }
+.card-component-choice__library > p, .card-component-choice__library > small { color: var(--muted); font-size: 12px; }
+.card-component-choice__library > label { display: grid; gap: 5px; color: var(--soft); font-size: 12px; }
+.card-component-choice__library > label input { width: 100%; }
+.card-component-choice__library ul { list-style: none; margin: 0; padding: 0; max-height: 430px; overflow: auto; }
+.card-component-choice__library li { display: grid; gap: 8px; padding: 11px 0; border-top: 1px solid var(--border); }
+.card-component-choice__library-source { display: grid; gap: 3px; }
+.card-component-choice__library-variants { display: flex; flex-wrap: wrap; gap: 12px; }
+.card-component-choice__library-variants > div { display: grid; gap: 4px; width: min(100%, 220px); }
+.card-component-choice__library li > button { justify-self: start; }
 .card-component-choice__selected,
 .card-component-choice__candidates { list-style: none; padding: 0; margin: 0; }
 .card-component-choice__selected li { display: flex; align-items: start; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); }

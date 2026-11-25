@@ -3,7 +3,7 @@ import { lstatSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type Database from 'better-sqlite3';
-import type { AddCardComponentChoice, AddCardComponentVariant, CardComponentChoice, CardComponentChoiceState, CardComponentVariant } from '../shared/card-component-choice';
+import type { AddCardComponentChoice, AddCardComponentVariant, CardComponentChoice, CardComponentChoiceState, CardComponentVariant, ProjectComponentLibrary, ProjectComponentLibraryEntry } from '../shared/card-component-choice';
 import type { StudioStore } from './store';
 import { scanProjectComponents } from './component-catalog';
 import { normalizeCardQaUrl } from './card-qa';
@@ -16,6 +16,8 @@ interface ChoiceRow {
 interface VariantRow { id: string; choice_id: string; card_id: string; label: string; preview_url: string; report_id: string; captured_at: string; source_fingerprint: string }
 const MAX_SOURCE_BYTES = 128 * 1024;
 const MAX_CHOICES = 6;
+const MAX_LIBRARY_ROWS = 100;
+const MAX_LIBRARY_ENTRIES = 20;
 const PATH_PATTERN = /^(?!\/)(?!.*\\)(?!.*(?:^|\/)\.\.?\/)\S.{0,298}\.(?:tsx|jsx)$/;
 
 export function installCardComponentChoices(db: Database.Database): void {
@@ -92,6 +94,39 @@ export function cardComponentChoiceState(store: StudioStore, cardId: string): Ca
     addedAt: row.added_at, current: sourceFingerprint(checkout, row.path) === row.source_fingerprint,
     variants: variantsFor(store, cardId, row.id),
   })) };
+}
+
+/** Reuse only explicit choices from active cards in this project; never execute their source. */
+export async function projectComponentLibrary(store: StudioStore, projectId: string): Promise<ProjectComponentLibrary> {
+  const project = store.project(projectId);
+  const catalog = await scanProjectComponents(project.path);
+  const candidateKey = (item: { path: string; name: string; line: number; sourceFingerprint: string }) =>
+    `${item.path}\0${item.name}\0${item.line}\0${item.sourceFingerprint}`;
+  const candidates = new Map(catalog.candidates.map((item) => [candidateKey(item), item]));
+  const sourceRows = store.db.prepare(`SELECT r.*, c.title AS card_title FROM card_component_choices r
+    JOIN cards c ON c.id = r.card_id WHERE r.project_id = ? AND c.project_id = ? AND c.archived_at IS NULL
+    ORDER BY r.added_at DESC, r.id DESC LIMIT ?`).all(projectId, projectId, MAX_LIBRARY_ROWS + 1) as Array<ChoiceRow & { card_title: string }>;
+  const grouped = new Map<string, { entry: ProjectComponentLibraryEntry; cards: Set<string>; routes: Set<string> }>();
+  for (const row of sourceRows.slice(0, MAX_LIBRARY_ROWS)) {
+    const key = candidateKey({ path: row.path, name: row.name, line: row.line, sourceFingerprint: row.source_fingerprint });
+    let group = grouped.get(key);
+    if (!group) {
+      group = { entry: { name: row.name, path: row.path, line: row.line, sourceFingerprint: row.source_fingerprint,
+        purpose: row.purpose, sourceCardId: row.card_id, sourceCardTitle: row.card_title, usedByCards: 0,
+        currentCandidate: candidates.get(key) ?? null, variants: [] }, cards: new Set<string>(), routes: new Set<string>() };
+      grouped.set(key, group);
+    }
+    group.cards.add(row.card_id);
+    for (const variant of variantsFor(store, row.card_id, row.id)) {
+      if (group.entry.variants.length >= 2 || group.routes.has(variant.previewUrl)) continue;
+      group.routes.add(variant.previewUrl);
+      group.entry.variants.push({ ...variant, sourceCardId: row.card_id, sourceCardTitle: row.card_title });
+    }
+  }
+  const entries = [...grouped.values()].slice(0, MAX_LIBRARY_ENTRIES).map(({ entry, cards }) =>
+    ({ ...entry, usedByCards: cards.size }));
+  return { projectId, entries, limited: sourceRows.length > MAX_LIBRARY_ROWS || grouped.size > MAX_LIBRARY_ENTRIES,
+    catalogPartial: catalog.partial };
 }
 
 export function cardComponentVariantScreenshot(store: StudioStore, input: { cardId: string; variantId: string }): string {
