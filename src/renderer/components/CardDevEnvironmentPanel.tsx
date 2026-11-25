@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowUpRight, Square, Play } from 'lucide-react';
 import type { DevEnvironmentProfile, CardDevEnvironment, DevEnvironmentInspection, GuidedDevEnvironmentAdvice, DevEnvironmentAuditEvent } from '../../shared/dev-environment';
+import { openCurrentCardPreview } from '../card-preview-open';
 import './card-dev-environment.css';
 
 interface Props { cardId: string; projectId: string; archived: boolean; onOpenBrowser?: () => void }
@@ -122,10 +123,12 @@ export function CardDevEnvironmentPanel({ cardId, projectId, archived, onOpenBro
     if (!run || run.state !== 'ready' || !run.managed || busy) return;
     setBusy(true); setError('');
     try {
-      await window.studio.browserNewTab();
-      await window.studio.browserNavigate(run.url);
+      setRun(await openCurrentCardPreview(window.studio, cardId, run));
       onOpenBrowser?.();
-    } catch (reason) { setError(message(reason)); }
+    } catch (reason) {
+      setError(message(reason));
+      setRun(await window.studio.cardDevEnvironment(cardId).catch(() => run));
+    }
     finally { setBusy(false); }
   }
 

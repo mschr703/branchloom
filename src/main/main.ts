@@ -3521,12 +3521,16 @@ http.createServer((request, response) => {
             mkdirSync(join(milestonePath, 'node_modules', 'vite', 'bin'), { recursive: true });
             writeFileSync(join(milestonePath, 'package.json'), JSON.stringify({ name: 'smoke-guided-app', scripts: { dev: 'vite' }, devDependencies: { vite: '^7.0.0' } }));
             writeFileSync(join(milestonePath, 'index.html'), '<!doctype html><title>Smoke Guided App</title>');
-            writeFileSync(join(milestonePath, 'node_modules', 'vite', 'bin', 'vite.js'), `const http=require('node:http');
+            writeFileSync(join(milestonePath, 'variant.txt'), 'base');
+            writeFileSync(join(milestonePath, 'node_modules', 'vite', 'bin', 'vite.js'), `const http=require('node:http'); const fs=require('node:fs');
 const port=Number(process.argv[process.argv.indexOf('--port')+1]);
-http.createServer((_request,response)=>{response.writeHead(200,{'Content-Type':'text/html'});response.end('<title>Smoke Guided App</title>')}).listen(port,'127.0.0.1');`);
-            execFileSync('git', ['-C', milestonePath, 'add', '-f', 'package.json', 'index.html', 'node_modules/vite/bin/vite.js'], { windowsHide: true });
+http.createServer((_request,response)=>{response.writeHead(200,{'Content-Type':'text/html'});response.end('<title>Smoke Guided App</title>'+fs.readFileSync('variant.txt','utf8'))}).listen(port,'127.0.0.1');`);
+            execFileSync('git', ['-C', milestonePath, 'add', '-f', 'package.json', 'index.html', 'variant.txt', 'node_modules/vite/bin/vite.js'], { windowsHide: true });
             execFileSync('git', ['-C', milestonePath, '-c', 'user.name=Branchloom Smoke', '-c', 'user.email=smoke@example.invalid', 'commit', '-qm', 'Synthetic guided preview app'], { windowsHide: true });
             const guidedCard = smokeStore.createCard({ projectId: milestoneProjectId, columnId: smokeStore.snapshot(milestoneProjectId).columns[0]!.id, title: 'Guided preview smoke card' });
+            const guidedOther = smokeStore.createCard({ projectId: milestoneProjectId, columnId: smokeStore.snapshot(milestoneProjectId).columns[0]!.id, title: 'Other preview smoke card' });
+            writeFileSync(join(ensureCardWorktree(smokeStore, guidedCard.id).cwd, 'variant.txt'), 'Variant A');
+            writeFileSync(join(ensureCardWorktree(smokeStore, guidedOther.id).cwd, 'variant.txt'), 'Variant B');
             const guidedInspection = inspectDevEnvironment(smokeStore, devEnvironmentRunner!, { projectId: milestoneProjectId, cardId: guidedCard.id });
             if (guidedInspection.candidates.length !== 1 || !guidedInspection.evidence.some((item) => item.id === 'html-title')) throw new Error('F01 guided Git HEAD evidence is missing.');
             const guidedProfile = saveDevEnvironmentProfile(smokeStore, guidedInspection.candidates[0]!.profile);
@@ -3667,11 +3671,29 @@ http.createServer((_request,response)=>{response.writeHead(200,{'Content-Type':'
               if (!panel.textContent?.includes('Bereit')) throw new Error('F01 synthetic preview did not become ready through the card action.');
               const audit = await window.studio.devEnvironmentAudit({ projectId: ${JSON.stringify(milestoneProjectId)}, cardId: ${JSON.stringify(guidedCard.id)} });
               if (!audit.some((item) => item.kind === 'start' && item.outcome === 'started')) throw new Error('F01 start approval receipt is missing.');
+              const preview = [...panel.querySelectorAll('button')].find((item) => item.textContent?.includes('Vorschau öffnen'));
+              if (!(preview instanceof HTMLButtonElement)) throw new Error('F01 ready preview action is missing.');
+              const cardRun = await window.studio.cardDevEnvironment(${JSON.stringify(guidedCard.id)});
+              if (!cardRun || cardRun.state !== 'ready') throw new Error('F01 card run changed before browser action.');
+              preview.click();
+              let state;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                state = await window.studio.browserState();
+                if (state.url === cardRun.url) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (state?.url !== cardRun.url) throw new Error('F01 card action opened the wrong browser tab.');
               return true;
             })()`);
             const guidedRun = devEnvironmentRunner!.card(guidedCard.id);
-            if (!guidedRun || guidedRun.state !== 'ready' || !guidedRun.managed || !(await (await fetch(guidedRun.url)).text()).includes('Smoke Guided App')) throw new Error('F01 guided card preview opened the wrong app.');
+            if (!guidedRun || guidedRun.state !== 'ready' || !guidedRun.managed || !(await (await fetch(guidedRun.url)).text()).includes('Variant A')) throw new Error('F01 guided card preview opened the wrong app.');
+            const otherRun = await startApprovedDevEnvironment(smokeStore, devEnvironmentRunner!, { cardId: guidedOther.id, expectedProfileFingerprint: guidedProfile.fingerprint });
+            for (let attempt = 0; attempt < 100 && devEnvironmentRunner!.card(guidedOther.id)?.state === 'starting'; attempt++) await new Promise((resolve) => setTimeout(resolve, 100));
+            if (devEnvironmentRunner!.card(guidedOther.id)?.state !== 'ready' || guidedRun.port === otherRun.port
+              || !(await (await fetch(otherRun.url)).text()).includes('Variant B')) throw new Error('F01 second card did not reuse the profile on a distinct preview.');
             devEnvironmentRunner!.stop(guidedRun.id);
+            if (!(await (await fetch(otherRun.url)).text()).includes('Variant B')) throw new Error('F01 stopping the first card stopped the second preview.');
+            devEnvironmentRunner!.stop(otherRun.id);
             if (!await safeStorage.isAsyncEncryptionAvailable()) throw new Error('Trello-Smoke: Windows-Verschlüsselung ist nicht verfügbar.');
             const sealed = await safeStorage.encryptStringAsync('branchloom-trello-smoke');
             if ((await safeStorage.decryptStringAsync(sealed)).result !== 'branchloom-trello-smoke') throw new Error('Trello-Smoke: Windows-Verschlüsselung konnte nicht lesen.');

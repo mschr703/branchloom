@@ -141,6 +141,43 @@ describe('manual card development environments', () => {
     expect(devEnvironmentProfile(reopened, profile.projectId)?.executable).toBe('missing-branchloom-executable-xyz');
   });
 
+  it('reuses a verified project profile for both cards after a clean app restart without replaying either server', async () => {
+    const { store, first, second, profile, dbPath } = fixture();
+    const saved = saveDevEnvironmentProfile(store, profile);
+    const firstTree = ensureCardWorktree(store, first.id);
+    const secondTree = ensureCardWorktree(store, second.id);
+    writeFileSync(join(firstTree.cwd, 'variant.txt'), 'A');
+    writeFileSync(join(secondTree.cwd, 'variant.txt'), 'B');
+    const original = new DevEnvironmentRunner(store); runners.push(original);
+    await Promise.all([original.start(first.id), original.start(second.id)]);
+    expect((await ready(original, first.id))?.state).toBe('ready');
+    expect((await ready(original, second.id))?.state).toBe('ready');
+    const firstRun = original.card(first.id)!;
+    const secondRun = original.card(second.id)!;
+    expect(await (await fetch(firstRun.url)).text()).toBe('READY:A');
+    expect(await (await fetch(secondRun.url)).text()).toBe('READY:B');
+
+    original.dispose(); runners.splice(runners.indexOf(original), 1);
+    store.close(); stores.splice(stores.indexOf(store), 1);
+    const reopened = new StudioStore(dbPath); stores.push(reopened);
+    const next = new DevEnvironmentRunner(reopened); runners.push(next);
+    expect(devEnvironmentProfile(reopened, profile.projectId)?.fingerprint).toBe(saved.fingerprint);
+    expect(next.card(first.id)).toMatchObject({ id: firstRun.id, state: 'stopped', managed: false });
+    expect(next.card(second.id)).toMatchObject({ id: secondRun.id, state: 'stopped', managed: false });
+    expect(reopened.db.prepare('SELECT COUNT(*) AS count FROM dev_environment_runs').get()).toMatchObject({ count: 2 });
+    await expect(fetch(firstRun.url)).rejects.toThrow();
+    await expect(fetch(secondRun.url)).rejects.toThrow();
+
+    const [restartedA, restartedB] = await Promise.all([next.start(first.id), next.start(second.id)]);
+    expect(restartedA.id).not.toBe(firstRun.id);
+    expect(restartedB.id).not.toBe(secondRun.id);
+    expect(restartedA.port).not.toBe(restartedB.port);
+    expect((await ready(next, first.id))?.state).toBe('ready');
+    expect((await ready(next, second.id))?.state).toBe('ready');
+    expect(await (await fetch(next.card(first.id)!.url)).text()).toBe('READY:A');
+    expect(await (await fetch(next.card(second.id)!.url)).text()).toBe('READY:B');
+  });
+
   it('marks a stale active run interrupted after restart without launching it again', () => {
     const { store, first, profile, dbPath } = fixture();
     saveDevEnvironmentProfile(store, profile);
