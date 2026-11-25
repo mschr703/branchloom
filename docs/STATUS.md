@@ -2,6 +2,10 @@
 
 Stand: 25.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Integrierte Prüfung für 0.1.1
+
+- Der veröffentlichte `main`-Stand `c262256` enthält Memory-/Whiteboard-Quellenansicht, G02-Windows-Pfadkorrektur, Changelog-Belege, Usage je Aufgabe, Browser-Projekteinstellungen und Updatefehlerbehandlung. Fünf gezielte Testdateien mit 15 Tests, Typprüfung, Build, Audit ohne kritische Funde, Public-Scan, Usage-Smoke und breiter Quell-Electron-Smoke bestanden lokal. [CI 45562413575](https://github.com/mschr703/branchloom/actions/runs/45562413575) bestand vollständig: 211 Testdateien und die Quell-Smokes sowie portables Windows-Paket, NSIS-Installer, beide Paket-Smokes, Paket- und Feed-Prüfung. Der Tag `v0.1.1` zeigt exakt auf diesen Commit; [der Release-Lauf](https://github.com/mschr703/branchloom/actions/runs/45565871380) läuft noch, daher ist ein veröffentlichtes 0.1.1-Release noch nicht belegt. Die portable Desktop-Kopie bestand danach lokal den Paket- und Electron-Smoke, Versions-/Trello-Konfigurationsprüfung und identischen EXE-SHA-256-Hash; der Shortcut zeigt auf den neuen Ordner. Das bisherige Fenster läuft noch mit 0.1.0 und muss für die neue Version normal geschlossen und neu geöffnet werden. Ein echter installierter Versionswechsel braucht weiterhin eine isolierte Windows-VM.
+
 ## Usage nach belegten Aufgabenläufen
 
 - Der Reiter **Nutzung** zeigt jetzt neben Agenten und Workflows auch tatsächlich gespeicherte Läufe je Karte: Laufanzahl, verschiedene Agenten, bekannte Laufzeit, fehlende Zeitbelege, aktive und fehlgeschlagene Läufe. Der Kartenname stammt aus dem lokalen Projekt und die Zeile öffnet die zugehörige Karte; längere Listen werden schrittweise angezeigt. Die Nutzungsabfrage lädt weiterhin keine Terminalausgabe und keine erfundenen Token- oder Kostenwerte. Acht gezielte SQLite-/Renderer-Tests, Typprüfung, Build und der sichtbare Usage-Quell-Smoke mit synthetischen Karten, Workflow-Navigation und Kartenklick bestanden im isolierten Zweig. Die gemeinsame Windows-Paket-CI für diesen Nachtrag steht aus.
