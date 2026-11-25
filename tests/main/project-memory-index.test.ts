@@ -140,6 +140,7 @@ describe('automatic project memory index', () => {
     const status = await refreshProjectMemoryIndex(store, child.id);
     expect(status.counts.commit).toBe(1);
     expect(status.codeFilesSeen).toBe(1);
+    expect(store.db.prepare('SELECT project_prefix FROM project_memory_index_state WHERE project_id = ?').get(child.id)).toMatchObject({ project_prefix: 'child/' });
     expect(projectMemoryMapSources(store, child.id).codeFiles.map((file) => file.path)).toEqual(['child.ts']);
     expect(searchProjectMemoryIndex(store, { projectId: child.id, query: 'childOnly', kind: 'code' }).hits).toHaveLength(1);
     expect(searchProjectMemoryIndex(store, { projectId: child.id, query: 'siblingOnly' }).hits).toEqual([]);

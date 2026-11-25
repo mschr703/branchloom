@@ -1,6 +1,5 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { isAbsolute, relative, sep } from 'node:path';
 import { promisify } from 'node:util';
 import type Database from 'better-sqlite3';
 import type { ProjectMemoryHit, ProjectMemoryIndexStatus, ProjectMemoryMapSources, ProjectMemorySearch, ProjectMemorySearchInput, ProjectMemorySourceDetail, ProjectMemorySourceInput, ProjectMemorySourceKind } from '../shared/project-memory-index';
@@ -28,6 +27,7 @@ interface SourceRow {
 interface StateRow {
   git_ref: string | null;
   repository: string | null;
+  project_prefix: string | null;
   indexed_at: string;
   state: ProjectMemoryIndexStatus['state'];
   code_files_seen: number;
@@ -57,6 +57,7 @@ export function installProjectMemoryIndex(db: Database.Database): void {
       project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
       git_ref TEXT,
       repository TEXT,
+      project_prefix TEXT,
       indexed_at TEXT NOT NULL,
       state TEXT NOT NULL,
       code_files_seen INTEGER NOT NULL,
@@ -77,6 +78,10 @@ export function installProjectMemoryIndex(db: Database.Database): void {
       INSERT INTO project_memory_source_fts(project_memory_source_fts, rowid, title, body) VALUES ('delete', old.id, old.title, old.body);
     END;
   `);
+  const columns = db.prepare('PRAGMA table_info(project_memory_index_state)').all() as Array<{ name: string }>;
+  if (!columns.some((column) => column.name === 'project_prefix')) {
+    db.exec('ALTER TABLE project_memory_index_state ADD COLUMN project_prefix TEXT');
+  }
 }
 
 function fingerprint(value: string): string { return createHash('sha256').update(value).digest('hex'); }
@@ -154,7 +159,7 @@ function passages(path: string, text: string, updatedAt: string): { rows: Indexe
   return { rows, truncated: line < lines.length };
 }
 
-async function scanGit(cwd: string): Promise<{ repository: string; gitRef: string; sources: IndexedSource[]; codeFilesSeen: number; codeFilesIndexed: number; partial: boolean }> {
+async function scanGit(cwd: string): Promise<{ repository: string; projectPrefix: string; gitRef: string; sources: IndexedSource[]; codeFilesSeen: number; codeFilesIndexed: number; partial: boolean }> {
   const repository = (await git(cwd, ['rev-parse', '--show-toplevel'])).trim();
   const prefix = (await git(cwd, ['rev-parse', '--show-prefix'])).trim();
   const gitRef = await baseCommit(cwd);
@@ -193,16 +198,16 @@ async function scanGit(cwd: string): Promise<{ repository: string; gitRef: strin
     }
   }
   if (codeFilesIndexed < selected.length) partial = true;
-  return { repository, gitRef, sources, codeFilesSeen: tree.length, codeFilesIndexed, partial };
+  return { repository, projectPrefix: prefix, gitRef, sources, codeFilesSeen: tree.length, codeFilesIndexed, partial };
 }
 
 function saveState(store: StudioStore, projectId: string, input: Omit<StateRow, 'indexed_at'>): void {
-  store.db.prepare(`INSERT INTO project_memory_index_state (project_id, git_ref, repository, indexed_at, state, code_files_seen, code_files_indexed, warning)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(project_id) DO UPDATE SET git_ref=excluded.git_ref, repository=excluded.repository,
+  store.db.prepare(`INSERT INTO project_memory_index_state (project_id, git_ref, repository, project_prefix, indexed_at, state, code_files_seen, code_files_indexed, warning)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(project_id) DO UPDATE SET git_ref=excluded.git_ref, repository=excluded.repository, project_prefix=excluded.project_prefix,
       indexed_at=excluded.indexed_at, state=excluded.state, code_files_seen=excluded.code_files_seen,
       code_files_indexed=excluded.code_files_indexed, warning=excluded.warning`)
-    .run(projectId, input.git_ref, input.repository, new Date().toISOString(), input.state, input.code_files_seen, input.code_files_indexed, input.warning);
+    .run(projectId, input.git_ref, input.repository, input.project_prefix, new Date().toISOString(), input.state, input.code_files_seen, input.code_files_indexed, input.warning);
 }
 
 export function projectMemoryIndexStatus(store: StudioStore, projectId: string): ProjectMemoryIndexStatus {
@@ -221,17 +226,17 @@ async function doRefresh(store: StudioStore, projectId: string, force: boolean):
     const repository = (await git(project.path, ['rev-parse', '--show-toplevel'])).trim();
     const gitRef = await baseCommit(project.path);
     const old = store.db.prepare('SELECT * FROM project_memory_index_state WHERE project_id = ?').get(projectId) as StateRow | undefined;
-    if (!force && old?.git_ref === gitRef && old.repository === repository && old.state === 'ready') return projectMemoryIndexStatus(store, projectId);
+    if (!force && old?.git_ref === gitRef && old.repository === repository && old.project_prefix !== null && old.state === 'ready') return projectMemoryIndexStatus(store, projectId);
     const scan = await scanGit(project.path);
     store.db.transaction(() => {
       store.db.prepare("DELETE FROM project_memory_sources WHERE project_id = ? AND kind IN ('commit', 'code')").run(projectId);
       for (const item of scan.sources) putSource(store.db, projectId, item, scan.gitRef);
-      saveState(store, projectId, { git_ref: scan.gitRef, repository: scan.repository, state: scan.partial ? 'partial' : 'ready', code_files_seen: scan.codeFilesSeen, code_files_indexed: scan.codeFilesIndexed, warning: scan.partial ? 'Nicht alle getrackten Quelldateien wurden indexiert; Suche und Treffer zeigen nur den erfassten Teil.' : null });
+      saveState(store, projectId, { git_ref: scan.gitRef, repository: scan.repository, project_prefix: scan.projectPrefix, state: scan.partial ? 'partial' : 'ready', code_files_seen: scan.codeFilesSeen, code_files_indexed: scan.codeFilesIndexed, warning: scan.partial ? 'Nicht alle getrackten Quelldateien wurden indexiert; Suche und Treffer zeigen nur den erfassten Teil.' : null });
     })();
   } catch {
     store.db.transaction(() => {
       store.db.prepare("DELETE FROM project_memory_sources WHERE project_id = ? AND kind IN ('commit', 'code')").run(projectId);
-      saveState(store, projectId, { git_ref: null, repository: null, state: 'git-unavailable', code_files_seen: 0, code_files_indexed: 0, warning: 'Git-Historie oder Quellstand ist für dieses Projekt derzeit nicht lesbar.' });
+      saveState(store, projectId, { git_ref: null, repository: null, project_prefix: null, state: 'git-unavailable', code_files_seen: 0, code_files_indexed: 0, warning: 'Git-Historie oder Quellstand ist für dieses Projekt derzeit nicht lesbar.' });
     })();
   }
   return projectMemoryIndexStatus(store, projectId);
@@ -285,8 +290,8 @@ export function searchProjectMemoryIndex(store: StudioStore, input: ProjectMemor
 
 /** The map only exposes files actually indexed at the persisted Git ref. */
 export function projectMemoryMapSources(store: StudioStore, projectId: string): ProjectMemoryMapSources {
-  const project = store.project(projectId);
-  const state = store.db.prepare('SELECT git_ref AS gitRef, repository FROM project_memory_index_state WHERE project_id = ?').get(projectId) as { gitRef: string | null; repository: string | null } | undefined;
+  store.project(projectId);
+  const state = store.db.prepare('SELECT git_ref AS gitRef, project_prefix AS projectPrefix FROM project_memory_index_state WHERE project_id = ?').get(projectId) as { gitRef: string | null; projectPrefix: string | null } | undefined;
   const gitRef = state?.gitRef ?? null;
   if (!gitRef) return { gitRef: null, headCommit: null, codeFiles: [], totalCodeFiles: 0 };
   const commit = store.db.prepare(`SELECT source_id AS sourceId, title, updated_at AS updatedAt FROM project_memory_sources
@@ -296,8 +301,7 @@ export function projectMemoryMapSources(store: StudioStore, projectId: string): 
   const codeFiles = store.db.prepare(`SELECT source_path AS path, MIN(source_id) AS sourceId, MAX(updated_at) AS updatedAt
     FROM project_memory_sources WHERE project_id = ? AND kind = 'code' AND git_ref = ? AND source_path IS NOT NULL
     GROUP BY source_path ORDER BY source_path COLLATE NOCASE LIMIT 180`).all(projectId, gitRef) as ProjectMemoryMapSources['codeFiles'];
-  const relativeRoot = state?.repository ? relative(state.repository, project.path).split(sep).join('/') : '';
-  const prefix = relativeRoot && relativeRoot !== '.' && !relativeRoot.startsWith('../') && !isAbsolute(relativeRoot) ? `${relativeRoot}/` : '';
+  const prefix = state?.projectPrefix ?? '';
   return { gitRef, headCommit: commit ?? null, codeFiles: prefix
     ? codeFiles.map((file) => ({ ...file, path: file.path.toLocaleLowerCase().startsWith(prefix.toLocaleLowerCase()) ? file.path.slice(prefix.length) : file.path }))
     : codeFiles, totalCodeFiles };
