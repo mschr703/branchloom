@@ -2680,6 +2680,12 @@ function createWindow(): void {
               focusToggle.click();
               for (let attempt = 0; attempt < 100 && document.querySelector('.design-inspection-tools[hidden]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (document.querySelector('.design-inspection.wireframe-focus') || !document.querySelector('.design-inspection-toolbar')) throw new Error('Rückweg zur Design-Inspektion fehlt.');
+              if (!document.querySelector('.design-workspace-draft[hidden]')) throw new Error('Die Entwurfsfläche sollte nach Rückkehr zur Live-Inspektion verborgen sein.');
+              const draftMode = [...document.querySelectorAll('.design-workspace-modes button')].find((button) => button.textContent?.trim() === 'Entwurf');
+              if (!(draftMode instanceof HTMLButtonElement)) throw new Error('Entwurfs-Tab fehlt nach dem Fokusmodus.');
+              draftMode.click();
+              for (let attempt = 0; attempt < 100 && document.querySelector('.design-workspace-draft[hidden]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('.design-workspace-draft[hidden]') || !document.querySelector('.design-inspection-tools[hidden]')) throw new Error('Entwurf wurde vor der weiteren Bearbeitung nicht sichtbar geöffnet.');
               const inlineTitle = [...wireframe.querySelectorAll('.task-wireframe-element')].find((item) => item.textContent?.includes('Smoke-Karte'));
               if (!(inlineTitle instanceof HTMLButtonElement)) throw new Error('Textobjekt für direkte Bearbeitung fehlt.');
               inlineTitle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));

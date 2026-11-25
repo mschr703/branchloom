@@ -5,7 +5,10 @@ import { expect, it, vi } from 'vitest';
 import { DesignInspectionView } from '../../src/renderer/components/DesignInspectionView';
 
 vi.mock('../../src/renderer/components/TaskWireframeEditor', () => ({
-  TaskWireframeEditor: () => <input aria-label="Synthetic draft" defaultValue="Unsaved layout" />,
+  TaskWireframeEditor: ({ focusMode, onFocusModeChange }: { focusMode: boolean; onFocusModeChange: (next: boolean) => void }) => <>
+    <input aria-label="Synthetic draft" defaultValue="Unsaved layout" />
+    <button type="button" className="task-wireframe-focus-toggle" onClick={() => onFocusModeChange(!focusMode)}>{focusMode ? 'Zur Design-Inspektion' : 'Arbeitsfläche vergrößern'}</button>
+  </>,
 }));
 vi.mock('../../src/renderer/components/DesignStateRoutes', () => ({ DesignStateRoutes: () => null }));
 vi.mock('../../src/renderer/components/DesignViewportCanvas', () => ({ DesignViewportCanvas: () => null }));
@@ -53,6 +56,21 @@ it('keeps an unsaved draft mounted while inspecting the running app and hides na
     expect(draft.value).toBe('Changed but not saved');
     expect(mount.querySelector('.design-inspection-tools')?.hasAttribute('hidden')).toBe(true);
     expect(setBounds).toHaveBeenLastCalledWith(null);
+
+    const focusToggle = mount.querySelector<HTMLButtonElement>('.task-wireframe-focus-toggle')!;
+    await act(async () => { focusToggle.click(); });
+    expect(mount.querySelector('.design-inspection.wireframe-focus')).not.toBeNull();
+    expect(mount.querySelector('.design-workspace-draft')?.hasAttribute('hidden')).toBe(false);
+    await act(async () => { focusToggle.click(); });
+    expect(mount.querySelector('.design-inspection.wireframe-focus')).toBeNull();
+    expect(mount.querySelector('.design-workspace-draft')?.hasAttribute('hidden')).toBe(true);
+    expect(mount.querySelector('.design-inspection-tools')?.hasAttribute('hidden')).toBe(false);
+    const returnToDraft = [...mount.querySelectorAll<HTMLButtonElement>('.design-workspace-modes button')].find((button) => button.textContent === 'Entwurf')!;
+    await act(async () => { returnToDraft.click(); });
+    expect(mount.querySelector('.design-workspace-draft')?.hasAttribute('hidden')).toBe(false);
+    expect(mount.querySelector('input[aria-label="Synthetic draft"]')).toBe(draft);
+    draft.focus();
+    expect(document.activeElement).toBe(draft);
   } finally {
     await act(async () => { root.unmount(); });
     mount.remove();
