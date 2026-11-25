@@ -71,6 +71,21 @@ describe('release updates', () => {
     expect(item.backend.install).toHaveBeenCalledTimes(1);
   });
 
+  it('labels an updater error after installation starts as an install failure', async () => {
+    const item = fixture();
+    item.emit('available', '0.2.0');
+    await item.controller.update();
+    expect(item.controller.snapshot().phase).toBe('installing');
+    item.emit('error', new Error('Installer launch failed'));
+    expect(item.controller.snapshot()).toMatchObject({
+      phase: 'error',
+      message: expect.stringContaining('Installation konnte nicht gestartet'),
+    });
+    await item.controller.update();
+    expect(item.backend.download).toHaveBeenCalledTimes(1);
+    expect(item.backend.install).toHaveBeenCalledTimes(2);
+  });
+
   it('hides the update action for portable and source builds', async () => {
     const controller = new ReleaseUpdateController(null, '0.1.0', vi.fn(), () => true);
     await controller.check();

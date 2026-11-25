@@ -49,7 +49,9 @@ export class ReleaseUpdateController {
         this.set({ phase: 'error', availableVersion: null, percent: null, message: checkFailureMessage(error) });
         return;
       }
-      if (this.state.phase === 'downloading' || this.state.phase === 'installing') {
+      if (this.state.phase === 'installing') {
+        this.set({ phase: 'error', percent: null, message: 'Die Installation konnte nicht gestartet werden. Versuche es erneut.' });
+      } else if (this.state.phase === 'downloading') {
         this.set({ phase: 'error', percent: null, message: 'Der Download ist fehlgeschlagen. Du kannst es erneut versuchen.' });
       }
     });
