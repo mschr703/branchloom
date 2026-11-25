@@ -2112,6 +2112,41 @@ function createWindow(): void {
               for (let attempt = 0; attempt < 100 && !document.querySelector('.api-contract__http'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const contractHttp = document.querySelector('.api-contract__http');
               if (!contractHttp?.textContent?.includes('Mock starten') || !contractHttp.textContent.includes('Endpoint jetzt prüfen')) throw new Error('API-Mock und Endpoint-Prüfung fehlen in der Oberfläche.');
+              const contractCards = await window.studio.snapshot(boardProject.id);
+              const freeCards = contractCards.cards.filter((card) => !card.archivedAt &&
+                !contractCards.sessions.some((session) => session.cardId === card.id && session.state === 'running')).slice(0, 2);
+              if (freeCards.length !== 2) throw new Error('F02 needs two free cards to verify the shared binding UI.');
+              for (const card of freeCards) {
+                let row;
+                for (let attempt = 0; attempt < 100; attempt++) {
+                  row = [...document.querySelectorAll('.api-contract__cards > div')].find((item) => item.querySelector('span')?.textContent === card.title);
+                  if (row?.querySelector('button')?.textContent === 'Verbinden') break;
+                  await new Promise((resolve) => setTimeout(resolve, 50));
+                }
+                const button = row?.querySelector('button');
+                if (!button || button.textContent !== 'Verbinden' || button.disabled) throw new Error('F02 card binding control is unavailable.');
+                button.click();
+                for (let attempt = 0; attempt < 100 && !(await window.studio.apiContractOverview(boardProject.id)).bindings.some((binding) =>
+                  binding.cardId === card.id && binding.revision === 1 && binding.current); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+                if (!(await window.studio.apiContractOverview(boardProject.id)).bindings.some((binding) =>
+                  binding.cardId === card.id && binding.revision === 1 && binding.current)) throw new Error('F02 card did not receive the approved revision.');
+              }
+              if ((await window.studio.apiContractOverview(boardProject.id)).bindings.filter((binding) =>
+                freeCards.some((card) => card.id === binding.cardId) && binding.revision === 1 && binding.current).length !== 2)
+                throw new Error('F02 frontend and backend cards do not share the approved revision.');
+              const mismatchedSample = document.querySelector('.api-contract__sample textarea');
+              const setSample = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+              if (!mismatchedSample || !setSample) throw new Error('F02 response checker is missing.');
+              setSample.call(mismatchedSample, '[{"id": 5}]');
+              mismatchedSample.dispatchEvent(new Event('input', { bubbles: true }));
+              const checkSample = [...document.querySelectorAll('.api-contract__sample button')].find((button) => button.textContent?.includes('Antwort prüfen'));
+              for (let attempt = 0; attempt < 100 && checkSample?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!checkSample || checkSample.disabled) throw new Error('F02 response checker did not accept a sample.');
+              checkSample.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.api-contract__result')?.textContent?.includes('$[0].id'); attempt++)
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.api-contract__result')?.textContent?.includes('$[0].id: erwartet string, gefunden number'))
+                throw new Error('F02 did not show the exact mismatched field and expected type.');
               [...contractHttp.querySelectorAll('button')].find((button) => button.textContent?.includes('Mock starten'))?.click();
               for (let attempt = 0; attempt < 100 && !(await window.studio.apiContractMockState(boardProject.id)).running; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const mockState = await window.studio.apiContractMockState(boardProject.id);

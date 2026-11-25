@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudioStore } from '../../src/main/store';
@@ -10,7 +11,11 @@ import { sessionRunEvidence } from '../../src/main/session-evidence';
 import type { ApiContractDraft } from '../../src/shared/api-contract';
 
 const roots: string[] = [];
-afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
+afterEach(async () => {
+  // Windows can retain a ConPTY directory handle briefly after the process exits.
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
+});
 const draft: ApiContractDraft = { method: 'GET', path: '/api/items', response: 'array', fields: [
   { name: 'id', type: 'string', required: true }, { name: 'count', type: 'number', required: true }, { name: 'active', type: 'boolean', required: false },
 ], error: { status: 404, code: 'NOT_FOUND', message: 'No item found' } };
@@ -32,6 +37,10 @@ function save(store: StudioStore, projectId: string, next = draft) {
 function bind(store: StudioStore, projectId: string, cardId: string, revision: number | null) {
   const overview = apiContractOverview(store, projectId);
   return bindCardApiContract(store, { projectId, cardId, revision, expectedContentRevision: overview.cardRevisions[cardId]! });
+}
+function git(cwd: string, args: string[]): void {
+  const result = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true });
+  if (result.status !== 0) throw new Error(String(result.stderr || result.error));
 }
 
 describe('shared API contract', () => {
@@ -126,5 +135,55 @@ describe('shared API contract', () => {
       expect(sessionRunEvidence(store, { projectId: project.id, sessionId: empty.id }).launch?.sources).toEqual([]);
       expect(store.db.prepare('SELECT session_id FROM session_api_contract_snapshots WHERE session_id = ?').get(empty.id)).toBeUndefined();
     } finally { runner.dispose(); store.close(); }
+  }, 15_000);
+
+  it('gives two parallel card agents the same approved revision and rejects both after an update', async () => {
+    const { root, file, store, project, frontend, backend } = fixture();
+    const repository = join(root, 'project');
+    git(repository, ['init', '-q']);
+    writeFileSync(join(repository, 'tracked.txt'), 'synthetic project');
+    git(repository, ['add', 'tracked.txt']);
+    git(repository, ['-c', 'user.name=Branchloom Test', '-c', 'user.email=branchloom-test@example.invalid', 'commit', '-qm', 'Initial fixture']);
+    const first = save(store, project.id);
+    bind(store, project.id, frontend.id, first.revision);
+    bind(store, project.id, backend.id, first.revision);
+    const agent = store.saveAgent({ name: 'Synthetic contract reader', kind: 'custom', command: process.execPath,
+      args: ['-e', 'console.log(process.argv[1])', '{prompt}'], model: null, enabled: true });
+    const runner = new SessionRunner(store, () => undefined, () => undefined);
+    try {
+      const frontendRun = runner.start({ cardId: frontend.id, agentId: agent.id, mode: 'one-shot', useWorktree: true });
+      const backendRun = runner.start({ cardId: backend.id, agentId: agent.id, mode: 'one-shot', useWorktree: true });
+      expect(frontendRun.worktreePath).not.toBe(backendRun.worktreePath);
+      for (let attempt = 0; attempt < 160 && [frontendRun.id, backendRun.id].some((id) => store.session(id).state === 'running'); attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      for (const session of [frontendRun, backendRun]) {
+        expect(store.session(session.id).state).toBe('exited');
+        const output = store.session(session.id).output;
+        expect(output).toContain(`approved revision 1, sha256 ${first.fingerprint}`);
+        expect(output).toContain('example_id');
+        expect(output).toContain('NOT_FOUND');
+        expect(sessionRunEvidence(store, { projectId: project.id, sessionId: session.id }).launch?.sources).toContain('api-contract');
+      }
+      const snapshots = store.db.prepare(`SELECT revision, fingerprint FROM session_api_contract_snapshots
+        WHERE session_id IN (?, ?) ORDER BY session_id`).all(frontendRun.id, backendRun.id) as Array<{ revision: number; fingerprint: string }>;
+      expect(snapshots).toEqual([{ revision: 1, fingerprint: first.fingerprint }, { revision: 1, fingerprint: first.fingerprint }]);
+
+      const second = save(store, project.id, { ...draft, fields: [...draft.fields, { name: 'updated', type: 'boolean', required: true }] });
+      expect(second.revision).toBe(2);
+      const bindings = apiContractOverview(store, project.id).bindings;
+      expect(bindings).toHaveLength(2);
+      for (const cardId of [frontend.id, backend.id]) {
+        expect(bindings.find((binding) => binding.cardId === cardId)).toMatchObject({ revision: 1, current: false });
+      }
+      for (const cardId of [frontend.id, backend.id]) {
+        expect(() => runner.start({ cardId, agentId: agent.id, mode: 'one-shot', useWorktree: true })).toThrow('stale');
+      }
+    } finally { runner.dispose(); store.close(); }
+    const reopened = new StudioStore(file);
+    try {
+      expect(apiContractOverview(reopened, project.id).versions.map((version) => version.revision)).toEqual([2, 1]);
+      expect(apiContractOverview(reopened, project.id).bindings.every((binding) => !binding.current)).toBe(true);
+    } finally { reopened.close(); }
   }, 15_000);
 });
