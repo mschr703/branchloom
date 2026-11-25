@@ -247,7 +247,7 @@ export function ProjectKnowledgeMap({ snapshot, indexRevision, onOpenCard, onOpe
   }
 
   return <div className="knowledge-map-view">
-    <div className="knowledge-map-summary"><p>Wähle eine Quelle, um ihre direkten Verbindungen zu sehen. Linien belegen Kartenbezüge oder Dateien im indexierten Git-Stand, keine Themenähnlichkeit.</p><span>{map.totalCards} {map.totalCards === 1 ? 'Aufgabe' : 'Aufgaben'} · {map.totalSessions} {map.totalSessions === 1 ? 'Lauf' : 'Läufe'}{indexed?.gitRef ? ` · ${indexed.totalCodeFiles} ${indexed.totalCodeFiles === 1 ? 'indexierte Datei' : 'indexierte Dateien'}` : ''}</span></div>
+    <div className="knowledge-map-summary"><details><summary>Was zeigen die Linien?</summary><p>Wähle eine Quelle, um ihre direkten Verbindungen zu sehen. Linien belegen Kartenbezüge oder Dateien im indexierten Git-Stand, keine Themenähnlichkeit.</p></details><span>{map.totalCards} {map.totalCards === 1 ? 'Aufgabe' : 'Aufgaben'} · {map.totalSessions} {map.totalSessions === 1 ? 'Lauf' : 'Läufe'}{indexed?.gitRef ? ` · ${indexed.totalCodeFiles} ${indexed.totalCodeFiles === 1 ? 'indexierte Datei' : 'indexierte Dateien'}` : ''}</span></div>
     <div className="knowledge-map-toolbar"><div className="knowledge-map-layers" role="group" aria-label="Beziehungen filtern">
       <button type="button" aria-pressed={layer === 'all'} onClick={() => { setLayer('all'); setSelectedId(''); }}>Alle</button>
       <button type="button" aria-pressed={layer === 'work'} onClick={() => { setLayer('work'); setSelectedId(''); }}>Arbeit</button>

@@ -1,6 +1,9 @@
 .knowledge-map-view { padding: 8px 0 4px; }
-.knowledge-map-summary { display: flex; justify-content: space-between; align-items: baseline; gap: 24px; margin-bottom: 12px; }
-.knowledge-map-summary p { margin: 0; max-width: 65ch; color: var(--soft); font-size: 12px; line-height: 1.5; }
+.knowledge-map-summary { display: flex; justify-content: space-between; align-items: baseline; gap: 24px; margin-bottom: 5px; }
+.knowledge-map-summary details { max-width: 65ch; color: var(--soft); font-size: 12px; line-height: 1.5; }
+.knowledge-map-summary summary { width: max-content; cursor: pointer; }
+.knowledge-map-summary summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.knowledge-map-summary p { margin: 5px 0; }
 .knowledge-map-summary span { flex: none; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .knowledge-map-source-status { margin: 0 0 10px; color: var(--muted); font-size: 11px; }
 .knowledge-map-source-status.error { color: var(--danger); }
