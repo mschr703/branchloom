@@ -29,7 +29,7 @@ Stand: 25.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollst�
 
 - Die Aufnahmebedienung bleibt in kompakten Fenstern sichtbar; ein aufgezeichneter Klick lässt sich direkt als Prüfziel übernehmen. Ein Header-Link im Kartendialog führt mit einem Klick und Tastaturfokus zu den gespeicherten Fehlerabläufen. Ein sichtbarer synthetischer Electron-Pfad bestätigte Aufnahme, Speichern, erneut Prüfen und den Sprung zur gespeicherten Route. Zehn betroffene Renderer-Tests auf dem integrierten Stand bestanden; Windows-Paket-CI für die letzte Darstellungsänderung steht noch aus.
 
-- Die [Windows-CI 45594043214](https://github.com/mschr703/branchloom/actions/runs/45594043214) scheiterte in drei vorhandenen Renderer-Tests, die noch eine Projektnavigation während des anfänglichen Ladezustands erwarten. Der neue Startzustand zeigt absichtlich erst nach einem geladenen Projekt die Projektansichten. Die Testannahmen werden mit geladenen Projektdaten bzw. passenden Erwartungen korrigiert; ein grüner Paketlauf für diese Nachträge steht noch aus.
+- Die [Windows-CI 45594043214](https://github.com/mschr703/branchloom/actions/runs/45594043214) scheiterte in drei vorhandenen Renderer-Tests, die noch eine Projektnavigation während des anfänglichen Ladezustands erwarten. Der neue Startzustand zeigt absichtlich erst nach einem geladenen Projekt die Projektansichten. Die drei Testannahmen wurden mit dem beabsichtigten ersten Ladezustand abgeglichen; die dedizierten Tests für Navigation nach dem Laden bleiben erhalten. 23 betroffene Renderer-Tests und Typprüfung bestanden, die vollständige lokale Suite läuft; ein grüner Windows-Paketlauf für diese Nachträge steht noch aus.
 
 ## M01 kompakte Netzansicht für belegte Projektquellen
 

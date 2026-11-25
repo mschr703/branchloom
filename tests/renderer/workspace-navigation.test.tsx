@@ -11,6 +11,7 @@ describe('compact workspace navigation', () => {
     expect((html.match(/aria-current="page"/g) ?? [])).toHaveLength(1);
     expect(html).toMatch(/<button[^>]*aria-current="page"[^>]*aria-label="Memory"/);
     for (const view of views) expect(html).toContain(`aria-label="${view.name}"`);
+    expect(html).toContain('aria-label="Changelog"');
     expect(html).toContain('aria-label="Planung"');
     expect(html).toContain('aria-label="Weitere Ansichten"');
   });
