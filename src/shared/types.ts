@@ -137,6 +137,12 @@ export interface StudioAPI {
   cardDevEnvironment(cardId: string): Promise<import('./dev-environment').CardDevEnvironment | null>;
   startCardDevEnvironment(cardId: string): Promise<import('./dev-environment').CardDevEnvironment>;
   stopCardDevEnvironment(runId: string): Promise<import('./dev-environment').CardDevEnvironment>;
+  devAccountOverview(input: { projectId: string; cardId: string }): Promise<import('./dev-account').DevAccountOverview>;
+  createDevAccount(input: import('./dev-account').CreateDevAccount): Promise<import('./dev-account').DevAccount>;
+  assignDevAccount(input: { projectId: string; cardId: string; accountId: string | null; expectedCardRevision: number }): Promise<import('./dev-account').DevAccountOverview>;
+  openDevAccount(cardId: string): Promise<string>;
+  probeDevAccount(cardId: string): Promise<import('./dev-account').DevAccountProbe>;
+  forgetDevAccountSession(input: { projectId: string; accountId: string }): Promise<void>;
   projects(): Promise<Project[]>;
   projectOrganization(): Promise<ProjectOrganization>;
   createProjectGroup(name: string): Promise<ProjectOrganization>;

@@ -25,6 +25,7 @@ import { ConflictRadarNotice } from './ConflictRadarNotice';
 import { IntegrationQueuePanel } from './IntegrationQueuePanel';
 import { CardDevEnvironmentPanel } from './CardDevEnvironmentPanel';
 import { ManualRevisionPanel } from './ManualRevisionPanel';
+import { DevAccountPanel } from './DevAccountPanel';
 import { startConflictRadarRefresh } from '../conflict-radar-schedule';
 import { parallelStartWarning } from '../parallel-run-gate';
 import { addCardLabel, labelSuggestions } from '../card-labels';
@@ -307,6 +308,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
         </> : <div className="terminal-empty">Noch kein Agentenlauf für diese Karte.</div>}
         <div className="drawer-divider" />
         <CardDevEnvironmentPanel key={`dev-env-${card.id}`} cardId={card.id} projectId={card.projectId} archived={Boolean(card.archivedAt)} onOpenBrowser={() => { onClose(); onOpenBrowser?.(); }} />
+        <DevAccountPanel key={`dev-account-${card.id}`} cardId={card.id} projectId={card.projectId} />
         <div className="drawer-divider" />
         <CardQaPanel key={`qa-${card.id}`} card={card} focusReport={criterionQaFocus ?? focusQaReport} />
         <div className="drawer-divider" />

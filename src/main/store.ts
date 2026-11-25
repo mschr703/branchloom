@@ -28,6 +28,7 @@ import { installAgentHandoffs } from './agent-handoff';
 import { installAgentCardMetadata } from './agent-card-metadata';
 import { installAgentBrowserPolicy } from './agent-browser-policy';
 import { installDevEnvironments } from './dev-environment';
+import { installDevAccounts } from './dev-account';
 import { attachmentAvailable, canOpenAttachment, checkedAttachmentPath, MAX_CARD_ATTACHMENTS } from './card-attachments';
 import { installWhiteboard } from './whiteboard';
 import { installReviewComments } from './diff-review';
@@ -183,6 +184,7 @@ export class StudioStore {
     installAgentCardMetadata(this.db);
     installAgentBrowserPolicy(this.db);
     installDevEnvironments(this);
+    installDevAccounts(this.db);
     installParallelRuns(this.db);
     installProjectRunPause(this.db);
     installApiContracts(this.db);

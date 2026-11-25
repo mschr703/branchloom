@@ -66,6 +66,8 @@ import { agentBrowserPolicy, setAgentBrowserPolicy } from './agent-browser-polic
 import { AgentBrowserBridge } from './agent-browser-bridge';
 import { inspectAgentBrowserPage } from './agent-browser-inspector';
 import { DevEnvironmentRunner, devEnvironmentProfile, saveDevEnvironmentProfile } from './dev-environment';
+import { DevAccountBrowser } from './dev-account-browser';
+import { assignDevAccount, createDevAccount, devAccountForProject, devAccountOverview } from './dev-account';
 import { proposeWorkflow } from './workflow-planner';
 import { discussTaskDraft } from './task-draft';
 import { discussProject } from './project-chat';
@@ -85,6 +87,7 @@ let store: StudioStore | null = null;
 let runner: SessionRunner | null = null;
 let commandRunner: CommandTerminalRunner | null = null;
 let devEnvironmentRunner: DevEnvironmentRunner | null = null;
+let devAccountBrowser: DevAccountBrowser | null = null;
 let queueEngine: ProjectQueueEngine;
 let recoveryMonitor: SessionRecoveryMonitor | null = null;
 let browser: StudioBrowser | null = null;
@@ -165,6 +168,7 @@ function installIpc(): void {
     if (window && !window.isDestroyed()) window.webContents.send('studio:command-terminal-event', event);
   });
   devEnvironmentRunner = new DevEnvironmentRunner(db);
+  devAccountBrowser = new DevAccountBrowser(db, devEnvironmentRunner, () => window);
 
   const bind = <K extends keyof StudioAPI>(name: K, handler: (...args: never[]) => unknown): void => {
     ipcMain.handle(`studio:${String(name)}`, (event, ...args: unknown[]) => {
@@ -300,8 +304,29 @@ function installIpc(): void {
   bind('devEnvironmentProfile', (projectId: string) => devEnvironmentProfile(db, projectId));
   bind('saveDevEnvironmentProfile', (input: Parameters<StudioAPI['saveDevEnvironmentProfile']>[0]) => saveDevEnvironmentProfile(db, input));
   bind('cardDevEnvironment', (cardId: string) => devEnvironmentRunner?.card(cardId) ?? null);
-  bind('startCardDevEnvironment', (cardId: string) => devEnvironmentRunner?.start(cardId));
-  bind('stopCardDevEnvironment', (runId: string) => devEnvironmentRunner?.stop(runId));
+  bind('startCardDevEnvironment', async (cardId: string) => {
+    const run = await devEnvironmentRunner?.start(cardId);
+    if (run) devAccountBrowser?.closeCard(cardId);
+    return run;
+  });
+  bind('stopCardDevEnvironment', (runId: string) => {
+    const run = devEnvironmentRunner?.stop(runId);
+    if (run) devAccountBrowser?.closeCard(run.cardId);
+    return run;
+  });
+  bind('devAccountOverview', (input: Parameters<StudioAPI['devAccountOverview']>[0]) => devAccountOverview(db, input));
+  bind('createDevAccount', (input: Parameters<StudioAPI['createDevAccount']>[0]) => createDevAccount(db, input));
+  bind('assignDevAccount', (input: Parameters<StudioAPI['assignDevAccount']>[0]) => {
+    const result = assignDevAccount(db, input);
+    devAccountBrowser?.closeCard(input.cardId);
+    return result;
+  });
+  bind('openDevAccount', (cardId: string) => devAccountBrowser?.open(cardId));
+  bind('probeDevAccount', (cardId: string) => devAccountBrowser?.probe(cardId));
+  bind('forgetDevAccountSession', async (input: Parameters<StudioAPI['forgetDevAccountSession']>[0]) => {
+    devAccountForProject(db, input.projectId, input.accountId);
+    await devAccountBrowser?.forget(input.accountId);
+  });
   bind('cardSplitLinks', (cardId: string) => cardSplitLinks(db, cardId));
   bind('previewCardSplit', (input: Parameters<StudioAPI['previewCardSplit']>[0]) => previewCardSplit(db, input));
   bind('createCardSplit', (input: Parameters<StudioAPI['createCardSplit']>[0]) => createCardSplit(db, input));
@@ -3283,6 +3308,112 @@ function createWindow(): void {
               for (let attempt = 0; attempt < 100 && !packagePickerOpened; attempt++) await new Promise((resolve) => setTimeout(resolve, 10));
               if (!packagePickerOpened) throw new Error('JSON package action did not open the native file picker.');
             } finally { dialog.showOpenDialog = nativeOpenDialog; }
+            // F08: a real Electron session must keep two synthetic local logins apart.
+            const identityServerPath = join(smokeDataDirectory!, 'f08-identity-server.cjs');
+            writeFileSync(identityServerPath, `const http = require('node:http');
+const port = Number(process.argv[2]);
+http.createServer((request, response) => {
+  if (request.url === '/api/me') {
+    const found = /(?:^|; )f08=(admin|user)(?:;|$)/.exec(request.headers.cookie || '');
+    response.writeHead(found ? 200 : 401, { 'Content-Type': 'application/json' });
+    response.end(found ? JSON.stringify({ subject: found[1] + '-fixture', role: found[1] }) : '{}');
+  } else if (request.url?.startsWith('/login?as=')) {
+    const role = new URL(request.url, 'http://localhost').searchParams.get('as');
+    response.writeHead(200, { 'Set-Cookie': 'f08=' + role + '; Path=/; SameSite=Strict', 'Content-Type': 'text/html' });
+    response.end('<title>BRANCHLOOM_F08_READY</title>Signed in');
+  } else { response.writeHead(200, { 'Content-Type': 'text/html' }); response.end('<title>BRANCHLOOM_F08_READY</title>'); }
+}).listen(port, '127.0.0.1');
+`);
+            // Keep the synthetic project outside the profile worktree directory.
+            // The earlier smoke project is the profile root itself.
+            const f08ProjectRoot = join(smokeDataDirectory!, 'f08-source');
+            mkdirSync(f08ProjectRoot);
+            writeFileSync(join(f08ProjectRoot, 'README.md'), '# Synthetic account preview\n');
+            execFileSync('git', ['init', '-q', f08ProjectRoot], { windowsHide: true });
+            execFileSync('git', ['-C', f08ProjectRoot, 'add', '--', 'README.md'], { windowsHide: true });
+            execFileSync('git', ['-C', f08ProjectRoot, '-c', 'user.name=Branchloom Smoke', '-c', 'user.email=smoke@example.invalid', 'commit', '-qm', 'Synthetic account preview'], { windowsHide: true });
+            const f08Project = smokeStore.createProject({ name: 'Smoke accounts', path: f08ProjectRoot });
+            const f08Card = smokeStore.createCard({ projectId: f08Project.id, columnId: smokeStore.snapshot(f08Project.id).columns[0]!.id, title: 'Synthetic account card' });
+            const f08Other = smokeStore.createCard({ projectId: f08Project.id, columnId: smokeStore.snapshot(f08Project.id).columns[0]!.id, title: 'Synthetic second account card' });
+            const f08Profile = saveDevEnvironmentProfile(smokeStore, { projectId: f08Project.id, executable: 'node', args: [identityServerPath, '{port}', '127.0.0.1'], healthPath: '/', healthMarker: 'BRANCHLOOM_F08_READY' });
+            if (!f08Profile) throw new Error('Synthetic F08 preview profile was not saved.');
+            let f08FirstRun = await devEnvironmentRunner!.start(f08Card.id);
+            let f08SecondRun = await devEnvironmentRunner!.start(f08Other.id);
+            for (let attempt = 0; attempt < 100 && (f08FirstRun.state === 'starting' || f08SecondRun.state === 'starting'); attempt++) {
+              await new Promise((resolve) => setTimeout(resolve, 100));
+              f08FirstRun = devEnvironmentRunner!.card(f08Card.id)!;
+              f08SecondRun = devEnvironmentRunner!.card(f08Other.id)!;
+            }
+            if (f08FirstRun.state !== 'ready' || f08SecondRun.state !== 'ready') {
+              throw new Error(`Synthetic F08 previews did not become ready: ${f08FirstRun.state} ${f08FirstRun.output.slice(-300)} / ${f08SecondRun.state} ${f08SecondRun.output.slice(-300)}`);
+            }
+            const firstAccount = createDevAccount(smokeStore, { projectId: f08Project.id, service: 'Smoke shop', environment: 'local', role: 'admin', subject: 'admin-fixture', probePath: '/api/me' });
+            const secondAccount = createDevAccount(smokeStore, { projectId: f08Project.id, service: 'Smoke shop', environment: 'local', role: 'user', subject: 'user-fixture', probePath: '/api/me' });
+            for (const [cardId, accountId] of [[f08Card.id, firstAccount.id], [f08Other.id, secondAccount.id]] as const) {
+              const overview = devAccountOverview(smokeStore, { projectId: f08Project.id, cardId });
+              assignDevAccount(smokeStore, { projectId: f08Project.id, cardId, accountId, expectedCardRevision: overview.cardRevision });
+            }
+            await new Promise<void>((resolve) => { smokeWindow.webContents.once('did-finish-load', () => resolve()); smokeWindow.webContents.reload(); });
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              for (let attempt = 0; attempt < 100 && !document.querySelector('#project-select'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const select = document.querySelector('#project-select');
+              const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+              if (!(select instanceof HTMLSelectElement) || !setter) throw new Error('F08 project switch is missing.');
+              setter.call(select, ${JSON.stringify(f08Project.id)});
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+              [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Board')?.click();
+              let card;
+              for (let attempt = 0; attempt < 100 && !card; attempt++) {
+                card = [...document.querySelectorAll('.task-card')].find((item) => item.textContent?.includes('Synthetic account card'));
+                if (!card) await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!(card instanceof HTMLElement)) throw new Error('F08 synthetic card did not render on the board.');
+              card.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.card-drawer .dev-account-panel'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const panel = document.querySelector('.card-drawer .dev-account-panel');
+              if (!panel?.textContent?.includes('Dev-Konto')) throw new Error('F08 card drawer has no account section.');
+              panel.querySelector('button[aria-expanded="false"]')?.click();
+              for (let attempt = 0; attempt < 100 && !panel.querySelector('.dev-account-actions'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!panel.textContent?.includes('Smoke shop · local · admin') || !panel.textContent.includes('Anmeldefenster öffnen') || !panel.textContent.includes('Zugang prüfen')) throw new Error('F08 assigned account controls are missing in the card drawer.');
+              const probe = [...panel.querySelectorAll('button')].find((item) => item.textContent?.trim() === 'Zugang prüfen');
+              if (!(probe instanceof HTMLButtonElement) || probe.disabled) throw new Error('F08 identity-check action is unavailable for a ready preview.');
+              probe.click();
+              for (let attempt = 0; attempt < 100 && !panel.textContent?.includes('Anmeldung abgelaufen oder fehlt'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!panel.textContent?.includes('Anmeldung abgelaufen oder fehlt')) throw new Error('F08 visible identity check did not report missing login.');
+              return true;
+            })()`);
+            const f08Initial = await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const first = await window.studio.probeDevAccount(${JSON.stringify(f08Card.id)});
+              const second = await window.studio.probeDevAccount(${JSON.stringify(f08Other.id)});
+              if (first.state !== 'login-required' || second.state !== 'login-required') throw new Error('F08 synthetic sessions unexpectedly share a login.');
+              await window.studio.openDevAccount(${JSON.stringify(f08Card.id)});
+              await window.studio.openDevAccount(${JSON.stringify(f08Other.id)});
+              return true;
+            })()`);
+            if (!f08Initial) throw new Error('F08 account IPC did not open both assigned windows.');
+            const accountWindows = BrowserWindow.getAllWindows().filter((item) => item.getParentWindow() === smokeWindow);
+            if (accountWindows.length !== 2) throw new Error('F08 did not open distinct visible account windows.');
+            // The target page can replace BrowserWindow's title after load.
+            // Identify each account window by its distinct managed preview origin.
+            const adminWindow = accountWindows.find((item) => new URL(item.webContents.getURL()).origin === new URL(f08FirstRun.url).origin);
+            const userWindow = accountWindows.find((item) => new URL(item.webContents.getURL()).origin === new URL(f08SecondRun.url).origin);
+            if (!adminWindow || !userWindow || adminWindow.webContents.session === userWindow.webContents.session) throw new Error('F08 account partitions are not isolated.');
+            await adminWindow.loadURL(`${f08FirstRun.url}login?as=admin`);
+            const f08Admin = await devAccountBrowser!.probe(f08Card.id);
+            const f08UnloggedUser = await devAccountBrowser!.probe(f08Other.id);
+            if (f08Admin.state !== 'verified' || f08UnloggedUser.state !== 'login-required') throw new Error('F08 real-session login isolation failed.');
+            await userWindow.loadURL(`${f08SecondRun.url}login?as=user`);
+            if ((await devAccountBrowser!.probe(f08Other.id)).state !== 'verified') throw new Error('F08 second real-session login failed.');
+            await devAccountBrowser!.forget(firstAccount.id);
+            if ((await devAccountBrowser!.probe(f08Card.id)).state !== 'login-required' || (await devAccountBrowser!.probe(f08Other.id)).state !== 'verified') throw new Error('F08 forget cleared the wrong account session.');
+            const grantRevision = devAccountOverview(smokeStore, { projectId: f08Project.id, cardId: f08Other.id }).cardRevision;
+            assignDevAccount(smokeStore, { projectId: f08Project.id, cardId: f08Other.id, accountId: null, expectedCardRevision: grantRevision });
+            devAccountBrowser!.closeCard(f08Other.id);
+            try { await devAccountBrowser!.probe(f08Other.id); throw new Error('F08 revoked account remained available.'); }
+            catch (reason) { if (!(reason instanceof Error) || !reason.message.includes('No development account')) throw reason; }
+            devEnvironmentRunner!.stop(f08FirstRun.id);
+            devEnvironmentRunner!.stop(f08SecondRun.id);
+            devAccountBrowser!.closeAll();
             if (!await safeStorage.isAsyncEncryptionAvailable()) throw new Error('Trello-Smoke: Windows-Verschlüsselung ist nicht verfügbar.');
             const sealed = await safeStorage.encryptStringAsync('branchloom-trello-smoke');
             if ((await safeStorage.decryptStringAsync(sealed)).result !== 'branchloom-trello-smoke') throw new Error('Trello-Smoke: Windows-Verschlüsselung konnte nicht lesen.');
@@ -3305,7 +3436,7 @@ function createWindow(): void {
       app.exit(1);
     });
   }
-  window.on('closed', () => { designInspector?.dispose(); designInspector = null; browser?.dispose(); browser = null; window = null; });
+  window.on('closed', () => { devAccountBrowser?.closeAll(); designInspector?.dispose(); designInspector = null; browser?.dispose(); browser = null; window = null; });
 }
 
 function configureReleaseUpdater(): void {
@@ -3392,6 +3523,8 @@ app.on('before-quit', () => {
   commandRunner = null;
   devEnvironmentRunner?.dispose();
   devEnvironmentRunner = null;
+  devAccountBrowser?.dispose();
+  devAccountBrowser = null;
   store?.close();
   store = null;
 });
