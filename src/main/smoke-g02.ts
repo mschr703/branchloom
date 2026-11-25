@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type { BrowserWindow } from 'electron';
 import { ensureCardWorktree } from './git-worktree';
 import { integrationQueue } from './integration-queue';
+import { divergentIntegration } from './divergent-integration';
 import type { StudioStore } from './store';
 
 function git(cwd: string, args: string[]): string {
@@ -123,6 +124,10 @@ export async function runG02VisibleSmoke(window: BrowserWindow, store: StudioSto
     await click(panel, 'Git-Stand neu prüfen');
     await wait(() => currentPanel()?.textContent?.includes('Blockiert'), 'diverged branch blocked');
     if (button(panel, 'Geprüft übernehmen')) throw new Error('G02 offered merge for divergent second branch.');
+    await click(panel, 'Integrations-Worktree anlegen');
+    await wait(async () => (await window.studio.divergentIntegration(${JSON.stringify(second.id)}))?.state === 'merging'
+      && currentPanel()?.querySelector('[aria-label="Integrations-Worktree"]')?.textContent?.includes('Zusammenführung wartet'), 'visible assigned integration worktree', 400);
+    if (button(panel, 'Geprüft übernehmen')) throw new Error('G02 offered merge before the integration result was committed and reviewed.');
     const resultsToggle = await wait(() => currentPanel()?.querySelector('.integration-results > summary'), 'result folder toggle');
     resultsToggle.click();
     const results = await wait(() => {
@@ -136,8 +141,10 @@ export async function runG02VisibleSmoke(window: BrowserWindow, store: StudioSto
   })()`);
 
   const rows = integrationQueue(store, project.id);
+  const attempt = divergentIntegration(store, second.id);
   if (rows.find((item) => item.cardId === first.id)?.state !== 'integrated'
     || rows.find((item) => item.cardId === second.id)?.state !== 'blocked'
+    || attempt?.state !== 'merging' || attempt.originalSourceHead !== secondHead || attempt.targetHead !== firstHead
     || git(repo, ['rev-parse', 'HEAD']) !== firstHead
     || git(secondTree.path, ['rev-parse', 'HEAD']) !== secondHead
     || readFileSync(join(repo, 'login.txt'), 'utf8').replace(/\r\n/g, '\n') !== 'synthetic login\n'

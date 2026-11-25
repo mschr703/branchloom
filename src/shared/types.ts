@@ -359,6 +359,11 @@ export interface StudioAPI {
   applyManualRevision(input: { revisionId: string; previewToken: string; resolutionToken?: string; confirm: boolean }): Promise<import('./manual-revision').ManualRevision>;
   enqueueIntegration(cardId: string): Promise<IntegrationItem>;
   prepareIntegration(cardId: string): Promise<IntegrationItem>;
+  divergentIntegration(cardId: string): Promise<import('./divergent-integration').DivergentIntegration | null>;
+  startDivergentIntegration(cardId: string): Promise<import('./divergent-integration').DivergentIntegration>;
+  retryMissingDivergentIntegration(cardId: string): Promise<import('./divergent-integration').DivergentIntegration>;
+  divergentIntegrationDiff(cardId: string): Promise<string>;
+  openDivergentIntegration(cardId: string): Promise<void>;
   approveIntegration(input: { cardId: string; confirm: boolean }): Promise<IntegrationItem>;
   integrationEvidence(cardId: string): Promise<import('./integration-evidence').IntegrationEvidence>;
   setIntegrationTestScript(input: { projectId: string; scriptName: string }): Promise<string | null>;

@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import type { IntegrationItem, IntegrationPolicy, IntegrationState } from '../shared/integration-queue';
 import { assertProjectCanStart } from './project-pause';
 import { mergeCardWorktree, reviewCardWorktree, worktreeRepositoryKey } from './git-worktree';
+import { divergentIntegration, divergentPreviewToken, installDivergentIntegration, mergeDivergentIntegration } from './divergent-integration';
 import type { StudioStore } from './store';
 
 interface Row {
@@ -56,6 +57,7 @@ export function installIntegrationQueue(store: StudioStore): void {
     store.db.exec('ALTER TABLE integration_items ADD COLUMN owner_pid INTEGER');
   if (!columns.some((column) => column.name === 'approval_mode'))
     store.db.exec("ALTER TABLE integration_items ADD COLUMN approval_mode TEXT CHECK (approval_mode IN ('manual','automatic'))");
+  installDivergentIntegration(store);
 }
 
 export function integrationPolicy(store: StudioStore, projectId: string): IntegrationPolicy {
@@ -174,12 +176,17 @@ export function prepareIntegration(store: StudioStore, cardId: string): Integrat
   if (!review || !review.targetBranch || worktreeRepositoryKey(review.targetPath) !== row.repository_key || review.targetBranch !== row.target_branch)
     return update(store, row.id, 'blocked', 'The target repository or branch changed. The queued target must be reviewed.');
   const card = store.card(cardId);
+  const attempt = divergentIntegration(store, cardId);
   const reason = card.archivedAt ? 'The card is archived.'
     : !latestSuccessfulRun(store, cardId, review.path) ? 'The latest card run is no longer a successful worktree run.'
-      : qaFailure(store, cardId) ?? review.blockers.join(' ');
+      : qaFailure(store, cardId) ?? (attempt ? attempt.reason : review.blockers.join(' '));
+  const ready = attempt ? attempt.state === 'ready' && !reason : review.canFastForward && !reason;
+  const sourceHead = attempt?.state === 'ready' && attempt.resultHead ? attempt.resultHead : review.sourceHead;
+  const previewToken = ready && review.targetBranch ? (attempt
+    ? divergentPreviewToken(cardId, sourceHead, review.targetBranch, review.targetHead) : review.previewToken) : null;
   store.db.prepare(`UPDATE integration_items SET source_head = ?, target_head = ?, card_fingerprint = ?, preview_token = ?, state = ?, reason = ?, updated_at = ? WHERE id = ?`)
-    .run(review.sourceHead, review.targetHead, cardFingerprint(store, cardId), review.canFastForward && !reason ? review.previewToken : null,
-      review.canFastForward && !reason ? 'ready' : 'blocked', reason || null, stamp(), row.id);
+    .run(sourceHead, review.targetHead, cardFingerprint(store, cardId), previewToken,
+      ready ? 'ready' : 'blocked', reason || null, stamp(), row.id);
   return item(rowForCard(store, cardId)!);
 }
 
@@ -189,12 +196,18 @@ export function currentPreparedIntegration(store: StudioStore, cardId: string): 
   if (!row || row.state !== 'ready' || !row.preview_token) throw new Error('Prepare this integration again before checking it.');
   if (cardFingerprint(store, cardId) !== row.card_fingerprint) throw new Error('Card changed since preparation. Prepare again.');
   const review = reviewCardWorktree(store, cardId);
-  if (!review || !review.canFastForward || review.previewToken !== row.preview_token || review.targetHead !== row.target_head
-    || review.sourceHead !== row.source_head || review.targetBranch !== row.target_branch || worktreeRepositoryKey(review.targetPath) !== row.repository_key)
+  const attempt = divergentIntegration(store, cardId);
+  const valid = attempt ? attempt.state === 'ready' && attempt.resultHead === row.source_head
+    && attempt.originalSourceHead === review?.sourceHead && review?.targetHead === row.target_head
+    && review?.targetBranch === row.target_branch
+    && divergentPreviewToken(cardId, row.source_head, row.target_branch, row.target_head) === row.preview_token
+    : review?.canFastForward && review.previewToken === row.preview_token && review.sourceHead === row.source_head
+      && review.targetHead === row.target_head && review.targetBranch === row.target_branch;
+  if (!review || !valid || worktreeRepositoryKey(review.targetPath) !== row.repository_key)
     throw new Error('Git base or source changed since preparation. Prepare and verify again.');
   if (!latestSuccessfulRun(store, cardId, review.path) || qaFailure(store, cardId))
     throw new Error('Card run or browser QA changed since preparation. Prepare again.');
-  return { item: item(row), worktreePath: review.path, repositoryKey: row.repository_key, previewToken: row.preview_token };
+  return { item: item(row), worktreePath: attempt?.path ?? review.path, repositoryKey: row.repository_key, previewToken: row.preview_token };
 }
 
 function requireBoundEvidence(store: StudioStore, row: Row): void {
@@ -207,7 +220,11 @@ function requireBoundEvidence(store: StudioStore, row: Row): void {
   if (test?.state === 'running') throw new Error('An integration test is still running for this card.');
   const config = store.db.prepare('SELECT script_name FROM integration_test_config WHERE project_id = ?')
     .get(row.project_id) as { script_name: string } | undefined;
-  if (!config) return;
+  if (!config) {
+    const divergent = store.db.prepare('SELECT item_id FROM divergent_integration_attempts WHERE item_id = ?').get(row.id);
+    if (divergent) throw new Error('Configure and run an npm integration test for this divergent result before merging.');
+    return;
+  }
   if (!test || test.state !== 'passed' || test.source_head !== row.source_head || test.target_head !== row.target_head
     || test.card_fingerprint !== row.card_fingerprint || test.script_name !== config.script_name)
     throw new Error('Run the configured test script successfully for this exact source and target before integration.');
@@ -244,13 +261,14 @@ function integratePrepared(store: StudioStore, input: { cardId: string; mode: 'm
     AND id < ? AND state = 'integrating'`).all(row.repository_key, row.target_branch, row.id) as Array<{ card_id: string }>;
   for (const pending of precedingPending) reconcileIntegration(store, pending.card_id);
   const preceding = store.db.prepare(`SELECT id FROM integration_items WHERE repository_key = ? AND target_branch = ?
-    AND id < ? AND state IN ('queued','ready','integrating') ORDER BY id LIMIT 1`).get(row.repository_key, row.target_branch, row.id);
+    AND id < ? AND state IN ('queued','ready','blocked','integrating') ORDER BY id LIMIT 1`).get(row.repository_key, row.target_branch, row.id);
   if (preceding) throw new Error('An earlier card is waiting for this target branch.');
   if (cardFingerprint(store, input.cardId) !== row.card_fingerprint) throw new Error('Card changed since preparation. Prepare again.');
   const review = reviewCardWorktree(store, input.cardId);
-  if (!review || !review.canFastForward || review.previewToken !== row.preview_token || review.targetHead !== row.target_head
-    || review.sourceHead !== row.source_head || review.targetBranch !== row.target_branch || worktreeRepositoryKey(review.targetPath) !== row.repository_key)
+  const prepared = currentPreparedIntegration(store, input.cardId);
+  if (!review || prepared.previewToken !== row.preview_token || prepared.item.sourceHead !== row.source_head)
     throw new Error('Git base or source changed since preparation. Prepare and verify again.');
+  const attempt = divergentIntegration(store, input.cardId);
   if (!latestSuccessfulRun(store, input.cardId, review.path) || qaFailure(store, input.cardId))
     throw new Error('Card run or browser QA changed since preparation. Prepare again.');
   requireBoundEvidence(store, row);
@@ -259,7 +277,7 @@ function integratePrepared(store: StudioStore, input: { cardId: string; mode: 'm
     const current = rowForCard(store, input.cardId);
     if (!current || current.state !== 'ready') throw new Error('Integration state changed.');
     const earlier = store.db.prepare(`SELECT id FROM integration_items WHERE repository_key = ? AND target_branch = ?
-      AND id < ? AND state IN ('queued','ready','integrating') ORDER BY id LIMIT 1`)
+      AND id < ? AND state IN ('queued','ready','blocked','integrating') ORDER BY id LIMIT 1`)
       .get(row.repository_key, row.target_branch, row.id);
     if (earlier) throw new Error('An earlier card is waiting for this target branch.');
     if (cardFingerprint(store, input.cardId) !== row.card_fingerprint) throw new Error('Card changed since preparation. Prepare again.');
@@ -283,7 +301,8 @@ function integratePrepared(store: StudioStore, input: { cardId: string; mode: 'm
         throw new Error('Card run or browser QA changed during integration.');
       requireBoundEvidence(store, current);
       if (input.mode === 'automatic') requireAutomaticEvidence(store, current);
-      mergeCardWorktree(store, { cardId: input.cardId, previewToken, confirm: true });
+      if (attempt) mergeDivergentIntegration(store, input.cardId, row.source_head, row.target_head);
+      else mergeCardWorktree(store, { cardId: input.cardId, previewToken, confirm: true });
       return update(store, row.id, 'integrated', null, row.source_head);
     }).immediate();
   } catch (error) {

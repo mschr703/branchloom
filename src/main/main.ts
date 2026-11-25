@@ -30,6 +30,7 @@ import { previewTaskRevisionCleanup } from './task-revision-cleanup';
 import { CommandTerminalRunner } from './command-terminal';
 import { ensureCardWorktree, previewCardWorktreeCleanup, reviewCardWorktree, verifiedCardWorktreePath } from './git-worktree';
 import { advanceAutomaticIntegrations, approveIntegration, enqueueIntegration, integrationPolicy, integrationQueue, prepareIntegration, setIntegrationPolicy } from './integration-queue';
+import { divergentIntegration, divergentIntegrationDiff, retryMissingDivergentIntegration, startDivergentIntegration } from './divergent-integration';
 import { integrationResultFolder } from './integration-results';
 import { runG02VisibleSmoke } from './smoke-g02';
 import { runG02AutoSmoke } from './smoke-g02-auto';
@@ -572,6 +573,16 @@ function installIpc(): void {
   bind('applyManualRevision', (input: Parameters<StudioAPI['applyManualRevision']>[0]) => applyManualRevision(db, input));
   bind('enqueueIntegration', (cardId: string) => enqueueIntegration(db, cardId));
   bind('prepareIntegration', (cardId: string) => prepareIntegration(db, cardId));
+  bind('divergentIntegration', (cardId: string) => divergentIntegration(db, cardId));
+  bind('startDivergentIntegration', (cardId: string) => startDivergentIntegration(db, cardId));
+  bind('retryMissingDivergentIntegration', (cardId: string) => retryMissingDivergentIntegration(db, cardId));
+  bind('divergentIntegrationDiff', (cardId: string) => divergentIntegrationDiff(db, cardId));
+  bind('openDivergentIntegration', async (cardId: string) => {
+    const attempt = divergentIntegration(db, cardId);
+    if (!attempt || attempt.state === 'missing') throw new Error('The assigned integration worktree is unavailable.');
+    const error = await shell.openPath(attempt.path);
+    if (error) throw new Error(error);
+  });
   bind('approveIntegration', (input: { cardId: string; confirm: boolean }) => approveIntegration(db, input));
   bind('integrationEvidence', (cardId: string) => integrationEvidence(db, cardId));
   bind('setIntegrationTestScript', (input: Parameters<StudioAPI['setIntegrationTestScript']>[0]) => setIntegrationTestScript(db, input));

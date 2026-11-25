@@ -1,0 +1,19 @@
+# Divergierte Karten sicher integrieren
+
+Wenn zwei Karten vom gleichen Zielcommit gestartet wurden, kann nur die zuerst übernommene Karte direkt vorgespult werden. Die zweite zeigt nach **Git-Stand neu prüfen** einen Blocker. **Integrations-Worktree anlegen** erstellt nach ausdrücklicher Bestätigung einen neuen, der Karte zugewiesenen Checkout vom aktuellen Zielcommit und startet darin `git merge --no-commit --no-ff` mit dem unveränderten Kartencommit. Der ursprüngliche Karten-Worktree und der Ziel-Checkout werden dabei nicht verändert. Frühere noch offene Karten desselben Repository-Zielbranches behalten Vorrang. Die Zuordnung zu Karten-ID, ursprünglichem Quellcommit, Zielcommit und Branch liegt dauerhaft in der lokalen SQLite-Datei; nach einem Neustart entsteht kein zweiter Versuch für dieselbe Karte.
+
+Branchloom zeigt den Pfad und gegebenenfalls die unaufgelösten Dateinamen im Kartendrawer. **Ordner öffnen** zeigt den zugewiesenen Checkout. Löse Konflikte dort mit Git und deinem Editor, stage die Dateien und committe den Merge im zugewiesenen Branch. Bei einem Merge ohne Dateikonflikte muss der bereits gestagte Merge ebenfalls ausdrücklich committet werden. Branchloom erstellt keinen Commit und überschreibt keine lokale Datei. Wenn ein Versuch beim Anlegen vor dem Checkout abbrach, kann **Fehlenden Checkout erneut versuchen** denselben zugewiesenen Pfad verwenden, aber nur wenn weder der Pfad noch der Branch existieren und der ursprüngliche Stand unverändert ist. Ein ersetzter oder veralteter Versuch bleibt gesperrt; Branchloom setzt ihn nicht zurück.
+
+Beispiel im Terminal **des angezeigten Integrations-Worktrees** (nur die tatsächlich geprüften Dateien stagen):
+
+```powershell
+git status
+git add -- <geprüfte-datei>
+git -c user.name="Dein Name" -c user.email="deine-adresse@example.com" commit -m "Merge reviewed card changes"
+```
+
+Wenn Git schon alle Dateien konfliktfrei gestagt hat, genügt der Commit-Schritt. In der App kann danach **Git-Stand neu prüfen** verwendet werden. Ein manuelles `rebase` des ursprünglichen Kartenbranches ist für diesen Weg nicht nötig.
+
+Klicke danach **Git-Stand neu prüfen**. Branchloom akzeptiert den Ergebniscommit nur, wenn der Integrations-Worktree sauber ist, der Commit sowohl den ursprünglichen Quell- als auch den Zielcommit enthält, die originale Karte und der Zielbranch unverändert sind und keine neu hinzugefügte Datei einen lokalen ignorierten Zielpfad überdecken würde. **Integrations-Diff öffnen** zeigt die Änderung des Ergebnisses gegen den gespeicherten Zielcommit. Die ausdrückliche Diff-Bestätigung bindet sich an den Ergebniscommit, Zielcommit und Kartenstand. Für divergierte Ergebnisse ist ein konfigurierter und bestandener npm-Integrationstest Pflicht; er läuft nach Bestätigung im separaten temporären Checkout genau dieses Ergebniscommits. Erst **Geprüft übernehmen** oder eine zuvor ausdrücklich eingeschaltete projektweite Automatik darf den geprüften Ergebniscommit per `git merge --ff-only` in den Zielcheckout übernehmen. Unmittelbar vor diesem Git-Schritt werden die gespeicherten Belege, die Queue-Reihenfolge, Kartenrevision, Quell- und Zielstand und Arbeitsbaumsauberkeit erneut geprüft. Ein zwischenzeitlicher Git- oder Kartenwechsel verlangt neue Vorbereitung und Belege.
+
+Die Integration behält den ursprünglichen Kartenbranch und den zugewiesenen Integrationsbranch. Es gibt noch keinen automatischen Agenten zum Konfliktlösen, keinen erneuten Integrationsversuch nach geänderter Basis und keine PR-Erstellung. Der Nutzer muss einen veralteten Versuch bewusst außerhalb dieses Ablaufs bearbeiten. Die Ergebnismappe zeigt weiterhin den tatsächlich in den Zielbranch übernommenen Ergebniscommit und die zugehörigen Review-/Testbelege.
