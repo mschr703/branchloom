@@ -6,6 +6,7 @@ export type UsagePeriod = 7 | 30;
 export interface UsageDay { key: string; label: string; runs: number }
 export interface AgentUsage { id: string; name: string; runs: number; durationMs: number; active: number; failed: number }
 export interface WorkflowUsage { id: string; name: string; origin: 'workflow' | 'queue'; runs: number; durationMs: number; failed: number }
+export interface CardUsage { id: string; title: string; runs: number; durationMs: number; unknownDurationCount: number; active: number; failed: number; agents: number }
 export interface ProjectUsage {
   truncated: boolean;
   runs: number;
@@ -17,6 +18,7 @@ export interface ProjectUsage {
   agents: AgentUsage[];
   origins: Record<UsageOrigin, number>;
   workflows: WorkflowUsage[];
+  cards: CardUsage[];
   days: UsageDay[];
 }
 
@@ -46,6 +48,7 @@ export function projectUsage(page: UsageSessionPage, agents: AgentPreset[], now:
   const byDay = new Map(days.map((day) => [day.key, day]));
   const byAgent = new Map<string, AgentUsage>();
   const byWorkflow = new Map<string, WorkflowUsage>();
+  const byCard = new Map<string, CardUsage & { agentIds: Set<string> }>();
   const origins: Record<UsageOrigin, number> = { direct: 0, workflow: 0, queue: 0, unknown: 0 };
   let active = 0;
   let failures = 0;
@@ -83,6 +86,19 @@ export function projectUsage(page: UsageSessionPage, agents: AgentPreset[], now:
     if (duration !== null) agent.durationMs += duration;
     if (isActive) agent.active += 1;
     if (isFailed) agent.failed += 1;
+    let card = byCard.get(session.cardId);
+    if (!card) {
+      card = { id: session.cardId, title: session.cardTitle, runs: 0, durationMs: 0,
+        unknownDurationCount: 0, active: 0, failed: 0, agents: 0, agentIds: new Set() };
+      byCard.set(session.cardId, card);
+    }
+    card.runs += 1;
+    card.agentIds.add(session.agentId);
+    card.agents = card.agentIds.size;
+    if (duration === null) card.unknownDurationCount += 1;
+    else card.durationMs += duration;
+    if (isActive) card.active += 1;
+    if (isFailed) card.failed += 1;
     if (session.workflowId && (origin === 'workflow' || origin === 'queue')) {
       let workflow = byWorkflow.get(session.workflowId);
       if (!workflow) {
@@ -98,6 +114,8 @@ export function projectUsage(page: UsageSessionPage, agents: AgentPreset[], now:
   return { truncated: page.truncated, runs, active, failed: failures, stopped, knownDurationMs, unknownDurationCount,
     agents: [...byAgent.values()].sort((a, b) => b.runs - a.runs || a.name.localeCompare(b.name, 'de')),
     origins, workflows: [...byWorkflow.values()].sort((a, b) => b.runs - a.runs || a.name.localeCompare(b.name, 'de')),
+    cards: [...byCard.values()].map(({ agentIds: _agentIds, ...card }) => card)
+      .sort((a, b) => b.runs - a.runs || a.title.localeCompare(b.title, 'de')),
     days };
 }
 

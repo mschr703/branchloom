@@ -9,8 +9,9 @@ import { UsageSourceBreakdown } from '../../src/renderer/components/UsagePanel';
 const now = Date.parse('2026-11-24T12:00:00.000Z');
 const agent = { id: 'a', name: 'Codex' } as AgentPreset;
 function session(id: string, state: UsageSession['state'], start: string, end: string | null, agentId = 'a', exitCode: number | null = null,
-  source: Pick<UsageSession, 'origin' | 'workflowId' | 'workflowName'> = { origin: 'direct', workflowId: null, workflowName: null }): UsageSession {
-  return { id, state, agentId, startedAt: start, endedAt: end, exitCode, ...source };
+  source: Pick<UsageSession, 'origin' | 'workflowId' | 'workflowName'> = { origin: 'direct', workflowId: null, workflowName: null },
+  card: Pick<UsageSession, 'cardId' | 'cardTitle'> = { cardId: `card-${id}`, cardTitle: `Task ${id}` }): UsageSession {
+  return { id, state, agentId, startedAt: start, endedAt: end, exitCode, ...source, ...card };
 }
 
 describe('local usage aggregation', () => {
@@ -74,6 +75,23 @@ describe('local usage aggregation', () => {
     const end = new Date(start);
     end.setDate(end.getDate() + 6);
     expect(end.toDateString()).toBe(new Date(now).toDateString());
+  });
+
+  it('groups only stored task runs and distinct agents, preserving missing durations', () => {
+    const direct = { origin: 'direct', workflowId: null, workflowName: null } as const;
+    const card = { cardId: 'card-a', cardTitle: 'Review task' };
+    const usage = projectUsage({ truncated: false, sessions: [
+      session('first', 'exited', '2026-11-24T10:00:00.000Z', '2026-11-24T10:10:00.000Z', 'a', 0, direct, card),
+      session('second', 'failed', '2026-11-24T10:20:00.000Z', null, 'b', 1, direct, card),
+      session('third', 'running', '2026-11-24T11:00:00.000Z', null, 'a', null, direct, card),
+      session('other', 'exited', '2026-11-24T09:00:00.000Z', '2026-11-24T09:05:00.000Z', 'a'),
+    ] }, [agent], now, 7);
+    expect(usage.cards).toEqual([
+      { id: 'card-a', title: 'Review task', runs: 3, durationMs: 70 * 60_000,
+        unknownDurationCount: 1, active: 1, failed: 1, agents: 2 },
+      { id: 'card-other', title: 'Task other', runs: 1, durationMs: 5 * 60_000,
+        unknownDurationCount: 0, active: 0, failed: 0, agents: 1 },
+    ]);
   });
 
   it('renders explicit source evidence and workflow actions without a token estimate', () => {

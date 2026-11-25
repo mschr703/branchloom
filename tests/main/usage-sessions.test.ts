@@ -32,7 +32,10 @@ describe('usage session read', () => {
       const page = store.usageSessions({ projectId: project.id, since: new Date(Date.now() - 86_400_000).toISOString() });
       expect(page).toMatchObject({ truncated: false });
       expect(page.sessions).toHaveLength(202);
-      expect(page.sessions.find((run) => run.id === first.id)).toMatchObject({ state: 'failed', exitCode: 1 });
+      expect(page.sessions.find((run) => run.id === first.id)).toMatchObject({
+        state: 'failed', exitCode: 1, cardId: card.id, cardTitle: 'Synthetic task',
+      });
+      expect(page.sessions.every((run) => run.cardId === card.id && run.cardTitle === 'Synthetic task')).toBe(true);
       expect(JSON.stringify(page)).not.toContain('PRIVATE TOKEN');
       expect(page.sessions.every((run) => !('output' in run))).toBe(true);
       expect(store.usageSessions({ projectId: other.id, since: new Date(Date.now() - 86_400_000).toISOString() }).sessions).toHaveLength(1);

@@ -368,15 +368,15 @@ export class StudioStore {
     const sinceMs = Date.parse(input.since);
     if (!Number.isFinite(sinceMs) || sinceMs > Date.now() || Date.now() - sinceMs > 35 * 86_400_000) throw new Error('Usage range must be within 35 days.');
     this.project(input.projectId);
-    const rows = this.db.prepare(`SELECT s.id, s.agent_id, s.state, s.started_at, s.ended_at, s.exit_code,
+    const rows = this.db.prepare(`SELECT s.id, s.card_id, c.title AS card_title, s.agent_id, s.state, s.started_at, s.ended_at, s.exit_code,
       COALESCE(u.origin, 'unknown') AS origin, u.workflow_id, u.workflow_name
-      FROM sessions s LEFT JOIN session_usage_origins u ON u.session_id = s.id
+      FROM sessions s JOIN cards c ON c.id = s.card_id LEFT JOIN session_usage_origins u ON u.session_id = s.id
       WHERE s.project_id = ? AND s.started_at >= ? ORDER BY s.started_at DESC, s.id DESC LIMIT 10001`)
-      .all(input.projectId, input.since) as Array<Pick<SessionRow, 'id' | 'agent_id' | 'state' | 'started_at' | 'ended_at' | 'exit_code'> & {
-        origin: 'direct' | 'workflow' | 'queue' | 'unknown'; workflow_id: string | null; workflow_name: string | null;
+      .all(input.projectId, input.since) as Array<Pick<SessionRow, 'id' | 'card_id' | 'agent_id' | 'state' | 'started_at' | 'ended_at' | 'exit_code'> & {
+        card_title: string; origin: 'direct' | 'workflow' | 'queue' | 'unknown'; workflow_id: string | null; workflow_name: string | null;
       }>;
     return { truncated: rows.length > 10000, sessions: rows.slice(0, 10000).map((row) => ({
-      id: row.id, agentId: row.agent_id, state: row.state, startedAt: row.started_at,
+      id: row.id, cardId: row.card_id, cardTitle: row.card_title, agentId: row.agent_id, state: row.state, startedAt: row.started_at,
       endedAt: row.ended_at, exitCode: row.exit_code,
       origin: row.origin, workflowId: row.workflow_id, workflowName: row.workflow_name,
     })) };

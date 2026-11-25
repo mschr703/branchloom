@@ -41,6 +41,16 @@
 .usage-workflow-list button { cursor: pointer; }
 .usage-workflow-list button:hover { background: var(--surface-2); }
 .usage-workflow-list button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.usage-cards { margin-top: 30px; }
+.usage-card-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; }
+.usage-card-row { min-width: 0; display: grid; gap: 4px; width: 100%; padding: 12px 2px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); text-align: left; font: inherit; cursor: pointer; }
+.usage-card-row:hover { background: var(--surface-2); }
+.usage-card-row:focus-visible, .usage-card-toggle:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.usage-card-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
+.usage-card-details { color: var(--muted); font-size: 11px; line-height: 1.4; font-variant-numeric: tabular-nums; }
+.usage-card-row.is-missing { cursor: default; }
+.usage-card-row.is-missing > span:last-child { color: var(--muted); font-size: 11px; }
+.usage-card-toggle { margin-top: 10px; padding: 5px 2px; border: 0; background: transparent; color: var(--accent); font: inherit; font-size: 12px; cursor: pointer; }
 .usage-workflow-list button > span:first-child, .usage-workflow-missing > span:first-child { display: grid; gap: 4px; min-width: 0; }
 .usage-workflow-list strong { overflow-wrap: anywhere; font-weight: 650; }
 .usage-workflow-list small, .usage-more { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
@@ -49,5 +59,5 @@
 .usage-provenance { max-width: 75ch; margin: 30px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .usage-load-state { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; min-height: 100px; }
 .usage-limit { color: var(--warning); background: var(--warning-bg); border-left: 3px solid var(--warning); padding: 10px 12px; font-size: 12px; }
-@media (max-width: 900px) { .usage-numbers { grid-template-columns: repeat(3, 1fr); } .usage-numbers > div:nth-child(4) { border-left: 0; } .usage-analysis { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .usage-numbers { grid-template-columns: repeat(3, 1fr); } .usage-numbers > div:nth-child(4) { border-left: 0; } .usage-analysis, .usage-card-list { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .usage-toolbar { align-items: flex-start; flex-direction: column; } .usage-numbers { grid-template-columns: repeat(2, 1fr); } .usage-numbers > div { padding: 16px 10px; } .usage-numbers > div:nth-child(odd) { border-left: 0; padding-left: 0; } .usage-numbers > div:nth-child(4) { border-left: 1px solid var(--border); } .usage-bars { min-width: 0; } .usage-telemetry { flex-direction: column; gap: 3px; } }

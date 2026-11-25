@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ProjectSnapshot } from '../../shared/types';
 import type { UsageSessionPage } from '../../shared/usage';
-import { formatUsageDuration, projectUsage, usageStart, type ProjectUsage, type UsagePeriod } from '../usage-data';
+import { formatUsageDuration, projectUsage, usageStart, type CardUsage, type ProjectUsage, type UsagePeriod } from '../usage-data';
 import '../usage.css';
 
-interface Props { snapshot: ProjectSnapshot; now: number; onShowAgent: (name: string) => void; onOpenWorkflow: (id: string) => void }
+interface Props { snapshot: ProjectSnapshot; now: number; onShowAgent: (name: string) => void; onOpenWorkflow: (id: string) => void; onOpenCard: (id: string) => void }
+
+function cardDetails(card: CardUsage): string {
+  const duration = card.unknownDurationCount === card.runs ? 'Laufzeit nicht belegt' : formatUsageDuration(card.durationMs);
+  const missing = card.unknownDurationCount && card.unknownDurationCount < card.runs
+    ? ` · ${card.unknownDurationCount} ohne Zeitbeleg` : '';
+  return `${card.runs} ${card.runs === 1 ? 'Lauf' : 'Läufe'} · ${card.agents} ${card.agents === 1 ? 'Agent' : 'Agenten'} · ${duration}${missing}${card.failed ? ` · ${card.failed} fehlgeschlagen` : ''}${card.active ? ` · ${card.active} aktiv` : ''}`;
+}
 
 export function UsageSourceBreakdown({ usage, availableWorkflowIds, onOpenWorkflow }: {
   usage: ProjectUsage; availableWorkflowIds: ReadonlySet<string>; onOpenWorkflow: (id: string) => void;
@@ -29,8 +36,9 @@ export function UsageSourceBreakdown({ usage, availableWorkflowIds, onOpenWorkfl
   </>;
 }
 
-export function UsagePanel({ snapshot, now, onShowAgent, onOpenWorkflow }: Props) {
+export function UsagePanel({ snapshot, now, onShowAgent, onOpenWorkflow, onOpenCard }: Props) {
   const [period, setPeriod] = useState<UsagePeriod>(7);
+  const [visibleCards, setVisibleCards] = useState(8);
   const [page, setPage] = useState<UsageSessionPage | null>(null);
   const [error, setError] = useState(false);
   const [retry, setRetry] = useState(0);
@@ -46,11 +54,12 @@ export function UsagePanel({ snapshot, now, onShowAgent, onOpenWorkflow }: Props
     return () => { active = false; };
   }, [snapshot.project.id, period, currentDay, sessionRevision, retry]);
   const usage = useMemo(() => page ? projectUsage(page, snapshot.agents, now, period) : null, [page, snapshot.agents, now, period]);
+  const availableCardIds = useMemo(() => new Set(snapshot.cards.map((card) => card.id)), [snapshot.cards]);
   const maxRuns = Math.max(1, ...(usage?.days.map((day) => day.runs) ?? []));
   return <section className="usage-panel" aria-label="Projektnutzung">
     <div className="usage-toolbar"><p>Gespeicherte lokale Agentenläufe dieses Projekts</p><div className="usage-period" role="group" aria-label="Zeitraum">
-      <button type="button" aria-pressed={period === 7} onClick={() => setPeriod(7)}>7 Tage</button>
-      <button type="button" aria-pressed={period === 30} onClick={() => setPeriod(30)}>30 Tage</button>
+      <button type="button" aria-pressed={period === 7} onClick={() => { setPeriod(7); setVisibleCards(8); }}>7 Tage</button>
+      <button type="button" aria-pressed={period === 30} onClick={() => { setPeriod(30); setVisibleCards(8); }}>30 Tage</button>
     </div></div>
     {error ? <div className="usage-load-state" role="alert">Nutzungsdaten konnten nicht geladen werden. <button type="button" className="secondary-button small" onClick={() => setRetry((value) => value + 1)}>Erneut laden</button></div>
       : !usage ? <p className="usage-load-state" role="status">Nutzungsdaten werden geladen…</p> : <>
@@ -81,6 +90,19 @@ export function UsagePanel({ snapshot, now, onShowAgent, onOpenWorkflow }: Props
         <UsageSourceBreakdown usage={usage} availableWorkflowIds={new Set(snapshot.workflows.map((workflow) => workflow.id))} onOpenWorkflow={onOpenWorkflow} />
       </section>
     </div>
+    <section className="usage-cards" aria-label="Nutzung nach Aufgabe">
+      <div className="usage-section-head"><h3>Aufgaben</h3><span>{usage.cards.length} mit gespeichertem Lauf</span></div>
+      {usage.cards.length ? <div className="usage-card-list">{usage.cards.slice(0, visibleCards).map((card) => {
+        const details = cardDetails(card);
+        const content = <><span className="usage-card-title">{card.title}</span><span className="usage-card-details">{details}</span></>;
+        return availableCardIds.has(card.id)
+          ? <button type="button" key={card.id} className="usage-card-row" onClick={() => onOpenCard(card.id)} aria-label={`${card.title}: ${details}; Aufgabe öffnen`}>{content}</button>
+          : <div key={card.id} className="usage-card-row is-missing">{content}<span>Aufgabe nicht mehr verfügbar</span></div>;
+      })}</div> : <p className="usage-empty">In diesem Zeitraum gibt es keine gespeicherten Aufgabenläufe.</p>}
+      {usage.cards.length > visibleCards ? <button type="button" className="usage-card-toggle" onClick={() => setVisibleCards((value) => value + 40)}>
+        Weitere {Math.min(40, usage.cards.length - visibleCards)} Aufgaben anzeigen
+      </button> : null}
+    </section>
     <p className="usage-provenance">Quelle: lokale Sitzungseinträge und gespeicherte Startzuordnung. Laufzeiten sind summiert; parallele Läufe überschneiden sich. Vor dieser Zuordnung gespeicherte Sitzungen ohne eindeutigen Workflow-Beleg erscheinen als „Historisch ungeklärt“.</p>
     </>}
   </section>;

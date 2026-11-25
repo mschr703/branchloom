@@ -29,9 +29,12 @@ export async function runUsageSmoke(window: BrowserWindow, store: StudioStore, r
   const old = store.createSession({ cardId: card('Historical run').id, agentId });
   store.finishSession(old.id, 'stopped', null);
   store.db.prepare('DELETE FROM session_usage_origins WHERE session_id = ?').run(old.id);
+  store.db.prepare('UPDATE sessions SET ended_at = NULL WHERE id = ?').run(old.id);
   const source = store.usageSessions({ projectId: project.id, since: new Date(Date.now() - 86_400_000).toISOString() });
   if (source.sessions.length !== 4 || source.sessions.find((item) => item.id === old.id)?.origin !== 'unknown'
-    || source.sessions.find((item) => item.id === queued.id)?.origin !== 'queue') throw new Error('Usage metadata does not match synthetic sources.');
+    || source.sessions.find((item) => item.id === queued.id)?.origin !== 'queue'
+    || source.sessions.find((item) => item.id === linked.id)?.cardTitle !== 'Workflow run')
+    throw new Error('Usage metadata does not match synthetic sources.');
   await new Promise<void>((resolve) => { window.webContents.once('did-finish-load', () => resolve()); window.webContents.reload(); });
   await window.webContents.executeJavaScript(`(async () => {
     const wait = async (predicate, label) => {
@@ -61,6 +64,13 @@ export async function runUsageSmoke(window: BrowserWindow, store: StudioStore, r
     const tokens = document.querySelector('.usage-telemetry')?.textContent ?? '';
     if (!tokens.includes('Kein verifizierter Wert') || document.querySelector('.usage-panel')?.textContent?.includes('0 Token'))
       throw new Error('Missing honest token and cost state.');
+    const taskLinks = [...document.querySelectorAll('.usage-card-list button')];
+    if (taskLinks.length !== 4 || !taskLinks.some((item) => item.textContent?.includes('Workflow run')))
+      throw new Error('Stored task run breakdown is not visible.');
+    if (!taskLinks.some((item) => item.textContent?.includes('Historical run') && item.textContent?.includes('Laufzeit nicht belegt')))
+      throw new Error('Unknown task duration must not be displayed as zero.');
+    taskLinks[0].focus();
+    if (document.activeElement !== taskLinks[0]) throw new Error('Task source is not keyboard focusable.');
     const links = [...document.querySelectorAll('.usage-workflow-list button')];
     if (links.length !== 2 || !links.some((item) => item.textContent?.includes('Usage route'))
       || !links.some((item) => item.textContent?.includes('Usage queue')))
@@ -70,6 +80,14 @@ export async function runUsageSmoke(window: BrowserWindow, store: StudioStore, r
     const queueLink = links.find((item) => item.textContent?.includes('Usage queue'));
     queueLink.click();
     await wait(() => document.getElementById('workflow-' + ${JSON.stringify(queue.id)})?.textContent?.includes('Usage queue'), 'workflow source navigation');
+    nav.click();
+    const usageAgain = await wait(() => [...document.querySelectorAll('.activity-section-switch button')]
+      .find((item) => item.textContent?.trim() === 'Nutzung'), 'usage tab after workflow');
+    usageAgain.click();
+    const taskLink = await wait(() => [...document.querySelectorAll('.usage-card-list button')]
+      .find((item) => item.textContent?.includes('Workflow run')), 'task source link');
+    taskLink.click();
+    await wait(() => document.querySelector('.card-drawer')?.textContent?.includes('Workflow run'), 'task source navigation');
     return true;
   })()`);
 }
