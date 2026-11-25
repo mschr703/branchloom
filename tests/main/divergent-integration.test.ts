@@ -82,7 +82,7 @@ describe('divergent integration worktree', () => {
   }, 120_000);
 
   it('keeps both original branches and merges only a freshly reviewed and tested committed result', async () => {
-    const { repo, dbPath, store, project, card, finish } = fixture();
+    const { root, repo, dbPath, store, project, card, finish } = fixture();
     try {
       const first = card('First'); const second = card('Second');
       const a = finish(first.id, 'first.txt', 'first');
@@ -92,7 +92,29 @@ describe('divergent integration worktree', () => {
       attestIntegrationReview(store, { cardId: first.id, confirm: true });
       approveIntegration(store, { cardId: first.id, confirm: true });
       expect(prepareIntegration(store, second.id).state).toBe('blocked');
-      const attempt = startDivergentIntegration(store, second.id);
+      const configPath = join(root, 'empty-gitconfig');
+      writeFileSync(configPath, '');
+      const originalConfig = process.env.GIT_CONFIG_GLOBAL;
+      const originalSystem = process.env.GIT_CONFIG_NOSYSTEM;
+      const originalCommitterName = process.env.GIT_COMMITTER_NAME;
+      const originalCommitterEmail = process.env.GIT_COMMITTER_EMAIL;
+      let attempt: ReturnType<typeof startDivergentIntegration>;
+      try {
+        process.env.GIT_CONFIG_GLOBAL = configPath;
+        process.env.GIT_CONFIG_NOSYSTEM = '1';
+        delete process.env.GIT_COMMITTER_NAME;
+        delete process.env.GIT_COMMITTER_EMAIL;
+        attempt = startDivergentIntegration(store, second.id);
+      } finally {
+        if (originalConfig === undefined) delete process.env.GIT_CONFIG_GLOBAL;
+        else process.env.GIT_CONFIG_GLOBAL = originalConfig;
+        if (originalSystem === undefined) delete process.env.GIT_CONFIG_NOSYSTEM;
+        else process.env.GIT_CONFIG_NOSYSTEM = originalSystem;
+        if (originalCommitterName === undefined) delete process.env.GIT_COMMITTER_NAME;
+        else process.env.GIT_COMMITTER_NAME = originalCommitterName;
+        if (originalCommitterEmail === undefined) delete process.env.GIT_COMMITTER_EMAIL;
+        else process.env.GIT_COMMITTER_EMAIL = originalCommitterEmail;
+      }
       expect(attempt).toMatchObject({ state: 'merging', originalSourceHead: b.head, targetHead: a.head, conflicts: [] });
       expect(existsSync(attempt.path)).toBe(true);
       expect(git(repo, ['rev-parse', 'HEAD'])).toBe(a.head);

@@ -177,7 +177,10 @@ function createDivergentIntegration(store: StudioStore, cardId: string, retryMis
   const hooks = mkdtempSync(join(tmpdir(), 'branchloom-merge-hooks-'));
   try {
     git(review.targetPath, ['-c', `core.hooksPath=${hooks}`, 'worktree', 'add', '-b', branch, '--', path, queued.target_head]);
-    const merge = git(path, ['-c', `core.hooksPath=${hooks}`, 'merge', '--no-commit', '--no-ff', '--no-edit', queued.source_head], true);
+    // Git validates a committer even for --no-commit. Supply an ephemeral identity
+    // for merge preparation without changing the repository or the user's commits.
+    const merge = git(path, ['-c', `core.hooksPath=${hooks}`, '-c', 'user.name=Branchloom Merge Preparation',
+      '-c', 'user.email=merge-preparation@branchloom.invalid', 'merge', '--no-commit', '--no-ff', '--no-edit', queued.source_head], true);
     if (merge.status === 1) {
       const marker = git(path, ['rev-parse', '--path-format=absolute', '--git-path', 'MERGE_HEAD']).output;
       if (!existsSync(marker)) throw new Error('Git merge failed without a resumable conflict state. The worktree was preserved.');
