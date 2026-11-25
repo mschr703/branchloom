@@ -44,8 +44,10 @@ export async function runG02AutoSmoke(window: BrowserWindow, store: StudioStore,
     const panel = () => document.querySelector('.card-drawer [aria-label="Integrationswarteschlange"]');
     const button = (text) => [...(panel()?.querySelectorAll('button') ?? [])].find((item) => item.textContent?.includes(text));
     const click = async (text) => {
-      const target = await wait(() => button(text), text);
-      if (target.disabled || !target.isConnected) throw new Error('G02 auto action disabled: ' + text);
+      const target = await wait(() => {
+        const candidate = button(text);
+        return candidate && !candidate.disabled && candidate.isConnected ? candidate : null;
+      }, 'enabled ' + text);
       target.click();
     };
     let confirmations = 0;

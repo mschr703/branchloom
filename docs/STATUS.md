@@ -5,6 +5,7 @@ Stand: 25.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollst�
 ## Aktuelle Windows-Abnahme
 
 - [CI 45543341615](https://github.com/mschr703/branchloom/actions/runs/45543341615) für `054615f` bestand vollständig: Verify, portables Windows-Paket und Installer samt Paket-Smoke und Paketprüfung. Damit ist der frühere 120-Sekunden-Smoke-Timeout behoben und der bis dahin integrierte F01/F08-Stand paketiert geprüft. Neuere G02-/F03-Commits brauchen noch ihre eigene CI-Abnahme.
+- [CI 45544635511](https://github.com/mschr703/branchloom/actions/runs/45544635511) für `bca0444` bestand die Gesamtsuite und die manuellen G02-/F03-Prüfungen, scheiterte aber im neuen G02-Automatik-Smoke: Der Test klickte „Diff öffnen“ noch während der Button vorübergehend gesperrt war. Der Test wartet jetzt auf den aktivierten Button; die erneute CI-Abnahme steht aus.
 
 ## F03 eigene Fassung je Konfliktblock (isolierter Zweig)
 
