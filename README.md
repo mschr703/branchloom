@@ -54,9 +54,11 @@ Memory indexes saved work and Git sources; its focused graph shows stored links 
 <details>
 <summary>Design workspace</summary>
 
+![Branchloom Design workspace with a blank synthetic artboard](docs/assets/branchloom-design-blank.png)
+
 ![Branchloom Design workspace editing a synthetic wireframe with layers and properties](docs/assets/branchloom-design.png)
 
-This synthetic draft was edited in the app; it is a local design sketch, not generated production code. In the separate inspection view, you can select an element of a running local app, test a few visual properties temporarily, and turn the tested change into an editable task. Saving the task and starting an agent remain separate choices. [Wireframes](docs/CARD_WIREFRAME.md) · [Design inspection](docs/DESIGN_INSPECTION.md).
+Start with a blank artboard or a simple window template, then edit elements, layers, and properties. These synthetic drafts are local design sketches, not generated production code. In the separate inspection view, you can select an element of a running local app, test a few visual properties temporarily, and turn the tested change into an editable task. Saving the task and starting an agent remain separate choices. [Wireframes](docs/CARD_WIREFRAME.md) · [Design inspection](docs/DESIGN_INSPECTION.md).
 
 </details>
 
