@@ -73,6 +73,7 @@ import { agentBrowserPolicy, setAgentBrowserPolicy } from './agent-browser-polic
 import { AgentBrowserBridge } from './agent-browser-bridge';
 import { inspectAgentBrowserPage } from './agent-browser-inspector';
 import { DevEnvironmentRunner, devEnvironmentAudit, devEnvironmentProfile, saveDevEnvironmentProfile, startApprovedDevEnvironment } from './dev-environment';
+import { runF01VisibleSmoke } from './smoke-f01';
 import { DevAccountBrowser } from './dev-account-browser';
 import { assignDevAccount, createDevAccount, devAccountForProject, devAccountOverview } from './dev-account';
 import { GuidedDevEnvironment, inspectDevEnvironment } from './guided-dev-environment';
@@ -110,10 +111,11 @@ let releaseStartTimer: NodeJS.Timeout | null = null;
 let integrationAutoTimer: NodeJS.Timeout | null = null;
 let smokeQaServer: ReturnType<typeof createServer> | null = null;
 const smokeF06 = process.argv.includes('--studio-smoke-f06');
+const smokeF01 = process.argv.includes('--studio-smoke-f01');
 const smokeF03 = process.argv.includes('--studio-smoke-f03');
 const g02Smoke = process.argv.includes('--studio-smoke-g02');
 const smokeG02Auto = process.argv.includes('--studio-smoke-g02-auto');
-const smoke = process.argv.includes('--studio-smoke') || smokeF03 || smokeF06 || g02Smoke || smokeG02Auto;
+const smoke = process.argv.includes('--studio-smoke') || smokeF01 || smokeF03 || smokeF06 || g02Smoke || smokeG02Auto;
 const smokeDataDirectory = smoke ? mkdtempSync(join(tmpdir(), 'branchloom-smoke-')) : null;
 const devDataDirectory = !app.isPackaged ? process.env.BRANCHLOOM_DEV_USER_DATA : undefined;
 if (smokeDataDirectory) {
@@ -893,7 +895,14 @@ function createWindow(): void {
   // source modes, so it cannot decide this on its own.
   if (!app.isPackaged && process.env.JARVIS_STUDIO_DEV_SERVER === '1') void window.loadURL('http://127.0.0.1:5181');
   else void window.loadFile(join(__dirname, '../../dist/renderer/index.html'));
-  if (smokeG02Auto) {
+  if (smokeF01) {
+    window.webContents.once('did-finish-load', () => {
+      void runF01VisibleSmoke(window!, mustStore(), devEnvironmentRunner!, smokeDataDirectory!).then(() => {
+        process.stdout.write('STUDIO_SMOKE_F01_OK\n');
+        app.quit();
+      }).catch((error: unknown) => { console.error('STUDIO_SMOKE_F01_FAILED', error); app.exit(1); });
+    });
+  } else if (smokeG02Auto) {
     window.webContents.once('did-finish-load', () => {
       void runG02AutoSmoke(window!, mustStore(), smokeDataDirectory!).then(() => {
         process.stdout.write('G02_AUTO_SMOKE_OK\n');
