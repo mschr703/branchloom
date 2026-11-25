@@ -32,7 +32,8 @@ function fixture() {
   const runner = { card: () => environment, verifyCurrentPreview: () => environment, verifyCurrentPreviewAsync: async () => environment } as unknown as DevEnvironmentRunner;
   const actions: BugReplayAction[] = [{ kind: 'click', target: { kind: 'id', value: 'menu' } }, { kind: 'resize', width: 390, height: 844 }];
   const capture: BugCaptureDraft = { token: 'synthetic-token', projectId: project.id, url: 'http://127.0.0.1:5173/settings', width: 1280, height: 800,
-    actions, ignoredClicks: 0, startedAt: '2026-11-25T08:00:00.000Z' };
+    actions, diagnostics: [{ kind: 'console', category: 'TypeError', line: 42, capturedAt: '2026-11-25T08:00:01.000Z' }],
+    ignoredClicks: 0, startedAt: '2026-11-25T08:00:00.000Z' };
   return { root, repo, dbPath, store, project, card, git, environment, runner, actions, capture };
 }
 
@@ -41,7 +42,8 @@ describe('recorded local bug scenarios', () => {
     const f = fixture();
     const scenario = saveBugScenario(f.store, f.runner, f.capture, { cardId: f.card.id, actions: f.actions,
       expectation: { target: { kind: 'id', value: 'filter' }, state: 'visible' } });
-    expect(bugScenarios(f.store, f.card.id)).toMatchObject([{ id: scenario.id, actions: f.actions }]);
+    expect(bugScenarios(f.store, f.card.id)).toMatchObject([{ id: scenario.id, actions: f.actions,
+      diagnostics: [{ category: 'TypeError', line: 42 }] }]);
     f.store.close();
     const reopened = new StudioStore(f.dbPath);
     try {
@@ -59,6 +61,7 @@ describe('recorded local bug scenarios', () => {
         gitEvidence: { state: 'clean', startHead: f.git('rev-parse', 'HEAD') } });
       const after = await runBugScenario(reopened, f.runner, scenario.id, async () => ({ status: 'passed', observed: 'Erwartetes Element ist sichtbar.', width: 390, height: 844 }));
       expect(after.status).toBe('passed');
+      expect(bugScenarios(reopened, f.card.id)[0]?.diagnostics).toEqual(f.capture.diagnostics);
       expect(bugScenarioRuns(reopened, scenario.id).map((item) => item.status)).toEqual(['passed', 'failed']);
       expect(replay).toHaveBeenCalledOnce();
     } finally { reopened.close(); }
@@ -75,8 +78,13 @@ describe('recorded local bug scenarios', () => {
       const otherCard = f.store.createCard({ projectId: other.id, columnId: f.store.snapshot(other.id).columns[0]!.id, title: 'Other' });
       expect(() => saveBugScenario(f.store, f.runner, f.capture, { cardId: otherCard.id, actions: f.actions,
         expectation: { target: { kind: 'id', value: 'filter' }, state: 'visible' } })).toThrow('Aufnahmeprojekt');
-      const scenario = saveBugScenario(f.store, f.runner, f.capture, { cardId: f.card.id, actions: [f.actions[0]!],
+      const withPrivateDiagnostic = { ...f.capture, diagnostics: [{ ...f.capture.diagnostics[0]!, message: 'token=private' }] } as BugCaptureDraft;
+      const scenario = saveBugScenario(f.store, f.runner, withPrivateDiagnostic, { cardId: f.card.id, actions: [f.actions[0]!],
         expectation: { target: { kind: 'id', value: 'filter' }, state: 'visible' } });
+      expect(scenario.diagnostics).toEqual(f.capture.diagnostics);
+      expect(JSON.stringify(scenario)).not.toContain('token=private');
+      expect(() => saveBugScenario(f.store, f.runner, { ...f.capture, diagnostics: [{ kind: 'console', category: 'Private email: user@example.invalid', line: 1, capturedAt: '2026-11-25T08:00:01.000Z' }] } as unknown as BugCaptureDraft,
+        { cardId: f.card.id, actions: [f.actions[0]!], expectation: { target: { kind: 'id', value: 'filter' }, state: 'visible' } })).toThrow('Fehlerhinweis');
       writeFileSync(join(f.repo, 'index.html'), 'dirty');
       const dirty = await runBugScenario(f.store, f.runner, scenario.id, async () => ({ status: 'passed', observed: 'Element ist sichtbar.', width: 1280, height: 800 }));
       expect(dirty).toMatchObject({ status: 'error', gitEvidence: { state: 'dirty' } });

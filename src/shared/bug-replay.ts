@@ -2,6 +2,7 @@ import type { QaGitEvidence } from './qa-git-evidence';
 
 export type BugReplayTarget = { kind: 'test-id' | 'id'; value: string };
 export type BugReplayAction = { kind: 'click'; target: BugReplayTarget } | { kind: 'resize'; width: number; height: number };
+export type BugDiagnosticReference = { kind: 'console' | 'load'; category: 'TypeError' | 'ReferenceError' | 'SyntaxError' | 'RangeError' | 'NetworkError' | 'ConsoleError' | 'LoadError'; line: number | null; capturedAt: string };
 
 /** A capture stays in memory until the user explicitly saves it on a card. */
 export interface BugCaptureDraft {
@@ -11,6 +12,7 @@ export interface BugCaptureDraft {
   width: number;
   height: number;
   actions: BugReplayAction[];
+  diagnostics: BugDiagnosticReference[];
   ignoredClicks: number;
   startedAt: string;
 }
@@ -23,6 +25,7 @@ export interface BugScenario {
   width: number;
   height: number;
   actions: BugReplayAction[];
+  diagnostics: BugDiagnosticReference[];
   expectation: { target: BugReplayTarget; state: 'visible' | 'hidden' };
   cardRevision: number;
   environmentProfile: string;

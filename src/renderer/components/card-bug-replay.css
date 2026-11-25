@@ -14,3 +14,9 @@
 .card-bug-runs strong.passed { color: var(--accent); }
 .card-bug-runs strong.failed, .card-bug-runs strong.error { color: var(--danger); }
 .card-bug-runs p { margin: 3px 0 0; color: var(--muted); overflow-wrap: anywhere; }
+.card-bug-evidence { margin-top: 5px; }
+.card-bug-evidence summary { display: list-item; width: max-content; max-width: 100%; color: var(--muted); }
+.card-bug-evidence dl { display: grid; grid-template-columns: minmax(130px, 0.45fr) minmax(0, 1fr); gap: 3px 10px; margin: 7px 0; }
+.card-bug-evidence dt { color: var(--muted); }
+.card-bug-evidence dd { margin: 0; overflow-wrap: anywhere; }
+.card-bug-evidence code { user-select: text; }

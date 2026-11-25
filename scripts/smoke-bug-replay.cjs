@@ -10,10 +10,11 @@ async function main() {
   const server = createServer((_request, response) => {
     if (_request.method === 'POST') { writes++; response.end('unexpected write'); return; }
     response.setHeader('content-type', 'text/html; charset=utf-8');
-    response.end(`<!doctype html><title>Synthetic bug replay</title><button id="menu">Menu</button><button id="post">Write</button><button id="duplicate">One</button><button id="duplicate">Two</button><button id="filter" style="display:none">Filter</button><script>
-      document.getElementById('menu').addEventListener('click', () => {
-        if (${fixed}) document.getElementById('filter').style.display = 'block';
-      }); document.getElementById('post').addEventListener('click', () => { fetch('/write', { method: 'POST' }).catch(() => undefined); });</script>`);
+    response.end(`<!doctype html><title>Synthetic bug replay</title><button id="menu">Menu</button><button id="post">Write</button><button id="duplicate">One</button><button id="duplicate">Two</button><button id="filter">Filter</button><div style="position:relative;width:120px;height:40px"><button id="covered" style="width:120px;height:40px">Covered</button><div style="position:absolute;inset:0;background:#ddd">Overlay</div></div><script>
+      let menuOpened = false;
+      document.getElementById('menu').addEventListener('click', () => { menuOpened = true; });
+      window.addEventListener('resize', () => { if (menuOpened && !${fixed} && innerWidth <= 500) document.getElementById('filter')?.remove(); });
+      document.getElementById('post').addEventListener('click', () => { fetch('/write', { method: 'POST' }).catch(() => undefined); });</script>`);
   });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   try {
@@ -31,6 +32,8 @@ async function main() {
     if (write.status !== 'error' || writes !== 0) throw new Error(`Write request escaped replay guard: ${JSON.stringify(write)}; writes=${writes}`);
     const ambiguous = await electronBugReplayBrowser(url, 900, 700, [{ kind: 'click', target: { kind: 'id', value: 'duplicate' } }], { target: { kind: 'id', value: 'menu' }, state: 'visible' }, verify);
     if (ambiguous.status !== 'error') throw new Error(`Ambiguous click was accepted: ${JSON.stringify(ambiguous)}`);
+    const covered = await electronBugReplayBrowser(url, 900, 700, [{ kind: 'click', target: { kind: 'id', value: 'covered' } }], { target: { kind: 'id', value: 'menu' }, state: 'visible' }, verify);
+    if (covered.status !== 'error' || !covered.observed.includes('verdeckt')) throw new Error(`Covered click was accepted: ${JSON.stringify(covered)}`);
     fixed = true;
     const repaired = await electronBugReplayBrowser(url, 900, 700, actions, expected, verify);
     if (repaired.status !== 'passed') throw new Error(`Fixed case was not accepted: ${JSON.stringify(repaired)}`);

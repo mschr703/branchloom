@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { BrowserWindow } from 'electron';
 import type Database from 'better-sqlite3';
-import type { BugCaptureDraft, BugReplayAction, BugReplayResult, BugReplayTarget, BugScenario } from '../shared/bug-replay';
+import type { BugCaptureDraft, BugDiagnosticReference, BugReplayAction, BugReplayResult, BugReplayTarget, BugScenario } from '../shared/bug-replay';
 import { normalizeCardQaUrl } from './card-qa';
 import { devEnvironmentProfile } from './dev-environment';
 import { qaGitEvidence, qaGitPoint } from './qa-git-evidence';
@@ -12,7 +12,7 @@ const MAX_ACTIONS = 5;
 const TARGET = /^[A-Za-z0-9_.:-]{1,80}$/;
 const activeScenarios = new Set<string>();
 
-type ScenarioRow = { id: string; project_id: string; card_id: string; url: string; width: number; height: number; actions_json: string; expectation_json: string; card_revision: number; environment_profile: string; created_at: string };
+type ScenarioRow = { id: string; project_id: string; card_id: string; url: string; width: number; height: number; actions_json: string; diagnostics_json: string; expectation_json: string; card_revision: number; environment_profile: string; created_at: string };
 type RunRow = { id: string; scenario_id: string; card_id: string; project_id: string; status: BugReplayResult['status']; observed: string; requested_url: string; environment_run_id: string; checked_at: string; viewport_width: number; viewport_height: number; git_evidence_json: string };
 
 function target(value: unknown): asserts value is BugReplayTarget {
@@ -35,9 +35,24 @@ function validatedActions(value: unknown): BugReplayAction[] {
   });
 }
 
+const DIAGNOSTIC_CATEGORIES = new Set<BugDiagnosticReference['category']>(['TypeError', 'ReferenceError', 'SyntaxError', 'RangeError', 'NetworkError', 'ConsoleError', 'LoadError']);
+function validatedDiagnostics(value: unknown): BugDiagnosticReference[] {
+  if (!Array.isArray(value) || value.length > 5) throw new Error('Die Fehlerhinweise sind ungültig.');
+  return value.map((entry: unknown) => {
+    const item = entry as Partial<BugDiagnosticReference> | null;
+    if (!item || (item.kind !== 'console' && item.kind !== 'load') || !DIAGNOSTIC_CATEGORIES.has(item.category!)
+      || typeof item.capturedAt !== 'string' || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(item.capturedAt)
+      || (item.line !== null && (!Number.isSafeInteger(item.line) || item.line! < 1 || item.line! > 1_000_000))) {
+      throw new Error('Ein Fehlerhinweis enthält private oder ungültige Daten.');
+    }
+    return { kind: item.kind, category: item.category!, line: item.line ?? null, capturedAt: item.capturedAt };
+  });
+}
+
 function scenarioFromRow(row: ScenarioRow): BugScenario {
   return { id: row.id, projectId: row.project_id, cardId: row.card_id, url: row.url, width: row.width, height: row.height,
-    actions: validatedActions(JSON.parse(row.actions_json)), expectation: JSON.parse(row.expectation_json) as BugScenario['expectation'],
+    actions: validatedActions(JSON.parse(row.actions_json)), diagnostics: validatedDiagnostics(JSON.parse(row.diagnostics_json)),
+    expectation: JSON.parse(row.expectation_json) as BugScenario['expectation'],
     cardRevision: row.card_revision, environmentProfile: row.environment_profile, createdAt: row.created_at };
 }
 
@@ -53,7 +68,7 @@ export function installBugReplay(db: Database.Database): void {
     id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
     url TEXT NOT NULL, width INTEGER NOT NULL, height INTEGER NOT NULL,
-    actions_json TEXT NOT NULL, expectation_json TEXT NOT NULL, card_revision INTEGER NOT NULL,
+    actions_json TEXT NOT NULL, diagnostics_json TEXT NOT NULL DEFAULT '[]', expectation_json TEXT NOT NULL, card_revision INTEGER NOT NULL,
     environment_profile TEXT NOT NULL, created_at TEXT NOT NULL
   ); CREATE INDEX IF NOT EXISTS bug_scenarios_card ON bug_scenarios(card_id, created_at DESC);
   CREATE TABLE IF NOT EXISTS bug_scenario_runs (
@@ -64,6 +79,8 @@ export function installBugReplay(db: Database.Database): void {
     environment_run_id TEXT NOT NULL, checked_at TEXT NOT NULL, viewport_width INTEGER NOT NULL,
     viewport_height INTEGER NOT NULL, git_evidence_json TEXT NOT NULL
   ); CREATE INDEX IF NOT EXISTS bug_scenario_runs_scenario ON bug_scenario_runs(scenario_id, checked_at DESC);`);
+  const columns = db.prepare('PRAGMA table_info(bug_scenarios)').all() as Array<{ name: string }>;
+  if (!columns.some((column) => column.name === 'diagnostics_json')) db.exec("ALTER TABLE bug_scenarios ADD COLUMN diagnostics_json TEXT NOT NULL DEFAULT '[]'");
 }
 
 export function bugScenarios(store: StudioStore, cardId: string): BugScenario[] {
@@ -87,6 +104,7 @@ export function saveBugScenario(store: StudioStore, runner: DevEnvironmentRunner
   if (card.archivedAt || card.projectId !== capture.projectId) throw new Error('Die gewählte Karte gehört nicht zum Aufnahmeprojekt oder ist archiviert.');
   const revision = (store.db.prepare('SELECT content_revision FROM cards WHERE id = ?').get(card.id) as { content_revision: number }).content_revision;
   const actions = validatedActions(input.actions);
+  const diagnostics = validatedDiagnostics(capture.diagnostics);
   let index = 0;
   for (const action of actions) {
     while (index < capture.actions.length && JSON.stringify(capture.actions[index]) !== JSON.stringify(action)) index++;
@@ -108,9 +126,9 @@ export function saveBugScenario(store: StudioStore, runner: DevEnvironmentRunner
     const after = (store.db.prepare('SELECT content_revision FROM cards WHERE id = ?').get(card.id) as { content_revision: number }).content_revision;
     if (after !== revision) throw new Error('Die Karte hat sich während der Übernahme geändert.');
     const id = randomUUID();
-    store.db.prepare(`INSERT INTO bug_scenarios (id, project_id, card_id, url, width, height, actions_json, expectation_json, card_revision, environment_profile, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, card.projectId, card.id, url, capture.width, capture.height,
-      JSON.stringify(actions), JSON.stringify(input.expectation), revision, profile.fingerprint, new Date().toISOString());
+    store.db.prepare(`INSERT INTO bug_scenarios (id, project_id, card_id, url, width, height, actions_json, diagnostics_json, expectation_json, card_revision, environment_profile, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, card.projectId, card.id, url, capture.width, capture.height,
+      JSON.stringify(actions), JSON.stringify(diagnostics), JSON.stringify(input.expectation), revision, profile.fingerprint, new Date().toISOString());
     return bugScenarios(store, card.id).find((item) => item.id === id)!;
   })();
 }
@@ -120,7 +138,7 @@ export type BugReplayBrowser = (url: string, width: number, height: number, acti
   verifyRequest: (url: string) => Promise<boolean>) => Promise<BrowserOutcome>;
 
 const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
-const scriptForTarget = (item: BugReplayTarget): string => `(() => {
+const scriptForTarget = (item: BugReplayTarget, watchClick = false): string => `(() => {
   const value = ${JSON.stringify(item.value)};
   const matches = ${item.kind === 'id' ? "[...document.querySelectorAll('[id]')].filter((element) => element.getAttribute('id') === value).slice(0, 2)" : "[...document.querySelectorAll('[data-testid]')].filter((element) => element.getAttribute('data-testid') === value).slice(0, 2)"};
   if (matches.length !== 1) return { count: matches.length, visible: false };
@@ -129,8 +147,25 @@ const scriptForTarget = (item: BugReplayTarget): string => `(() => {
   const style = getComputedStyle(element);
   const visible = box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden'
     && Number(style.opacity) > 0 && box.right > 0 && box.bottom > 0 && box.left < innerWidth && box.top < innerHeight;
-  return { count: 1, visible, x: Math.round(box.left + box.width / 2), y: Math.round(box.top + box.height / 2) };
+  const x = Math.round(box.left + box.width / 2);
+  const y = Math.round(box.top + box.height / 2);
+  const hit = document.elementFromPoint(x, y);
+  const topmost = !!hit && (hit === element || element.contains(hit));
+  ${watchClick ? `if (visible && topmost) {
+    globalThis.__branchloom_replay_click?.stop();
+    const monitor = { clicked: false, stop() {
+      document.removeEventListener('click', listener, true);
+      delete globalThis.__branchloom_replay_click;
+      return this.clicked;
+    } };
+    const listener = (event) => { if (event.isTrusted) monitor.clicked ||= element === event.target || element.contains(event.target); };
+    document.addEventListener('click', listener, true);
+    globalThis.__branchloom_replay_click = monitor;
+  }` : ''}
+  return { count: 1, visible, topmost, x, y };
 })()`;
+const stopClickMonitor = `(() => globalThis.__branchloom_replay_click?.stop() ?? false)()`;
+const peekClickMonitor = `(() => globalThis.__branchloom_replay_click?.clicked ?? false)()`;
 
 /** Browser input is limited to captured stable targets in one isolated loopback origin. */
 export const electronBugReplayBrowser: BugReplayBrowser = async (url, width, height, actions, expectation, verifyRequest) => {
@@ -176,17 +211,28 @@ export const electronBugReplayBrowser: BugReplayBrowser = async (url, width, hei
         await wait(200);
         continue;
       }
-      const found = await contents.executeJavaScriptInIsolatedWorld(1017, [{ code: scriptForTarget(action.target) }]) as { count: number; visible: boolean; x?: number; y?: number };
+      const found = await contents.executeJavaScriptInIsolatedWorld(1017, [{ code: scriptForTarget(action.target, true) }]) as { count: number; visible: boolean; topmost?: boolean; x?: number; y?: number };
       if (found.count !== 1 || !found.visible || !Number.isSafeInteger(found.x) || !Number.isSafeInteger(found.y)) return { status: 'error', observed: `Schritt ${step + 1}: Klickelement fehlt, ist mehrdeutig oder nicht sichtbar.`, width: currentWidth, height: currentHeight };
+      if (!found.topmost) return { status: 'error', observed: `Schritt ${step + 1}: Ein anderes Element verdeckt den Klickpunkt.`, width: currentWidth, height: currentHeight };
       contents.sendInputEvent({ type: 'mouseDown', x: found.x!, y: found.y!, button: 'left', clickCount: 1 });
       contents.sendInputEvent({ type: 'mouseUp', x: found.x!, y: found.y!, button: 'left', clickCount: 1 });
-      await wait(250);
+      let clicked = false;
+      for (let attempt = 0; attempt < 8 && !clicked; attempt++) {
+        await wait(50);
+        clicked = await contents.executeJavaScriptInIsolatedWorld(1017, [{ code: peekClickMonitor }]) as boolean;
+      }
+      await contents.executeJavaScriptInIsolatedWorld(1017, [{ code: stopClickMonitor }]);
+      if (!clicked) return { status: 'error', observed: `Schritt ${step + 1}: Der Klick traf nicht das beabsichtigte Element.`, width: currentWidth, height: currentHeight };
+      await wait(200);
       if (requestRejected) return { status: 'error', observed: `Schritt ${step + 1}: Eine Anfrage wurde durch die Vorschaugrenze blockiert.`, width: currentWidth, height: currentHeight };
       if (contents.isDestroyed() || new URL(contents.getURL()).origin !== origin) return { status: 'error', observed: `Schritt ${step + 1}: Seite hat die lokale Origin verlassen.`, width: currentWidth, height: currentHeight };
     }
     const found = await contents.executeJavaScriptInIsolatedWorld(1017, [{ code: scriptForTarget(expectation.target) }]) as { count: number; visible: boolean };
     if (requestRejected) return { status: 'error', observed: 'Eine Anfrage wurde während der Erwartungsprüfung blockiert.', width: currentWidth, height: currentHeight };
-    if (found.count !== 1) return { status: 'error', observed: 'Das erwartete Element fehlt oder ist mehrdeutig.', width: currentWidth, height: currentHeight };
+    if (found.count === 0) return { status: expectation.state === 'visible' ? 'failed' : 'error',
+      observed: expectation.state === 'visible' ? 'Das erwartete sichtbare Element fehlt nach den Schritten.' : 'Das erwartete verborgene Element fehlt; sein Zustand ist nicht prüfbar.',
+      width: currentWidth, height: currentHeight };
+    if (found.count !== 1) return { status: 'error', observed: 'Das erwartete Element ist mehrdeutig.', width: currentWidth, height: currentHeight };
     const actual = found.visible ? 'visible' : 'hidden';
     return { status: actual === expectation.state ? 'passed' : 'failed',
       observed: `Erwartetes Element ist ${actual === 'visible' ? 'sichtbar' : 'verborgen'}.`,

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { ClipboardItem, clipboard, Menu, session, shell, WebContentsView, type BrowserWindow, type Session } from 'electron';
 import type { BrowserBounds, BrowserCaptureResult, BrowserDiagnostic, BrowserState, BrowserTabState } from '../shared/types';
-import type { BugCaptureDraft, BugReplayAction } from '../shared/bug-replay';
+import type { BugCaptureDraft, BugDiagnosticReference, BugReplayAction } from '../shared/bug-replay';
 import { clampBrowserBounds, diagnosticSource, isLocalDevUrl, isSafeBrowserUrl, normalizeBrowserAddress } from './browser-policy';
 import { BrowserSessionPersistence, MAX_BROWSER_TABS } from './browser-persistence';
 
@@ -38,6 +38,14 @@ const BUG_CAPTURE_START = `(() => {
   return true;
 })()`;
 const BUG_CAPTURE_STOP = `(() => globalThis.__branchloom_bug_capture?.stop() ?? null)()`;
+
+function diagnosticReference(item: BrowserDiagnostic): BugDiagnosticReference {
+  const category = item.kind === 'load' ? 'LoadError'
+    : (/^(?:Uncaught\s+)?(TypeError|ReferenceError|SyntaxError|RangeError)\b/.exec(item.message)?.[1]
+      ?? (/\b(?:net::)?ERR_[A-Z_]+\b/.test(item.message) ? 'NetworkError' : 'ConsoleError')) as BugDiagnosticReference['category'];
+  return { kind: item.kind, category, line: item.line && item.line > 0 && item.line <= 1_000_000 ? item.line : null,
+    capturedAt: item.capturedAt };
+}
 
 type TimedAction = BugReplayAction & { at: number };
 type ActiveBugCapture = { projectId: string; tabId: string; url: string; width: number; height: number; startedAt: string; actions: TimedAction[]; ignoredResizes: number };
@@ -259,7 +267,8 @@ export class StudioBrowser {
     const actions = [...clicks, ...capture.actions].sort((a, b) => a.at - b.at).map(({ at: _at, ...action }) => action);
     if (!actions.length || actions.length > 5 || (raw.ignoredClicks as number) + capture.ignoredResizes > 0) throw new Error('Die Aufnahme enthält keine oder zu viele eindeutig identifizierbare Schritte. Nutze höchstens fünf Klicks/Größenwechsel mit stabilen Element-IDs.');
     const draft: BugCaptureDraft = { token: randomUUID(), projectId: capture.projectId, url: capture.url, width: capture.width, height: capture.height,
-      actions, ignoredClicks: 0, startedAt: capture.startedAt };
+      actions, diagnostics: tab.diagnostics.filter((item) => item.pageUrl === capture.url && item.capturedAt >= capture.startedAt)
+        .slice(-5).map(diagnosticReference), ignoredClicks: 0, startedAt: capture.startedAt };
     this.completedBugCapture = draft;
     return structuredClone(draft);
   }

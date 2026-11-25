@@ -33,6 +33,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - run: npm run smoke:f17
       - run: node scripts/smoke-electron.mjs --usage --timeout-ms 120000
       - run: node scripts/smoke-electron.mjs --changelog --timeout-ms 120000
       - run: node scripts/smoke-electron.mjs --whiteboard --timeout-ms 120000

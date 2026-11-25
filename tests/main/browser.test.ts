@@ -138,12 +138,17 @@ describe('isolated embedded browser', () => {
     browser.setVisible(true);
     browser.setBounds({ x: 0, y: 0, width: 600, height: 500 });
     await browser.startBugCapture('project-synthetic');
+    const local = (mocked.views.at(-1) as { webContents: EventEmitter }).webContents;
+    local.emit('console-message', { level: 'error', message: 'TypeError: private@example.invalid token=secret', sourceId: 'http://127.0.0.1:5173/app.js?token=secret', lineNumber: 42 });
     mocked.captureClicks = [{ kind: 'click', target: { kind: 'id', value: 'menu' }, at: Date.now() - 100 }];
     browser.setBounds({ x: 0, y: 0, width: 390, height: 400 });
     browser.markBugResize();
     const draft = await browser.stopBugCapture();
     expect(draft).toMatchObject({ projectId: 'project-synthetic', url: 'http://127.0.0.1:5173/settings',
-      width: 600, height: 500, actions: [{ kind: 'click', target: { kind: 'id', value: 'menu' } }, { kind: 'resize', width: 390, height: 400 }] });
+      width: 600, height: 500, actions: [{ kind: 'click', target: { kind: 'id', value: 'menu' } }, { kind: 'resize', width: 390, height: 400 }],
+      diagnostics: [{ kind: 'console', category: 'TypeError', line: 42 }] });
+    expect(JSON.stringify(draft)).not.toContain('secret');
+    expect(JSON.stringify(draft)).not.toContain('private@example.invalid');
     expect(browser.bugCaptureForToken(draft.token).actions).toHaveLength(2);
     browser.clearBugCapture(draft.token);
     expect(() => browser.bugCaptureForToken(draft.token)).toThrow('nicht mehr verfügbar');
