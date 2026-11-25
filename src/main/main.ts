@@ -13,6 +13,7 @@ import { createDiagnosticCard } from './error-catcher';
 import { cardQaReports, cardQaScreenshot, runCardQa, runCardQaBatch } from './card-qa';
 import { closeTeamReviewRoom, createTeamReviewInvite, createTeamReviewRoom, resolveTeamReviewInvite, revokeTeamReviewInvite, teamReviewComments, teamReviewImage, teamReviewInvites, teamReviewRooms } from './team-review';
 import { TeamReviewHttp } from './team-review-http';
+import { activeTailnetIPv4 } from './team-review-tailnet';
 import { bugScenarios, bugScenarioRuns, runBugScenario, saveBugScenario } from './bug-replay';
 import { qaCoverageRoutes, saveQaCoverageRoute, removeQaCoverageRoute, runQaCoverageCell } from './qa-coverage';
 import { cardCriteria, createCardCriterion, updateCardCriterion, deleteCardCriterion, linkCardCriterionEvidence, unlinkCardCriterionEvidence } from './card-acceptance';
@@ -103,6 +104,8 @@ import { ReleaseUpdateController } from './release-updater';
 let window: BrowserWindow | null = null;
 let store: StudioStore | null = null;
 let teamReviewHttp: TeamReviewHttp | null = null;
+let tailnetReviewHttp: TeamReviewHttp | null = null;
+let tailnetReviewIp: string | null = null;
 let runner: SessionRunner | null = null;
 let commandRunner: CommandTerminalRunner | null = null;
 let devEnvironmentRunner: DevEnvironmentRunner | null = null;
@@ -718,17 +721,29 @@ function installIpc(): void {
     const created = createTeamReviewInvite(db, input);
     return { invite: created.invite, reviewerSecret: created.reviewerSecret, url: teamReviewHttp.reviewUrl(created.reviewerSecret) };
   });
+  bind('newTailnetTeamReviewInvite', async (input: Parameters<StudioAPI['newTailnetTeamReviewInvite']>[0]) => {
+    const ip = await activeTailnetIPv4();
+    if (tailnetReviewIp && tailnetReviewIp !== ip) { tailnetReviewHttp?.close(); tailnetReviewHttp = null; }
+    tailnetReviewHttp ??= new TeamReviewHttp(db, ip, new Set());
+    tailnetReviewIp = ip;
+    await tailnetReviewHttp.start();
+    const created = createTeamReviewInvite(db, input);
+    tailnetReviewHttp.allowSecret(created.reviewerSecret);
+    return { invite: created.invite, reviewerSecret: created.reviewerSecret, url: tailnetReviewHttp.reviewUrl(created.reviewerSecret) };
+  });
   bind('revokeTeamReviewInvite', (input: Parameters<StudioAPI['revokeTeamReviewInvite']>[0]) => revokeTeamReviewInvite(db, input));
   bind('closeTeamReviewRoom', (roomId: string) => closeTeamReviewRoom(db, roomId));
-  bind('openTeamReviewInvite', async (secret: string) => {
-    resolveTeamReviewInvite(db, secret);
-    if (!teamReviewHttp) throw new Error('Review listener is not running.');
-    await shell.openExternal(teamReviewHttp.reviewUrl(secret));
+  bind('openTeamReviewInvite', async (input: Parameters<StudioAPI['openTeamReviewInvite']>[0]) => {
+    resolveTeamReviewInvite(db, input.secret);
+    const listener = input.transport === 'local' ? teamReviewHttp : input.transport === 'tailnet' ? tailnetReviewHttp : null;
+    if (!listener) throw new Error('Review listener is not running.');
+    await shell.openExternal(listener.reviewUrl(input.secret));
   });
-  bind('copyTeamReviewInvite', (secret: string) => {
-    resolveTeamReviewInvite(db, secret);
-    if (!teamReviewHttp) throw new Error('Review listener is not running.');
-    clipboard.writeText(teamReviewHttp.reviewUrl(secret));
+  bind('copyTeamReviewInvite', (input: Parameters<StudioAPI['copyTeamReviewInvite']>[0]) => {
+    resolveTeamReviewInvite(db, input.secret);
+    const listener = input.transport === 'local' ? teamReviewHttp : input.transport === 'tailnet' ? tailnetReviewHttp : null;
+    if (!listener) throw new Error('Review listener is not running.');
+    clipboard.writeText(listener.reviewUrl(input.secret));
   });
   bind('qaCoverageRoutes', (projectId: string) => qaCoverageRoutes(db, projectId));
   bind('saveQaCoverageRoute', (input: Parameters<StudioAPI['saveQaCoverageRoute']>[0]) => saveQaCoverageRoute(db, input));
@@ -4551,6 +4566,9 @@ else app.quit();
 app.on('before-quit', () => {
   teamReviewHttp?.close();
   teamReviewHttp = null;
+  tailnetReviewHttp?.close();
+  tailnetReviewHttp = null;
+  tailnetReviewIp = null;
   if (releaseStartTimer) clearTimeout(releaseStartTimer);
   if (releaseCheckTimer) clearInterval(releaseCheckTimer);
   if (integrationAutoTimer) clearInterval(integrationAutoTimer);

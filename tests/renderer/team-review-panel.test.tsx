@@ -19,10 +19,11 @@ it('creates a room only after a click and keeps the scoped link visible for the 
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   const startTeamReviewRoom = vi.fn().mockResolvedValue({ room, invite: { id: 'invite', roomId: 'room', displayName: 'Alex', role: 'reviewer', createdAt: '2026-01-01', revokedAt: null }, reviewerSecret: 'secret', url: 'http://127.0.0.1:1234/r/secret' });
   const copyTeamReviewInvite = vi.fn().mockResolvedValue(undefined);
+  const newTailnetTeamReviewInvite = vi.fn().mockResolvedValue({ invite: { id: 'tail-invite', roomId: 'room', displayName: 'Sam', role: 'reviewer', createdAt: '2026-01-01', revokedAt: null }, reviewerSecret: 'tail-secret', url: 'http://100.101.102.103:4567/r/tail-secret' });
   Object.defineProperty(window, 'studio', { configurable: true, value: {
     teamReviewRooms: vi.fn().mockResolvedValue([]), teamReviewInvites: vi.fn().mockResolvedValue([]),
     teamReviewComments: vi.fn().mockResolvedValue([]), teamReviewImage: vi.fn().mockResolvedValue('data:image/png;base64,AA=='),
-    startTeamReviewRoom, copyTeamReviewInvite,
+    startTeamReviewRoom, copyTeamReviewInvite, newTailnetTeamReviewInvite,
   } });
   try {
     await act(async () => { root.render(<TeamReviewPanel card={card} report={report} />); });
@@ -41,7 +42,17 @@ it('creates a room only after a click and keeps the scoped link visible for the 
     expect(startTeamReviewRoom).toHaveBeenCalledWith({ projectId: 'project', cardId: 'card', qaReportId: 'report', scenario: 'Signed out settings', reviewerName: 'Alex' });
     expect(host.querySelector<HTMLInputElement>('.team-review-share input')?.value).toBe('http://127.0.0.1:1234/r/secret');
     await act(async () => { [...host.querySelectorAll<HTMLButtonElement>('.team-review-share button')].find((button) => button.textContent === 'Link kopieren')!.click(); });
-    expect(copyTeamReviewInvite).toHaveBeenCalledWith('secret');
+    expect(copyTeamReviewInvite).toHaveBeenCalledWith({ secret: 'secret', transport: 'local' });
+    const nextReviewer = host.querySelector<HTMLInputElement>('.team-review-current .team-review-form input')!;
+    await act(async () => {
+      setInput.call(nextReviewer, 'Sam');
+      nextReviewer.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => { [...host.querySelectorAll<HTMLButtonElement>('.team-review-current button')].find((button) => button.textContent === 'Tailscale-Link erstellen')!.click(); });
+    expect(newTailnetTeamReviewInvite).toHaveBeenCalledWith({ roomId: 'room', reviewerName: 'Sam' });
+    expect(host.querySelector<HTMLInputElement>('.team-review-share input')?.value).toBe('http://100.101.102.103:4567/r/tail-secret');
+    await act(async () => { [...host.querySelectorAll<HTMLButtonElement>('.team-review-share button')].find((button) => button.textContent === 'Link kopieren')!.click(); });
+    expect(copyTeamReviewInvite).toHaveBeenLastCalledWith({ secret: 'tail-secret', transport: 'tailnet' });
   } finally {
     await act(async () => { root.unmount(); });
     if (previousApi) Object.defineProperty(window, 'studio', previousApi);

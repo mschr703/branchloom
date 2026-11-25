@@ -6,7 +6,7 @@ const electron = require('electron');
 
 const root = mkdtempSync(join(tmpdir(), 'branchloom-team-review-smoke-'));
 if (!resolve(root).startsWith(resolve(tmpdir()) + sep)) throw new Error('Unexpected smoke profile path.');
-const child = spawn(electron, ['scripts/smoke-team-review.cjs'], {
+const child = spawn(electron, ['scripts/smoke-team-review.cjs', ...process.argv.slice(2)], {
   cwd: process.cwd(), windowsHide: true, stdio: 'inherit',
   env: { ...process.env, BRANCHLOOM_TEAM_REVIEW_SMOKE_ROOT: root },
 });

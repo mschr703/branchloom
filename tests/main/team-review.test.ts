@@ -134,7 +134,7 @@ it('keeps two independent guest pages on the same image and exchanges a point co
       const guest = new JSDOM(teamReviewHtml, { url, runScripts: 'outside-only' });
       guests.push(guest);
       const { window } = guest;
-      Object.defineProperty(window.crypto, 'randomUUID', { value: () => 'guest-mutation-001' });
+      Object.defineProperty(window.crypto, 'randomUUID', { value: undefined });
       Object.assign(window, {
         fetch: (path: string, options?: RequestInit) => fetch(new URL(path, url), {
           ...options,

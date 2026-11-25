@@ -4,6 +4,7 @@ const { join, resolve, sep } = require('node:path');
 const { StudioStore } = require('../dist-main/main/store');
 const { createTeamReviewRoom, createTeamReviewInvite, revokeTeamReviewInvite, teamReviewComments } = require('../dist-main/main/team-review');
 const { TeamReviewHttp } = require('../dist-main/main/team-review-http');
+const { activeTailnetIPv4 } = require('../dist-main/main/team-review-tailnet');
 
 const root = process.env.BRANCHLOOM_TEAM_REVIEW_SMOKE_ROOT;
 if (!root) throw new Error('Isolated smoke profile path is required.');
@@ -24,8 +25,11 @@ async function waitFor(check, description) {
 app.whenReady().then(async () => {
   const store = new StudioStore(join(root, 'studio.sqlite'));
   const windows = [];
-  const listener = new TeamReviewHttp(store);
+  let listener = null;
   try {
+    const tailnet = process.argv.includes('--tailnet');
+    const host = tailnet ? await activeTailnetIPv4() : '127.0.0.1';
+    listener = new TeamReviewHttp(store, host, tailnet ? new Set() : null);
     const project = store.createProject({ name: 'Synthetic review', path: root });
     const card = store.createCard({ projectId: project.id, columnId: store.snapshot(project.id).columns[0].id, title: 'Review settings' });
     const reportId = 'synthetic-review-report';
@@ -35,8 +39,14 @@ app.whenReady().then(async () => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(reportId, card.id, project.id, 'http://127.0.0.1:5181/settings',
       '2026-01-01T10:00:00Z', '2026-01-01T10:00:05Z', 'passed', '[]', 1200, 800, 'null', image);
     const room = createTeamReviewRoom(store, { projectId: project.id, cardId: card.id, qaReportId: reportId, scenario: 'Settings without sign-in', reviewerName: 'Alex' });
+    const alexInvite = tailnet ? createTeamReviewInvite(store, { roomId: room.room.id, reviewerName: 'Alex remote' }) : room;
     const second = createTeamReviewInvite(store, { roomId: room.room.id, reviewerName: 'Sam' });
+    if (tailnet) { listener.allowSecret(alexInvite.reviewerSecret); listener.allowSecret(second.reviewerSecret); }
     await listener.start();
+    if (tailnet) {
+      const denied = await fetch(`${new URL(listener.reviewUrl(alexInvite.reviewerSecret)).origin}/r/${room.reviewerSecret}`);
+      if (denied.status !== 403) throw new Error('Local-only invitation was accepted on the tailnet listener.');
+    }
     const openGuest = async (secret, partition) => {
       const window = new BrowserWindow({ show: false, width: 1200, height: 800,
         webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, partition } });
@@ -45,7 +55,7 @@ app.whenReady().then(async () => {
       await waitFor(() => window.webContents.executeJavaScript("document.getElementById('scenario').textContent === 'Settings without sign-in'"), 'guest review heading');
       return window;
     };
-    const alex = await openGuest(room.reviewerSecret, 'team-review-alex');
+    const alex = await openGuest(alexInvite.reviewerSecret, 'team-review-alex');
     const sam = await openGuest(second.reviewerSecret, 'team-review-sam');
     const hasHostApi = await sam.webContents.executeJavaScript('typeof window.studio !== "undefined"');
     if (hasHostApi) throw new Error('Guest browser unexpectedly has host IPC access.');
@@ -71,7 +81,7 @@ app.whenReady().then(async () => {
   } finally {
     clearTimeout(timeout);
     for (const window of windows) if (!window.isDestroyed()) window.destroy();
-    listener.close();
+    listener?.close();
     store.close();
     app.exit(process.exitCode || 0);
   }

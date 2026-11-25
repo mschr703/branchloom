@@ -133,7 +133,9 @@ export const teamReviewJs = `(() => {
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     if (!selected || !body.value.trim() || !room || room.closedAt || busy) return;
-    const payload = { clientMutationId: crypto.randomUUID(), body: body.value.trim(), x: selected.x, y: selected.y };
+    const randomId = typeof crypto.randomUUID === 'function' ? crypto.randomUUID()
+      : Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, '0')).join('');
+    const payload = { clientMutationId: randomId, body: body.value.trim(), x: selected.x, y: selected.y };
     sessionStorage.setItem(pendingKey, JSON.stringify(payload));
     void submitPending(payload);
   });
