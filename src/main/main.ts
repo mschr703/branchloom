@@ -3228,6 +3228,7 @@ function createWindow(): void {
               if (!(liveFocus instanceof HTMLButtonElement) || liveFocus.disabled) throw new Error('Arbeitsmodus blieb bei geladener Live-Vorschau gesperrt.');
               liveFocus.focus(); liveFocus.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('.design-inspection-tools[hidden]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              for (let attempt = 0; attempt < 100 && !(document.activeElement instanceof HTMLButtonElement && document.activeElement.matches('.task-wireframe-focus-toggle[aria-pressed="true"]')); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!(await window.studio.designInspectionState()).ready || !document.querySelector('.design-inspection.wireframe-focus') || !(document.activeElement instanceof HTMLButtonElement && document.activeElement.matches('.task-wireframe-focus-toggle[aria-pressed="true"]'))) throw new Error('Fokusmodus schloss die Live-Vorschau oder verlor den Rückweg: ' + JSON.stringify({ ready: (await window.studio.designInspectionState()).ready, focusMode: Boolean(document.querySelector('.design-inspection.wireframe-focus')), focused: document.activeElement?.outerHTML?.slice(0, 200), toggleConnected: liveFocus.isConnected, hidden: Boolean(document.querySelector('.design-inspection-tools[hidden]')) }));
               await new Promise((resolve) => setTimeout(resolve, 100));
               return true;
@@ -3259,6 +3260,11 @@ function createWindow(): void {
             const wireframeContext = approvedCardWireframeContext(smokeStore, { projectId: smokeProject.id, cardId: smokeCard.id });
             if (!wireframeContext.includes('Geprüfter Entwurf') || !wireframeContext.includes('"fontSize":20') || !wireframeContext.includes('"lineDirection":"rising"') || !wireframeContext.includes('"kind":"ellipse"')) throw new Error('Freigegebener Wireframe-Kontext mit Gestaltung und Formen fehlt für den nächsten Agentenstart.');
             await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const draftTab = [...document.querySelectorAll('.design-workspace-modes button')].find((button) => button.textContent?.trim() === 'Entwurf');
+              if (!(draftTab instanceof HTMLButtonElement)) throw new Error('Entwurfs-Tab fehlt für die Interaktionsprüfung.');
+              draftTab.click();
+              for (let attempt = 0; attempt < 100 && document.querySelector('.design-workspace-draft[hidden]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('.design-workspace-draft[hidden]')) throw new Error('Interaktionsentwurf blieb während der Prüfung verborgen.');
               const editor = document.querySelector('.task-wireframe');
               const add = [...(editor?.querySelectorAll('.wireframe-interaction button') ?? [])].find((item) => item.textContent?.includes('Klick → Fläche anlegen'));
               if (!(add instanceof HTMLButtonElement) || add.disabled) throw new Error('Interaktionseditor fehlt oder hat keine gültigen Ziele.');
