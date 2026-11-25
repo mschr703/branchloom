@@ -8,7 +8,9 @@ const explicitIndex = process.argv.indexOf('--executable');
 const explicitExecutable = explicitIndex < 0 ? null : process.argv[explicitIndex + 1];
 if (explicitIndex >= 0 && !explicitExecutable) throw new Error('--executable braucht einen Pfad');
 const timeoutIndex = process.argv.indexOf('--timeout-ms');
-const timeoutMs = timeoutIndex < 0 ? 120_000 : Number(process.argv[timeoutIndex + 1]);
+// The broad smoke also runs the visible F03 revision flow. Packaged Windows runs
+// took up to 117 seconds before F03 was added, and F03 alone takes about 22 seconds in CI.
+const timeoutMs = timeoutIndex < 0 ? 240_000 : Number(process.argv[timeoutIndex + 1]);
 if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 30_000 || timeoutMs > 600_000) {
   throw new Error('--timeout-ms must be an integer between 30000 and 600000');
 }
@@ -49,7 +51,8 @@ child.on('exit', (code) => {
       : `${packaged ? 'Paket' : 'Quellbuild'}: Renderer, IPC, SQLite, Terminal/Agenten-PTY, Board, Ideenraum, Aufgabenklärung, Whiteboard, Kartenkontext mit bestätigtem Anhang-, Whiteboard-Dateibox- und Design-Beleg-Drop, lokale Karten-QA mit mehreren Routen, DOM-Hinweisen und Screenshots, visueller Vergleich, gespeicherte Prüfgrößenansicht, Design-Aufnahmen in drei Größen, Changelog-Quellwahl und Memory-Übernahme erfolgreich.`);
   } else {
     console.error(timedOut ? `Electron-Smoke nach ${timeoutMs / 1000} Sekunden ohne Abschluss-Signal abgebrochen.` : `Electron-Smoke fehlgeschlagen (Exit ${code ?? 'unbekannt'}).`);
-    console.error(stderr.slice(-2000) || stdout.slice(-2000));
+    if (stdout.trim()) console.error(`Recent app stdout:\n${stdout.slice(-2000)}`);
+    if (stderr.trim()) console.error(`Recent app stderr:\n${stderr.slice(-2000)}`);
     process.exitCode = 1;
   }
 });
