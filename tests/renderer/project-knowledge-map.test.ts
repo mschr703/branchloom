@@ -80,6 +80,20 @@ describe('project knowledge map', () => {
     expect(knowledgeMapFlow(map.groups, [], 'missing').nodes.some((node) => node.className?.includes('quiet'))).toBe(false);
   });
 
+  it('offers a compact network without changing the verified source graph', () => {
+    const snapshot = { project, cards: [card('a'), card('b')], sessions: [session('run-a', 'a'), session('run-b', 'b')] };
+    const map = projectKnowledgeMapPage(snapshot, 0, [reference('1', 'a', 'src/shared.ts'), reference('2', 'b', 'src/shared.ts')]);
+    const structure = knowledgeMapFlow(map.groups, [], 'source:file:src/shared.ts');
+    const network = knowledgeMapFlow(map.groups, [], 'source:file:src/shared.ts', null, 'all', '', 'network');
+    expect(network.nodes.map((node) => node.id)).toEqual(structure.nodes.map((node) => node.id));
+    expect(network.edges.map((edge) => [edge.source, edge.target, edge.className])).toEqual(
+      structure.edges.map((edge) => [edge.source, edge.target, edge.className]));
+    expect(network.nodes.every((node) => node.className?.includes('network'))).toBe(true);
+    expect(network.nodes.find((node) => node.id === 'source:file:src/shared.ts')?.className).toContain('in-focus');
+    expect(network.nodes.some((node, index) => node.position.x !== structure.nodes[index]!.position.x
+      || node.position.y !== structure.nodes[index]!.position.y)).toBe(true);
+  });
+
   it('keeps multiple saved file nodes from covering one another', () => {
     const snapshot = { project, cards: [card('a')], sessions: [] };
     const map = projectKnowledgeMapPage(snapshot, 0, [reference('1', 'a', 'src/one.ts'), reference('2', 'a', 'src/two.ts')]);

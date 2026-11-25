@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, ArrowUpRight, Search } from 'lucide-react';
 import type { Card, CardContextReference, ProjectSnapshot, Session } from '../../shared/types';
 import type { ProjectMemoryMapSources, ProjectMemorySourceDetail } from '../../shared/project-memory-index';
 import { projectKnowledgeMapPage, visibleKnowledgeCodeFiles } from '../project-knowledge-map';
+import { layoutKnowledgeNetwork } from '../knowledge-network-layout';
 import '@xyflow/react/dist/style.css';
 import './project-knowledge-map.css';
 
@@ -22,9 +23,10 @@ function nodeLabel(kind: 'task' | 'conversation' | 'file' | 'folder' | 'commit' 
 const referenceNodeId = (reference: CardContextReference) => `source:${reference.kind}:${reference.target}`;
 
 export type KnowledgeMapLayer = 'all' | 'work' | 'code';
+export type KnowledgeMapArrangement = 'network' | 'structure';
 
 export function knowledgeMapFlow(groups: ReturnType<typeof projectKnowledgeMapPage>['groups'], agents: ProjectSnapshot['agents'], selectedId: string,
-  sources: ProjectMemoryMapSources | null = null, layer: KnowledgeMapLayer = 'all', fileQuery = ''): { nodes: Node[]; edges: Edge[]; shownCodeFiles: ProjectMemoryMapSources['codeFiles'] } {
+  sources: ProjectMemoryMapSources | null = null, layer: KnowledgeMapLayer = 'all', fileQuery = '', arrangement: KnowledgeMapArrangement = 'structure'): { nodes: Node[]; edges: Edge[]; shownCodeFiles: ProjectMemoryMapSources['codeFiles'] } {
   const names = new Map(agents.map((agent) => [agent.id, agent.name]));
   const nodes: Node[] = [];
   const edges: Edge[] = [];
@@ -102,6 +104,13 @@ export function knowledgeMapFlow(groups: ReturnType<typeof projectKnowledgeMapPa
     }
     for (const node of nodes) node.className = `${node.className ?? ''} ${adjacent.has(node.id) ? 'in-focus' : 'quiet'}`;
   }
+  if (arrangement === 'network') {
+    const positions = layoutKnowledgeNetwork(nodes.map((node) => ({ id: node.id, width: node.id.startsWith('task:') ? 174 : 146, height: 42 })), edges);
+    for (const node of nodes) {
+      node.position = positions.get(node.id) ?? node.position;
+      node.className = `${node.className ?? ''} network`;
+    }
+  }
   return { nodes, edges, shownCodeFiles };
 }
 
@@ -109,6 +118,7 @@ export function ProjectKnowledgeMap({ snapshot, indexRevision, onOpenCard, onOpe
   const [page, setPage] = useState(0);
   const [selectedId, setSelectedId] = useState('');
   const [layer, setLayer] = useState<KnowledgeMapLayer>('work');
+  const [arrangement, setArrangement] = useState<KnowledgeMapArrangement>('network');
   const [fileQuery, setFileQuery] = useState('');
   const [indexed, setIndexed] = useState<ProjectMemoryMapSources | null>(null);
   const [indexLoading, setIndexLoading] = useState(true);
@@ -145,9 +155,9 @@ export function ProjectKnowledgeMap({ snapshot, indexRevision, onOpenCard, onOpe
       .finally(() => { if (active) setIndexLoading(false); });
     return () => { active = false; };
   }, [snapshot.project.id, indexRevision]);
-  const { nodes, edges, shownCodeFiles } = useMemo(() => knowledgeMapFlow(map.groups, snapshot.agents, selectedId, indexed, layer, fileQuery),
-    [map.groups, snapshot.agents, selectedId, indexed, layer, fileQuery]);
-  const layoutKey = `${snapshot.project.id}:${map.page}:${layer}:${fileQuery}:${nodes.map((node) => node.id).join('|')}`;
+  const { nodes, edges, shownCodeFiles } = useMemo(() => knowledgeMapFlow(map.groups, snapshot.agents, selectedId, indexed, layer, fileQuery, arrangement),
+    [map.groups, snapshot.agents, selectedId, indexed, layer, fileQuery, arrangement]);
+  const layoutKey = `${snapshot.project.id}:${map.page}:${layer}:${arrangement}:${fileQuery}:${nodes.map((node) => node.id).join('|')}`;
   const selectedCard = selectedId.startsWith('task:') ? map.groups.find((group) => group.card.id === selectedId.slice(5))?.card : null;
   const selectedRun = selectedId.startsWith('conversation:') ? map.groups.flatMap((group) => group.sessions.map((session) => ({ session, card: group.card })))
     .find((item) => item.session.id === selectedId.slice('conversation:'.length)) : null;
@@ -207,11 +217,11 @@ export function ProjectKnowledgeMap({ snapshot, indexRevision, onOpenCard, onOpe
       <button type="button" aria-pressed={layer === 'all'} onClick={() => { setLayer('all'); setSelectedId(''); }}>Alle</button>
       <button type="button" aria-pressed={layer === 'work'} onClick={() => { setLayer('work'); setSelectedId(''); }}>Arbeit</button>
       <button type="button" aria-pressed={layer === 'code'} onClick={() => { setLayer('code'); setSelectedId(''); }}>Git-Quellen</button>
-    </div>{layer !== 'work' ? <label className="knowledge-map-file-search"><Search size={15} aria-hidden="true" /><input aria-label="Indexierte Dateien filtern" value={fileQuery} onChange={(event) => { setFileQuery(event.target.value); setSelectedId(''); }} placeholder="Dateipfad suchen" /></label> : null}</div>
+    </div><div className="knowledge-map-toolbar-end">{layer !== 'work' ? <label className="knowledge-map-file-search"><Search size={15} aria-hidden="true" /><input aria-label="Indexierte Dateien filtern" value={fileQuery} onChange={(event) => { setFileQuery(event.target.value); setSelectedId(''); }} placeholder="Dateipfad suchen" /></label> : null}<div className="knowledge-map-arrangements" role="group" aria-label="Kartenanordnung"><button type="button" aria-pressed={arrangement === 'network'} onClick={() => setArrangement('network')}>Netz</button><button type="button" aria-pressed={arrangement === 'structure'} onClick={() => setArrangement('structure')}>Struktur</button></div></div></div>
     {referenceState?.key !== referenceKey ? <p className="knowledge-map-source-status" role="status">Dateibezüge werden gelesen…</p> : referenceState.failed ? <p className="knowledge-map-source-status" role="status">{referenceState.failed} Kartenbezüge konnten nicht gelesen werden; die Karte ist unvollständig.</p> : null}
     {indexLoading ? <p className="knowledge-map-source-status" role="status">Git-Quellen werden gelesen…</p> : null}
     {indexError ? <p className="knowledge-map-source-status error" role="alert">Git-Quellen konnten nicht gelesen werden: {indexError}</p> : null}
-    {nodes.length ? <div className="knowledge-map-layout">
+    {nodes.length ? <div className={`knowledge-map-layout ${arrangement}`}>
       <div className="knowledge-map-canvas" role="region" aria-label="Beziehungskarte aus Aufgaben, Agentenläufen und Git-Quellen">
         <ReactFlow key={layoutKey} nodes={nodes} edges={edges} fitView fitViewOptions={{ padding: .14, maxZoom: 1.2 }}
           nodesDraggable={false} nodesConnectable={false} edgesFocusable={false}

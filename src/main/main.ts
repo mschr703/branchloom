@@ -2245,6 +2245,26 @@ function createWindow(): void {
                   entries: document.querySelector('.knowledge-map-list')?.textContent?.slice(0, 700),
                   status: document.querySelector('.knowledge-map-source-status')?.textContent,
                 }));
+                const arrangement = document.querySelector('.knowledge-map-arrangements[aria-label="Kartenanordnung"]');
+                const networkButton = [...(arrangement?.querySelectorAll('button') ?? [])].find((button) => button.textContent?.trim() === 'Netz');
+                const structureButton = [...(arrangement?.querySelectorAll('button') ?? [])].find((button) => button.textContent?.trim() === 'Struktur');
+                if (!(networkButton instanceof HTMLButtonElement) || !(structureButton instanceof HTMLButtonElement)
+                  || networkButton.getAttribute('aria-pressed') !== 'true' || !document.querySelector('.knowledge-map-layout.network')) {
+                  throw new Error('Die belegte Memory-Netzansicht ist nicht als Standard erreichbar.');
+                }
+                const sourceListBefore = document.querySelector('.knowledge-map-list')?.textContent;
+                structureButton.click();
+                for (let attempt = 0; attempt < 100 && !document.querySelector('.knowledge-map-layout.structure .knowledge-map-node.source'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+                if (structureButton.getAttribute('aria-pressed') !== 'true' || !document.querySelector('.knowledge-map-layout.structure .knowledge-map-node.source')
+                  || document.querySelector('.knowledge-map-list')?.textContent !== sourceListBefore) {
+                  throw new Error('Der Wechsel zur Memory-Strukturansicht verlor die belegte Quellenliste.');
+                }
+                networkButton.click();
+                for (let attempt = 0; attempt < 100 && !document.querySelector('.knowledge-map-layout.network .knowledge-map-node.source'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+                if (networkButton.getAttribute('aria-pressed') !== 'true' || document.querySelector('.knowledge-map-list')?.textContent !== sourceListBefore
+                  || document.querySelector('.knowledge-map-inspector h3')?.textContent !== 'src/widget.ts') {
+                  throw new Error('Der Memory-Netzwechsel verlor Quellbeleg oder Auswahl.');
+                }
                 let sourceButton;
                 for (let attempt = 0; attempt < 300; attempt++) {
                   sourceButton = [...document.querySelectorAll('.memory-modebar button')].find((item) => item.textContent?.includes('Quellverlauf öffnen'));
