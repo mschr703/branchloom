@@ -3,14 +3,16 @@ import { lstatSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type Database from 'better-sqlite3';
-import type { AddCardComponentChoice, CardComponentChoice, CardComponentChoiceState } from '../shared/card-component-choice';
+import type { AddCardComponentChoice, AddCardComponentVariant, CardComponentChoice, CardComponentChoiceState, CardComponentVariant } from '../shared/card-component-choice';
 import type { StudioStore } from './store';
 import { scanProjectComponents } from './component-catalog';
+import { normalizeCardQaUrl } from './card-qa';
 
 interface ChoiceRow {
   id: string; card_id: string; project_id: string; name: string; path: string;
   line: number; source_fingerprint: string; purpose: string; added_at: string;
 }
+interface VariantRow { id: string; choice_id: string; card_id: string; label: string; preview_url: string; report_id: string; captured_at: string; source_fingerprint: string }
 const MAX_SOURCE_BYTES = 128 * 1024;
 const MAX_CHOICES = 6;
 const PATH_PATTERN = /^(?!\/)(?!.*\\)(?!.*(?:^|\/)\.\.?\/)\S.{0,298}\.(?:tsx|jsx)$/;
@@ -27,10 +29,28 @@ export function installCardComponentChoices(db: Database.Database): void {
     session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
     fingerprint TEXT NOT NULL
   );`);
+  db.exec(`CREATE TABLE IF NOT EXISTS card_component_variants (
+    id TEXT PRIMARY KEY, choice_id TEXT NOT NULL REFERENCES card_component_choices(id) ON DELETE CASCADE,
+    card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+    label TEXT NOT NULL, preview_url TEXT NOT NULL, report_id TEXT NOT NULL,
+    captured_at TEXT NOT NULL, source_fingerprint TEXT NOT NULL, screenshot_png BLOB NOT NULL,
+    UNIQUE(choice_id, label)
+  ); CREATE INDEX IF NOT EXISTS card_component_variants_choice ON card_component_variants(choice_id);`);
 }
 
 function rows(store: StudioStore, cardId: string): ChoiceRow[] {
   return store.db.prepare('SELECT * FROM card_component_choices WHERE card_id = ? ORDER BY added_at, id').all(cardId) as ChoiceRow[];
+}
+
+function variantRows(store: StudioStore, cardId: string): VariantRow[] {
+  return store.db.prepare('SELECT id, choice_id, card_id, label, preview_url, report_id, captured_at, source_fingerprint FROM card_component_variants WHERE card_id = ? ORDER BY rowid').all(cardId) as VariantRow[];
+}
+
+function variantsFor(store: StudioStore, cardId: string, choiceId: string): CardComponentVariant[] {
+  return variantRows(store, cardId).filter((row) => row.choice_id === choiceId).map((row) => ({
+    id: row.id, label: row.label, previewUrl: row.preview_url, reportId: row.report_id,
+    capturedAt: row.captured_at, sourceFingerprint: row.source_fingerprint,
+  }));
 }
 
 /** Read only a tracked regular source inside the selected checkout. */
@@ -69,7 +89,59 @@ export function cardComponentChoiceState(store: StudioStore, cardId: string): Ca
     id: row.id, cardId: row.card_id, projectId: row.project_id, name: row.name, path: row.path,
     line: row.line, sourceFingerprint: row.source_fingerprint, purpose: row.purpose,
     addedAt: row.added_at, current: sourceFingerprint(checkout, row.path) === row.source_fingerprint,
+    variants: variantsFor(store, cardId, row.id),
   })) };
+}
+
+export function cardComponentVariantScreenshot(store: StudioStore, input: { cardId: string; variantId: string }): string {
+  store.card(input.cardId);
+  const row = store.db.prepare('SELECT screenshot_png FROM card_component_variants WHERE id = ? AND card_id = ?').get(input.variantId, input.cardId) as { screenshot_png: Buffer } | undefined;
+  if (!row || !Buffer.isBuffer(row.screenshot_png) || row.screenshot_png.length < 1 || row.screenshot_png.length > 1_000_000) throw new Error('Variantenbild gehört nicht zu dieser Karte oder ist nicht verfügbar.');
+  return `data:image/png;base64,${row.screenshot_png.toString('base64')}`;
+}
+
+export function addCardComponentVariant(store: StudioStore, input: AddCardComponentVariant): CardComponentChoiceState {
+  if (!input || typeof input.cardId !== 'string' || typeof input.choiceId !== 'string' || typeof input.reportId !== 'string' ||
+    !Number.isInteger(input.expectedContentRevision) || typeof input.label !== 'string' || input.label.trim().length < 2 ||
+    input.label.trim().length > 60 || /[\x00-\x1f\x7f]/.test(input.label)) throw new Error('Variantenangaben sind ungültig.');
+  store.db.transaction(() => {
+    const card = store.card(input.cardId);
+    if (card.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
+    if (revision(store, card.id) !== input.expectedContentRevision) throw new Error('Karte wurde geändert. Neu laden.');
+    if (store.latestSession(card.id)?.state === 'running') throw new Error('Laufenden Kartenagenten zuerst beenden.');
+    const choice = rows(store, card.id).find((row) => row.id === input.choiceId);
+    if (!choice) throw new Error('Komponentenreferenz gehört nicht zu dieser Karte.');
+    if (sourceFingerprint(store.project(card.projectId).path, choice.path) !== choice.source_fingerprint) throw new Error('Komponentenquelle hat sich geändert. Erneut auswählen.');
+    const variants = variantRows(store, card.id).filter((row) => row.choice_id === choice.id);
+    if (variants.length >= 2) throw new Error('Höchstens zwei Varianten pro Komponentenreferenz.');
+    if (variants.some((row) => row.label.toLocaleLowerCase('de-DE') === input.label.trim().toLocaleLowerCase('de-DE'))) throw new Error('Variantenname ist bereits vergeben.');
+    const report = store.db.prepare('SELECT card_id, project_id, requested_url, final_url, ended_at, status, content_revision, screenshot_png FROM card_qa_reports WHERE id = ? AND card_id = ?')
+      .get(input.reportId, card.id) as { card_id: string; project_id: string; requested_url: string; final_url: string | null; ended_at: string; status: string; content_revision: number; screenshot_png: Buffer | null } | undefined;
+    if (!report || report.project_id !== card.projectId || report.status !== 'passed' || !report.final_url ||
+      !Buffer.isBuffer(report.screenshot_png) || report.screenshot_png.length < 1 || report.screenshot_png.length > 1_000_000) throw new Error('Für diese Karte fehlt eine erfolgreiche lokale Vorschau mit Screenshot.');
+    normalizeCardQaUrl(report.requested_url);
+    if (new URL(normalizeCardQaUrl(report.final_url)).origin !== new URL(report.requested_url).origin) throw new Error('Vorschau wurde von einer anderen Origin geladen.');
+    if (report.content_revision !== input.expectedContentRevision) throw new Error('Die Vorschau stammt aus einer älteren Kartenrevision. Erneut prüfen.');
+    if (variants.some((row) => row.preview_url === report.requested_url)) throw new Error('Jede Variante braucht eine eigene Beispielroute ohne bloße Query-Unterschiede.');
+    if (variantRows(store, card.id).some((row) => row.report_id === input.reportId)) throw new Error('Dieser Vorschaubericht ist schon einer Variante zugeordnet.');
+    store.db.prepare('INSERT INTO card_component_variants (id, choice_id, card_id, label, preview_url, report_id, captured_at, source_fingerprint, screenshot_png) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(randomUUID(), choice.id, card.id, input.label.trim(), report.requested_url, input.reportId, report.ended_at, choice.source_fingerprint, report.screenshot_png);
+    store.db.prepare('UPDATE cards SET content_revision = content_revision + 1, updated_at = ? WHERE id = ?').run(new Date().toISOString(), card.id);
+  })();
+  return cardComponentChoiceState(store, input.cardId);
+}
+
+export function removeCardComponentVariant(store: StudioStore, input: { cardId: string; variantId: string; expectedContentRevision: number }): CardComponentChoiceState {
+  store.db.transaction(() => {
+    const card = store.card(input.cardId);
+    if (card.archivedAt) throw new Error('Archivierte Karte zuerst wiederherstellen.');
+    if (revision(store, card.id) !== input.expectedContentRevision) throw new Error('Karte wurde geändert. Neu laden.');
+    if (store.latestSession(card.id)?.state === 'running') throw new Error('Laufenden Kartenagenten zuerst beenden.');
+    const removed = store.db.prepare('DELETE FROM card_component_variants WHERE id = ? AND card_id = ?').run(input.variantId, card.id);
+    if (removed.changes !== 1) throw new Error('Variante gehört nicht zu dieser Karte.');
+    store.db.prepare('UPDATE cards SET content_revision = content_revision + 1, updated_at = ? WHERE id = ?').run(new Date().toISOString(), card.id);
+  })();
+  return cardComponentChoiceState(store, input.cardId);
 }
 
 function checkedPurpose(value: unknown): string {
@@ -134,11 +206,12 @@ export function cardComponentChoiceContext(store: StudioStore, cardId: string, c
   if (!selected.length) return '';
   return `Approved component references for this card (source files checked in this checkout):\n${JSON.stringify(selected.map((row) => ({
     name: row.name, importPath: row.path, sourceLine: row.line, sourceSha256: row.source_fingerprint, purpose: row.purpose,
-  })), null, 2)}\nUse these existing components where appropriate. Do not silently substitute a changed source.`;
+    variants: variantsFor(store, cardId, row.id).map((item) => ({ label: item.label, previewUrl: item.previewUrl, qaReportId: item.reportId, capturedAt: item.capturedAt, sourceSha256: item.sourceFingerprint })),
+  })), null, 2)}\nUse these existing components where appropriate. Do not silently substitute a changed source. Variant screenshots came from explicitly chosen local app routes; their association with the export was supplied by the user and is not statically verified.`;
 }
 
 function selectionFingerprint(store: StudioStore, cardId: string): string {
-  return createHash('sha256').update(JSON.stringify(rows(store, cardId).map((row) => [row.name, row.path, row.line, row.source_fingerprint, row.purpose]))).digest('hex');
+  return createHash('sha256').update(JSON.stringify(rows(store, cardId).map((row) => [row.name, row.path, row.line, row.source_fingerprint, row.purpose, variantsFor(store, cardId, row.id)]))).digest('hex');
 }
 
 export function recordSessionComponentChoices(store: StudioStore, cardId: string, sessionId: string): void {

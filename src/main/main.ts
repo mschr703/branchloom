@@ -33,7 +33,7 @@ import { applyManualRevision, captureManualRevision, manualRevisionFiles, manual
 import { attestIntegrationReview, integrationEvidence, runIntegrationTest, setIntegrationTestScript } from './integration-evidence';
 import { previewPrDraft } from './pr-draft';
 import { scanProjectComponents } from './component-catalog';
-import { addCardComponentChoice, cardComponentChoiceState, removeCardComponentChoice } from './card-component-choice';
+import { addCardComponentChoice, addCardComponentVariant, cardComponentChoiceState, cardComponentVariantScreenshot, removeCardComponentChoice, removeCardComponentVariant } from './card-component-choice';
 import { checkoutMilestone, compareMilestone, createMilestone, createMilestoneWithPreview, listMilestones, milestonePreviewImage } from './milestones';
 import { createReviewComment, listReviewComments, previewCardDiff } from './diff-review';
 import { acknowledgeQaInboxReport, acknowledgeReviewInboxComment, reviewInboxItems } from './review-inbox';
@@ -193,6 +193,9 @@ function installIpc(): void {
   bind('cardComponentChoiceState', (cardId: string) => cardComponentChoiceState(db, cardId));
   bind('addCardComponentChoice', (input: Parameters<StudioAPI['addCardComponentChoice']>[0]) => addCardComponentChoice(db, input));
   bind('removeCardComponentChoice', (input: Parameters<StudioAPI['removeCardComponentChoice']>[0]) => removeCardComponentChoice(db, input));
+  bind('addCardComponentVariant', (input: Parameters<StudioAPI['addCardComponentVariant']>[0]) => addCardComponentVariant(db, input));
+  bind('removeCardComponentVariant', (input: Parameters<StudioAPI['removeCardComponentVariant']>[0]) => removeCardComponentVariant(db, input));
+  bind('cardComponentVariantScreenshot', (input: Parameters<StudioAPI['cardComponentVariantScreenshot']>[0]) => cardComponentVariantScreenshot(db, input));
   bind('usageSessions', (input: Parameters<StudioAPI['usageSessions']>[0]) => db.usageSessions(input));
   bind('createProject', (input: { name: string; path: string }) => db.createProject(input));
   bind('exportProjectPackage', async (projectId: string) => {

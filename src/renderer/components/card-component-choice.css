@@ -26,3 +26,15 @@
 .card-component-choice__confirm { display: grid; gap: 8px; border-left: 2px solid var(--accent); padding-left: 10px; }
 .card-component-choice__confirm p { margin: 0; font-size: 12px; }
 .card-component-choice__confirm button { justify-self: start; }
+.card-component-choice__variants { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; list-style: none; margin: 8px 0; padding: 0; }
+.card-component-choice__selected .card-component-choice__variants li { display: grid; align-content: start; gap: 5px; border: 1px solid var(--border); border-radius: 6px; padding: 9px; min-width: 0; }
+.card-component-choice__variants li > div { display: grid; gap: 4px; min-width: 0; }
+.card-component-choice__variants small { overflow-wrap: anywhere; }
+.card-component-choice__snapshot img { display: block; width: 100%; height: auto; max-height: 260px; object-fit: contain; object-position: top left; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); }
+.card-component-choice__variant-form { display: grid; gap: 9px; padding: 12px 0; border-block: 1px solid var(--border); }
+.card-component-choice__variant-form h4, .card-component-choice__variant-form p { margin: 0; }
+.card-component-choice__variant-form h4 { font-size: 13px; }
+.card-component-choice__variant-form p { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.card-component-choice__variant-form label { display: grid; gap: 5px; color: var(--soft); font-size: 12px; }
+.card-component-choice__variant-form input { width: 100%; }
+.card-component-choice__variant-form > div { display: flex; flex-wrap: wrap; gap: 10px; }

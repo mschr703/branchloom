@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudioStore } from '../../src/main/store';
 import { scanProjectComponents } from '../../src/main/component-catalog';
-import { addCardComponentChoice, assertCardComponentChoiceResume, cardComponentChoiceContext, cardComponentChoiceState, recordSessionComponentChoices, removeCardComponentChoice } from '../../src/main/card-component-choice';
+import { addCardComponentChoice, addCardComponentVariant, assertCardComponentChoiceResume, cardComponentChoiceContext, cardComponentChoiceState, cardComponentVariantScreenshot, recordSessionComponentChoices, removeCardComponentChoice, removeCardComponentVariant } from '../../src/main/card-component-choice';
 import { reserveCardSession } from '../../src/main/parallel-runs';
 import { SessionRunner } from '../../src/main/cli';
 import { sessionRunEvidence } from '../../src/main/session-evidence';
@@ -39,8 +39,60 @@ async function choose(store: StudioStore, cardId: string, projectPath: string, n
   return addCardComponentChoice(store, { cardId, expectedContentRevision: cardComponentChoiceState(store, cardId).contentRevision,
     name, path: candidate.path, line: candidate.line, sourceFingerprint: candidate.sourceFingerprint, purpose });
 }
+function qaReport(store: StudioStore, cardId: string, projectId: string, revision: number, id: string, route: string, status = 'passed') {
+  const image = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/hS0AAAAASUVORK5CYII=', 'base64');
+  store.db.prepare(`INSERT INTO card_qa_reports (id, card_id, project_id, requested_url, final_url, started_at, ended_at, status, diagnostics_json, page_check, page_observations_json, screenshot_png, viewport_width, viewport_height, git_evidence_json, content_revision)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, '[]', 'ok', '[]', ?, 1280, 800, 'null', ?)`).run(id, cardId, projectId, route, route, new Date().toISOString(), new Date().toISOString(), status, image, revision);
+}
 
 describe('card component references', () => {
+  it('binds two rendered local dialog variants to one checked export and preserves their images across restart', async () => {
+    const { dbPath, projectPath, store, project, card } = fixture();
+    try {
+      const chosen = await choose(store, card.id, projectPath, 'SettingsDialog', 'Use for settings');
+      const choiceId = chosen.choices[0]!.id;
+      qaReport(store, card.id, project.id, chosen.contentRevision, 'qa-compact', 'http://127.0.0.1:5173/stories/dialog/compact');
+      const one = addCardComponentVariant(store, { cardId: card.id, choiceId, expectedContentRevision: chosen.contentRevision, reportId: 'qa-compact', label: 'Compact' });
+      expect(one.choices[0]?.variants).toMatchObject([{ label: 'Compact', reportId: 'qa-compact' }]);
+      qaReport(store, card.id, project.id, one.contentRevision, 'qa-same-route', 'http://127.0.0.1:5173/stories/dialog/compact');
+      expect(() => addCardComponentVariant(store, { cardId: card.id, choiceId, expectedContentRevision: one.contentRevision, reportId: 'qa-same-route', label: 'Duplicate route' })).toThrow('eigene Beispielroute');
+      qaReport(store, card.id, project.id, one.contentRevision, 'qa-wide', 'http://127.0.0.1:5173/stories/dialog/wide');
+      const two = addCardComponentVariant(store, { cardId: card.id, choiceId, expectedContentRevision: one.contentRevision, reportId: 'qa-wide', label: 'Wide' });
+      expect(two.choices[0]?.variants).toHaveLength(2);
+      const context = cardComponentChoiceContext(store, card.id, projectPath);
+      expect(context).toContain('Compact'); expect(context).toContain('Wide'); expect(context).toContain('qaReportId');
+      expect(() => addCardComponentVariant(store, { cardId: card.id, choiceId, expectedContentRevision: one.contentRevision, reportId: 'qa-wide', label: 'Stale' })).toThrow('Karte wurde geändert');
+      const agent = store.saveAgent({ name: 'Synthetic', kind: 'custom', command: process.execPath, args: [], model: null, enabled: true });
+      const session = reserveCardSession(store, { cardId: card.id, agentId: agent.id });
+      recordSessionComponentChoices(store, card.id, session.id);
+      expect(() => removeCardComponentVariant(store, { cardId: card.id, variantId: two.choices[0]!.variants[0]!.id, expectedContentRevision: two.contentRevision })).toThrow('Laufenden');
+      store.finishSession(session.id, 'exited', 0);
+      const removed = removeCardComponentVariant(store, { cardId: card.id, variantId: two.choices[0]!.variants[0]!.id, expectedContentRevision: two.contentRevision });
+      expect(removed.choices[0]?.variants).toHaveLength(1);
+      expect(() => assertCardComponentChoiceResume(store, card.id, session.id, projectPath)).toThrow('geändert');
+    } finally { store.close(); }
+    const reopened = new StudioStore(dbPath);
+    try {
+      const state = cardComponentChoiceState(reopened, card.id);
+      expect(state.choices[0]?.variants).toMatchObject([{ label: 'Wide' }]);
+      expect(cardComponentVariantScreenshot(reopened, { cardId: card.id, variantId: state.choices[0]!.variants[0]!.id })).toMatch(/^data:image\/png;base64,/);
+    } finally { reopened.close(); }
+  });
+
+  it('rejects foreign, failed, old-revision, and changed-source variant evidence', async () => {
+    const { projectPath, store, project, card } = fixture();
+    try {
+      const chosen = await choose(store, card.id, projectPath, 'SettingsDialog', 'Use for settings');
+      const choiceId = chosen.choices[0]!.id;
+      qaReport(store, card.id, project.id, chosen.contentRevision, 'failed', 'http://127.0.0.1:5173/stories/fail', 'failed');
+      expect(() => addCardComponentVariant(store, { cardId: card.id, choiceId, expectedContentRevision: chosen.contentRevision, reportId: 'failed', label: 'Failure' })).toThrow('erfolgreiche');
+      expect(() => addCardComponentVariant(store, { cardId: card.id, choiceId, expectedContentRevision: chosen.contentRevision, reportId: 'foreign', label: 'Foreign' })).toThrow('erfolgreiche');
+      qaReport(store, card.id, project.id, chosen.contentRevision - 1, 'old', 'http://127.0.0.1:5173/stories/old');
+      expect(() => addCardComponentVariant(store, { cardId: card.id, choiceId, expectedContentRevision: chosen.contentRevision, reportId: 'old', label: 'Old' })).toThrow('älteren Kartenrevision');
+      writeFileSync(join(projectPath, 'src', 'Dialogs.tsx'), 'export function SettingsDialog() { return <dialog>Changed</dialog>; }\n');
+      expect(() => addCardComponentVariant(store, { cardId: card.id, choiceId, expectedContentRevision: chosen.contentRevision, reportId: 'old', label: 'Changed' })).toThrow('Komponentenquelle hat sich geändert');
+    } finally { store.close(); }
+  });
   it('stores two source-bound dialog choices and sends both to a real card agent', async () => {
     const { dbPath, projectPath, store, project, card } = fixture();
     try {

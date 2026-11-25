@@ -13,7 +13,7 @@ import type { DesignStateRoute, DesignStateRouteInput, DesignStateRouteKey } fro
 import type { DesignA11yCheck } from './design-a11y';
 import type { DesignViewportResult } from './design-viewports';
 import type { ComponentCatalog } from './component-catalog';
-import type { AddCardComponentChoice, CardComponentChoiceState } from './card-component-choice';
+import type { AddCardComponentChoice, AddCardComponentVariant, CardComponentChoiceState } from './card-component-choice';
 import type { GlobalInboxPage, GlobalInboxQuery } from './global-inbox';
 import type { QaGitEvidence } from './qa-git-evidence';
 import type { CardCriterion, CardCriterionEvidenceKind } from './card-acceptance';
@@ -159,6 +159,9 @@ export interface StudioAPI {
   cardComponentChoiceState(cardId: string): Promise<CardComponentChoiceState>;
   addCardComponentChoice(input: AddCardComponentChoice): Promise<CardComponentChoiceState>;
   removeCardComponentChoice(input: { cardId: string; choiceId: string; expectedContentRevision: number }): Promise<CardComponentChoiceState>;
+  addCardComponentVariant(input: AddCardComponentVariant): Promise<CardComponentChoiceState>;
+  removeCardComponentVariant(input: { cardId: string; variantId: string; expectedContentRevision: number }): Promise<CardComponentChoiceState>;
+  cardComponentVariantScreenshot(input: { cardId: string; variantId: string }): Promise<string>;
   createProject(input: { name: string; path: string }): Promise<Project>;
   exportProjectPackage(projectId: string): Promise<ProjectPackageExportResult | null>;
   previewProjectPackage(): Promise<ProjectPackagePreview | null>;
