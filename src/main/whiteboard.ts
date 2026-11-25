@@ -112,16 +112,17 @@ export function createWhiteboardNode(store: StudioStore, input: { projectId: str
   return requiredNode(store, id);
 }
 
-export function updateWhiteboardNode(store: StudioStore, input: { projectId: string; id: string; title?: string; description?: string; x?: number; y?: number; reference?: WhiteboardReference | null }): WhiteboardNode {
+export function updateWhiteboardNode(store: StudioStore, input: { projectId: string; id: string; title?: string; description?: string; x?: number; y?: number; reference?: WhiteboardReference | null; expectedUpdatedAt?: string }): WhiteboardNode {
   const existing = requiredNode(store, input.id);
   if (existing.projectId !== input.projectId) throw new Error('Whiteboard-Box gehört nicht zu diesem Projekt.');
+  if (input.expectedUpdatedAt !== undefined && input.expectedUpdatedAt !== existing.updatedAt) throw new Error('Whiteboard-Box wurde seit dem Entwurf geändert. Neu laden und erneut prüfen.');
   const reference = input.reference === undefined ? existing.reference : checkedReference(store, existing.projectId, input.reference);
   store.db.prepare('UPDATE whiteboard_nodes SET title = ?, description = ?, x = ?, y = ?, reference_kind = ?, card_id = ?, folder_path = ?, updated_at = ? WHERE id = ?')
     .run(input.title === undefined ? existing.title : label(input.title, 'Titel', 120),
       input.description === undefined ? existing.description : label(input.description, 'Beschreibung', 2000, true),
       input.x === undefined ? existing.x : position(input.x), input.y === undefined ? existing.y : position(input.y),
       reference?.kind ?? null, reference?.kind === 'card' ? reference.cardId : null, reference?.kind === 'folder' || reference?.kind === 'file' ? reference.path : null,
-      new Date().toISOString(), input.id);
+      new Date(Math.max(Date.now(), Date.parse(existing.updatedAt) + 1)).toISOString(), input.id);
   return requiredNode(store, input.id);
 }
 
@@ -130,10 +131,15 @@ export function deleteWhiteboardNode(store: StudioStore, input: { projectId: str
   store.db.prepare('DELETE FROM whiteboard_nodes WHERE id = ? AND project_id = ?').run(input.id, input.projectId);
 }
 
-export function createWhiteboardEdge(store: StudioStore, input: { projectId: string; sourceId: string; targetId: string; label?: string }): WhiteboardEdge {
+export function createWhiteboardEdge(store: StudioStore, input: { projectId: string; sourceId: string; targetId: string; label?: string; expectedSourceUpdatedAt?: string; expectedTargetUpdatedAt?: string }): WhiteboardEdge {
   store.project(input.projectId);
   if (input.sourceId === input.targetId) throw new Error('Eine Box kann nicht mit sich selbst verbunden werden.');
-  if (requiredNode(store, input.sourceId).projectId !== input.projectId || requiredNode(store, input.targetId).projectId !== input.projectId) throw new Error('Verbindung überschreitet die Projektgrenze.');
+  const source = requiredNode(store, input.sourceId);
+  const target = requiredNode(store, input.targetId);
+  if (source.projectId !== input.projectId || target.projectId !== input.projectId) throw new Error('Verbindung überschreitet die Projektgrenze.');
+  if (input.expectedSourceUpdatedAt !== undefined && input.expectedSourceUpdatedAt !== source.updatedAt
+    || input.expectedTargetUpdatedAt !== undefined && input.expectedTargetUpdatedAt !== target.updatedAt)
+    throw new Error('Eine Box wurde seit dem Verbindungsentwurf geändert. Neu laden und erneut prüfen.');
   const count = store.db.prepare('SELECT COUNT(*) AS count FROM whiteboard_edges WHERE project_id = ?').get(input.projectId) as { count: number };
   if (count.count >= MAX_WHITEBOARD_EDGES) throw new Error(`Maximal ${MAX_WHITEBOARD_EDGES} Whiteboard-Verbindungen pro Projekt.`);
   const id = randomUUID();

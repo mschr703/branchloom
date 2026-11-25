@@ -74,6 +74,7 @@ const studio: StudioAPI = {
   compareTrelloBoardIdea: (input) => invoke('compareTrelloBoardIdea', input),
   applyTrelloBoardIdeaSource: (input) => invoke('applyTrelloBoardIdeaSource', input),
   whiteboard: (projectId) => invoke('whiteboard', projectId),
+  discussWhiteboardSelection: (input) => invoke('discussWhiteboardSelection', input),
   themeTokens: (projectId) => invoke('themeTokens', projectId),
   previewThemeTokenEdit: (input) => invoke('previewThemeTokenEdit', input),
   applyThemeTokenEdit: (input) => invoke('applyThemeTokenEdit', input),

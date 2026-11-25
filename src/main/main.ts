@@ -62,6 +62,7 @@ import { apiContractOverview, bindCardApiContract, checkApiContractResponse, pre
 import { ApiContractHttp } from './api-contract-http';
 import { addRequirementClaim, refreshRequirementClaim, removeRequirementClaim, requirementConflictBoard, resolveRequirementConflict } from './requirement-conflicts';
 import { createCardFromWhiteboardEdge, createWhiteboardEdge, createWhiteboardNode, deleteWhiteboardEdge, deleteWhiteboardNode, updateWhiteboardNode, whiteboardSnapshot } from './whiteboard';
+import { discussWhiteboardSelection } from './whiteboard-discussion';
 import { analyzeWhiteboardImpact, createCardFromWhiteboardImpact } from './whiteboard-impact';
 import { acceptRepoMap, previewRepoMap } from './repo-map-import';
 import { parseProjectPackage, PROJECT_PACKAGE_LIMIT } from './project-package';
@@ -310,6 +311,7 @@ function installIpc(): void {
   bind('compareTrelloIdea', (input: Parameters<StudioAPI['compareTrelloIdea']>[0]) => compareTrelloIdea(db, input));
   bind('applyTrelloIdeaSource', (input: Parameters<StudioAPI['applyTrelloIdeaSource']>[0]) => applyTrelloIdeaSource(db, input));
   bind('whiteboard', (projectId: string) => whiteboardSnapshot(db, projectId));
+  bind('discussWhiteboardSelection', (input: Parameters<StudioAPI['discussWhiteboardSelection']>[0]) => discussWhiteboardSelection(db, input));
   bind('themeTokens', (projectId: string) => scanThemeTokens(db, projectId));
   bind('previewThemeTokenEdit', (input: Parameters<StudioAPI['previewThemeTokenEdit']>[0]) => previewThemeTokenEdit(db, input));
   bind('applyThemeTokenEdit', (input: Parameters<StudioAPI['applyThemeTokenEdit']>[0]) => applyThemeTokenEdit(db, input));

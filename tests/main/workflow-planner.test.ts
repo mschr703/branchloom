@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { WorkflowProposal } from '../../src/shared/types';
 import { StudioStore } from '../../src/main/store';
 import { executePlanner, proposeWorkflow, type PlannerInvocation } from '../../src/main/workflow-planner';
+import { createWhiteboardNode } from '../../src/main/whiteboard';
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -30,6 +31,7 @@ describe('global workflow agent', () => {
     const { store, root, project, columns, agent, proposal } = fixture();
     writeFileSync(join(root, 'README.md'), 'Only the README contains marker: PLAN-COPPER-83.\n');
     writeFileSync(join(root, '.env'), 'PRIVATE_VALUE=not-for-planner\n');
+    const savedSketch = createWhiteboardNode(store, { projectId: project.id, title: 'Saved architecture sketch', description: 'Synthetic planned UI', x: 10, y: 20 });
     let invocation!: PlannerInvocation;
     const result = await proposeWorkflow(store, { projectId: project.id, request: 'Build a small feature' }, async (call) => {
       invocation = call;
@@ -50,6 +52,7 @@ describe('global workflow agent', () => {
     expect(invocation.args.at(-1)).toBe('-');
     expect(invocation.stdin).toContain('Build a small feature');
     expect(invocation.stdin).toContain('PLAN-COPPER-83');
+    expect(invocation.stdin).toContain(`[whiteboard:${savedSketch.id}]`);
     expect(invocation.stdin).not.toContain('not-for-planner');
     expect(invocation.stdin).not.toContain('Another private project');
 

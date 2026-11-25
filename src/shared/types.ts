@@ -9,6 +9,7 @@ import type { ReviewInboxPage, ReviewInboxQuery, AcknowledgeReviewInboxComment, 
 import type { CreateOutputErrorCard, OutputErrorPreview, OutputErrorSourceKind } from './output-errors';
 import type { WhiteboardImpact, WhiteboardDirectImporter } from './whiteboard-impact';
 import type { DesignElementPreviewInput, DesignInspectionState, DesignSelection, ThemePreviewInput } from './design-inspection';
+import type { WhiteboardDiscussionInput, WhiteboardDiscussionReply } from './whiteboard-discussion';
 import type { DesignStateRoute, DesignStateRouteInput, DesignStateRouteKey } from './design-state-routes';
 import type { DesignA11yCheck } from './design-a11y';
 import type { DesignViewportResult } from './design-viewports';
@@ -207,6 +208,7 @@ export interface StudioAPI {
   compareTrelloBoardIdea(input: { projectId: string; boardId: string; sourceId: string }): Promise<TrelloIdeaComparison>;
   applyTrelloBoardIdeaSource(input: { projectId: string; boardId: string; sourceId: string; fingerprint: string; localSignature: string; copyTitle: boolean; copyBody: boolean }): Promise<TrelloIdeaComparison>;
   whiteboard(projectId: string): Promise<WhiteboardSnapshot>;
+  discussWhiteboardSelection(input: WhiteboardDiscussionInput): Promise<WhiteboardDiscussionReply>;
   themeTokens(projectId: string): Promise<ThemeTokenInventory>;
   previewThemeTokenEdit(input: { projectId: string; token: ThemeTokenDefinition; value: string }): Promise<ThemeTokenEditPreview>;
   applyThemeTokenEdit(input: { projectId: string; token: ThemeTokenDefinition; value: string; reviewToken: string; confirm: boolean }): Promise<ThemeTokenEditResult>;
@@ -215,9 +217,9 @@ export interface StudioAPI {
   previewRepoMap(projectId: string): Promise<import('./repo-map').RepoMapProposal>;
   acceptRepoMap(input: { projectId: string; fingerprint: string; nodeIds: string[] }): Promise<import('./repo-map').RepoMapImportResult>;
   createWhiteboardNode(input: { projectId: string; title: string; description?: string; x: number; y: number; reference?: WhiteboardReference | null }): Promise<WhiteboardNode>;
-  updateWhiteboardNode(input: { projectId: string; id: string; title?: string; description?: string; x?: number; y?: number; reference?: WhiteboardReference | null }): Promise<WhiteboardNode>;
+  updateWhiteboardNode(input: { projectId: string; id: string; title?: string; description?: string; x?: number; y?: number; reference?: WhiteboardReference | null; expectedUpdatedAt?: string }): Promise<WhiteboardNode>;
   deleteWhiteboardNode(input: { projectId: string; id: string }): Promise<void>;
-  createWhiteboardEdge(input: { projectId: string; sourceId: string; targetId: string; label?: string }): Promise<WhiteboardEdge>;
+  createWhiteboardEdge(input: { projectId: string; sourceId: string; targetId: string; label?: string; expectedSourceUpdatedAt?: string; expectedTargetUpdatedAt?: string }): Promise<WhiteboardEdge>;
   createCardFromWhiteboardEdge(input: { projectId: string; edgeId: string; columnId: string; title: string; description: string }): Promise<Card>;
   deleteWhiteboardEdge(input: { projectId: string; id: string }): Promise<void>;
   createColumn(input: { projectId: string; name: string; autoStart?: boolean; agentId?: string | null; model?: string | null; effort?: ColumnEffort | null }): Promise<Column>;

@@ -11,6 +11,7 @@ import { cardRunGate, reserveCardSession } from './parallel-runs';
 import { buildAntigravityArgs } from './antigravity';
 import { CodexJsonlOutput } from './codex-jsonl';
 import { approvedCardWireframeContext } from './card-wireframe';
+import { savedWhiteboardCardContext } from './whiteboard-card-context';
 import { assertCardComponentChoiceResume, cardComponentChoiceContext, recordSessionComponentChoices } from './card-component-choice';
 import { assertCardApiContractResume, cardApiContractContext, recordSessionApiContract } from './api-contract';
 import { assertCardWireframeReady } from './card-wireframe-gate';
@@ -255,13 +256,14 @@ export class SessionRunner {
     if (!launcher) throw new Error(`Agent executable or supported Node shim not found: ${agent.command}`);
     const taskPrompt = (input.prompt ?? `Work on this card in the selected project.\n\nTitle: ${card.title}\n\n${card.description}`).trim();
     const wireframeContext = approvedCardWireframeContext(this.store, { projectId: card.projectId, cardId: card.id });
+    const whiteboardContext = savedWhiteboardCardContext(this.store, card.id);
     const componentContext = cardComponentChoiceContext(this.store, card.id, project.path);
     const apiContractContext = cardApiContractContext(this.store, card.id);
     const taskRevision = currentTaskRevisionContext(this.store, card.id);
     const metadataInstructions = this.metadataBridge?.instructions(card.projectId) ?? '';
     const browserInstructions = this.browserBridge?.instructions(card.projectId) ?? '';
     const prompt = taskPrompt ? taskPrompt + (taskRevision ? `\n\n${taskRevision.text}` : '')
-      + (wireframeContext ? `\n\n${wireframeContext}` : '') + (apiContractContext ? `\n\n${apiContractContext}` : '')
+      + (wireframeContext ? `\n\n${wireframeContext}` : '') + (whiteboardContext ? `\n\n${whiteboardContext}` : '') + (apiContractContext ? `\n\n${apiContractContext}` : '')
       + (componentContext ? `\n\n${componentContext}` : '') + metadataInstructions + browserInstructions : '';
     if (prompt.length > 30_000) throw new Error('Agent prompt exceeds 30000 characters');
     assertSafeModelContext([
@@ -269,6 +271,7 @@ export class SessionRunner {
       { field: 'Kartenbeschreibung', text: card.description },
       ...(input.prompt === undefined ? [] : [{ field: 'Agentenauftrag', text: input.prompt }]),
       ...(wireframeContext ? [{ field: 'freigegebener Wireframe', text: wireframeContext }] : []),
+      ...(whiteboardContext ? [{ field: 'saved Whiteboard context', text: whiteboardContext }] : []),
       ...(apiContractContext ? [{ field: 'API contract', text: apiContractContext }] : []),
       ...(componentContext ? [{ field: 'component references', text: componentContext }] : []),
     ]);
