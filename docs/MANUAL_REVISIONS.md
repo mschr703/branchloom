@@ -11,6 +11,10 @@ Der Kartendialog kann eine ausdrücklich ausgewählte, geänderte Zieldatei als 
 
 Der Ziel-Checkout ist nach dem Schreiben **absichtlich uncommittet**. Die G02-Integrationswarteschlange bleibt dadurch gesperrt; Branchloom führt keinen Git-Branch-Merge, Commit oder Rebase aus. Diese Stufe schützt und kombiniert eine Datei, sie integriert noch keine ganze Karte. Für eine spätere Branch-Übernahme sind getrennte Git-Prüfung, Commit/Abgleich und erneute Tests nötig.
 
+## Gezielte Abnahme
+
+`node scripts/smoke-electron.mjs --f03 --timeout-ms 180000` startet eine isolierte Quell-App mit synthetischem Git-Projekt. Der sichtbare Kartenablauf erfasst eine manuelle Revision, schreibt konfliktfreie Änderungen beider Seiten, zeigt bei einer zweiten Karte Basis und beide Varianten, verlangt eine Wahl und findet sie nach einem Renderer-Neuladen wieder. Eine spätere Zieländerung wird beim Schreiben abgewiesen; die neuere Datei bleibt erhalten und kann frisch erfasst werden. Die Main-Tests öffnen die SQLite-Datei nach dem Schließen erneut und prüfen so die dauerhafte Speicherung. Der Electron-Smoke prüft ein Renderer-Neuladen, keinen vollständigen App-Neustart.
+
 ## Grenzen
 
 - Zugelassen sind bestehende, geänderte, versionierte UTF-8-Dateien bis 128 KiB ohne BOM. Gelöschte, unversionierte, binäre und symbolisch verlinkte Dateien bleiben ausgenommen. Änderungen im Karten-Worktree müssen vor dem Vergleich committiert sein.

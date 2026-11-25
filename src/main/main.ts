@@ -31,6 +31,7 @@ import { CommandTerminalRunner } from './command-terminal';
 import { ensureCardWorktree, previewCardWorktreeCleanup, reviewCardWorktree, verifiedCardWorktreePath } from './git-worktree';
 import { approveIntegration, enqueueIntegration, integrationQueue, prepareIntegration } from './integration-queue';
 import { applyManualRevision, captureManualRevision, manualRevisionFiles, manualRevisions, previewManualRevision, setManualRevisionConflictChoice } from './manual-revision';
+import { runF03Acceptance } from './f03-acceptance-smoke';
 import { attestIntegrationReview, integrationEvidence, runIntegrationTest, setIntegrationTestScript } from './integration-evidence';
 import { previewPrDraft } from './pr-draft';
 import { scanProjectComponents } from './component-catalog';
@@ -105,7 +106,8 @@ let releaseCheckTimer: NodeJS.Timeout | null = null;
 let releaseStartTimer: NodeJS.Timeout | null = null;
 let smokeQaServer: ReturnType<typeof createServer> | null = null;
 const smokeF06 = process.argv.includes('--studio-smoke-f06');
-const smoke = process.argv.includes('--studio-smoke') || smokeF06;
+const smokeF03 = process.argv.includes('--studio-smoke-f03');
+const smoke = process.argv.includes('--studio-smoke') || smokeF03 || smokeF06;
 const smokeDataDirectory = smoke ? mkdtempSync(join(tmpdir(), 'branchloom-smoke-')) : null;
 const devDataDirectory = !app.isPackaged ? process.env.BRANCHLOOM_DEV_USER_DATA : undefined;
 if (smokeDataDirectory) {
@@ -880,7 +882,17 @@ function createWindow(): void {
   // source modes, so it cannot decide this on its own.
   if (!app.isPackaged && process.env.JARVIS_STUDIO_DEV_SERVER === '1') void window.loadURL('http://127.0.0.1:5181');
   else void window.loadFile(join(__dirname, '../../dist/renderer/index.html'));
-  if (smokeF06) {
+  if (smokeF03) {
+    window.webContents.once('did-finish-load', () => {
+      void runF03Acceptance(window!, mustStore(), smokeDataDirectory!).then(() => {
+        process.stdout.write('STUDIO_SMOKE_F03_OK\n');
+        app.quit();
+      }).catch((error) => {
+        console.error('STUDIO_SMOKE_F03_FAILED', error);
+        app.exit(1);
+      });
+    });
+  } else if (smokeF06) {
     window.webContents.once('did-finish-load', () => {
       void (async () => {
         const projectPath = join(smokeDataDirectory!, 'f06-project');
@@ -4169,6 +4181,7 @@ http.createServer((_request,response)=>{response.writeHead(200,{'Content-Type':'
               throw new Error('F05 live CLI recipients did not acknowledge the terminal message.');
             }
             runner!.stop(f05Runs[2]!.id);
+            await runF03Acceptance(smokeWindow, smokeStore, smokeDataDirectory!);
             process.stdout.write('STUDIO_SMOKE_OK\n');
             app.quit();
           }).catch(failSmoke);
