@@ -14,6 +14,14 @@ Die Planung liegt im eigenen privaten [Branchloom-Trello-Board](https://trello.c
 
 Ruhige, präzise Werkstatt statt generischem AI-Dashboard: helle und dunkle neutrale Arbeitsflächen, ein sparsamer immergrüner Akzent, eine eigenständige gut lesbare Schrift und dichte, gut bedienbare Arbeitsflächen. Keine goldbraune Grundstimmung, dunkelblauen Hintergründe, Neonfarben, Glows, dekorativen Verläufe, Sparkle-Motive, Fake-Kennzahlen oder identischen Marketing-Karten. Vor UI-Änderungen den `anti-slop-design`-Skill lesen, echte Zustände und Tastaturpfade prüfen und die Oberfläche sichtbar kontrollieren. Der Skill ist ein Qualitätsmaßstab, kein Ersatz für Nutzerfeedback.
 
+### Feedback vom 25.11.2026: Arbeitsflächen statt Schaubilder
+
+- **Architektur-Whiteboard:** Boxen und angeschlossene Linien sollen sich wie ein Diagramm bearbeiten lassen. Verbindungen und Layout bleiben lesbar. Ein mit der Maus gezogenes Auswahlrechteck grenzt einen belegten Ausschnitt für eine AI-Erklärung ein. Eigene Änderungen beginnen als Entwurf; erst Gespräch und ausdrückliche Bestätigung übernehmen sinnvolle Teile. Freigegebene Architektur muss anschließend in Aufgabenplanung und Agentenkontext auftauchen, mit Quelle und aktuellem Arbeitsbezug. Eine separate rechte „Verbinden“-Box soll entfallen, wenn direkte Canvas-Aktionen und eine Tastaturalternative den Ablauf abdecken. [UX02 in Trello](https://trello.com/c/OXHjTNDn).
+- **Memory:** Der Graph soll eine fokussierbare, nach Herkunft prüfbare Nachbarschaft zeigen statt viele gleichwertige Punkte und kreuzende Linien. Filter, ausgewählte Quelle und begrenzte Tiefe helfen beim Lesen. Beziehungen bleiben ausschließlich aus echten indexierten Quellen belegt; das Design darf keine semantische Nähe vortäuschen. [M01 in Trello](https://trello.com/c/XGFdNZNw).
+- **Design Workspace:** Eine echte bearbeitbare Fläche mit ausgewählten Elementen, Ebenen und Eigenschaften steht im Mittelpunkt. Entwurf, laufende Vorschau und freigegebener Kontext müssen klar unterscheidbar sein. Änderungen gehen erst nach bewusster Übernahme an Coding-Agenten. Figma dient als Interaktionsreferenz, nicht als kopierte Oberfläche. [S01 in Trello](https://trello.com/c/X9b7CGKc).
+
+Diese Punkte sind Ziel und Prüfmaßstab, kein Fertigstellungsnachweis. Der aktuelle Stand und offene Grenzen stehen in [STATUS.md](STATUS.md).
+
 ## Funktionskarte
 
 | Bereich | Gewünschter Ablauf | Stand / Abhängigkeit |
