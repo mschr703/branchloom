@@ -80,7 +80,14 @@ describe('confirmed task revisions', () => {
       expect(result.revisions[0]).toMatchObject({ delivery: 'submitted', targetSessionId: source.id });
       expect(() => submitTaskRevision(f.store, runner, { projectId: f.project.id, cardId: f.card.id,
         revisionId: current.id, sessionId: source.id })).toThrow('stale or already submitted');
-    } finally { f.store.close(); }
+      f.store.close();
+      const reopened = new StudioStore(f.db);
+      try {
+        expect(taskRevisionHistory(reopened, { projectId: f.project.id, cardId: f.card.id }).revisions[0])
+          .toMatchObject({ id: current.id, delivery: 'submitted', targetSessionId: source.id,
+            fromTitle: 'Export CSV and PDF', toTitle: 'Export CSV', reason: 'PDF is no longer in scope.' });
+      } finally { reopened.close(); }
+    } finally { if (f.store.db.open) f.store.close(); }
   });
 
   it('pauses a linked workflow and queue without stopping the running agent', () => {

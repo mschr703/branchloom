@@ -13,11 +13,13 @@ if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 30_000 || timeoutMs > 600_00
   throw new Error('--timeout-ms must be an integer between 30000 and 600000');
 }
 const packaged = process.argv.includes('--package') || explicitExecutable !== null;
+const f06 = process.argv.includes('--f06');
 const executable = explicitExecutable ?? (packaged
   ? join(process.cwd(), 'out', 'Branchloom-win32-x64', 'Branchloom.exe')
   : require('electron'));
 if (!existsSync(executable)) throw new Error(`Electron-Binary fehlt: ${executable}`);
-const args = packaged ? ['--studio-smoke'] : ['.', '--studio-smoke'];
+const smokeFlag = f06 ? '--studio-smoke-f06' : '--studio-smoke';
+const args = packaged ? [smokeFlag] : ['.', smokeFlag];
 const child = spawn(executable, args, {
   cwd: process.cwd(), windowsHide: true,
   env: { ...process.env, JARVIS_STUDIO_DEV_SERVER: '0' },
@@ -36,8 +38,9 @@ child.on('error', (error) => {
 });
 child.on('exit', (code) => {
   clearTimeout(timeout);
-  if (code === 0 && stdout.includes('STUDIO_SMOKE_OK')) {
-    console.log(`${packaged ? 'Paket' : 'Quellbuild'}: Renderer, IPC, SQLite, Terminal/Agenten-PTY, Board, Ideenraum, Aufgabenklärung, Whiteboard, Kartenkontext mit bestätigtem Anhang-, Whiteboard-Dateibox- und Design-Beleg-Drop, lokale Karten-QA mit mehreren Routen, DOM-Hinweisen und Screenshots, visueller Vergleich, gespeicherte Prüfgrößenansicht, Design-Aufnahmen in drei Größen, Changelog-Quellwahl und Memory-Übernahme erfolgreich.`);
+  if (code === 0 && stdout.includes(f06 ? 'STUDIO_SMOKE_F06_OK' : 'STUDIO_SMOKE_OK')) {
+    console.log(f06 ? `${packaged ? 'Paket' : 'Quellbuild'}: F06 board revision, live CLI delivery, source cleanup evidence, reload and stopped-session guard passed.`
+      : `${packaged ? 'Paket' : 'Quellbuild'}: Renderer, IPC, SQLite, Terminal/Agenten-PTY, Board, Ideenraum, Aufgabenklärung, Whiteboard, Kartenkontext mit bestätigtem Anhang-, Whiteboard-Dateibox- und Design-Beleg-Drop, lokale Karten-QA mit mehreren Routen, DOM-Hinweisen und Screenshots, visueller Vergleich, gespeicherte Prüfgrößenansicht, Design-Aufnahmen in drei Größen, Changelog-Quellwahl und Memory-Übernahme erfolgreich.`);
   } else {
     console.error(timedOut ? `Electron-Smoke nach ${timeoutMs / 1000} Sekunden ohne Abschluss-Signal abgebrochen.` : `Electron-Smoke fehlgeschlagen (Exit ${code ?? 'unbekannt'}).`);
     console.error(stderr.slice(-2000) || stdout.slice(-2000));

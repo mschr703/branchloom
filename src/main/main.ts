@@ -104,7 +104,8 @@ let releaseUpdater: ReleaseUpdateController;
 let releaseCheckTimer: NodeJS.Timeout | null = null;
 let releaseStartTimer: NodeJS.Timeout | null = null;
 let smokeQaServer: ReturnType<typeof createServer> | null = null;
-const smoke = process.argv.includes('--studio-smoke');
+const smokeF06 = process.argv.includes('--studio-smoke-f06');
+const smoke = process.argv.includes('--studio-smoke') || smokeF06;
 const smokeDataDirectory = smoke ? mkdtempSync(join(tmpdir(), 'branchloom-smoke-')) : null;
 const devDataDirectory = !app.isPackaged ? process.env.BRANCHLOOM_DEV_USER_DATA : undefined;
 if (smokeDataDirectory) {
@@ -690,6 +691,145 @@ function installIpc(): void {
   bind('createOutputErrorCard', (input: Parameters<StudioAPI['createOutputErrorCard']>[0]) => createOutputErrorCard(db, input));
 }
 
+async function runF06VisibleSmoke(smokeWindow: BrowserWindow, smokeStore: StudioStore, milestoneProjectId: string): Promise<void> {
+  // Exercise the card's visible revision controls against a live, synthetic CLI.
+  const f06Script = join(smokeDataDirectory!, 'f06-agent.cmd');
+  writeFileSync(f06Script, ['@echo off', ':loop', 'set /p line=', 'echo F06_AGENT_INPUT:%line%', 'goto loop'].join('\r\n'));
+  const f06Agent = smokeStore.saveAgent({ name: 'F06 synthetic CLI', kind: 'custom',
+    command: join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'cmd.exe'),
+    args: ['/C', f06Script], model: null, enabled: true });
+  const f06Card = smokeStore.createCard({ projectId: milestoneProjectId, columnId: smokeStore.snapshot(milestoneProjectId).columns[0]!.id,
+    title: 'Export CSV and PDF', description: 'Create PDF and CSV reports.' });
+  const f06Worktree = ensureCardWorktree(smokeStore, f06Card.id);
+  mkdirSync(join(f06Worktree.cwd, 'src'), { recursive: true });
+  const f06Source = join(f06Worktree.cwd, 'src', 'f06-export.ts');
+  const f06SourceContent = "export const reportFormat = 'PDF';\n";
+  writeFileSync(f06Source, f06SourceContent);
+  execFileSync('git', ['-C', f06Worktree.cwd, 'add', '--', 'src/f06-export.ts'], { windowsHide: true });
+  execFileSync('git', ['-C', f06Worktree.cwd, '-c', 'user.name=Synthetic', '-c', 'user.email=synthetic@example.invalid',
+    'commit', '-qm', 'Add synthetic PDF report'], { windowsHide: true });
+  const f06SourceHash = createHash('sha256').update(f06SourceContent).digest('hex');
+  const f06Session = runner!.start({ cardId: f06Card.id, agentId: f06Agent.id, useWorktree: true });
+  if (smokeStore.session(f06Session.id).state !== 'running') throw new Error('F06 synthetic CLI did not start.');
+  await new Promise<void>((resolve) => { smokeWindow.webContents.once('did-finish-load', () => resolve()); smokeWindow.webContents.reload(); });
+  const f06Revision = await smokeWindow.webContents.executeJavaScript(`(async () => {
+    const cardId = ${JSON.stringify(f06Card.id)};
+    const projectId = ${JSON.stringify(milestoneProjectId)};
+    const sourceHash = ${JSON.stringify(f06SourceHash)};
+    const wait = async (predicate, label) => {
+      for (let i = 0; i < 300; i++) { const result = await predicate(); if (result) return result; await new Promise((resolve) => setTimeout(resolve, 50)); }
+      throw new Error('F06 UI smoke timed out: ' + label);
+    };
+    const project = await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger:not(.is-compact)'), 'project picker');
+    project.click();
+    const choice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project button')]
+      .find((item) => item.textContent?.trim() === 'Meilenstein-Vorschau'), 'milestone project');
+    choice.click();
+    await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger')?.getAttribute('aria-label') === 'Projekt auswählen: Meilenstein-Vorschau', 'selected project');
+    const nav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')]
+      .find((item) => item.querySelector('.nav-label')?.textContent?.trim() === 'Board');
+    if (!nav) throw new Error('F06 board navigation missing.');
+    nav.click();
+    const card = await wait(() => document.getElementById('board-card-' + cardId), 'visible card');
+    card.click();
+    const panel = await wait(() => document.querySelector('.card-drawer .task-revisions'), 'revision panel');
+    panel.querySelector('summary')?.click();
+    await wait(() => panel.querySelector('input') && panel.querySelectorAll('textarea').length === 2, 'revision form');
+    await wait(async () => (await window.studio.taskRevisionHistory({ projectId, cardId })).contentRevision >= 0, 'revision history');
+    const inputSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    const textSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+    const title = panel.querySelector('input');
+    const [description, reason] = panel.querySelectorAll('textarea');
+    if (!inputSetter || !textSetter || !title || !description || !reason) throw new Error('F06 revision controls missing.');
+    inputSetter.call(title, 'Export CSV only'); title.dispatchEvent(new Event('input', { bubbles: true }));
+    textSetter.call(description, 'Create CSV reports. F06_SCOPE_CHANGED_ONLY'); description.dispatchEvent(new Event('input', { bubbles: true }));
+    textSetter.call(reason, 'PDF export was removed from the request.'); reason.dispatchEvent(new Event('input', { bubbles: true }));
+    const confirm = await wait(() => panel.querySelector('button[type="submit"]:not(:disabled)'), 'confirm revision');
+    confirm.click();
+    const history = await wait(async () => {
+      const value = await window.studio.taskRevisionHistory({ projectId, cardId });
+      return value.revisions[0]?.delivery === 'prepared' ? value : null;
+    }, 'prepared revision');
+    const revision = history.revisions[0];
+    if (revision.fromTitle !== 'Export CSV and PDF' || revision.toTitle !== 'Export CSV only'
+      || revision.reason !== 'PDF export was removed from the request.' || revision.sourceSessionId !== ${JSON.stringify(f06Session.id)})
+      throw new Error('F06 old/new/reason or source session was not persisted.');
+    const row = await wait(() => panel.querySelector('.task-revision'), 'visible revision');
+    if (!row.textContent?.includes('Bereitgestellt') || !row.textContent.includes(revision.reason)) throw new Error('F06 prepared status or reason not visible.');
+    row.querySelector('details summary')?.click();
+    if (!row.textContent?.includes('Export CSV and PDF') || !row.textContent.includes('F06_SCOPE_CHANGED_ONLY'))
+      throw new Error('F06 comparison omitted old or new scope.');
+    const inspect = await wait(() => [...row.querySelectorAll('button')]
+      .find((button) => button.textContent?.includes('Bereinigung prüfen') && !button.disabled), 'cleanup inspection button');
+    inspect.click();
+    const match = await wait(() => row.querySelector('.task-cleanup-matches li'), 'source cleanup evidence');
+    if (!match.textContent?.includes('src/f06-export.ts:1') || !match.textContent.includes(sourceHash.slice(0, 12))
+      || match.querySelector('code[title]')?.getAttribute('title') !== sourceHash)
+      throw new Error('F06 cleanup evidence omitted file, line or complete hash.');
+    if (row.querySelector('.task-cleanup-preview button')) throw new Error('F06 cleanup preview offered an automatic action.');
+    const submit = await wait(() => [...row.querySelectorAll('button')]
+      .find((button) => button.textContent?.includes('An diesen laufenden Agenten senden') && !button.disabled), 'send to source session');
+    submit.click();
+    await wait(async () => (await window.studio.taskRevisionHistory({ projectId, cardId })).revisions[0]?.delivery === 'submitted', 'submitted revision');
+    await wait(() => row.textContent?.includes('An Terminal geschrieben'), 'visible submitted status');
+    return revision.id;
+  })()`);
+  for (let attempt = 0; attempt < 100 && !smokeStore.session(f06Session.id).output.includes('F06_SCOPE_CHANGED_ONLY'); attempt++)
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  if (!smokeStore.session(f06Session.id).output.includes('F06_SCOPE_CHANGED_ONLY')) throw new Error('F06 live CLI did not receive the revised scope.');
+  await new Promise<void>((resolve) => { smokeWindow.webContents.once('did-finish-load', () => resolve()); smokeWindow.webContents.reload(); });
+  await smokeWindow.webContents.executeJavaScript(`(async () => {
+    const projectId = ${JSON.stringify(milestoneProjectId)};
+    const cardId = ${JSON.stringify(f06Card.id)};
+    const revisionId = ${JSON.stringify(f06Revision)};
+    const wait = async (predicate, label) => {
+      for (let i = 0; i < 300; i++) { const result = await predicate(); if (result) return result; await new Promise((resolve) => setTimeout(resolve, 50)); }
+      throw new Error('F06 reload timed out: ' + label);
+    };
+    const card = await wait(() => document.getElementById('board-card-' + cardId), 'reloaded card');
+    card.click();
+    const panel = await wait(() => document.querySelector('.card-drawer .task-revisions'), 'reloaded revision panel');
+    panel.querySelector('summary')?.click();
+    const row = await wait(() => panel.querySelector('.task-revision'), 'reloaded revision');
+    if (!row.textContent?.includes('An Terminal geschrieben') || !row.textContent.includes('PDF export was removed from the request.'))
+      throw new Error('F06 delivery or reason disappeared after renderer reload.');
+    const persisted = (await window.studio.taskRevisionHistory({ projectId, cardId })).revisions[0];
+    if (persisted?.id !== revisionId || persisted.targetSessionId !== ${JSON.stringify(f06Session.id)})
+      throw new Error('F06 persisted delivery points to another session.');
+    return true;
+  })()`);
+  const f06Second = confirmTaskRevision(smokeStore, { projectId: milestoneProjectId, cardId: f06Card.id,
+    expectedContentRevision: taskRevisionHistory(smokeStore, { projectId: milestoneProjectId, cardId: f06Card.id }).contentRevision,
+    title: 'Export CSV with header', description: 'Create CSV reports with headers.', reason: 'The consumer needs headers.' }).revisions[0]!;
+  runner!.stop(f06Session.id);
+  if (smokeStore.session(f06Session.id).state !== 'stopped') throw new Error('F06 old CLI did not stop.');
+  let rejectedStoppedDelivery = false;
+  try { submitTaskRevision(smokeStore, runner!, { projectId: milestoneProjectId, cardId: f06Card.id,
+    revisionId: f06Second.id, sessionId: f06Session.id }); }
+  catch (error) { rejectedStoppedDelivery = String(error).includes('no longer running'); }
+  if (!rejectedStoppedDelivery || taskRevisionHistory(smokeStore, { projectId: milestoneProjectId, cardId: f06Card.id }).revisions[0]?.delivery !== 'prepared')
+    throw new Error('F06 stopped session accepted or changed a prepared revision.');
+  await new Promise<void>((resolve) => { smokeWindow.webContents.once('did-finish-load', () => resolve()); smokeWindow.webContents.reload(); });
+  await smokeWindow.webContents.executeJavaScript(`(async () => {
+    const cardId = ${JSON.stringify(f06Card.id)};
+    const wait = async (predicate, label) => {
+      for (let i = 0; i < 300; i++) { const result = await predicate(); if (result) return result; await new Promise((resolve) => setTimeout(resolve, 50)); }
+      throw new Error('F06 stopped-state UI timed out: ' + label);
+    };
+    const card = await wait(() => document.getElementById('board-card-' + cardId), 'revised card');
+    card.click();
+    const panel = await wait(() => document.querySelector('.card-drawer .task-revisions'), 'revision panel');
+    panel.querySelector('summary')?.click();
+    const current = await wait(() => panel.querySelector('.task-revision'), 'prepared revision');
+    if (!current.textContent?.includes('Bereitgestellt') || !current.textContent.includes('The consumer needs headers.')
+      || !current.textContent.includes('Der ursprüngliche Lauf ist nicht mehr aktiv'))
+      throw new Error('F06 stopped-session state is not explained in the card.');
+    if ([...current.querySelectorAll('button')].some((button) => button.textContent?.includes('An diesen laufenden Agenten senden')))
+      throw new Error('F06 stopped session still offers delivery.');
+    return true;
+  })()`);
+}
+
 function createWindow(): void {
   window = new BrowserWindow({
     width: 1500,
@@ -722,7 +862,24 @@ function createWindow(): void {
   // source modes, so it cannot decide this on its own.
   if (!app.isPackaged && process.env.JARVIS_STUDIO_DEV_SERVER === '1') void window.loadURL('http://127.0.0.1:5181');
   else void window.loadFile(join(__dirname, '../../dist/renderer/index.html'));
-  if (smoke) {
+  if (smokeF06) {
+    window.webContents.once('did-finish-load', () => {
+      void (async () => {
+        const projectPath = join(smokeDataDirectory!, 'f06-project');
+        mkdirSync(projectPath);
+        writeFileSync(join(projectPath, 'README.md'), '# Synthetic F06 project\n');
+        execFileSync('git', ['init', '-q', projectPath], { windowsHide: true });
+        execFileSync('git', ['-C', projectPath, 'add', 'README.md'], { windowsHide: true });
+        execFileSync('git', ['-C', projectPath, '-c', 'user.name=Synthetic', '-c', 'user.email=synthetic@example.invalid',
+          'commit', '-qm', 'Initial synthetic project'], { windowsHide: true });
+        const smokeStore = mustStore();
+        const project = smokeStore.createProject({ name: 'Meilenstein-Vorschau', path: projectPath });
+        await runF06VisibleSmoke(window!, smokeStore, project.id);
+        process.stdout.write('STUDIO_SMOKE_F06_OK\n');
+        app.quit();
+      })().catch((error) => { console.error('STUDIO_SMOKE_F06_FAILED', error); app.exit(1); });
+    });
+  } else if (smoke) {
     writeFileSync(join(smokeDataDirectory!, 'context.md'), '# BRANCHLOOM_CONTEXT_SMOKE\n');
     writeFileSync(join(smokeDataDirectory!, 'drop.md'), '# BRANCHLOOM_DROP_SMOKE\n');
     const failSmoke = (error: unknown) => {
@@ -3851,6 +4008,7 @@ http.createServer((_request,response)=>{response.writeHead(200,{'Content-Type':'
               if (state.choices[0]?.name !== 'SettingsDialog' || state.choices[0]?.variants.length !== 0) throw new Error('F10 reuse copied old QA variants or saved the wrong source.');
               return true;
             })()`);
+            await runF06VisibleSmoke(smokeWindow, smokeStore, milestoneProjectId);
 
             const f04SourceCard = smokeStore.createCard({ projectId: smokeProject.id, columnId: smokeSnapshot.columns[0]!.id, title: 'F04 source navigation' });
             const f04CandidateCard = smokeStore.createCard({ projectId: smokeProject.id, columnId: smokeSnapshot.columns[0]!.id, title: 'F04 candidate navigation' });
