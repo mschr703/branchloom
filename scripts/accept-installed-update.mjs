@@ -136,8 +136,12 @@ async function connectPage(port, timeoutMs = 40_000) {
   if (!target) fail('Installed app did not expose its Electron renderer for acceptance.');
   const socket = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => {
-    socket.addEventListener('open', resolve, { once: true });
-    socket.addEventListener('error', reject, { once: true });
+    const timer = setTimeout(() => {
+      socket.close();
+      reject(new Error('CDP WebSocket did not open within 10 seconds.'));
+    }, 10_000);
+    socket.addEventListener('open', () => { clearTimeout(timer); resolve(); }, { once: true });
+    socket.addEventListener('error', (error) => { clearTimeout(timer); reject(error); }, { once: true });
   });
   let nextId = 0;
   const pending = new Map();
@@ -146,15 +150,27 @@ async function connectPage(port, timeoutMs = 40_000) {
     const waiter = pending.get(message.id);
     if (!waiter) return;
     pending.delete(message.id);
+    clearTimeout(waiter.timer);
     if (message.error) waiter.reject(new Error(message.error.message));
     else waiter.resolve(message.result);
+  });
+  socket.addEventListener('close', () => {
+    for (const waiter of pending.values()) {
+      clearTimeout(waiter.timer);
+      waiter.reject(new Error('CDP socket closed while a command was pending.'));
+    }
+    pending.clear();
   });
   const command = (method, params = {}) => {
     const id = ++nextId;
     return new Promise((resolve, reject) => {
-      pending.set(id, { resolve, reject });
-      socket.send(JSON.stringify({ id, method, params }));
-      setTimeout(() => { if (pending.delete(id)) reject(new Error(`CDP ${method} timed out`)); }, 12_000).unref();
+      if (socket.readyState !== WebSocket.OPEN) return reject(new Error(`CDP ${method} cannot run on a closed socket.`));
+      const timer = setTimeout(() => {
+        if (pending.delete(id)) reject(new Error(`CDP ${method} timed out`));
+      }, 12_000);
+      pending.set(id, { resolve, reject, timer });
+      try { socket.send(JSON.stringify({ id, method, params })); }
+      catch (error) { clearTimeout(timer); pending.delete(id); reject(error); }
     });
   };
   const evaluate = async (expression) => {
@@ -162,8 +178,13 @@ async function connectPage(port, timeoutMs = 40_000) {
     if (result.exceptionDetails) fail(`Installed renderer evaluation failed: ${result.exceptionDetails.text}`);
     return result.result.value;
   };
-  await command('Runtime.enable');
-  await command('Page.enable');
+  try {
+    await command('Runtime.enable');
+    await command('Page.enable');
+  } catch (error) {
+    socket.close();
+    throw error;
+  }
   return {
     evaluate,
     async click(text) {
@@ -176,19 +197,23 @@ async function connectPage(port, timeoutMs = 40_000) {
       const result = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
       writeFileSync(join(EVIDENCE, name), Buffer.from(result.data, 'base64'));
     },
+    connected() { return socket.readyState === WebSocket.OPEN; },
     close() { socket.close(); },
   };
 }
 
-async function launch(exe) {
+async function launch(exe, timeoutMs = 40_000) {
   const port = await freePort();
   const child = spawn(exe, [`--remote-debugging-port=${port}`, '--remote-debugging-address=127.0.0.1'], {
     windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'],
   });
   let output = '';
   child.stderr.on('data', (data) => { output = (output + data.toString()).slice(-1000); });
-  try { return { child, page: await connectPage(port) }; }
-  catch (error) { child.kill(); throw new Error(`${error.message} ${output}`); }
+  try { return { child, page: await connectPage(port, timeoutMs) }; }
+  catch (error) {
+    if (child.pid) await run('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], 15_000).catch(() => undefined);
+    throw new Error(`${error.message} ${output}`);
+  }
 }
 async function stopApp(launchResult) {
   launchResult.page.close();
@@ -221,6 +246,43 @@ function cachedSetups() {
     return entry.isDirectory() ? visit(child, depth + 1) : /Branchloom-Setup-.*\.exe$/i.test(entry.name) ? [entry.name] : [];
   });
   return visit(root, 0);
+}
+
+function branchloomProcesses() {
+  // Process inspection is limited to the guarded, disposable GitHub runner.
+  const query = "Get-Process -Name 'Branchloom','Branchloom-Setup-*' -ErrorAction SilentlyContinue | Select-Object ProcessName,Id | ConvertTo-Json -Compress";
+  const output = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', query], {
+    encoding: 'utf8', windowsHide: true, timeout: 10_000,
+  }).trim();
+  if (!output) return [];
+  const parsed = JSON.parse(output);
+  return (Array.isArray(parsed) ? parsed : [parsed]).map((item) => ({ name: item.ProcessName, pid: item.Id }));
+}
+
+async function waitForUpdaterInstaller() {
+  const deadline = Date.now() + 90_000;
+  let quietSince = 0;
+  while (Date.now() < deadline) {
+    const installers = branchloomProcesses().filter((item) => item.name.startsWith('Branchloom-Setup-'));
+    if (installers.length) quietSince = 0;
+    else if (!quietSince) quietSince = Date.now();
+    else if (Date.now() - quietSince >= 3000) return;
+    await delay(1000);
+  }
+  fail(`Updater installer did not finish: ${JSON.stringify(branchloomProcesses())}`);
+}
+
+async function stopAutoLaunchedApps() {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    await run('taskkill.exe', ['/IM', 'Branchloom.exe', '/T', '/F'], 15_000).catch(() => undefined);
+    await delay(1500);
+    const apps = branchloomProcesses().filter((item) => item.name === 'Branchloom');
+    if (!apps.length) {
+      await delay(1500);
+      if (!branchloomProcesses().some((item) => item.name === 'Branchloom')) return;
+    }
+  }
+  fail(`Auto-launched Branchloom process kept the single-instance lock: ${JSON.stringify(branchloomProcesses())}`);
 }
 
 let currentApp = null;
@@ -268,6 +330,7 @@ try {
   record('Later stayed passive', { version: OLD });
 
   await stopApp(currentApp);
+  currentApp = null;
   currentApp = await launch(exe);
   await waitForState(currentApp.page, (value) => value.phase === 'available' && value.availableVersion === NEW, 150_000, 'notice after restart');
   await currentApp.page.screenshot('available-after-restart.png');
@@ -292,9 +355,18 @@ try {
   record('update installed from UI click', { version: NEW, observedPhases: [...seen] });
 
   await stopApp(currentApp);
-  await run('taskkill.exe', ['/IM', 'Branchloom.exe', '/T', '/F'], 15_000).catch(() => undefined);
-  await delay(1500);
-  currentApp = await launch(exe);
+  currentApp = null;
+  record('post-install process inventory', { processes: branchloomProcesses() });
+  await waitForUpdaterInstaller();
+  for (let attempt = 1; attempt <= 3 && !currentApp; attempt++) {
+    await stopAutoLaunchedApps();
+    record('updated app launch attempt', { attempt, processes: branchloomProcesses() });
+    try { currentApp = await launch(exe, 15_000); }
+    catch (error) {
+      record('updated app launch retry', { attempt, error: error instanceof Error ? error.message : String(error), processes: branchloomProcesses() });
+      if (attempt === 3) throw error;
+    }
+  }
   const newState = await waitForState(currentApp.page, (value) => value.currentVersion === NEW, 30_000, 'updated app startup');
   if (newState.phase === 'unsupported') fail('Updated installed app lost its update feed.');
   const stillSaved = await currentApp.page.evaluate(`(async () => { const snapshot = await window.studio.snapshot(${JSON.stringify(saved.projectId)}); return snapshot.cards.some((card) => card.id === ${JSON.stringify(saved.cardId)} && card.title === 'Synthetic card survives update'); })()`);
@@ -303,8 +375,13 @@ try {
   record('updated app and synthetic card verified', { version: NEW });
   process.stdout.write('INSTALLED_UPDATE_010_TO_012_OK\n');
 } catch (error) {
-  if (currentApp) await currentApp.page.screenshot('failed.png').catch(() => undefined);
   record('failed', { error: error instanceof Error ? error.message : String(error) });
+  if (currentApp?.page.connected()) {
+    await Promise.race([
+      currentApp.page.screenshot('failed.png').catch(() => undefined),
+      delay(5000),
+    ]);
+  }
   throw error;
 } finally {
   if (currentApp) await stopApp(currentApp).catch(() => undefined);
