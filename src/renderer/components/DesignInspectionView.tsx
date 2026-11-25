@@ -28,6 +28,7 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
   const [a11yError, setA11yError] = useState<{ id: string; message: string } | null>(null);
   const [voiceSelectionId, setVoiceSelectionId] = useState<string | null>(null);
   const [wireframeFocus, setWireframeFocus] = useState(false);
+  const [workspaceMode, setWorkspaceMode] = useState<'draft' | 'preview'>('draft');
   const [focusPending, setFocusPending] = useState(false);
   const focusTransition = useRef(false);
   const focused = useRef(false);
@@ -36,12 +37,12 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
   currentProject.current = projectId;
 
   const syncBounds = useCallback(async () => {
-    if (focused.current) return;
+    if (focused.current || workspaceMode !== 'preview') return;
     const rect = viewport.current?.getBoundingClientRect();
     if (!rect) return;
     try { await window.studio.designInspectionSetBounds({ x: rect.x, y: rect.y, width: rect.width, height: rect.height }); }
     catch (reason) { setError(messageOf(reason)); }
-  }, []);
+  }, [workspaceMode]);
 
   async function changeWireframeFocus(next: boolean) {
     if (focusTransition.current || next === focused.current) return;
@@ -52,10 +53,9 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
       focused.current = next;
       if (next) await window.studio.designInspectionSetBounds(null);
       setWireframeFocus(next);
-      if (!next) requestAnimationFrame(() => { if (!focused.current) void syncBounds(); });
+      setWorkspaceMode(next ? 'draft' : 'preview');
     } catch (reason) {
       focused.current = !next;
-      if (next) void syncBounds();
       setError(messageOf(reason));
     } finally {
       focusTransition.current = false;
@@ -65,6 +65,9 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
 
   useEffect(() => {
     let mounted = true;
+    focused.current = false;
+    setWireframeFocus(false);
+    setWorkspaceMode('draft');
     setSelections([]); setState(emptyState); setError(''); setUrl(''); setSelector(''); setA11yCheck(null); setA11yError(null); setA11yBusyId(null); setVoiceSelectionId(null);
     void window.studio.designSelections(projectId).then((items) => { if (mounted) setSelections(items); }).catch((reason: unknown) => { if (mounted) setError(messageOf(reason)); });
     const unsubscribe = window.studio.onDesignSelection((selection) => {
@@ -84,7 +87,7 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
   }, [active]);
 
   useEffect(() => {
-    if (!active || wireframeFocus) {
+    if (!active || wireframeFocus || workspaceMode !== 'preview') {
       void window.studio.designInspectionSetBounds(null).catch((reason: unknown) => setError(messageOf(reason)));
       return;
     }
@@ -100,7 +103,7 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
     window.addEventListener('scroll', update, true);
     update();
     return () => { cancelAnimationFrame(scheduled); observer.disconnect(); intersection.disconnect(); window.removeEventListener('resize', update); window.removeEventListener('scroll', update, true); };
-  }, [active, wireframeFocus, syncBounds]);
+  }, [active, wireframeFocus, workspaceMode, syncBounds]);
 
   async function start(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -110,7 +113,7 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
     try {
       setState(await window.studio.designInspectionStart({ projectId, url }));
       await new Promise((resolve) => requestAnimationFrame(resolve));
-      viewport.current?.scrollIntoView({ block: 'center' });
+      viewport.current?.scrollIntoView({ block: 'nearest' });
       await new Promise((resolve) => requestAnimationFrame(resolve));
       await syncBounds();
     }
@@ -135,7 +138,7 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
   async function arm() {
     setError('');
     try {
-      viewport.current?.scrollIntoView({ block: 'center' });
+      viewport.current?.scrollIntoView({ block: 'nearest' });
       await new Promise((resolve) => requestAnimationFrame(resolve));
       const rect = viewport.current?.getBoundingClientRect();
       if (!rect) throw new Error('Die Vorschau ist nicht sichtbar.');
@@ -164,10 +167,11 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
     finally { if (currentProject.current === projectId) setA11yBusyId(null); }
   }
 
-  const previewActive = active && !wireframeFocus;
-  return <section className={`design-inspection${wireframeFocus ? ' wireframe-focus' : ''}`} aria-label="Design-Inspektion">
-    <TaskWireframeEditor projectId={projectId} cards={cards} startCardId={startCardId} focusMode={wireframeFocus} focusPending={focusPending} canEnterFocus={active && !busy && !state.armed} onFocusModeChange={(next) => void changeWireframeFocus(next)} />
-    <div className="design-inspection-tools" hidden={wireframeFocus}>
+  const previewActive = active && !wireframeFocus && workspaceMode === 'preview';
+  return <section className={`design-inspection${wireframeFocus ? ' wireframe-focus' : ''}`} aria-label="Design-Arbeitsbereich">
+    {!wireframeFocus ? <nav className="design-workspace-modes" aria-label="Design-Ansicht wählen"><button type="button" aria-pressed={workspaceMode === 'draft'} onClick={() => setWorkspaceMode('draft')}>Entwurf</button><button type="button" aria-pressed={workspaceMode === 'preview'} onClick={() => setWorkspaceMode('preview')}>Laufende App prüfen{state.ready ? <span aria-label="Vorschau geöffnet" className="design-workspace-preview-indicator" /> : null}</button></nav> : null}
+    <div className="design-workspace-draft" hidden={workspaceMode !== 'draft'}><TaskWireframeEditor projectId={projectId} cards={cards} startCardId={startCardId} focusMode={wireframeFocus} focusPending={focusPending} canEnterFocus={active && !busy && !state.armed} onFocusModeChange={(next) => void changeWireframeFocus(next)} /></div>
+    <div className="design-inspection-tools" hidden={!previewActive}>
     <div className="design-inspection-intro"><div><h2>Design-Inspektion</h2><p>Öffne eine laufende lokale Vorschau. Wähle anschließend genau ein Element; Branchloom speichert dessen begrenzte CSS-Belege nur in diesem Projekt.</p></div></div>
     <form className="design-inspection-toolbar" onSubmit={(event) => void start(event)}>
       <label>Lokale Vorschau-URL<input type="url" required maxLength={2048} value={url} onChange={(event) => setUrl(event.target.value)} placeholder="http://127.0.0.1:5173/" /></label>

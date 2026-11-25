@@ -1,4 +1,40 @@
 .design-inspection { display: grid; gap: 14px; padding: 22px; min-height: 100%; max-width: 1280px; margin-inline: auto; }
+.design-workspace-modes { position: sticky; top: 0; z-index: 9; display: flex; align-items: center; gap: 18px; border-bottom: 1px solid var(--border); background: var(--bg); }
+.design-workspace-modes button { position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 1px 8px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+.design-workspace-modes button[aria-pressed="true"] { color: var(--text); font-weight: 650; }
+.design-workspace-modes button[aria-pressed="true"]::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: var(--accent); content: ""; }
+.design-workspace-modes button:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 2px; }
+.design-workspace-preview-indicator { width: 6px; height: 6px; border-radius: 50%; background: var(--positive); }
+.design-workspace-draft[hidden] { display: none; }
+.design-workspace-draft .task-wireframe { gap: 10px; padding: 0 0 24px; border: 0; }
+.design-workspace-draft .task-wireframe:not(.is-focused) { grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); gap: 8px 20px; }
+.design-workspace-draft .task-wireframe:not(.is-focused) > :not(.task-wireframe-head):not(.task-wireframe-source) { grid-column: 1 / -1; }
+.design-workspace-draft .task-wireframe:not(.is-focused) .task-wireframe-head { grid-column: 1; align-items: center; }
+.design-workspace-draft .task-wireframe:not(.is-focused) .task-wireframe-source { grid-column: 2; align-items: center; }
+.design-workspace-draft .task-wireframe:not(.is-focused) .task-wireframe-source label { width: 100%; }
+.design-workspace-draft .task-wireframe:not(.is-focused) .task-wireframe-artboard-switch button { min-width: 104px; padding: 5px 9px; }
+.design-workspace-draft .task-wireframe:not(.is-focused) .task-wireframe-toolbar { min-height: 38px; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 3px; scrollbar-width: thin; }
+.design-workspace-draft .task-wireframe:not(.is-focused) .task-wireframe-toolbar > * { flex: none; }
+.design-workspace-draft .task-wireframe:not(.is-focused) .task-wireframe-toolbar button { min-height: 31px; }
+.design-workspace-draft .task-wireframe-add-mobile { display: none; }
+.design-workspace-draft .task-wireframe-head h2 { font-size: 18px; }
+.design-workspace-draft .task-wireframe-head p { max-width: 80ch; }
+.design-workspace-draft .task-wireframe:has(.task-wireframe-layout) .task-wireframe-head p { display: none; }
+.design-workspace-draft .task-wireframe-artboard-switch { gap: 10px; border-bottom: 1px solid var(--border); }
+.design-workspace-draft .task-wireframe-artboard-switch button, .design-workspace-draft .task-wireframe:not(.is-focused) .task-wireframe-artboard-switch button { min-width: 0; padding: 5px 7px 6px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; }
+.design-workspace-draft .task-wireframe-artboard-switch button.active, .design-workspace-draft .task-wireframe-artboard-switch button:hover { border-bottom-color: var(--accent); background: transparent; }
+.design-workspace-draft .task-wireframe-artboard-switch button small { font-size: 11px; }
+.design-workspace-draft .task-wireframe-layout { grid-template-columns: minmax(150px, 180px) minmax(0, 1fr) minmax(240px, 270px); gap: 0; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); overflow: clip; }
+.design-workspace-draft .task-wireframe-canvas-wrap { padding: 12px; background: color-mix(in srgb, var(--bg) 88%, var(--text) 3%); }
+.design-workspace-draft .task-wireframe-layers, .design-workspace-draft .task-wireframe-properties { min-height: 380px; border: 0; border-radius: 0; box-shadow: none; }
+.design-workspace-draft .task-wireframe-layers { border-right: 1px solid var(--border); }
+.design-workspace-draft .task-wireframe-properties { border-left: 1px solid var(--border); }
+.design-workspace-draft .task-wireframe-actions { position: sticky; top: 0; z-index: 8; margin: 0; padding: 7px 10px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); }
+.design-workspace-draft .task-wireframe.is-focused .task-wireframe-actions { bottom: auto; }
+.design-workspace-draft .task-wireframe-draw-tools { margin-top: 6px; }
+@media (max-width: 900px) { .design-workspace-draft .task-wireframe:not(.is-focused) { grid-template-columns: minmax(0, 1fr); } .design-workspace-draft .task-wireframe:not(.is-focused) .task-wireframe-head, .design-workspace-draft .task-wireframe:not(.is-focused) .task-wireframe-source { grid-column: 1; } }
+@media (max-width: 1050px) { .design-workspace-draft .task-wireframe-layout { grid-template-columns: minmax(130px, 160px) minmax(0, 1fr); } .design-workspace-draft .task-wireframe-properties { grid-column: 1 / -1; border-top: 1px solid var(--border); border-left: 0; min-height: 0; } }
+@media (max-width: 650px) { .design-inspection { padding: 12px; } .design-workspace-draft .task-wireframe-layout { grid-template-columns: minmax(0, 1fr); } .design-workspace-draft .task-wireframe-canvas-wrap { order: -1; } .design-workspace-draft .task-wireframe-layers { border-top: 1px solid var(--border); border-right: 0; min-height: 0; } .design-workspace-draft .task-wireframe-properties { grid-column: auto; } .design-workspace-draft .task-wireframe:not(.is-focused) .task-wireframe-toolbar, .design-workspace-draft .task-wireframe.is-focused .task-wireframe-toolbar { min-width: 0; flex-wrap: wrap; overflow: visible; gap: 5px; } .design-workspace-draft .task-wireframe-toolbar > span, .design-workspace-draft .task-wireframe-toolbar .task-wireframe-add-kind { display: none; } .design-workspace-draft .task-wireframe-add-mobile { display: grid; flex: 1 1 100%; gap: 3px; font-size: 12px; } .design-workspace-draft .task-wireframe-add-mobile select { width: 100%; min-height: 36px; } .design-workspace-draft .task-wireframe-toolbar .task-wireframe-history { margin-left: 0; padding-left: 0; border: 0; } .design-workspace-draft .task-wireframe-toolbar .task-wireframe-propose { margin-left: 0; } .design-workspace-draft .task-wireframe-actions { position: static; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; } .design-workspace-draft .task-wireframe-actions > span, .design-workspace-draft .task-wireframe-actions .task-wireframe-discard { grid-column: 1 / -1; } .design-workspace-draft .task-wireframe-actions button { min-width: 0; min-height: 36px; } }
 .design-inspection-tools { display: grid; gap: 14px; }
 .design-inspection-tools[hidden] { display: none; }
 .design-inspection.wireframe-focus { position: fixed; inset: 0; z-index: 50; max-width: none; min-height: 0; padding: 18px 22px; overflow: auto; align-content: start; background: var(--bg); }
