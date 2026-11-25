@@ -116,7 +116,7 @@ export function knowledgeMapFlow(groups: ReturnType<typeof projectKnowledgeMapPa
 }
 
 export function ProjectKnowledgeMap({ snapshot, indexRevision, onOpenCard, onOpenSession }: Props) {
-  const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
+  const [viewportWidth, setViewportWidth] = useState(() => typeof window === 'undefined' ? 1440 : window.innerWidth);
   const [page, setPage] = useState(0);
   const [selectedId, setSelectedId] = useState('');
   const [layer, setLayer] = useState<KnowledgeMapLayer>('work');
