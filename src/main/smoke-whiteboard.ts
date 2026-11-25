@@ -185,4 +185,15 @@ export async function runWhiteboardVisibleSmoke(window: BrowserWindow, store: St
     throw new Error('Accepted connection did not appear.');
   })()`);
   if (whiteboardSnapshot(store, project.id).edges.length !== before.edges.length + 1) throw new Error('Accepted connection was not persisted.');
+  window.setSize(860, 780);
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  const narrow = await window.webContents.executeJavaScript(`(() => {
+    const view = document.querySelector('.wb-view');
+    const canvas = document.querySelector('.wb-canvas');
+    const inspector = document.querySelector('.wb-inspector');
+    if (!view || !canvas || !inspector) throw new Error('Narrow Whiteboard fixture is incomplete.');
+    return { overflow: view.scrollWidth - view.clientWidth, canvasBottom: canvas.getBoundingClientRect().bottom,
+      inspectorTop: inspector.getBoundingClientRect().top };
+  })()`);
+  if (narrow.overflow > 2 || narrow.inspectorTop < narrow.canvasBottom - 2) throw new Error('Whiteboard does not fit the narrow desktop layout.');
 }
