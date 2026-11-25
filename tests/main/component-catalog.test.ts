@@ -33,9 +33,9 @@ describe('bounded component source inventory', () => {
     const result = await scanProjectComponents(root);
     expect(result).toMatchObject({ source: 'git-index', scannedFiles: 3, partial: false });
     expect(result.candidates).toEqual([
-      { name: 'Badge', path: 'src/Badge.jsx', line: 1, kind: 'const' },
-      { name: 'Button', path: 'src/Button.tsx', line: 2, kind: 'function' },
-      { name: 'Card', path: 'src/Button.tsx', line: 3, kind: 'const' },
+      { name: 'Badge', path: 'src/Badge.jsx', line: 1, kind: 'const', sourceFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/) },
+      { name: 'Button', path: 'src/Button.tsx', line: 2, kind: 'function', sourceFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/) },
+      { name: 'Card', path: 'src/Button.tsx', line: 3, kind: 'const', sourceFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/) },
     ]);
   });
 

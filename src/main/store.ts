@@ -16,6 +16,7 @@ import { installActiveCardIndex, installParallelRuns } from './parallel-runs';
 import { installApiContracts } from './api-contract';
 import { installRequirementConflicts } from './requirement-conflicts';
 import { installTaskRevisions } from './task-revisions';
+import { installCardComponentChoices } from './card-component-choice';
 import { installIntegrationQueue } from './integration-queue';
 import { installManualRevisions } from './manual-revision';
 import { installIntegrationEvidence } from './integration-evidence';
@@ -186,6 +187,7 @@ export class StudioStore {
     installRequirementConflicts(this.db);
     installAgentQuestions(this.db);
     installTaskRevisions(this.db);
+    installCardComponentChoices(this.db);
     const count = this.db.prepare('SELECT COUNT(*) AS count FROM agents').get() as { count: number };
     if (count.count === 0) {
       for (const preset of [

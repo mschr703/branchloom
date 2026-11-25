@@ -8,6 +8,7 @@ const sourceLabel: Record<RunSource, string> = {
   'manual-prompt': 'Manuell eingegebener Auftrag',
   'approved-wireframe': 'Freigegebener Kartenentwurf',
   'api-contract': 'Freigegebener API-Vertrag',
+  'component-reference': 'Ausgewählte Komponentenreferenzen',
   'codex-resume-id': 'Gespeicherte Codex-Gesprächs-ID',
   'codex-resume-picker': 'Codex-Gesprächsauswahl im Terminal',
 };

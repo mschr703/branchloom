@@ -1,0 +1,9 @@
+# Komponentenreferenzen an Karten (F10, erster Teil)
+
+Unter **Board → Karte → Komponentenreferenzen** lässt sich die bestehende projektbezogene TSX-/JSX-Quellinventur nach Exportnamen oder Pfad durchsuchen. Eine Auswahl benötigt einen kurzen Verwendungshinweis und einen ausdrücklichen Klick auf **Referenz übernehmen**. Bis zu sechs Referenzen je Karte liegen in der lokalen Branchloom-Datenbank und bleiben nach App-Neustart erhalten.
+
+Jede Referenz hält Exportname, relativen Importpfad, Zeile, Verwendungshinweis und SHA-256-Fingerabdruck der zum Auswahlzeitpunkt gelesenen Quelldatei fest. Vor einem neuen Kartenagentenlauf prüft Branchloom die Quellen erneut. Fehlt eine Datei, ist sie nicht mehr versioniert oder hat sich ihr Inhalt geändert, bleibt der Start gesperrt, bis die alte Referenz gelöst und die neue bewusst ausgewählt wird. Bei einem Karten-Worktree muss der dortige Dateiinhalt ebenfalls zum ausgewählten Stand passen. Ein fortgesetztes Codex-Gespräch darf nicht still neue Komponentenreferenzen erhalten; dafür ist ein neuer Lauf nötig.
+
+Die Auswahl selbst startet keinen Agenten und führt Projektcode nicht aus. Der spätere Agentenauftrag enthält dieselben geprüften Referenzen, die der Nutzer an die Karte gebunden hat. Der Laufbeleg nennt diese Kontextquelle, aber nicht den gesamten Prompt. Die Komponentenliste zeigt nur Exportkandidaten, keine nachgewiesene Renderbarkeit. Ein explizit registrierter Preview-Weg mit echten Beispielansichten und Varianten bleibt für den vollständigen F10-Umfang offen. Ebenso gibt es noch keine Empfehlung nach Aufgabentext und keinen Puck-Editor.
+
+Wenn ein Projekt vor dem Start uncommittete Änderungen an der ausgewählten Datei enthält, kann der Karten-Worktree einen anderen Stand besitzen. Der Start wird dann gesperrt; die Quelle muss zuerst im gewünschten Worktree verfügbar sein und danach erneut ausgewählt werden.

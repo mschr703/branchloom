@@ -3,6 +3,7 @@ export interface ComponentCandidate {
   path: string;
   line: number;
   kind: 'function' | 'const';
+  sourceFingerprint: string;
 }
 
 export interface ComponentCatalog {

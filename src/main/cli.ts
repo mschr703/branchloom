@@ -11,6 +11,7 @@ import { cardRunGate, reserveCardSession } from './parallel-runs';
 import { buildAntigravityArgs } from './antigravity';
 import { CodexJsonlOutput } from './codex-jsonl';
 import { approvedCardWireframeContext } from './card-wireframe';
+import { assertCardComponentChoiceResume, cardComponentChoiceContext, recordSessionComponentChoices } from './card-component-choice';
 import { assertCardApiContractResume, cardApiContractContext, recordSessionApiContract } from './api-contract';
 import { assertCardWireframeReady } from './card-wireframe-gate';
 import { captureRunGit, recordSessionLaunch, recordSessionPromptWrite, recordSessionVersion } from './session-evidence';
@@ -254,13 +255,14 @@ export class SessionRunner {
     if (!launcher) throw new Error(`Agent executable or supported Node shim not found: ${agent.command}`);
     const taskPrompt = (input.prompt ?? `Work on this card in the selected project.\n\nTitle: ${card.title}\n\n${card.description}`).trim();
     const wireframeContext = approvedCardWireframeContext(this.store, { projectId: card.projectId, cardId: card.id });
+    const componentContext = cardComponentChoiceContext(this.store, card.id, project.path);
     const apiContractContext = cardApiContractContext(this.store, card.id);
     const taskRevision = currentTaskRevisionContext(this.store, card.id);
     const metadataInstructions = this.metadataBridge?.instructions(card.projectId) ?? '';
     const browserInstructions = this.browserBridge?.instructions(card.projectId) ?? '';
     const prompt = taskPrompt ? taskPrompt + (taskRevision ? `\n\n${taskRevision.text}` : '')
       + (wireframeContext ? `\n\n${wireframeContext}` : '') + (apiContractContext ? `\n\n${apiContractContext}` : '')
-      + metadataInstructions + browserInstructions : '';
+      + (componentContext ? `\n\n${componentContext}` : '') + metadataInstructions + browserInstructions : '';
     if (prompt.length > 30_000) throw new Error('Agent prompt exceeds 30000 characters');
     assertSafeModelContext([
       { field: 'Kartentitel', text: card.title },
@@ -268,6 +270,7 @@ export class SessionRunner {
       ...(input.prompt === undefined ? [] : [{ field: 'Agentenauftrag', text: input.prompt }]),
       ...(wireframeContext ? [{ field: 'freigegebener Wireframe', text: wireframeContext }] : []),
       ...(apiContractContext ? [{ field: 'API contract', text: apiContractContext }] : []),
+      ...(componentContext ? [{ field: 'component references', text: componentContext }] : []),
     ]);
     const preflight = cardRunGate(this.store, card.id, input.useWorktree === true ? undefined : null);
     if (!preflight.canStart) throw new Error(preflight.blockers[0]!);
@@ -275,9 +278,13 @@ export class SessionRunner {
       throw new Error('Parallele Kartenläufe brauchen für jede laufende Karte einen eigenen Git-Worktree.');
     }
     const worktree = input.useWorktree === true ? ensureCardWorktree(this.store, card.id) : null;
+    if (worktree && componentContext) cardComponentChoiceContext(this.store, card.id, worktree.cwd);
     const runGit = captureRunGit(worktree?.cwd ?? project.path, worktree ? 'card-worktree' : 'project');
     const row = reserveCardSession(this.store, { cardId: card.id, agentId, worktreePath: worktree?.path });
-    if (prompt) recordSessionApiContract(this.store, card.id, row.id);
+    if (prompt) {
+      recordSessionApiContract(this.store, card.id, row.id);
+      recordSessionComponentChoices(this.store, card.id, row.id);
+    }
     let finalFile: { directory: string; path: string } | null = null;
     try {
       if (input.mode === 'one-shot' && agent.kind === 'codex') {
@@ -326,6 +333,7 @@ export class SessionRunner {
     const sources: RunSource[] = input.prompt === undefined ? ['card-text'] : input.prompt.trim() ? ['manual-prompt'] : [];
     if (prompt && wireframeContext) sources.push('approved-wireframe');
     if (prompt && apiContractContext) sources.push('api-contract');
+    if (prompt && componentContext) sources.push('component-reference');
     const promptDelivery: PromptDelivery = !prompt ? 'none' : agent.kind === 'codex' || agent.kind === 'antigravity' || (mode === 'one-shot' && ['claude', 'gemini'].includes(agent.kind))
       || (mode === 'one-shot' && agent.kind === 'custom' && agent.args.some((arg) => arg.includes('{prompt}')))
       ? 'argv' : mode === 'interactive' ? 'pty-delayed' : 'unknown';
@@ -372,17 +380,20 @@ export class SessionRunner {
     if (this.store.projectQueue(project.id).state === 'running') throw new Error('Die Projektwarteschlange zuerst pausieren, bevor ein Codex-Gespräch manuell fortgesetzt wird.');
     if (previous.worktreePath && this.store.activeCommandTerminalForCard(card.id)) throw new Error('Im Karten-Worktree läuft noch ein Befehlsterminal. Zuerst stoppen.');
     assertCardApiContractResume(this.store, card.id, previous.id);
+    assertCardComponentChoiceResume(this.store, card.id, previous.id, project.path);
     const launcher = resolveAgentLauncher(agent.command);
     if (!launcher) throw new Error(`Codex executable or supported Node shim not found: ${agent.command}`);
     if (previous.worktreePath && this.store.cardWorktree(card.id)?.path !== previous.worktreePath) throw new Error('Der ursprüngliche Karten-Worktree ist nicht mehr verknüpft.');
     const preflight = cardRunGate(this.store, card.id, previous.worktreePath ?? null);
     if (!preflight.canStart) throw new Error(preflight.blockers[0]!);
     const worktree = previous.worktreePath ? ensureCardWorktree(this.store, card.id) : null;
+    if (worktree) cardComponentChoiceContext(this.store, card.id, worktree.cwd);
     if (previous.worktreePath && worktree?.path !== previous.worktreePath) throw new Error('Der ursprüngliche Karten-Worktree stimmt nicht mehr überein.');
     const runGit = captureRunGit(worktree?.cwd ?? project.path, worktree ? 'card-worktree' : 'project');
     const exactId = input.picker === true ? null : previous.codexThreadId ?? null;
     const row = reserveCardSession(this.store, { cardId: card.id, agentId: agent.id, worktreePath: worktree?.path, codexThreadId: exactId });
     recordSessionApiContract(this.store, card.id, row.id);
+    recordSessionComponentChoices(this.store, card.id, row.id);
     let child: IPty;
     try {
       const metadataEnv = this.metadataBridge?.environment(row.id) ?? {};

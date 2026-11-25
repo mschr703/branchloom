@@ -1,6 +1,6 @@
 import type { AgentPreset, ColumnEffort } from './types';
 
-export type RunSource = 'card-text' | 'manual-prompt' | 'approved-wireframe' | 'api-contract' | 'codex-resume-id' | 'codex-resume-picker';
+export type RunSource = 'card-text' | 'manual-prompt' | 'approved-wireframe' | 'api-contract' | 'component-reference' | 'codex-resume-id' | 'codex-resume-picker';
 export type PromptDelivery = 'argv' | 'pty-delayed' | 'pty-written' | 'resume' | 'none' | 'unknown';
 export type VersionCheck = 'unchecked' | 'ready' | 'timeout' | 'error';
 

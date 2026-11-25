@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { lstat, open, realpath, stat } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
@@ -109,6 +110,7 @@ export async function scanProjectComponents(projectPath: string, signal?: AbortS
     if (read === null) { partial = true; notes.push('Einige versionierte Dateien fehlten, waren zu groß, verknüpft oder nicht lesbar.'); continue; }
     scannedFiles += 1;
     totalBytes += read.bytes;
+    const sourceFingerprint = createHash('sha256').update(read.source).digest('hex');
     const lines = read.source.split(/\r?\n/);
     for (let index = 0; index < lines.length; index += 1) {
       const line = lines[index]!;
@@ -119,7 +121,7 @@ export async function scanProjectComponents(projectPath: string, signal?: AbortS
       // A JSX/React marker nearby makes this a useful candidate. It is not a parser or a proof of renderability.
       const nearby = lines.slice(index, Math.min(lines.length, index + 80)).join('\n').slice(0, 4_000);
       if (!/<[A-Za-z][A-Za-z0-9.:-]*(?:\s|>|\/)|React\.createElement\s*\(/.test(nearby)) continue;
-      candidates.push({ name: match[1]!, path, line: index + 1, kind: functionMatch ? 'function' : 'const' });
+      candidates.push({ name: match[1]!, path, line: index + 1, kind: functionMatch ? 'function' : 'const', sourceFingerprint });
       if (candidates.length >= MAX_CANDIDATES) { partial = true; notes.push('Maximal 200 Komponenten-Kandidaten werden gezeigt.'); break; }
     }
   }

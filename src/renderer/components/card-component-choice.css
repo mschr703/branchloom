@@ -1,0 +1,28 @@
+.card-component-choice { color: var(--text); }
+.card-component-choice > summary { cursor: pointer; font-weight: 600; font-size: 14px; padding: 4px 0; }
+.card-component-choice > summary span { color: var(--muted); font-size: 12px; font-weight: 400; margin-left: 8px; }
+.card-component-choice > summary:focus-visible,
+.card-component-choice button:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+.card-component-choice__body { display: grid; gap: 12px; padding: 12px 0 4px; }
+.card-component-choice__body > p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.card-component-choice__selected,
+.card-component-choice__candidates { list-style: none; padding: 0; margin: 0; }
+.card-component-choice__selected li { display: flex; align-items: start; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.card-component-choice__selected li > div { display: grid; gap: 3px; min-width: 0; }
+.card-component-choice__selected strong,
+.card-component-choice__candidates strong { font-size: 13px; }
+.card-component-choice code { color: var(--soft); font-size: 11px; overflow-wrap: anywhere; }
+.card-component-choice small { color: var(--muted); font-size: 11px; }
+.card-component-choice__filter,
+.card-component-choice__confirm label { display: grid; gap: 5px; color: var(--soft); font-size: 12px; }
+.card-component-choice__filter input,
+.card-component-choice__confirm input { width: 100%; }
+.card-component-choice__candidates { max-height: 210px; overflow: auto; border-block: 1px solid var(--border); }
+.card-component-choice__candidates li + li { border-top: 1px solid var(--border); }
+.card-component-choice__candidates button { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px 12px; width: 100%; padding: 8px 4px; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.card-component-choice__candidates button:hover,
+.card-component-choice__candidates button[aria-pressed='true'] { background: var(--surface-2); }
+.card-component-choice__candidates button:disabled { color: var(--muted); cursor: default; }
+.card-component-choice__confirm { display: grid; gap: 8px; border-left: 2px solid var(--accent); padding-left: 10px; }
+.card-component-choice__confirm p { margin: 0; font-size: 12px; }
+.card-component-choice__confirm button { justify-self: start; }

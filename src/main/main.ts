@@ -33,6 +33,7 @@ import { applyManualRevision, captureManualRevision, manualRevisionFiles, manual
 import { attestIntegrationReview, integrationEvidence, runIntegrationTest, setIntegrationTestScript } from './integration-evidence';
 import { previewPrDraft } from './pr-draft';
 import { scanProjectComponents } from './component-catalog';
+import { addCardComponentChoice, cardComponentChoiceState, removeCardComponentChoice } from './card-component-choice';
 import { checkoutMilestone, compareMilestone, createMilestone, createMilestoneWithPreview, listMilestones, milestonePreviewImage } from './milestones';
 import { createReviewComment, listReviewComments, previewCardDiff } from './diff-review';
 import { acknowledgeQaInboxReport, acknowledgeReviewInboxComment, reviewInboxItems } from './review-inbox';
@@ -182,6 +183,9 @@ function installIpc(): void {
   bind('assignProjectGroup', (input: { projectId: string; groupId: string | null }) => db.assignProjectGroup(input));
   bind('setProjectSort', (sort: 'name' | 'newest') => db.setProjectSort(sort));
   bind('componentCatalog', (projectId: string) => scanProjectComponents(db.project(projectId).path));
+  bind('cardComponentChoiceState', (cardId: string) => cardComponentChoiceState(db, cardId));
+  bind('addCardComponentChoice', (input: Parameters<StudioAPI['addCardComponentChoice']>[0]) => addCardComponentChoice(db, input));
+  bind('removeCardComponentChoice', (input: Parameters<StudioAPI['removeCardComponentChoice']>[0]) => removeCardComponentChoice(db, input));
   bind('usageSessions', (input: Parameters<StudioAPI['usageSessions']>[0]) => db.usageSessions(input));
   bind('createProject', (input: { name: string; path: string }) => db.createProject(input));
   bind('exportProjectPackage', async (projectId: string) => {

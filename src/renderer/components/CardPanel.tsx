@@ -7,6 +7,7 @@ import { CARD_PRIORITIES } from '../../shared/card-metadata';
 import type { Mutate } from './shared';
 import { CardAttachments } from './CardAttachments';
 import { CardContextPanel } from './CardContextPanel';
+import { CardComponentChoicePanel } from './CardComponentChoicePanel';
 import { CardAcceptancePanel } from './CardAcceptancePanel';
 import { CardRequirementStatus } from './CardRequirementStatus';
 import { CardSplitPanel } from './CardSplitPanel';
@@ -264,6 +265,8 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
         <CardAttachments key={`attachments-${card.id}`} card={card} onPrepareContext={(attachmentId) => setContextAttachmentRequest((previous) => ({ cardId: card.id, attachmentId, token: (previous?.token ?? 0) + 1 }))} />
         <div className="drawer-divider" />
         <CardContextPanel key={`context-${card.id}`} card={card} attachmentRequest={contextAttachmentRequest?.cardId === card.id ? contextAttachmentRequest : null} />
+        <div className="drawer-divider" />
+        <CardComponentChoicePanel key={`components-${card.id}`} cardId={card.id} projectId={card.projectId} archived={Boolean(card.archivedAt)} />
         <div className="drawer-divider" />
         <CardAcceptancePanel key={`acceptance-${card.id}`} card={card} onOpenEvidence={openAcceptanceEvidence} />
         <CardRequirementStatus projectId={card.projectId} cardId={card.id} onOpenCard={onOpenCard} />
