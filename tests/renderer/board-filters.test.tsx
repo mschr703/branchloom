@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { Card, ProjectSnapshot } from '../../src/shared/types';
 import { filterBoardCards } from '../../src/renderer/board-filters';
-import { BoardView, isMoveShortcut, moveDestinations } from '../../src/renderer/components/BoardView';
+import { BoardView, boardEmptyMessage, isMoveShortcut, moveDestinations } from '../../src/renderer/components/BoardView';
 import { CardPanel } from '../../src/renderer/components/CardPanel';
 
 const stamp = '2026-01-01T00:00:00.000Z';
@@ -108,5 +108,14 @@ describe('board filters and archive visibility', () => {
     expect(html).toContain('UI-Prüfung');
     expect(html).not.toContain('Sichtbare aktive Karten auswählen');
     expect(html).not.toContain('class="board-bulk-actions"');
+    expect(html).toContain('Erstelle unten deine erste Aufgabe. Verschiebe sie später zwischen den Spalten.');
+    expect(html).not.toContain('Karten hierher ziehen');
+  });
+
+  it('guides only the first empty column and distinguishes filtered empty results', () => {
+    expect(boardEmptyMessage(0, false, false)).toContain('erste Aufgabe');
+    expect(boardEmptyMessage(1, false, false)).toBeNull();
+    expect(boardEmptyMessage(0, true, false)).toBe('Karten hierher ziehen');
+    expect(boardEmptyMessage(0, false, true)).toBe('Keine passenden Karten');
   });
 });

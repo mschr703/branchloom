@@ -29,6 +29,12 @@ export function moveDestinations(columns: Column[], card: Card): Column[] {
   return card.archivedAt ? [] : columns.filter((column) => column.id !== card.columnId);
 }
 
+export function boardEmptyMessage(index: number, hasActiveCards: boolean, filtersActive: boolean): string | null {
+  if (filtersActive) return 'Keine passenden Karten';
+  if (hasActiveCards) return 'Karten hierher ziehen';
+  return index === 0 ? 'Erstelle unten deine erste Aufgabe. Verschiebe sie später zwischen den Spalten.' : null;
+}
+
 export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenBrowser, onOpenQaReport }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focusSession, setFocusSession] = useState(false);
@@ -64,6 +70,8 @@ export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenBrow
   }, [snapshot.cards]);
   const visibleColumns = filterColumnId ? columns.filter((column) => column.id === filterColumnId) : columns;
   const archivedCount = snapshot.cards.filter((card) => card.archivedAt).length;
+  const hasActiveCards = snapshot.cards.some((card) => !card.archivedAt);
+  const filtersActive = Boolean(query.trim() || filterColumnId || filterPriority || filterLabel) || visibility !== 'active';
   const selected = snapshot.cards.find((card) => card.id === selectedId) ?? null;
   const requestedCardAvailable = Boolean(openCard && snapshot.cards.some((card) => card.id === openCard.id));
   const columnOrder = new Map(columns.map((column, index) => [column.id, index]));
@@ -240,7 +248,7 @@ export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenBrow
     {bulkNotice ? <p className="board-bulk-result" role="status">{bulkNotice}</p> : null}
     <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
     <div className="board-scroll"><div className="board-columns">
-      {visibleColumns.map((column) => <BoardColumn key={column.id} column={column} columns={columns} cards={visibleCards.filter((card) => card.columnId === column.id).sort(compareCardOrder)} snapshot={snapshot} onSelect={openBoardCard} onOpenSession={(id) => openBoardCard(id, true)} onAnnounce={setAnnouncement} onMove={moveCard} onReorder={reorderCard} onReorderColumn={reorderColumn} onDrop={onDrop} onCreate={() => { setCreatingIn(column.id); setTitle(''); }} canCreate={visibility !== 'archived'} mutate={mutate} bulkIds={bulkIds} onToggleBulk={toggleBulk}>
+      {visibleColumns.map((column, index) => <BoardColumn key={column.id} column={column} columns={columns} cards={visibleCards.filter((card) => card.columnId === column.id).sort(compareCardOrder)} snapshot={snapshot} emptyMessage={boardEmptyMessage(index, hasActiveCards, filtersActive)} onSelect={openBoardCard} onOpenSession={(id) => openBoardCard(id, true)} onAnnounce={setAnnouncement} onMove={moveCard} onReorder={reorderCard} onReorderColumn={reorderColumn} onDrop={onDrop} onCreate={() => { setCreatingIn(column.id); setTitle(''); }} canCreate={visibility !== 'archived'} mutate={mutate} bulkIds={bulkIds} onToggleBulk={toggleBulk}>
         {creatingIn === column.id && visibility !== 'archived' ? <form className="new-card-form" onSubmit={(event) => void addCard(event, column.id)}><input autoFocus required maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Aufgabe benennen…" aria-label="Neue Karte" /><div className="inline-actions"><button className="primary-button small" type="submit">Hinzufügen</button><button className="icon-button" type="button" onClick={() => setCreatingIn(null)} aria-label="Abbrechen"><X size={15} /></button></div></form> : null}
       </BoardColumn>)}
       {visibility !== 'archived' && !filterColumnId ? <form className="new-column-form" onSubmit={(event) => void addColumn(event)}><span><Plus size={17} /> Spalte hinzufügen</span><input value={newColumn} onChange={(event) => setNewColumn(event.target.value)} placeholder="Spaltenname" aria-label="Neue Spalte" maxLength={80} required /><button className="secondary-button small" type="submit">Erstellen</button></form> : null}
@@ -268,8 +276,8 @@ function compareCardOrder(a: Card, b: Card): number {
   return a.position - b.position || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
 }
 
-function BoardColumn({ column, columns, cards, snapshot, onSelect, onOpenSession, onAnnounce, onMove, onReorder, onReorderColumn, onDrop, onCreate, canCreate, mutate, bulkIds, onToggleBulk, children }: {
-  column: Column; columns: Column[]; cards: Card[]; snapshot: ProjectSnapshot; onSelect: (id: string) => void; onOpenSession: (id: string) => void; onAnnounce: (message: string) => void;
+function BoardColumn({ column, columns, cards, snapshot, emptyMessage, onSelect, onOpenSession, onAnnounce, onMove, onReorder, onReorderColumn, onDrop, onCreate, canCreate, mutate, bulkIds, onToggleBulk, children }: {
+  column: Column; columns: Column[]; cards: Card[]; snapshot: ProjectSnapshot; emptyMessage: string | null; onSelect: (id: string) => void; onOpenSession: (id: string) => void; onAnnounce: (message: string) => void;
   onMove: (card: Card, columnId: string) => Promise<boolean>;
   onReorder: (card: Card, direction: 'up' | 'down') => Promise<void>;
   onReorderColumn: (column: Column, direction: 'left' | 'right') => Promise<void>;
@@ -295,7 +303,7 @@ function BoardColumn({ column, columns, cards, snapshot, onSelect, onOpenSession
         return <BoardCard key={card.id} card={card} column={column} columns={columns} snapshot={snapshot} onSelect={onSelect} onOpenSession={onOpenSession} onAnnounce={onAnnounce} onMove={onMove} onReorder={onReorder} bulkSelected={bulkIds.has(card.id)} onToggleBulk={onToggleBulk} previousTitle={index > 0 ? activeOrder[index - 1]?.title : undefined} nextTitle={index >= 0 ? activeOrder[index + 1]?.title : undefined} />;
       })}
       {children}
-      {cards.length === 0 && !children ? <p className="empty-column">Karten hierher ziehen</p> : null}
+      {cards.length === 0 && !children && emptyMessage ? <p className="empty-column">{emptyMessage}</p> : null}
     </div>
     <footer className="column-footer">{canCreate ? <button className="column-add-task" type="button" aria-label={`Karte in ${column.name} hinzufügen`} onClick={onCreate}><Plus size={17} /> Aufgabe hinzufügen</button> : null}</footer>
     {settingsOpen ? createPortal(<ColumnSettingsSheet column={column} columns={columns} snapshot={snapshot} mutate={mutate} onClose={closeSettings} onSelectCard={(id) => { setSettingsOpen(false); onSelect(id); }} onReorderColumn={onReorderColumn} renameLocked={renameLocked} deleteReason={deleteReason}><ColumnAgentSettings column={column} agents={snapshot.agents} mutate={mutate} /></ColumnSettingsSheet>, document.body) : null}
