@@ -1383,10 +1383,17 @@ function createWindow(): void {
                 for (let attempt = 0; attempt < 100 && !keyboardDialog.querySelector('.session-recovery')?.textContent?.includes('Gerät meldet'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
                 if (!keyboardDialog.querySelector('.session-recovery')?.textContent?.includes('Dieser Lauf ist beendet')) throw new Error('Gespeicherter Agentenlauf zeigt keinen belegten Wiederaufnahme-Status.');
               }
-              keyboardClose.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }));
-              if (!keyboardDialog.contains(document.activeElement) || document.activeElement === keyboardClose) throw new Error('Karten-Tastaturtest: Rückwärts-Tab verließ den Dialog.');
-              document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
-              if (document.activeElement !== keyboardClose) throw new Error('Karten-Tastaturtest: Vorwärts-Tab kehrte nicht zum Dialoganfang zurück.');
+              const keyboardControls = [...keyboardDialog.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], summary, [tabindex]:not([tabindex="-1"])')]
+                .filter((item) => item.getClientRects().length > 0);
+              const keyboardFirst = keyboardControls[0];
+              const keyboardLast = keyboardControls.at(-1);
+              if (!keyboardFirst || !keyboardLast || keyboardFirst === keyboardLast || !keyboardFirst.classList.contains('card-replay-jump')) throw new Error('Karten-Tastaturtest: Erster oder letzter Dialogfokus fehlt.');
+              keyboardFirst.focus();
+              keyboardFirst.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }));
+              if (document.activeElement !== keyboardLast) throw new Error('Karten-Tastaturtest: Rückwärts-Tab verließ den Dialog.');
+              keyboardLast.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+              if (document.activeElement !== keyboardFirst) throw new Error('Karten-Tastaturtest: Vorwärts-Tab kehrte nicht zum Dialoganfang zurück.');
+              keyboardClose.focus();
               keyboardClose.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
               for (let attempt = 0; attempt < 100 && (document.querySelector('.card-drawer') || document.activeElement !== keyboardCard); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (document.querySelector('.card-drawer') || document.activeElement !== keyboardCard || !(await sessionsUnchanged())) throw new Error('Karten-Tastaturtest: Escape schloss nicht mit Fokus-Rückgabe oder startete einen Agenten.');

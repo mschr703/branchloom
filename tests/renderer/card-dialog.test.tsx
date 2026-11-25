@@ -23,6 +23,7 @@ describe('card dialog accessibility', () => {
     expect(html).toContain('aria-label="Karte schließen"');
     expect(html).toContain('Fehlerabläufe ansehen</button>');
     expect(html).toContain('aria-label="Gespeicherte Fehlerabläufe" tabindex="-1"');
+    expect(html.indexOf('class="text-button card-replay-jump"')).toBeLessThan(html.indexOf('aria-label="Karte schließen"'));
     expect(html).toContain('aria-label="Integrationswarteschlange"');
     expect(html).toContain('Integrationsliste wird geladen');
     expect(html).not.toContain('Fast-Forward bestätigt übernehmen');
