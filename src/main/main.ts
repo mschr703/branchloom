@@ -11,6 +11,8 @@ import { StudioBrowser } from './browser';
 import { projectMemoryMapSources, readProjectMemorySource, refreshProjectMemoryIndex, searchProjectMemoryIndex } from './project-memory-index';
 import { createDiagnosticCard } from './error-catcher';
 import { cardQaReports, cardQaScreenshot, runCardQa, runCardQaBatch } from './card-qa';
+import { closeTeamReviewRoom, createTeamReviewInvite, createTeamReviewRoom, resolveTeamReviewInvite, revokeTeamReviewInvite, teamReviewComments, teamReviewImage, teamReviewInvites, teamReviewRooms } from './team-review';
+import { TeamReviewHttp } from './team-review-http';
 import { bugScenarios, bugScenarioRuns, runBugScenario, saveBugScenario } from './bug-replay';
 import { qaCoverageRoutes, saveQaCoverageRoute, removeQaCoverageRoute, runQaCoverageCell } from './qa-coverage';
 import { cardCriteria, createCardCriterion, updateCardCriterion, deleteCardCriterion, linkCardCriterionEvidence, unlinkCardCriterionEvidence } from './card-acceptance';
@@ -100,6 +102,7 @@ import { ReleaseUpdateController } from './release-updater';
 
 let window: BrowserWindow | null = null;
 let store: StudioStore | null = null;
+let teamReviewHttp: TeamReviewHttp | null = null;
 let runner: SessionRunner | null = null;
 let commandRunner: CommandTerminalRunner | null = null;
 let devEnvironmentRunner: DevEnvironmentRunner | null = null;
@@ -699,6 +702,34 @@ function installIpc(): void {
   bind('runCardQa', (input: Parameters<StudioAPI['runCardQa']>[0]) => runCardQa(db, input));
   bind('runCardQaBatch', (input: Parameters<StudioAPI['runCardQaBatch']>[0]) => runCardQaBatch(db, input));
   bind('cardQaScreenshot', (input: Parameters<StudioAPI['cardQaScreenshot']>[0]) => cardQaScreenshot(db, input));
+  bind('startTeamReviewRoom', async (input: Parameters<StudioAPI['startTeamReviewRoom']>[0]) => {
+    teamReviewHttp ??= new TeamReviewHttp(db);
+    await teamReviewHttp.start();
+    const created = createTeamReviewRoom(db, input);
+    return { room: created.room, invite: created.invite, reviewerSecret: created.reviewerSecret, url: teamReviewHttp.reviewUrl(created.reviewerSecret) };
+  });
+  bind('teamReviewRooms', (cardId: string) => teamReviewRooms(db, cardId));
+  bind('teamReviewInvites', (roomId: string) => teamReviewInvites(db, roomId));
+  bind('teamReviewComments', (roomId: string) => teamReviewComments(db, roomId));
+  bind('teamReviewImage', (roomId: string) => `data:image/png;base64,${teamReviewImage(db, roomId).toString('base64')}`);
+  bind('newTeamReviewInvite', async (input: Parameters<StudioAPI['newTeamReviewInvite']>[0]) => {
+    teamReviewHttp ??= new TeamReviewHttp(db);
+    await teamReviewHttp.start();
+    const created = createTeamReviewInvite(db, input);
+    return { invite: created.invite, reviewerSecret: created.reviewerSecret, url: teamReviewHttp.reviewUrl(created.reviewerSecret) };
+  });
+  bind('revokeTeamReviewInvite', (input: Parameters<StudioAPI['revokeTeamReviewInvite']>[0]) => revokeTeamReviewInvite(db, input));
+  bind('closeTeamReviewRoom', (roomId: string) => closeTeamReviewRoom(db, roomId));
+  bind('openTeamReviewInvite', async (secret: string) => {
+    resolveTeamReviewInvite(db, secret);
+    if (!teamReviewHttp) throw new Error('Review listener is not running.');
+    await shell.openExternal(teamReviewHttp.reviewUrl(secret));
+  });
+  bind('copyTeamReviewInvite', (secret: string) => {
+    resolveTeamReviewInvite(db, secret);
+    if (!teamReviewHttp) throw new Error('Review listener is not running.');
+    clipboard.writeText(teamReviewHttp.reviewUrl(secret));
+  });
   bind('qaCoverageRoutes', (projectId: string) => qaCoverageRoutes(db, projectId));
   bind('saveQaCoverageRoute', (input: Parameters<StudioAPI['saveQaCoverageRoute']>[0]) => saveQaCoverageRoute(db, input));
   bind('removeQaCoverageRoute', (input: Parameters<StudioAPI['removeQaCoverageRoute']>[0]) => removeQaCoverageRoute(db, input));
@@ -1675,6 +1706,24 @@ function createWindow(): void {
               if (qaReport?.status !== 'failed' || qaReport.viewportWidth !== 768 || qaReport.viewportHeight !== 1024 || !qaReport.diagnostics.some((item) => item.message.includes('BRANCHLOOM_QA_SMOKE_ERROR')) || qaReport.pageCheck !== 'complete' || !qaReport.pageObservations.some((item) => item.kind === 'missing-image-alt') || !qaReport.pageObservations.some((item) => item.kind === 'horizontal-overflow')) throw new Error('Lokale Karten-QA hat Tablet-Viewport, Browserfehler oder DOM-Hinweise nicht gespeichert: ' + JSON.stringify({ report: qaReport, form: qaForm.textContent, value: qaInput.value, disabled: qaButton?.disabled, error: document.querySelector('.card-qa .inline-error')?.textContent }));
               for (let attempt = 0; attempt < 100 && !document.querySelector('.card-qa-report')?.textContent?.includes('BRANCHLOOM_QA_SMOKE_ERROR'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!document.querySelector('.card-qa-report')?.textContent?.includes('BRANCHLOOM_QA_SMOKE_ERROR') || !document.querySelector('.card-qa-report')?.textContent?.includes('Bildern ohne alt-Attribut') || !document.querySelector('.card-qa-report')?.textContent?.includes('breiter als der sichtbare Inhaltsbereich') || !document.querySelector('.card-qa-report')?.textContent?.includes('Git im Projektordner')) throw new Error('Karten-QA-Bericht wurde nicht samt DOM- und Git-Belegen sichtbar gerendert.');
+              const teamReview = document.querySelector('.card-qa-report .team-review-panel');
+              if (!teamReview) throw new Error('Saved QA screenshot has no local review panel.');
+              teamReview.querySelector('summary')?.click();
+              const reviewInputs = teamReview.querySelectorAll('.team-review-form input');
+              if (reviewInputs.length !== 2) throw new Error('Local review scenario or reviewer input is missing.');
+              qaValueSetter.call(reviewInputs[0], 'Synthetic settings review');
+              reviewInputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+              qaValueSetter.call(reviewInputs[1], 'Synthetic reviewer');
+              reviewInputs[1].dispatchEvent(new Event('input', { bubbles: true }));
+              teamReview.querySelector('.team-review-form button[type="submit"]')?.click();
+              let sharedRoom;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                sharedRoom = (await window.studio.teamReviewRooms(qaCard.id))[0];
+                if (sharedRoom && teamReview.querySelector('.team-review-share input')?.value.startsWith('http://127.0.0.1:') && teamReview.textContent?.includes('Synthetic settings review')) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (sharedRoom?.qaReportId !== qaReport.id || !teamReview.querySelector('.team-review-share input')?.value.startsWith('http://127.0.0.1:') || !teamReview.textContent?.includes('Synthetic settings review')) throw new Error('Local review did not save or show its scoped link: ' + JSON.stringify({ sharedRoom, visible: teamReview.textContent, link: teamReview.querySelector('.team-review-share input')?.value }));
+              if (!(await window.studio.teamReviewImage(sharedRoom.id)).startsWith('data:image/png;base64,')) throw new Error('Local review did not keep its saved screenshot.');
               const runSession = (await window.studio.snapshot(boardProject.id)).sessions.find((item) => item.cardId === qaCard.id);
               if (!runSession) throw new Error('Agentenlauf für Laufbeleg fehlt.');
               const runPanel = document.querySelector('.card-drawer .session-evidence');
@@ -4500,6 +4549,8 @@ if (ownsSharedProfile) app.whenReady().then(async () => {
 else app.quit();
 
 app.on('before-quit', () => {
+  teamReviewHttp?.close();
+  teamReviewHttp = null;
   if (releaseStartTimer) clearTimeout(releaseStartTimer);
   if (releaseCheckTimer) clearInterval(releaseCheckTimer);
   if (integrationAutoTimer) clearInterval(integrationAutoTimer);

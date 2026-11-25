@@ -29,6 +29,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run smoke:f17
+      - run: npm run smoke:team-review
       - run: npm run smoke:dev-accounts
       - run: node scripts/smoke-electron.mjs --f01 --timeout-ms 180000
       - run: node scripts/smoke-electron.mjs --f03 --timeout-ms 180000

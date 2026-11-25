@@ -42,6 +42,7 @@ import { installReviewRules } from './review-rules';
 import { installReviewInbox } from './review-inbox';
 import { installAgentQuestions } from './agent-questions';
 import { installCardQa } from './card-qa';
+import { installTeamReview } from './team-review';
 import { installBugReplay } from './bug-replay';
 import { installQaCoverage } from './qa-coverage';
 import { installQaFixCards } from './qa-fix-card';
@@ -176,6 +177,7 @@ export class StudioStore {
     installMilestones(this.db);
     installReviewRules(this.db);
     installCardQa(this.db);
+    installTeamReview(this.db);
     installBugReplay(this.db);
     installQaCoverage(this.db);
     installCardAcceptance(this.db);

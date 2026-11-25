@@ -4,6 +4,7 @@ import type { Card, CardQaBatchResult, CardQaPageObservation, CardQaReport, Card
 import { CardQaComparison } from './CardQaComparison';
 import { CardQaViewportMatrix } from './CardQaViewportMatrix';
 import { CardQaFixCard } from './CardQaFixCard';
+import { TeamReviewPanel } from './TeamReviewPanel';
 import { qaGitLabel } from './qa-git-label';
 import './card-qa.css';
 
@@ -56,6 +57,7 @@ function CardQaReportItem({ card, report, initiallyOpen }: { card: Card; report:
       </>}
     </div>
     {open && report.screenshotAvailable ? <CardQaScreenshot cardId={card.id} reportId={report.id} /> : null}
+    {open && report.screenshotAvailable ? <TeamReviewPanel card={card} report={report} /> : null}
     {open && report.status !== 'passed' ? <CardQaFixCard sourceCard={card} report={report} /> : null}
   </details>;
 }
