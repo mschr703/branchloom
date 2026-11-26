@@ -3,6 +3,7 @@ import type { SavedTeamConnection } from '../../main/team-connection-store';
 import type { CollaborativeTeamBoard } from '../../main/team-remote-client';
 import { TeamCardDraftEditor } from './TeamCardDraftEditor';
 import { TeamCardPriorityControl } from './TeamCardPriorityControl';
+import { TeamCardColumnControl } from './TeamCardColumnControl';
 import { TeamWorkspaceSettings } from './TeamWorkspaceSettings';
 import './team-workspace-view.css';
 
@@ -82,6 +83,11 @@ export function TeamWorkspaceView({ projectId }: { projectId?: string }) {
           {workspace?.projects.find((item) => item.id === remoteProjectId)?.canManageTask ? <TeamCardPriorityControl
             key={`${selectedCard.id}:${selectedCard.revision}`} workspaceId={workspaceId} projectId={remoteProjectId}
             card={selectedCard} onReload={async () => {
+              setBoard(await window.studio.teamBoard({ workspaceId, projectId: remoteProjectId }));
+            }} /> : null}
+          {workspace?.projects.find((item) => item.id === remoteProjectId)?.canManageTask ? <TeamCardColumnControl
+            key={`column:${selectedCard.id}:${selectedCard.revision}`} workspaceId={workspaceId} projectId={remoteProjectId}
+            card={selectedCard} columns={board.columns} onReload={async () => {
               setBoard(await window.studio.teamBoard({ workspaceId, projectId: remoteProjectId }));
             }} /> : null}
           <TeamCardDraftEditor key={`${workspaceId}:${remoteProjectId}:${selectedCard.id}`}

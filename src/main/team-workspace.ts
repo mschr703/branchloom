@@ -123,6 +123,48 @@ export function setTeamCardPriority(store: StudioStore, input: {
   }).immediate();
 }
 
+/** Moving a shared card is a revisioned board command; it never starts an agent. */
+export function moveTeamCard(store: StudioStore, input: {
+  credential: string; projectId: string; cardId: string; columnId: string;
+  expectedRevision: number; mutationId: string;
+}): { cardId: string; columnId: string; revision: number; repeated: boolean } {
+  if (!input || typeof input.columnId !== 'string' || !input.columnId ||
+    typeof input.mutationId !== 'string' || !/^[0-9a-f-]{36}$/i.test(input.mutationId) ||
+    !Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 0) throw new Error('Invalid team card command.');
+  return store.db.transaction(() => {
+    const actor = requireTeamProjectCapability(store.db, input.credential, input.projectId, 'manage_task');
+    const payload = JSON.stringify({ columnId: input.columnId });
+    const previous = store.db.prepare(`SELECT actor_id, project_id, card_id, command, payload_json, committed_revision
+      FROM team_card_commands WHERE workspace_id = ? AND mutation_id = ?`)
+      .get(actor.workspaceId, input.mutationId) as { actor_id: string; project_id: string; card_id: string;
+        command: string; payload_json: string; committed_revision: number } | undefined;
+    if (previous) {
+      if (previous.actor_id !== actor.id || previous.project_id !== input.projectId || previous.card_id !== input.cardId ||
+        previous.command !== 'move_card' || previous.payload_json !== payload) throw new Error('Mutation ID was already used for another action.');
+      return { cardId: input.cardId, columnId: input.columnId, revision: previous.committed_revision, repeated: true };
+    }
+    const card = store.card(input.cardId);
+    if (card.projectId !== input.projectId || card.archivedAt) throw new Error('Team card is unavailable.');
+    const column = store.column(input.columnId);
+    if (column.projectId !== input.projectId) throw new Error('Team column is unavailable.');
+    const current = store.db.prepare('SELECT content_revision FROM cards WHERE id = ?').get(card.id) as { content_revision: number };
+    if (current.content_revision !== input.expectedRevision) throw new Error('Card changed. Reload before applying this team action.');
+    if (store.projectQueue(input.projectId).state === 'running' ||
+      store.db.prepare("SELECT 1 FROM sessions WHERE card_id = ? AND state = 'running' LIMIT 1").get(card.id) ||
+      store.db.prepare("SELECT 1 FROM workflows WHERE project_id = ? AND state IN ('running', 'paused') AND card_ids_json LIKE ? LIMIT 1")
+        .get(input.projectId, `%"${card.id}"%`)) throw new Error('Team card is active. Pause the queue and finish its run before moving it.');
+    if (card.columnId === column.id) throw new Error('Team card is already in this column.');
+    store.moveCard({ id: card.id, columnId: column.id });
+    store.db.prepare('UPDATE cards SET content_revision = content_revision + 1 WHERE id = ?').run(card.id);
+    const after = current.content_revision + 1;
+    store.db.prepare(`INSERT INTO team_card_commands (workspace_id, mutation_id, actor_id, project_id, card_id,
+      command, payload_json, base_revision, committed_revision, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(actor.workspaceId, input.mutationId, actor.id, input.projectId, card.id, 'move_card', payload,
+        current.content_revision, after, new Date().toISOString());
+    return { cardId: card.id, columnId: column.id, revision: after, repeated: false };
+  }).immediate();
+}
+
 export function createTeamWorkspace(db: Database.Database, input: { workspaceName: string; projectId: string; ownerName: string }): {
   workspaceId: string; owner: TeamMember; credential: string;
 } {

@@ -93,12 +93,34 @@ it('authenticates two separate HTTP clients, rejects stale writes, and survives 
     expect((await getBoard(editor.credential)).status).toBe(200);
     expect((await setPriority(editor.credential, 'urgent', 1, randomUUID())).status).toBe(200);
     expect(store.card(card.id).priority).toBe('urgent');
+    const nextColumn = store.snapshot(project.id).columns[1]!;
+    const move = (key: string, columnId: string, expectedRevision: number, mutationId: string) =>
+      fetch(`${base}/v1/projects/${project.id}/cards/${card.id}/column`, { method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ columnId, expectedRevision, mutationId }) });
+    expect((await move(viewer.credential, nextColumn.id, 2, randomUUID())).status).toBe(403);
+    expect((await move(editor.credential, nextColumn.id, 1, randomUUID())).status).toBe(409);
+    expect((await move(owner.credential, store.snapshot(secondProject.id).columns[0]!.id, 2, randomUUID())).status).toBe(400);
+    const moveId = randomUUID();
+    expect((await move(editor.credential, nextColumn.id, 2, moveId)).status).toBe(200);
+    expect((await (await getBoard(owner.credential)).json()).cards[0]).toMatchObject({ columnId: nextColumn.id, revision: 3 });
+    expect((await (await move(editor.credential, nextColumn.id, 2, moveId)).json()).repeated).toBe(true);
+    expect((await move(editor.credential, column.id, 3, moveId)).status).toBe(400);
+    expect(store.card(card.id).columnId).toBe(nextColumn.id);
+    expect((store.db.prepare('SELECT COUNT(*) AS count FROM sessions').get() as { count: number }).count).toBe(0);
+    store.saveProjectQueue({ projectId: project.id, state: 'running', templateWorkflowId: null,
+      activeWorkflowId: null, pauseReason: null });
+    expect((await move(owner.credential, column.id, 3, randomUUID())).status).toBe(423);
+    store.saveProjectQueue({ projectId: project.id, state: 'off', templateWorkflowId: null,
+      activeWorkflowId: null, pauseReason: null });
+    expect(store.card(card.id).columnId).toBe(nextColumn.id);
     const revoke = (key: string) => fetch(`${base}/v1/workspace/members/${editor.member.id}/revoke`,
       { method: 'POST', headers: { Authorization: `Bearer ${key}` } });
     expect((await revoke(viewer.credential)).status).toBe(403);
     expect((await revoke(owner.credential)).status).toBe(200);
     expect((await getBoard(editor.credential)).status).toBe(401);
-    expect((await setPriority(editor.credential, 'low', 2, randomUUID())).status).toBe(401);
+    expect((await setPriority(editor.credential, 'low', 3, randomUUID())).status).toBe(401);
+    expect((await move(editor.credential, column.id, 3, randomUUID())).status).toBe(401);
   } finally {
     await coordinator?.close();
     store.close();

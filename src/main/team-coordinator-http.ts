@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net';
 import type { StudioStore } from './store';
 import type { CardPriority } from '../shared/types';
 import { authenticateTeamMember, claimTeamMemberInvite, createTeamMemberInvite,
-  requireTeamProjectCapability, revokeTeamMember, setTeamCardPriority, type TeamRole } from './team-workspace';
+  requireTeamProjectCapability, revokeTeamMember, setTeamCardPriority, moveTeamCard, type TeamRole } from './team-workspace';
 import { teamBoardSnapshot } from './team-board';
 import { applyTeamCardDraftUpdate, readTeamCardDraft } from './team-card-draft';
 
@@ -169,11 +169,21 @@ export class TeamCoordinatorHttp {
           expectedRevision: value.expectedRevision as number, mutationId: value.mutationId as string });
         return reply(response, 200, result);
       }
+      const move = /^\/v1\/projects\/([0-9a-f-]{36})\/cards\/([0-9a-f-]{36})\/column$/.exec(path);
+      if (request.method === 'POST' && move) {
+        const value = await body(request);
+        const result = moveTeamCard(this.store, { credential: actorCredential,
+          projectId: move[1]!, cardId: move[2]!, columnId: value.columnId as string,
+          expectedRevision: value.expectedRevision as number, mutationId: value.mutationId as string });
+        return reply(response, 200, result);
+      }
       reply(response, 404, { error: 'Route is unavailable' });
     } catch (error) {
       const message = error instanceof Error ? error.message : '';
       if (message === 'Card changed. Reload before applying this team action.') {
         reply(response, 409, { error: 'Card changed. Reload before applying this team action.' });
+      } else if (message === 'Team card is active. Pause the queue and finish its run before moving it.') {
+        reply(response, 423, { error: message });
       } else if (message === 'Unauthorized' || message === 'Team credential is unavailable.') {
         reply(response, 401, { error: 'Team credential is unavailable' });
       } else if (message.includes('not permitted') || message.includes('cannot invite') || message.includes('cannot be removed')) {

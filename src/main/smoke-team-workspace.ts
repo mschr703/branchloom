@@ -96,6 +96,17 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
     await wait(async () => (await window.studio.teamBoard({ workspaceId: ${JSON.stringify(result.workspaceId)},
       projectId: ${JSON.stringify(project.id)} })).cards.find((item) => item.id === ${JSON.stringify(card.id)})?.priority === 'high',
       'revisioned team priority command');
+    await wait(() => document.querySelector('.team-workspace-card.selected small')?.textContent === 'high',
+      'refreshed card revision before moving');
+    const column = await wait(() => document.querySelector('select[aria-label="Teamkarten-Spalte"]'), 'column control');
+    const destination = [...column.options].find((option) => option.value !== column.value);
+    if (!destination) throw new Error('Team board needs another column for a visible move.');
+    prioritySetter.call(column, destination.value); column.dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(() => !column.closest('.team-card-priority')?.querySelector('.secondary-button')?.disabled, 'move enabled');
+    column.closest('.team-card-priority').querySelector('.secondary-button').click();
+    await wait(async () => (await window.studio.teamBoard({ workspaceId: ${JSON.stringify(result.workspaceId)},
+      projectId: ${JSON.stringify(project.id)} })).cards.find((item) => item.id === ${JSON.stringify(card.id)})?.columnId === destination.value,
+      'revisioned team column move');
     await wait(() => document.querySelector('.team-card-presence')?.textContent?.includes('Live verbunden') &&
       document.querySelector('.team-card-presence')?.textContent?.includes('Owner') &&
       document.querySelector('.team-card-presence')?.textContent?.includes('Guest'), 'live team presence');

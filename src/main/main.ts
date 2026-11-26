@@ -259,6 +259,7 @@ function installIpc(): void {
   bind('teamWorkspace', (workspaceId: string) => teamRemoteClient.workspace(workspaceId));
   bind('teamBoard', (input: Parameters<StudioAPI['teamBoard']>[0]) => teamRemoteClient.board(input));
   bind('setTeamCardPriority', (input: Parameters<StudioAPI['setTeamCardPriority']>[0]) => teamRemoteClient.setCardPriority(input));
+  bind('moveTeamCard', (input: Parameters<StudioAPI['moveTeamCard']>[0]) => teamRemoteClient.moveCard(input));
   bind('teamCardDraft', (input: Parameters<StudioAPI['teamCardDraft']>[0]) => teamRemoteClient.cardDraft(input));
   bind('updateTeamCardDraft', (input: Parameters<StudioAPI['updateTeamCardDraft']>[0]) => teamRemoteClient.updateCardDraft(input));
   bind('pendingTeamCardDraftUpdates', (input: Parameters<StudioAPI['pendingTeamCardDraftUpdates']>[0]) => teamRemoteClient.pendingCardDraftUpdates(input));

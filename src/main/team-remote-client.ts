@@ -198,6 +198,25 @@ export class TeamRemoteClient {
     return { cardId: input.cardId, revision: value.revision as number, priority: input.priority, repeated: value.repeated };
   }
 
+  async moveCard(input: { workspaceId: string; projectId: string; cardId: string;
+    columnId: string; expectedRevision: number; mutationId: string }): Promise<{
+    cardId: string; columnId: string; revision: number; repeated: boolean;
+  }> {
+    if (!UUID.test(input.projectId) || !UUID.test(input.cardId) || !UUID.test(input.columnId) ||
+      !UUID.test(input.mutationId) || !Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 0) {
+      throw new Error('Invalid team card move command.');
+    }
+    const value = record(await this.authenticated(input.workspaceId,
+      `/v1/projects/${input.projectId}/cards/${input.cardId}/column`, {
+        columnId: input.columnId, expectedRevision: input.expectedRevision, mutationId: input.mutationId,
+      }));
+    if (!value || value.cardId !== input.cardId || value.columnId !== input.columnId ||
+      !Number.isSafeInteger(value.revision) || Number(value.revision) < 0 || typeof value.repeated !== 'boolean') {
+      throw new Error('Coordinator returned an invalid card move result.');
+    }
+    return { cardId: input.cardId, columnId: input.columnId, revision: value.revision as number, repeated: value.repeated };
+  }
+
   async updateCardDraft(input: { workspaceId: string; projectId: string; cardId: string;
     mutationId: string; update: string }): Promise<TeamCardDraft & { repeated: boolean }> {
     if (!UUID.test(input.projectId) || !UUID.test(input.cardId) || !UUID.test(input.mutationId) ||
@@ -312,6 +331,7 @@ export class TeamRemoteClient {
     } catch { throw new Error('Coordinator is unavailable.'); }
     if (response.status === 401 || response.status === 403) throw new Error('Team access was revoked or is unavailable.');
     if (response.status === 409) throw new Error('Team card changed. Reload before retrying.');
+    if (response.status === 423) throw new Error('Pause the project queue and finish the active run before moving this card.');
     if (!response.ok) throw new Error(`Coordinator request failed (HTTP ${response.status}).`);
     return limitedJson(response);
   }

@@ -63,7 +63,7 @@ child.on('exit', (code) => {
       : changelog ? `${packaged ? 'Paket' : 'Quellbuild'}: Changelog receipt, current Git ancestry, review/test snapshot and visible card link passed.`
       : whiteboard ? `${packaged ? 'Paket' : 'Quellbuild'}: saved Whiteboard, tracked-source preview, keyboard evidence and unchanged board passed.`
       : chatCanvas ? `${packaged ? 'Package' : 'Source build'}: visible project chat, explicit canvas save, selected Whiteboard node and persisted reload passed.`
-      : teamWorkspace ? `${packaged ? 'Package' : 'Source build'}: visible team setup, separate member credentials, presence, priority control, offline draft replay without duplication, coordinator reconnect and retained owner credential passed.`
+      : teamWorkspace ? `${packaged ? 'Package' : 'Source build'}: visible team setup, separate member credentials, presence, revisioned priority and column controls, offline draft replay without duplication, coordinator reconnect and retained owner credential passed.`
       : `${packaged ? 'Paket' : 'Quellbuild'}: Renderer, IPC, SQLite, Terminal/Agenten-PTY, Board, Ideenraum, Aufgabenklärung, Whiteboard, Kartenkontext mit bestätigtem Anhang-, Whiteboard-Dateibox- und Design-Beleg-Drop, lokale Karten-QA mit mehreren Routen, DOM-Hinweisen und Screenshots, visueller Vergleich, gespeicherte Prüfgrößenansicht, Design-Aufnahmen in drei Größen, Changelog-Quellwahl und Memory-Übernahme erfolgreich.`);
   } else {
     console.error(timedOut ? `Electron-Smoke nach ${timeoutMs / 1000} Sekunden ohne Abschluss-Signal abgebrochen.` : `Electron-Smoke fehlgeschlagen (Exit ${code ?? 'unbekannt'}).`);
