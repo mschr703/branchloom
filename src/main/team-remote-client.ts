@@ -329,7 +329,8 @@ export class TeamRemoteClient {
         body: body ? JSON.stringify(body) : undefined, redirect: 'error', signal: AbortSignal.timeout(15_000),
       });
     } catch { throw new Error('Coordinator is unavailable.'); }
-    if (response.status === 401 || response.status === 403) throw new Error('Team access was revoked or is unavailable.');
+    if (response.status === 401) throw new Error('Team access was revoked or is unavailable.');
+    if (response.status === 403) throw new Error('Team action is not permitted for this project.');
     if (response.status === 409) throw new Error('Team card changed. Reload before retrying.');
     if (response.status === 423) throw new Error('Pause the project queue and finish the active run before moving this card.');
     if (!response.ok) throw new Error(`Coordinator request failed (HTTP ${response.status}).`);

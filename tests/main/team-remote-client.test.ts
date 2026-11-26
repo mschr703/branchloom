@@ -87,7 +87,7 @@ it('merges two authenticated clients on one card draft and reconnects after host
     expect((await second.board({ workspaceId: workspace.workspaceId, projectId: project.id })).cards)
       .toEqual(expect.arrayContaining([expect.objectContaining({ id: card.id, title: 'Plan the first release', revision: 0 })]));
     await expect(first.setCardPriority({ workspaceId: workspace.workspaceId, projectId: project.id,
-      cardId: card.id, priority: 'high', expectedRevision: 0, mutationId: randomUUID() })).rejects.toThrow('revoked or is unavailable');
+      cardId: card.id, priority: 'high', expectedRevision: 0, mutationId: randomUUID() })).rejects.toThrow('not permitted');
     const ownerClient = new TeamRemoteClient(hostConnections, new TeamJoinAttemptStore(hostRoot, secure));
     expect((await ownerClient.setCardPriority({ workspaceId: workspace.workspaceId, projectId: project.id,
       cardId: card.id, priority: 'high', expectedRevision: 0, mutationId: randomUUID() })).revision).toBe(1);
@@ -108,7 +108,7 @@ it('merges two authenticated clients on one card draft and reconnects after host
     await readyEvent;
     await expect(first.moveCard({ workspaceId: workspace.workspaceId, projectId: project.id,
       cardId: card.id, columnId: nextColumn.id, expectedRevision: 1, mutationId: randomUUID() }))
-      .rejects.toThrow('revoked or is unavailable');
+      .rejects.toThrow('not permitted');
     expect((await ownerClient.moveCard({ workspaceId: workspace.workspaceId, projectId: project.id,
       cardId: card.id, columnId: nextColumn.id, expectedRevision: 1, mutationId: randomUUID() })).revision).toBe(2);
     expect(await changedEvent).toBe(2);
