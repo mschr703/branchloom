@@ -13,6 +13,8 @@ export function TeamCardDraftEditor({ workspaceId, projectId, cardId, cardTitle,
   const [ready, setReady] = useState(false);
   const [revision, setRevision] = useState(0);
   const [status, setStatus] = useState('Lade Entwurf…');
+  const [members, setMembers] = useState<string[]>([]);
+  const [streamStatus, setStreamStatus] = useState('Verbinde Live-Ansicht…');
   const [error, setError] = useState('');
   const [retryToken, setRetryToken] = useState(0);
 
@@ -23,6 +25,7 @@ export function TeamCardDraftEditor({ workspaceId, projectId, cardId, cardTitle,
     let loaded = false;
     const pending: PendingUpdate[] = [];
     const ydoc = new Y.Doc();
+    const watchId = crypto.randomUUID();
     documentRef.current = ydoc;
     const source = { workspaceId, projectId, cardId };
     const applyRemote = (update: string) => {
@@ -64,13 +67,13 @@ export function TeamCardDraftEditor({ workspaceId, projectId, cardId, cardTitle,
       if (!active) return;
       applyRemote(draft.update);
       for (const item of pendingOnDisk) applyRemote(item.update);
-      setRevision(draft.revision); loaded = true; setReady(true);
+      setRevision((current) => Math.max(current, draft.revision)); loaded = true; setReady(true);
       setStatus(pendingOnDisk.length ? 'Wiederhole ausstehende Änderungen…' : 'Synchronisiert');
       if (pendingOnDisk.length) {
         await window.studio.resumeTeamCardDraftUpdates(source);
         if (!active) return;
         const current = await window.studio.teamCardDraft(source);
-        applyRemote(current.update); setRevision(current.revision); setStatus('Synchronisiert');
+        applyRemote(current.update); setRevision((value) => Math.max(value, current.revision)); setStatus('Synchronisiert');
       }
     })().catch((reason: unknown) => { if (active) { setStatus('Nicht verbunden'); setError(messageOf(reason)); } });
     const timer = setInterval(() => {
@@ -78,15 +81,36 @@ export function TeamCardDraftEditor({ workspaceId, projectId, cardId, cardTitle,
       polling = true;
       void window.studio.resumeTeamCardDraftUpdates(source).then(() => window.studio.teamCardDraft(source)).then((draft) => {
         if (!active) return;
-        applyRemote(draft.update); setRevision(draft.revision);
+        applyRemote(draft.update); setRevision((value) => Math.max(value, draft.revision));
         if (pending.length) void flush();
         else { setStatus('Synchronisiert'); setError(''); }
       }).catch((reason: unknown) => { if (active) { setStatus('Nicht verbunden'); setError(messageOf(reason)); } })
         .finally(() => { polling = false; });
-    }, 1_200);
+    }, 5_000);
+    const unsubscribe = window.studio.onTeamDraftEvent((event) => {
+      if (!active || event.watchId !== watchId) return;
+      if ('event' in event) {
+        if (event.event.type === 'presence') setMembers(event.event.members.map((member) => member.displayName));
+        if (event.event.type === 'draft' && loaded) {
+          void window.studio.teamCardDraft(source).then((draft) => {
+            if (!active) return;
+            applyRemote(draft.update); setRevision((value) => Math.max(value, draft.revision));
+          }).catch((reason: unknown) => { if (active) setStreamStatus(messageOf(reason)); });
+        }
+      } else if (event.type === 'connected') {
+        setStreamStatus('Live verbunden');
+        if (loaded) void flush();
+      } else {
+        setMembers([]); setStreamStatus('Live-Verbindung unterbrochen');
+      }
+    });
+    void window.studio.startTeamDraftWatch({ watchId, ...source })
+      .catch((reason: unknown) => { if (active) setStreamStatus(messageOf(reason)); });
     return () => {
       active = false;
       clearInterval(timer);
+      unsubscribe();
+      void window.studio.stopTeamDraftWatch(watchId);
       ydoc.off('update', onUpdate);
       ydoc.destroy();
       documentRef.current = null;
@@ -113,6 +137,7 @@ export function TeamCardDraftEditor({ workspaceId, projectId, cardId, cardTitle,
   return <section className="team-card-draft" aria-label={`Gemeinsamer Entwurf für ${cardTitle}`}>
     <div className="team-card-draft-heading"><div><h3>{cardTitle}</h3><p>Gemeinsamer Entwurf · noch nicht als Kartenbeschreibung übernommen</p></div>
       <span role="status">{status}{revision ? ` · Stand ${revision}` : ''}</span></div>
+    <p className="team-card-presence" role="status">{streamStatus}{members.length ? ` · Im Entwurf: ${members.join(', ')}` : ''}</p>
     <textarea value={text} onChange={(event) => edit(event.currentTarget.value)} disabled={!ready} readOnly={!canEdit} maxLength={20_000}
       aria-label={canEdit ? 'Gemeinsamen Kartenentwurf bearbeiten' : 'Gemeinsamen Kartenentwurf lesen'}
       placeholder="Was soll das Team an dieser Karte planen?" />

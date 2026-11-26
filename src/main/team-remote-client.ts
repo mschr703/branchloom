@@ -15,6 +15,10 @@ export interface CollaborativeTeamBoard extends Omit<TeamBoardSnapshot, 'cards'>
   cards: Array<TeamBoardSnapshot['cards'][number] & { revision: number }>;
 }
 
+export type TeamDraftStreamEvent =
+  | { type: 'presence'; members: Array<{ memberId: string; displayName: string }> }
+  | { type: 'draft'; revision: number };
+
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
@@ -194,6 +198,83 @@ export class TeamRemoteClient {
     const pending = await this.outbox?.list(input) ?? [];
     for (const update of pending) await this.updateCardDraft(update);
     return pending.length;
+  }
+
+  /** Authenticated event stream; credentials stay in the main process and never enter a URL. */
+  async streamCardDraft(input: { workspaceId: string; projectId: string; cardId: string },
+    onEvent: (event: TeamDraftStreamEvent) => void, signal: AbortSignal): Promise<void> {
+    if (!UUID.test(input.projectId) || !UUID.test(input.cardId)) throw new Error('Invalid team draft target.');
+    const connection = await this.connections.get(input.workspaceId);
+    if (!connection) throw new Error('This team workspace is not saved on this device.');
+    const idle = new AbortController();
+    let idleTimer = setTimeout(() => idle.abort(), 15_000);
+    const activeSignal = AbortSignal.any([signal, idle.signal]);
+    const refreshIdle = () => { clearTimeout(idleTimer); idleTimer = setTimeout(() => idle.abort(), 15_000); };
+    let response: Response;
+    try {
+      response = await this.request(`${connection.coordinatorUrl}/v1/projects/${input.projectId}/cards/${input.cardId}/draft/events`, {
+        headers: { Authorization: `Bearer ${connection.credential}` }, redirect: 'error', signal: activeSignal,
+      });
+    } catch (error) {
+      clearTimeout(idleTimer);
+      if (signal.aborted) return;
+      throw new Error('Coordinator event stream is unavailable.', { cause: error });
+    }
+    if (response.status === 401 || response.status === 403) {
+      clearTimeout(idleTimer);
+      throw new Error('Team access was revoked or is unavailable.');
+    }
+    if (!response.ok || !response.body || !response.headers.get('content-type')?.startsWith('text/event-stream')) {
+      clearTimeout(idleTimer);
+      throw new Error('Coordinator returned an invalid event stream.');
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffered = '';
+    try {
+      while (!signal.aborted) {
+        const item = await reader.read();
+        if (item.done) break;
+        refreshIdle();
+        buffered += decoder.decode(item.value, { stream: true });
+        if (buffered.length > 32_000) throw new Error('Coordinator event is too large.');
+        let boundary = buffered.indexOf('\n\n');
+        while (boundary >= 0) {
+          const frame = buffered.slice(0, boundary);
+          buffered = buffered.slice(boundary + 2);
+          const type = /^event: (.+)$/m.exec(frame)?.[1];
+          const data = /^data: (.+)$/m.exec(frame)?.[1];
+          if (type && data) {
+            let value: unknown;
+            try { value = JSON.parse(data) as unknown; } catch { throw new Error('Coordinator event is invalid.'); }
+            const body = record(value);
+            if (type === 'draft') {
+              if (!body || !Number.isSafeInteger(body.revision) || Number(body.revision) < 0) {
+                throw new Error('Coordinator event is invalid.');
+              }
+              onEvent({ type: 'draft', revision: body.revision as number });
+            } else if (type === 'presence') {
+              if (!body || !Array.isArray(body.members) || body.members.length > 100) {
+                throw new Error('Coordinator event is invalid.');
+              }
+              const members = body.members.map((item) => {
+                const member = record(item);
+                if (!member || typeof member.memberId !== 'string' || !UUID.test(member.memberId) ||
+                  typeof member.displayName !== 'string' || !member.displayName.trim() || member.displayName.length > 80) {
+                  throw new Error('Coordinator event is invalid.');
+                }
+                return { memberId: member.memberId, displayName: member.displayName };
+              });
+              onEvent({ type: 'presence', members });
+            }
+          }
+          boundary = buffered.indexOf('\n\n');
+        }
+      }
+    } catch (error) {
+      if (!signal.aborted) throw error;
+    } finally { clearTimeout(idleTimer); await reader.cancel().catch(() => undefined); }
+    if (!signal.aborted) throw new Error('Coordinator event stream closed.');
   }
 
   private async authenticated(workspaceId: string, path: string, body?: Record<string, unknown>): Promise<unknown> {

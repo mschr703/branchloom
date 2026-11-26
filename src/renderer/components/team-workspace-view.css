@@ -13,6 +13,7 @@
 .team-workspace-card:focus-visible{outline:2px solid var(--focus);outline-offset:2px}.team-workspace-card strong{font-size:13px;font-weight:600;line-height:1.35}.team-workspace-card small{color:var(--muted);font-size:11px}
 .team-workspace-detail{border-left:1px solid var(--border);padding-left:22px;min-width:0}.team-workspace-detail>p{color:var(--muted);font-size:13px;margin:5px 0}
 .team-card-draft-heading{display:flex;align-items:start;justify-content:space-between;gap:10px}.team-card-draft-heading h3{margin:0;font-size:17px;font-weight:620}.team-card-draft-heading p{margin:5px 0 12px;font-size:12px;line-height:1.45;color:var(--muted)}.team-card-draft-heading>span{white-space:nowrap;color:var(--muted);font-size:11px}
+.team-card-presence{margin:0 0 10px;color:var(--muted);font-size:11px;line-height:1.4}
 .team-card-draft textarea{box-sizing:border-box;width:100%;min-height:280px;resize:vertical;border:1px solid var(--border);border-radius:5px;background:var(--surface);color:var(--text);font:inherit;font-size:14px;line-height:1.55;padding:12px}
 .team-card-draft textarea:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 @media(max-width:900px){.team-workspace-board-layout{display:block}.team-workspace-detail{border-left:0;border-top:1px solid var(--border);padding:15px 0 0;margin-top:12px}}

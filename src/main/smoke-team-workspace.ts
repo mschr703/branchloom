@@ -64,6 +64,14 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
   const joined = await guest.beginJoin({ coordinatorUrl: result.coordinatorUrl,
     inviteSecret: result.secret, displayName: 'Guest' });
   if (joined.workspaceId !== result.workspaceId) throw new Error('Guest joined another workspace.');
+  const guestWatch = new AbortController();
+  let guestReady: () => void = () => undefined;
+  let guestFailed: (error: unknown) => void = () => undefined;
+  const guestPresence = new Promise<void>((resolve, reject) => { guestReady = resolve; guestFailed = reject; });
+  const guestWatchTask = guest.streamCardDraft({ workspaceId: result.workspaceId, projectId: project.id, cardId: card.id },
+    (event) => { if (event.type === 'presence') guestReady(); }, guestWatch.signal);
+  void guestWatchTask.catch(guestFailed);
+  await guestPresence;
   await window.webContents.executeJavaScript(`(async () => {
     const wait = async (predicate, label) => {
       for (let attempt = 0; attempt < 150; attempt += 1) {
@@ -80,6 +88,9 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
     if (!board.textContent.includes('Shared planning card')) throw new Error('Team card is absent from shared board.');
     board.querySelector('.team-workspace-card').click();
     const editor = await wait(() => document.querySelector('.team-card-draft textarea:not(:disabled)'), 'draft editor');
+    await wait(() => document.querySelector('.team-card-presence')?.textContent?.includes('Live verbunden') &&
+      document.querySelector('.team-card-presence')?.textContent?.includes('Owner') &&
+      document.querySelector('.team-card-presence')?.textContent?.includes('Guest'), 'live team presence');
     const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
     setter.call(editor, 'Owner note. '); editor.dispatchEvent(new Event('input', { bubbles: true }));
     await wait(async () => (await window.studio.teamCardDraft({ workspaceId: ${JSON.stringify(result.workspaceId)},
@@ -93,7 +104,7 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
     cardId: card.id, mutationId: randomUUID(), update: guestUpdate });
   if (guestResult.revision !== 2) throw new Error('Guest draft edit did not follow owner edit.');
   await window.webContents.executeJavaScript(`(async () => {
-    for (let attempt = 0; attempt < 80; attempt += 1) {
+    for (let attempt = 0; attempt < 40; attempt += 1) {
       const value = document.querySelector('.team-card-draft textarea')?.value ?? '';
       if (value.includes('Owner note.') && value.includes('Guest note.')) return true;
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -104,6 +115,8 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
     throw new Error('A draft edit changed the accepted card description.');
   }
   guestDocument.destroy();
+  guestWatch.abort();
+  await guestWatchTask;
   const screenshot = process.env.BRANCHLOOM_TEAM_WORKSPACE_SCREENSHOT;
   if (screenshot) {
     window.showInactive();
