@@ -1,11 +1,12 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
-import { safeStorage, type BrowserWindow } from 'electron';
+import { app, safeStorage, type BrowserWindow } from 'electron';
 import type { StudioStore } from './store';
 import { TeamConnectionStore } from './team-connection-store';
 import { TeamJoinAttemptStore } from './team-join-attempt';
 import { TeamRemoteClient } from './team-remote-client';
+import { setTeamCapabilityGrant } from './team-workspace';
 import type { TeamLocalService } from './team-local-service';
 
 const Y = require('yjs') as typeof import('yjs', { with: { 'resolution-mode': 'require' } });
@@ -135,6 +136,35 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
   if (store.snapshot(project.id).cards.find((item) => item.id === card.id)?.description !== 'Accepted source description') {
     throw new Error('A draft edit changed the accepted card description.');
   }
+  const ownerConnection = await new TeamConnectionStore(app.getPath('userData'), safeStorage).get(result.workspaceId);
+  if (!ownerConnection) throw new Error('Synthetic owner connection is unavailable.');
+  setTeamCapabilityGrant(store.db, ownerConnection.credential, project.id, joined.memberId, 'manage_task', true);
+  await window.webContents.executeJavaScript(`(() => {
+    window.__teamCardEventSeen = false;
+    window.__stopTeamCardEventCheck = window.studio.onTeamDraftEvent((event) => {
+      if ('event' in event && event.event.type === 'card') window.__teamCardEventSeen = true;
+    });
+    return true;
+  })()`);
+  const returnColumn = store.snapshot(project.id).columns[0]!.id;
+  const beforeGuestMove = (await guest.board({ workspaceId: result.workspaceId, projectId: project.id }))
+    .cards.find((item) => item.id === card.id);
+  if (!beforeGuestMove) throw new Error('Guest cannot see the team card before moving it.');
+  await guest.moveCard({ workspaceId: result.workspaceId, projectId: project.id, cardId: card.id,
+    columnId: returnColumn, expectedRevision: beforeGuestMove.revision, mutationId: randomUUID() });
+  await window.webContents.executeJavaScript(`(async () => {
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const selected = document.querySelector('.team-workspace-card.selected');
+      if (window.__teamCardEventSeen && selected?.closest('section')?.getAttribute('aria-label') ===
+        'Spalte ' + ${JSON.stringify(store.snapshot(project.id).columns[0]!.name)}) {
+        window.__stopTeamCardEventCheck();
+        return true;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    window.__stopTeamCardEventCheck();
+    throw new Error('Guest card move did not reach the visible owner board through the event stream.');
+  })()`);
   guestDocument.destroy();
   guestWatch.abort();
   await guestWatchTask;
