@@ -13,7 +13,7 @@ export function TeamReviewPanel({ card, report }: { card: Card; report: CardQaRe
   const [image, setImage] = useState('');
   const [scenario, setScenario] = useState('');
   const [reviewerName, setReviewerName] = useState('');
-  const [share, setShare] = useState<{ url: string; secret: string } | null>(null);
+  const [share, setShare] = useState<{ url: string; secret: string; transport: 'local' | 'tailnet' } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [open, setOpen] = useState(false);
@@ -50,20 +50,21 @@ export function TeamReviewPanel({ card, report }: { card: Card; report: CardQaRe
       const result = await window.studio.startTeamReviewRoom({ projectId: card.projectId, cardId: card.id, qaReportId: report.id, scenario, reviewerName });
       setRooms((items) => [result.room, ...items]);
       setSelectedId(result.room.id);
-      setShare({ url: result.url, secret: result.reviewerSecret });
+      setShare({ url: result.url, secret: result.reviewerSecret, transport: 'local' });
       setScenario(''); setReviewerName('');
     } catch (reason) { setError(messageOf(reason)); }
     finally { setBusy(false); }
   }
 
-  async function invite(event: React.FormEvent) {
-    event.preventDefault();
+  async function issueInvite(transport: 'local' | 'tailnet') {
     if (!selected || busy) return;
     setBusy(true); setError('');
     try {
-      const result = await window.studio.newTeamReviewInvite({ roomId: selected.id, reviewerName });
+      const input = { roomId: selected.id, reviewerName };
+      const result = transport === 'tailnet' ? await window.studio.newTailnetTeamReviewInvite(input)
+        : await window.studio.newTeamReviewInvite(input);
       setInvites((items) => [...items, result.invite]);
-      setShare({ url: result.url, secret: result.reviewerSecret });
+      setShare({ url: result.url, secret: result.reviewerSecret, transport });
       setReviewerName('');
     } catch (reason) { setError(messageOf(reason)); }
     finally { setBusy(false); }
@@ -95,14 +96,15 @@ export function TeamReviewPanel({ card, report }: { card: Card; report: CardQaRe
     if (!share || busy) return;
     setError('');
     try {
-      if (action === 'copy') await window.studio.copyTeamReviewInvite(share.secret);
-      else await window.studio.openTeamReviewInvite(share.secret);
+      const input = { secret: share.secret, transport: share.transport };
+      if (action === 'copy') await window.studio.copyTeamReviewInvite(input);
+      else await window.studio.openTeamReviewInvite(input);
     } catch (reason) { setError(messageOf(reason)); }
   }
 
   return <details className="team-review-panel" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
     <summary>Gemeinsamer Bild-Review <span>{reportRooms.length}</span></summary>
-    <p>Ein gespeicherter QA-Screenshot wird für markierte Kommentare festgehalten. Der aktuelle Verbindungsweg läuft nur auf diesem Rechner; der Link ist noch nicht für Freunde im Netzwerk erreichbar.</p>
+    <p>Ein gespeicherter QA-Screenshot wird für markierte Kommentare festgehalten. Der normale Link funktioniert auf diesem Rechner; ein zweiter Link kann bewusst über eine verbundene Tailscale-Umgebung freigegeben werden.</p>
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
     {reportRooms.length ? <label>Reviewstand <select aria-label="Reviewstand wählen" value={selectedId} onChange={(event) => { setSelectedId(event.target.value); setShare(null); }}><option value="">Reviewstand wählen</option>{reportRooms.map((room) => <option value={room.id} key={room.id}>{room.scenario} · {new Date(room.createdAt).toLocaleString('de-DE')}{room.closedAt ? ' · geschlossen' : ''}</option>)}</select></label> : null}
     {selected ? <section className="team-review-current" aria-label={`Reviewstand ${selected.scenario}`}>
@@ -111,9 +113,9 @@ export function TeamReviewPanel({ card, report }: { card: Card; report: CardQaRe
       {image ? <div className="team-review-image"><img src={image} alt={`Gespeicherter Screenshot für ${selected.scenario}`} />{comments.map((comment, index) => <span key={comment.id} style={{ left: `${comment.x * 100}%`, top: `${comment.y * 100}%` }} title={`${comment.displayName}: ${comment.body}`} aria-hidden="true">{index + 1}</span>)}</div> : null}
       <ol className="team-review-comments">{comments.map((comment, index) => <li key={comment.id}><b>{index + 1} · {comment.displayName}</b><span>{comment.body}</span></li>)}</ol>
       <div className="team-review-invites"><strong>Einladungen</strong>{invites.map((invite) => <div key={invite.id}><span>{invite.displayName} · {invite.revokedAt ? 'widerrufen' : 'Review-Recht'}</span>{!invite.revokedAt && !selected.closedAt ? <button type="button" disabled={busy} onClick={() => void revoke(invite.id)}>Widerrufen</button> : null}</div>)}</div>
-      {!selected.closedAt ? <><form className="team-review-form" onSubmit={(event) => void invite(event)}><label>Weitere Person<input value={reviewerName} onChange={(event) => setReviewerName(event.target.value)} maxLength={80} required placeholder="Name" /></label><button type="submit" disabled={busy}>Link erstellen</button></form><button className="team-review-close" type="button" disabled={busy} onClick={() => void closeRoom()}>Review schließen</button></> : null}
+      {!selected.closedAt ? <><form className="team-review-form" onSubmit={(event) => { event.preventDefault(); void issueInvite('local'); }}><label>Weitere Person<input value={reviewerName} onChange={(event) => setReviewerName(event.target.value)} maxLength={80} required placeholder="Name" /></label><button type="submit" disabled={busy}>Lokalen Link erstellen</button><button type="button" disabled={busy || !reviewerName.trim()} onClick={() => void issueInvite('tailnet')}>Tailscale-Link erstellen</button></form><button className="team-review-close" type="button" disabled={busy} onClick={() => void closeRoom()}>Review schließen</button></> : null}
     </section> : null}
-    {share ? <div className="team-review-share"><label>Einmal angezeigter Link<input readOnly value={share.url} onFocus={(event) => event.currentTarget.select()} /></label><button type="button" onClick={() => void shareAction('copy')}>Link kopieren</button><button type="button" onClick={() => void shareAction('open')}>Im Browser prüfen</button><small>Der Link enthält ein Review-Geheimnis. Nach Schließen der App kannst du für denselben Reviewstand einen neuen Link ausstellen.</small></div> : null}
+    {share ? <div className="team-review-share"><label>Einmal angezeigter {share.transport === 'tailnet' ? 'Tailscale-' : 'lokaler '}Link<input readOnly value={share.url} onFocus={(event) => event.currentTarget.select()} /></label><button type="button" onClick={() => void shareAction('copy')}>Link kopieren</button><button type="button" onClick={() => void shareAction('open')}>Im Browser prüfen</button><small>Der Link enthält ein Review-Geheimnis. {share.transport === 'tailnet' ? 'Nur Mitglieder deines Tailnets mit Netzwerkzugriff können ihn öffnen. ' : ''}Nach Schließen der App kannst du für denselben Reviewstand einen neuen Link ausstellen.</small></div> : null}
     {!selected ? <form className="team-review-form" onSubmit={(event) => void create(event)}><label>Szenario<input value={scenario} onChange={(event) => setScenario(event.target.value)} maxLength={120} required placeholder="z. B. Einstellungen ohne Anmeldung" /></label><label>Reviewperson<input value={reviewerName} onChange={(event) => setReviewerName(event.target.value)} maxLength={80} required placeholder="Name" /></label><button type="submit" disabled={busy}>Lokalen Reviewstand erstellen</button></form> : null}
   </details>;
 }

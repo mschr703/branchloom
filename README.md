@@ -23,11 +23,11 @@ Branchloom is an early Windows preview. The interface and detailed feature docs 
 | **Run agents** | Assign an installed CLI agent to a column or task. Branchloom starts local sessions, records their output, shows active runs under the board, and can run independent cards in separate Git worktrees. Agent availability and model access depend on the CLI installed and signed in on your machine. |
 | **Keep context** | Search locally indexed tasks, completed runs, Git commits, and code passages. The Memory graph opens at a source with saved links and lets you inspect one or two relationship steps or the full current excerpt; it does not infer semantic links from prose. Project Chat can answer from indexed sources and prepare editable card or Whiteboard drafts. Saving either draft requires a click. |
 | **Shape the UI** | Edit a card wireframe across desktop, tablet, and mobile artboards, with layers, properties, and explicit save and approval. A separate view inspects an explicitly opened local dev page and collects element, CSS, component, and token references. A saved wireframe reaches an agent only after separate approval. |
-| **Review and verify** | Inspect diffs, attach acceptance and QA evidence, run bounded browser checks against a local route, compare saved screenshots, and use the manual integration queue. A [local screenshot review](docs/TEAM_REVIEW.md) can show the same saved image and point comments in two browser views on one computer. Evidence is shown with its source and limits. |
+| **Review and verify** | Inspect diffs, attach acceptance and QA evidence, run bounded browser checks against a local route, compare saved screenshots, and use the manual integration queue. A [screenshot review](docs/TEAM_REVIEW.md) can show the same saved image and point comments in two browser views, with an optional, explicitly started Tailscale link for a peer. Evidence is shown with its source and limits. |
 | **Replay a UI bug** | Record a few clicks and viewport changes in a local card preview, set a visible or hidden element as the expected result, then explicitly replay the saved steps in an isolated check. [Scope and limits](docs/BUG_REPLAY.md). |
 | **Control the run** | Pause a project or workflow at a checked boundary, review agent questions in the Decision Inbox, and inspect local activity and usage counts. The installed app offers a GitHub release update only after you choose **Update**. |
 
-**Where it is going:** Branchloom is being built for small teams as well as solo work. Network invitations and roles, synchronized boards, and collision-aware parallel work are planned. Today's parallel agents, worktrees, and the first screenshot review run locally on one machine; shared team mode has not shipped.
+**Where it is going:** Branchloom is being built for small teams as well as solo work. Verified team identity and roles, synchronized boards, and coordinated parallel work are planned. Today's parallel agents and worktrees still run locally on one machine; the first screenshot review can be shared with a Tailscale peer, but shared team mode has not shipped.
 
 ### A look inside
 
@@ -95,7 +95,7 @@ The local **safe pause** blocks new project work and waits for active runs to fi
 
 Usage shows recorded runs and known duration, **not** estimated tokens or provider cost. A QA screenshot or Git HEAD is evidence of a bounded check, not proof that every interaction passed. [Activity and usage](docs/ACTIVITY.md) · [QA scope](docs/CARD_QA.md).
 
-Remote team invitations, shared synchronization, and semantic Memory links are still open. The installed update path has been verified for 0.1.0 → 0.1.2 on a fresh Windows runner; other version pairs and code signing remain open. The [parity list](docs/PARITY.md) tracks these and other gaps.
+Account-based team invitations, shared synchronization, and semantic Memory links are still open. The installed update path has been verified for 0.1.0 → 0.1.2 on a fresh Windows runner; other version pairs and code signing remain open. The [parity list](docs/PARITY.md) tracks these and other gaps.
 
 ## Documentation and contribution
 

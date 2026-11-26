@@ -37,13 +37,19 @@ async function readJson(request: IncomingMessage): Promise<Record<string, unknow
   return value as Record<string, unknown>;
 }
 
-/** Starts only on loopback. Exposing a network interface requires a separate user-facing decision. */
+/** Binds to the supplied host; the caller must restrict non-loopback addresses and require an explicit sharing action. */
 export class TeamReviewHttp {
   private server: Server | null = null;
   private address: string | null = null;
   private starting: Promise<string> | null = null;
 
-  constructor(private readonly store: StudioStore) {}
+  constructor(private readonly store: StudioStore, private readonly host = '127.0.0.1',
+    private readonly allowedSecrets: Set<string> | null = null) {}
+
+  allowSecret(secret: string): void {
+    if (!this.allowedSecrets) throw new Error('This review listener does not use a secret allowlist.');
+    this.allowedSecrets.add(secret);
+  }
 
   async start(): Promise<string> {
     if (this.address) return this.address;
@@ -63,11 +69,11 @@ export class TeamReviewHttp {
     try {
       await new Promise<void>((resolve, reject) => {
         server.once('error', reject);
-        server.listen(0, '127.0.0.1', () => { server.off('error', reject); resolve(); });
+        server.listen(0, this.host, () => { server.off('error', reject); resolve(); });
       });
       const port = (server.address() as AddressInfo).port;
       this.server = server;
-      this.address = `http://127.0.0.1:${port}`;
+      this.address = `http://${this.host}:${port}`;
       server.on('error', () => { this.server = null; this.address = null; });
       return this.address;
     } catch (error) {
@@ -78,6 +84,7 @@ export class TeamReviewHttp {
 
   reviewUrl(secret: string): string {
     if (!this.address) throw new Error('Review listener is not running.');
+    if (this.allowedSecrets && !this.allowedSecrets.has(secret)) throw new Error('Review invitation is unavailable on this listener.');
     return `${this.address}/r/${secret}`;
   }
 
@@ -93,6 +100,7 @@ export class TeamReviewHttp {
     const match = TOKEN_PATH.exec(path);
     if (!match) { json(response, 404, { error: 'Review page not found.' }); return; }
     const secret = match[1]!;
+    if (this.allowedSecrets && !this.allowedSecrets.has(secret)) { json(response, 403, { error: 'Review invitation is unavailable.' }); return; }
     let access: ReturnType<typeof resolveTeamReviewInvite>;
     try { access = resolveTeamReviewInvite(this.store, secret); }
     catch { json(response, 403, { error: 'Review invitation is unavailable.' }); return; }

@@ -415,10 +415,11 @@ export interface StudioAPI {
   teamReviewComments(roomId: string): Promise<import('./team-review').TeamReviewComment[]>;
   teamReviewImage(roomId: string): Promise<string>;
   newTeamReviewInvite(input: { roomId: string; reviewerName: string }): Promise<{ invite: import('./team-review').TeamReviewInvite; reviewerSecret: string; url: string }>;
+  newTailnetTeamReviewInvite(input: { roomId: string; reviewerName: string }): Promise<{ invite: import('./team-review').TeamReviewInvite; reviewerSecret: string; url: string }>;
   revokeTeamReviewInvite(input: { roomId: string; inviteId: string }): Promise<import('./team-review').TeamReviewInvite>;
   closeTeamReviewRoom(roomId: string): Promise<import('./team-review').TeamReviewRoom>;
-  openTeamReviewInvite(secret: string): Promise<void>;
-  copyTeamReviewInvite(secret: string): Promise<void>;
+  openTeamReviewInvite(input: { secret: string; transport: 'local' | 'tailnet' }): Promise<void>;
+  copyTeamReviewInvite(input: { secret: string; transport: 'local' | 'tailnet' }): Promise<void>;
   qaCoverageRoutes(projectId: string): Promise<import('./qa-coverage').QaCoverageRoute[]>;
   saveQaCoverageRoute(input: import('./qa-coverage').SaveQaCoverageRoute): Promise<import('./qa-coverage').QaCoverageRoute>;
   removeQaCoverageRoute(input: { projectId: string; routeId: string }): Promise<void>;

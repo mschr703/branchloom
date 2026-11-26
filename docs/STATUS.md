@@ -1,10 +1,14 @@
 # Status
 
-Stand: 25.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
+Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
-## Lokaler gemeinsamer Bild-Review (in Arbeit)
+## Optionaler Tailscale-Reviewlink (Folgezweig, in Arbeit)
 
-- Ein explizit angelegter Reviewstand kopiert einen gespeicherten Karten-QA-Screenshot mit Prüfsumme und Checkout-Beobachtung in die lokale Datenbank. Getrennte, nur einmal angezeigte Einladungslinks erlauben auf **demselben Computer** eine Gastansicht mit punktgenauen Kommentaren. Die Gastansicht erhält keine Agenten-, Merge- oder Board-Aktionen. Gespeicherte Kommentar-IDs verhindern Doppelposts beim Wiederholen nach Verbindungsfehlern; Widerruf und Schließen sperren neue Aktionen. Sieben gezielte Backend-/Renderer-Tests, Typprüfung, Build und der breite Quell-Electron-Smoke mit sichtbarer Reviewstand-Erstellung im Kartenbericht bestanden im isolierten Zweig. Zwei isolierte Chromium-Gastfenster öffneten denselben Reviewstand, ein Kommentar aus dem ersten erschien im zweiten, und nach Widerruf entfernte das zweite den Screenshot; die Gastfenster hatten keinen Host-IPC-Zugriff. Ein synthetisches Layoutbild wurde zusätzlich in Chrome bei 1440 × 900 px visuell geprüft. Gesamtsuite, Paketprüfung und Netzwerktransport stehen aus. [Bedienung und Grenzen](TEAM_REVIEW.md).
+- Aus einem gespeicherten Bild-Review kann der Host nach bewusstem Klick einen **separaten** Gastlink über die aktive eigene Tailscale-IPv4-Adresse erstellen. Der Dienst bindet nur an diese Adresse, nicht an alle Netzwerkkarten; bestehende Tailscale-Serve-Konfigurationen werden weder geändert noch gelöscht. Das Browserformular nutzt für Kommentar-Wiederholungs-IDs bei einer HTTP-Tailnet-Adresse `crypto.getRandomValues`, da `randomUUID` dort nicht als Secure-Context-API verfügbar sein muss. Neun gezielte Tests, Typprüfung und ein echter isolierter Chromium-Lauf über die Tailscale-IP auf diesem Computer bestanden. Ein zweites physisches Gerät, ein WLAN-Abbruch, Paketprüfung und vollständige Teamidentität sind noch nicht getestet beziehungsweise implementiert. [Bedienung und Grenzen](TEAM_REVIEW.md).
+
+## Lokaler gemeinsamer Bild-Review (auf main)
+
+- Ein explizit angelegter Reviewstand kopiert einen gespeicherten Karten-QA-Screenshot mit Prüfsumme und Checkout-Beobachtung in die lokale Datenbank. Getrennte, nur einmal angezeigte Einladungslinks erlauben auf **demselben Computer** eine Gastansicht mit punktgenauen Kommentaren. Die Gastansicht erhält keine Agenten-, Merge- oder Board-Aktionen. Gespeicherte Kommentar-IDs verhindern Doppelposts beim Wiederholen nach Verbindungsfehlern; Widerruf und Schließen sperren neue Aktionen. Sieben gezielte Backend-/Renderer-Tests, Typprüfung, Build und der breite Quell-Electron-Smoke mit sichtbarer Reviewstand-Erstellung im Kartenbericht bestanden. Zwei isolierte Chromium-Gastfenster öffneten denselben Reviewstand, ein Kommentar aus dem ersten erschien im zweiten, und nach Widerruf entfernte das zweite den Screenshot; die Gastfenster hatten keinen Host-IPC-Zugriff. Ein synthetisches Layoutbild wurde zusätzlich in Chrome bei 1440 × 900 px visuell geprüft. Zwei Windows-`verify`-Läufe auf dem PR-Commit 794d88b bestanden vor dem Merge a2cf492. Paketprüfung für diesen neuen Stand und echte getrennte Geräte stehen aus. [Bedienung und Grenzen](TEAM_REVIEW.md).
 
 ## Arbeitsflächen-Überarbeitung vom 25.11.2026
 
