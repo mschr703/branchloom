@@ -35,9 +35,10 @@ function button(text: string): HTMLButtonElement {
   return found;
 }
 
-async function mount(mode: () => 'workspace' | 'full', start = vi.fn(async () => snapshot.queue), onClose = vi.fn()) {
+async function mount(mode: () => 'workspace' | 'full', start = vi.fn(async () => snapshot.queue), onClose = vi.fn(),
+  currentSnapshot: () => ProjectSnapshot = () => snapshot) {
   const studio = {
-    snapshot: vi.fn(async () => snapshot), queueCandidates: vi.fn(async () => [candidate]),
+    snapshot: vi.fn(async () => currentSnapshot()), queueCandidates: vi.fn(async () => [candidate]),
     projectCodexWorkflowAccess: vi.fn(async () => ({ projectId: 'project', mode: mode() })),
     integrationPolicy: vi.fn(async () => ({ projectId: 'project', mode: 'manual' as const, updatedAt: null })),
     setProjectQueue: start,
@@ -81,6 +82,25 @@ describe('queue start preview', () => {
     expect(host?.textContent).toContain('Voller CLI-Zugriff');
     await act(async () => button('Queue starten').click());
     expect(studio.setProjectQueue).toHaveBeenCalledOnce();
+  });
+
+  it('shows the automatic npm check and reconfirms when that policy changes', async () => {
+    let autoTest = false;
+    const studio = await mount(() => 'workspace', vi.fn(async () => snapshot.queue), vi.fn(),
+      () => ({ ...snapshot, queue: { ...snapshot.queue, autoTest } }));
+    expect(host?.textContent).toContain('Kein automatischer npm-Test');
+    autoTest = true;
+    await act(async () => button('Queue starten').click());
+    expect(studio.setProjectQueue).not.toHaveBeenCalled();
+    expect(host?.textContent).toContain('Freigegebenes npm-Skript vor der nächsten Karte');
+    await act(async () => button('Queue starten').click());
+    expect(studio.setProjectQueue).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the previous pause reason visible before resuming', async () => {
+    await mount(() => 'workspace', vi.fn(async () => snapshot.queue), vi.fn(),
+      () => ({ ...snapshot, queue: { ...snapshot.queue, state: 'paused', pauseReason: 'Synthetic test failed' } }));
+    expect(host?.textContent).toContain('Vorheriger Halt: Synthetic test failed');
   });
 
   it('keeps the dialog open and reports a rejected start', async () => {

@@ -14,7 +14,9 @@ interface StartReview {
   integrationMode: IntegrationPolicy['mode'];
   continueBlocked: boolean;
   autoResumeIdle: boolean;
+  autoTest: boolean;
   queueState: ProjectQueue['state'];
+  pauseReason: string | null;
 }
 
 export function queueStartReview(snapshot: ProjectSnapshot, templateId: string, candidates: Card[],
@@ -33,7 +35,9 @@ export function queueStartReview(snapshot: ProjectSnapshot, templateId: string, 
     codexMode: codex.mode, integrationMode: integration.mode,
     continueBlocked: snapshot.queue.continueBlocked === true,
     autoResumeIdle: snapshot.queue.autoResumeIdle === true,
+    autoTest: snapshot.queue.autoTest === true,
     queueState: snapshot.queue.state,
+    pauseReason: snapshot.queue.pauseReason,
   };
 }
 
@@ -115,6 +119,7 @@ export function QueueStartPreview({ projectId, templateId, hours, mutate, onClos
           <div><dt>Zeitraum</dt><dd>{hours ? `${hours} ${hours === 1 ? 'Stunde' : 'Stunden'} ab Start` : 'Ohne Zeitlimit'}<small>Ein schon laufender Agent wird am Ende nicht abgebrochen.</small></dd></div>
           <div><dt>Agentenrechte</dt><dd>{review.route.usesCodex ? review.codexMode === 'full' ? 'Codex: Voller CLI-Zugriff' : 'Codex: Projektmodus' : 'Kein Codex-Schritt in dieser Route'}<small>{review.route.usesCodex && review.codexMode === 'full' ? 'Der Codex-Prozess kann mit deinen Benutzerrechten auch außerhalb des Projektordners handeln.' : 'Andere installierte Agenten nutzen ihre eigenen CLI-Einstellungen.'}</small></dd></div>
           <div><dt>Folgeaktionen</dt><dd>{review.integrationMode === 'automatic' ? 'Integration nur mit vorhandenen Review- und Testbelegen' : 'Integration bleibt manuell'}<small>Branchloom startet hier weder einen Git-Push noch eine automatische Browser-QA.</small></dd></div>
+          <div><dt>Test nach Karte</dt><dd>{review.autoTest ? 'Freigegebenes npm-Skript vor der nächsten Karte' : 'Kein automatischer npm-Test'}<small>{review.autoTest ? 'Fehlender sauberer Karten-Commit oder Testfehler hält die Queue an.' : 'Tests können weiter einzeln im Kartendrawer gestartet werden.'}</small></dd></div>
         </dl>
         <div className="queue-start-scope"><strong>Nächste freie Karten</strong>{review.candidates.length
           ? <ol>{review.candidates.slice(0, 5).map((card) => <li key={card.id}>{card.title}</li>)}</ol>
@@ -122,6 +127,7 @@ export function QueueStartPreview({ projectId, templateId, hours, mutate, onClos
           {review.candidates.length > 5 ? <small>Weitere Karten folgen gemäß Board-Reihenfolge und Abhängigkeiten.</small> : null}
         </div>
         <p className="queue-start-policy">{review.continueBlocked ? 'Blockierte Karten dürfen für unabhängige Aufgaben zurückgestellt werden.' : 'Bei einer blockierten Karte hält die Queue an.'} {review.autoResumeIdle ? 'Eine ruhende Queue darf nach einem beobachteten Netzwechsel weiterlaufen.' : 'Nach einem Netzverlust bleibt die Queue angehalten.'}</p>
+        {review.queueState === 'paused' && review.pauseReason ? <p className="queue-start-policy" role="status">Vorheriger Halt: {review.pauseReason}</p> : null}
       </> : !error ? <p role="status">Aktuellen Projektstand laden …</p> : null}
       {error ? <div className="queue-start-error"><p className="inline-error" role="alert">{error}</p>{!review ? <button type="button" className="secondary-button small" onClick={() => setRetry((value) => value + 1)}>Erneut laden</button> : null}</div> : null}
       <footer className="dialog-actions"><button type="button" className="secondary-button" disabled={starting} onClick={onClose}>Zurück</button><button type="button" className="primary-button" disabled={!review || starting} onClick={() => void start()}>{starting ? 'Prüfe…' : 'Queue starten'}</button></footer>

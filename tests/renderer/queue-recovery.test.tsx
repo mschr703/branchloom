@@ -49,6 +49,15 @@ describe('queue recovery view', () => {
     expect(control).toContain('checked=""');
     expect(control).toContain('disabled=""');
   });
+  it('shows the separate unattended npm test setting and locks it during a run', () => {
+    const paused = renderToStaticMarkup(createElement(WorkflowView, { snapshot: { ...snapshot, queue: { ...snapshot.queue, autoTest: true } }, mutate }));
+    expect(paused).toContain('Abgeschlossene Queue-Karten automatisch mit npm prüfen');
+    expect(paused).toContain('Integration und Push bleiben getrennte Entscheidungen');
+    const running = renderToStaticMarkup(createElement(WorkflowView, { snapshot: { ...snapshot, queue: { ...snapshot.queue, state: 'running', autoTest: true } }, mutate }));
+    const control = running.match(/<input[^>]*type="checkbox"[^>]*><span>Abgeschlossene Queue-Karten automatisch mit npm prüfen/u)?.[0];
+    expect(control).toContain('checked=""');
+    expect(control).toContain('disabled=""');
+  });
   it('disables activation and explains the missing To-Do column', () => {
     const inactive = { ...snapshot, queue: { ...snapshot.queue, state: 'off' as const, activeWorkflowId: null } };
     const html = renderToStaticMarkup(createElement(WorkflowView, { snapshot: inactive, mutate }));

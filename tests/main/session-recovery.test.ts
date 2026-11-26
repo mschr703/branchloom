@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Session } from '../../src/shared/types';
@@ -7,12 +7,13 @@ import { DONE_MARKER, type SessionRunner } from '../../src/main/cli';
 import { SessionRecoveryMonitor } from '../../src/main/session-recovery';
 import { StudioStore } from '../../src/main/store';
 import { WorkflowEngine } from '../../src/main/workflows';
-import { ProjectQueueEngine } from '../../src/main/queue';
+import { ProjectQueueEngine, testCompletedQueueCard } from '../../src/main/queue';
+import { npmScriptApprovalHash, setIntegrationTestScript } from '../../src/main/integration-evidence';
 
 const roots: string[] = [];
 afterEach(() => { vi.useRealTimers(); for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 }); });
 
-function fixture() {
+function fixture(postCheck?: typeof testCompletedQueueCard) {
   const root = mkdtempSync(join(tmpdir(), 'branchloom-network-'));
   roots.push(root);
   const file = join(root, 'studio.sqlite');
@@ -30,13 +31,75 @@ function fixture() {
     const session = store.createSession({ cardId, agentId }); launches.push(session); return session;
   }, stop: (id: string) => { store.finishSession(id, 'stopped', null); } } as unknown as SessionRunner;
   const workflows = new WorkflowEngine(store, runner, () => online);
-  const queue = new ProjectQueueEngine(store, workflows, () => online);
+  const queue = new ProjectQueueEngine(store, workflows, () => online, postCheck);
   const monitor = new SessionRecoveryMonitor(store, () => online, (id) => launches.some((session) => session.id === id && store.session(id).state === 'running'),
     (id) => queue.pauseForConnectionLoss(id), () => queue.resumeIdleAfterReconnect());
   return { root, file, store, project, card, second, template, launches, workflows, queue, monitor, setOnline: (value: boolean) => { online = value; } };
 }
 
+function enableAutomaticTest(f: ReturnType<typeof fixture>): void {
+  writeFileSync(join(f.root, 'package.json'), JSON.stringify({ scripts: { test: 'node --test' } }));
+  setIntegrationTestScript(f.store, { projectId: f.project.id, scriptName: 'test' });
+  f.store.setQueueAutoTest({ projectId: f.project.id, enabled: true, confirm: true });
+}
+
 describe('session recovery after a device network signal changes', () => {
+  it('requires explicit consent and pins the chosen npm script before unattended tests', () => {
+    const f = fixture();
+    expect(() => f.store.setQueueAutoTest({ projectId: f.project.id, enabled: true, confirm: true })).toThrow('Configure');
+    writeFileSync(join(f.root, 'package.json'), JSON.stringify({ scripts: { test: 'node --test' } }));
+    setIntegrationTestScript(f.store, { projectId: f.project.id, scriptName: 'test' });
+    expect(() => f.store.setQueueAutoTest({ projectId: f.project.id, enabled: true, confirm: false })).toThrow('consent');
+    expect(f.store.setQueueAutoTest({ projectId: f.project.id, enabled: true, confirm: true }).autoTest).toBe(true);
+    const hash = (f.store.db.prepare('SELECT auto_test_script_hash AS hash FROM project_queues WHERE project_id = ?')
+      .get(f.project.id) as { hash: string }).hash;
+    expect(hash).toBe(npmScriptApprovalHash(f.root, 'test'));
+    expect(() => setIntegrationTestScript(f.store, { projectId: f.project.id, scriptName: 'build' })).toThrow('Disable automatic queue tests');
+    expect(f.store.setQueueAutoTest({ projectId: f.project.id, enabled: false, confirm: false }).autoTest).toBe(false);
+    f.queue.dispose(); f.store.close();
+    const reopened = new StudioStore(f.file);
+    expect(reopened.projectQueue(f.project.id).autoTest).toBe(false);
+    reopened.close();
+  });
+
+  it('holds the next card until a persisted, approved test receipt exists', async () => {
+    let finishCheck: (() => void) | null = null;
+    const postCheck = vi.fn(async () => new Promise<void>((resolve) => { finishCheck = resolve; }));
+    const f = fixture(postCheck);
+    enableAutomaticTest(f);
+    f.queue.setState({ projectId: f.project.id, state: 'running', templateWorkflowId: f.template.id });
+    const first = f.launches[0]!;
+    const finished = f.store.finishSession(first.id, 'exited', 0);
+    f.workflows.onSessionFinished(finished, DONE_MARKER);
+    f.queue.onSessionFinished(finished);
+    expect(postCheck).toHaveBeenCalledOnce();
+    expect(f.launches).toHaveLength(1);
+    f.queue.onBoardChanged(f.project.id);
+    expect(f.launches).toHaveLength(1);
+    if (!finishCheck) throw new Error('Missing test completion');
+    finishCheck();
+    await vi.waitFor(() => expect(f.store.projectQueue(f.project.id).state).toBe('paused'));
+    expect(f.store.projectQueue(f.project.id).pauseReason).toContain('Testbeleg');
+    f.queue.setState({ projectId: f.project.id, state: 'running' });
+    expect(f.store.projectQueue(f.project.id).state).toBe('paused');
+    expect(f.launches).toHaveLength(1);
+    f.queue.dispose(); f.store.close();
+  });
+
+  it('stops after a failed unattended check and does not claim the next card', async () => {
+    const f = fixture(vi.fn(async () => { throw new Error('Synthetic npm test failed'); }));
+    enableAutomaticTest(f);
+    f.queue.setState({ projectId: f.project.id, state: 'running', templateWorkflowId: f.template.id });
+    const first = f.launches[0]!;
+    const finished = f.store.finishSession(first.id, 'exited', 0);
+    f.workflows.onSessionFinished(finished, DONE_MARKER);
+    f.queue.onSessionFinished(finished);
+    await Promise.resolve(); await Promise.resolve();
+    expect(f.store.projectQueue(f.project.id)).toMatchObject({ state: 'paused' });
+    expect(f.store.projectQueue(f.project.id).pauseReason).toContain('Synthetic npm test failed');
+    expect(f.launches).toHaveLength(1);
+    f.queue.dispose(); f.store.close();
+  });
   it('pauses an existing queue on an offline monitor start without replaying its live card', () => {
     const f = fixture();
     f.queue.setState({ projectId: f.project.id, state: 'running', templateWorkflowId: f.template.id });

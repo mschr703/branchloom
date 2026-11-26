@@ -544,6 +544,7 @@ function installIpc(): void {
   bind('setProjectQueue', (input: Parameters<StudioAPI['setProjectQueue']>[0]) => queueEngine.setState(input));
   bind('setQueueContinueBlocked', (input: Parameters<StudioAPI['setQueueContinueBlocked']>[0]) => db.setQueueContinueBlocked(input));
   bind('setQueueAutoResumeIdle', (input: Parameters<StudioAPI['setQueueAutoResumeIdle']>[0]) => db.setQueueAutoResumeIdle(input));
+  bind('setQueueAutoTest', (input: Parameters<StudioAPI['setQueueAutoTest']>[0]) => db.setQueueAutoTest(input));
   bind('setProjectRunPause', (input: Parameters<StudioAPI['setProjectRunPause']>[0]) => {
     const state = setProjectRunPause(db, input);
     if (input.paused) queueEngine.cancelProjectRetry(input.projectId);
