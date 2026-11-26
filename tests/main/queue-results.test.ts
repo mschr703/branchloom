@@ -31,8 +31,12 @@ describe('project queue result sources', () => {
     const template = store.createWorkflow({ projectId: project.id, name: 'Synthetic route', cardIds: [templateCard.id],
       steps: [{ id: 'execute', columnId: executing.id, agentId: agent.id, requireApproval: false }] });
     store.saveProjectQueue({ projectId: project.id, state: 'running', templateWorkflowId: template.id, activeWorkflowId: null, pauseReason: null });
+    const firstActivation = queueResults(store, project.id).latestActivation;
+    expect(firstActivation).toMatchObject({ endedAt: null, endState: null, total: 0, continueBlocked: false });
     const flow = store.claimQueueCard(project.id, queued.id, template.id);
-    expect(queueResults(store, project.id)).toMatchObject({ total: 1, counts: { pending: 1 }, items: [{ cardId: queued.id, status: 'pending', lastSession: null }] });
+    expect(queueResults(store, project.id)).toMatchObject({ total: 1, counts: { pending: 1 },
+      latestActivation: { id: firstActivation?.id, total: 1, counts: { pending: 1 } },
+      items: [{ cardId: queued.id, activationId: firstActivation?.id, status: 'pending', lastSession: null }] });
     store.setWorkflowState(flow.id, 'running');
     store.ensureWorkflowProgress(flow.id, 0, [queued.id]);
     const session = store.createSession({ cardId: queued.id, agentId: agent.id });
@@ -52,12 +56,54 @@ describe('project queue result sources', () => {
     store.setWorkflowState(secondFlow.id, 'paused');
     expect(queueResults(store, project.id).counts['needs-attention']).toBe(1);
     store.saveProjectQueue({ projectId: project.id, state: 'paused', templateWorkflowId: template.id, activeWorkflowId: secondFlow.id, pauseReason: 'Needs input' });
+    expect(queueResults(store, project.id).latestActivation).toMatchObject({ id: firstActivation?.id, endState: 'paused', endReason: 'Needs input', total: 2 });
     store.skipQueuedCard({ projectId: project.id, workflowId: secondFlow.id, reason: 'Needs input' });
     expect(queueResults(store, project.id)).toMatchObject({ total: 2, counts: { done: 1, skipped: 1 } });
     store.close();
     const reopened = new StudioStore(join(root, 'studio.sqlite'));
     stores.push(reopened);
     expect(queueResults(reopened, project.id).counts).toMatchObject({ done: 1, skipped: 1 });
+    expect(queueResults(reopened, project.id).latestActivation).toMatchObject({ id: firstActivation?.id, endState: 'paused', total: 2 });
+    reopened.close();
+  });
+
+  it('keeps distinct start windows and closes an interrupted window without replaying its card', () => {
+    const root = mkdtempSync(join(tmpdir(), 'branchloom-queue-activation-'));
+    roots.push(root);
+    const dbPath = join(root, 'studio.sqlite');
+    const store = new StudioStore(dbPath);
+    stores.push(store);
+    const project = store.createProject({ name: 'Synthetic', path: root });
+    const columns = store.snapshot(project.id).columns;
+    const agent = store.agents().find((item) => item.kind === 'codex')!;
+    const card = store.createCard({ projectId: project.id, columnId: columns[0]!.id, title: 'One queued card' });
+    const templateCard = store.createCard({ projectId: project.id, columnId: columns[0]!.id, title: 'Template' });
+    const template = store.createWorkflow({ projectId: project.id, name: 'Route', cardIds: [templateCard.id],
+      steps: [{ id: 'execute', columnId: columns[2]!.id, agentId: agent.id, requireApproval: false }] });
+    const deadline = new Date(Date.now() + 60_000).toISOString();
+    store.saveProjectQueue({ projectId: project.id, state: 'running', templateWorkflowId: template.id,
+      activeWorkflowId: null, pauseReason: null, runUntil: deadline });
+    const first = queueResults(store, project.id).latestActivation!;
+    expect(first).toMatchObject({ runUntil: deadline, total: 0, endedAt: null });
+    store.saveProjectQueue({ projectId: project.id, state: 'running', templateWorkflowId: template.id,
+      activeWorkflowId: null, pauseReason: null });
+    expect(queueResults(store, project.id).latestActivation?.id).toBe(first.id);
+    store.db.prepare("UPDATE project_queues SET state = 'paused', pause_reason = 'Safe pause', updated_at = ? WHERE project_id = ?")
+      .run(new Date().toISOString(), project.id);
+    expect(queueResults(store, project.id).latestActivation).toMatchObject({ id: first.id, endState: 'paused', endReason: 'Safe pause' });
+
+    store.saveProjectQueue({ projectId: project.id, state: 'running', templateWorkflowId: template.id,
+      activeWorkflowId: null, pauseReason: null, runUntil: null });
+    const second = queueResults(store, project.id).latestActivation!;
+    expect(second.id).not.toBe(first.id);
+    expect(second.runUntil).toBeNull();
+    const flow = store.claimQueueCard(project.id, card.id, template.id);
+    expect(queueResults(store, project.id).items[0]).toMatchObject({ workflowId: flow.id, activationId: second.id });
+    store.close();
+    const reopened = new StudioStore(dbPath);
+    stores.push(reopened);
+    expect(queueResults(reopened, project.id).latestActivation).toMatchObject({ id: second.id, endState: 'paused', total: 1 });
+    expect(reopened.projectQueue(project.id).state).toBe('paused');
     reopened.close();
   });
 });
