@@ -7,6 +7,8 @@ const invoke = <T>(name: keyof StudioAPI, ...args: unknown[]): Promise<T> => ipc
 const studio: StudioAPI = {
   hostedTeamProject: (projectId) => invoke('hostedTeamProject', projectId),
   createLocalTeamWorkspace: (input) => invoke('createLocalTeamWorkspace', input),
+  ownedTeamWorkspaces: () => invoke('ownedTeamWorkspaces'),
+  addProjectToTeamWorkspace: (input) => invoke('addProjectToTeamWorkspace', input),
   inviteTeamMember: (input) => invoke('inviteTeamMember', input),
   revokeTeamMember: (input) => invoke('revokeTeamMember', input),
   setTeamProjectAccess: (input) => invoke('setTeamProjectAccess', input),

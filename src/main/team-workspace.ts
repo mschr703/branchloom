@@ -56,6 +56,10 @@ export function installTeamWorkspaces(db: Database.Database): void {
     access TEXT NOT NULL CHECK(access IN ('none','read','edit')),
     PRIMARY KEY (project_id, member_id)
   );
+  CREATE TABLE IF NOT EXISTS team_project_defaults (
+    project_id TEXT PRIMARY KEY REFERENCES team_projects(project_id) ON DELETE CASCADE,
+    access TEXT NOT NULL CHECK(access IN ('none','read','edit'))
+  );
   CREATE TABLE IF NOT EXISTS team_project_capability_grants (
     project_id TEXT NOT NULL REFERENCES team_projects(project_id) ON DELETE CASCADE,
     member_id TEXT NOT NULL REFERENCES team_members(id) ON DELETE CASCADE,
@@ -210,8 +214,11 @@ export function requireTeamProjectCapability(db: Database.Database, credential: 
   const linked = db.prepare('SELECT 1 FROM team_projects WHERE project_id = ? AND workspace_id = ?').get(projectId, actor.workspaceId);
   const override = db.prepare('SELECT access FROM team_project_permissions WHERE project_id = ? AND member_id = ?')
     .get(projectId, actor.id) as { access: 'none' | 'read' | 'edit' } | undefined;
-  const permittedByProject = actor.role === 'owner' || !override || override.access === 'edit' ||
-    (override.access === 'read' && capability === 'read');
+  const projectDefault = db.prepare('SELECT access FROM team_project_defaults WHERE project_id = ?')
+    .get(projectId) as { access: 'none' | 'read' | 'edit' } | undefined;
+  const effectiveAccess = override?.access ?? projectDefault?.access ?? 'edit';
+  const permittedByProject = actor.role === 'owner' || effectiveAccess === 'edit' ||
+    (effectiveAccess === 'read' && capability === 'read');
   const granted = storeGrant(db, projectId, actor.id, capability);
   if (!linked || !permittedByProject || (!allowed(actor.role, capability) && !granted)) throw new Error('Team member is not permitted for this project action.');
   return actor;
@@ -241,7 +248,8 @@ export function setTeamCapabilityGrant(db: Database.Database, ownerCredential: s
   }).immediate();
 }
 
-export function addTeamProject(db: Database.Database, actorCredential: string, projectId: string): void {
+export function addTeamProject(db: Database.Database, actorCredential: string, projectId: string,
+  privateByDefault = false): void {
   const actor = authenticateTeamMember(db, actorCredential);
   if (actor.role !== 'owner') throw new Error('Only a team owner can add a project.');
   db.transaction(() => {
@@ -249,10 +257,12 @@ export function addTeamProject(db: Database.Database, actorCredential: string, p
     if (db.prepare('SELECT 1 FROM team_projects WHERE project_id = ?').get(projectId)) throw new Error('Project already belongs to a team.');
     db.prepare('INSERT INTO team_projects (project_id, workspace_id, added_at) VALUES (?, ?, ?)')
       .run(projectId, actor.workspaceId, new Date().toISOString());
+    if (privateByDefault) db.prepare('INSERT INTO team_project_defaults (project_id, access) VALUES (?, ?)')
+      .run(projectId, 'none');
   }).immediate();
 }
 
-/** A project override can narrow a team role, never broaden it. Null restores inherited access. */
+/** A project override can change the project default but cannot exceed the member's team role. */
 export function setTeamProjectAccess(db: Database.Database, actorCredential: string, projectId: string,
   memberId: string, access: 'none' | 'read' | 'edit' | null): void {
   if (access !== null && access !== 'none' && access !== 'read' && access !== 'edit') throw new Error('Invalid project access.');

@@ -87,6 +87,10 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
     Authorization: `Bearer ${'invalid'.padEnd(43, '_')}`,
   } });
   if (response.status !== 401) throw new Error('Coordinator accepted an invalid credential.');
+  const secondPath = join(projectPath, 'second-project');
+  mkdirSync(secondPath);
+  const secondProject = store.createProject({ name: 'Private second project', path: secondPath });
+  await new Promise<void>((resolve) => { window.webContents.once('did-finish-load', () => resolve()); window.webContents.reload(); });
   const guestRoot = join(projectPath, 'team-guest');
   mkdirSync(guestRoot);
   const guest = new TeamRemoteClient(new TeamConnectionStore(guestRoot, safeStorage),
@@ -94,6 +98,79 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
   const joined = await guest.beginJoin({ coordinatorUrl: result.coordinatorUrl,
     inviteSecret: result.secret, displayName: 'Guest' });
   if (joined.workspaceId !== result.workspaceId) throw new Error('Guest joined another workspace.');
+  await window.webContents.executeJavaScript(`(async () => {
+    const wait = async (predicate, label) => {
+      for (let attempt = 0; attempt < 160; attempt += 1) {
+        const value = await predicate(); if (value) return value;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      throw new Error('Second project smoke timed out: ' + label);
+    };
+    const selector = document.querySelector('#project-select');
+    if (!(selector instanceof HTMLSelectElement)) throw new Error('Project selector is unavailable.');
+    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+    setter.call(selector, ${JSON.stringify(secondProject.id)});
+    selector.dispatchEvent(new Event('change', { bubbles: true }));
+    const team = await wait(() => [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')]
+      .find((button) => button.getAttribute('aria-label') === 'Team'), 'team navigation');
+    team.click();
+    const attach = await wait(() => document.querySelector('.team-workspace-attach'), 'attach project controls');
+    const add = [...attach.querySelectorAll('button')].find((button) => button.textContent === 'Projekt hinzufügen');
+    if (!add) throw new Error('Attach action is unavailable.');
+    add.click();
+    const confirm = await wait(() => [...attach.querySelectorAll('button')]
+      .find((button) => button.textContent === 'Projekt hinzufügen bestätigen'), 'attach confirmation');
+    confirm.click();
+    await wait(async () => (await window.studio.hostedTeamProject(${JSON.stringify(secondProject.id)}))?.defaultMemberAccess === 'none',
+      'private project default');
+    return true;
+  })()`);
+  if ((await guest.workspace(result.workspaceId)).projects.some((item) => item.id === secondProject.id)) {
+    throw new Error('A newly attached project was visible to the guest before its grant.');
+  }
+  await window.webContents.executeJavaScript(`(async () => {
+    const wait = async (predicate, label) => {
+      for (let attempt = 0; attempt < 120; attempt += 1) {
+        const value = await predicate(); if (value) return value;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      throw new Error('Second project grant timed out: ' + label);
+    };
+    const setup = document.querySelector('.team-workspace-setup');
+    if (!(setup instanceof HTMLDetailsElement)) throw new Error('Team settings are unavailable.');
+    setup.open = true;
+    const refresh = await wait(() => [...setup.querySelectorAll('button')]
+      .find((button) => button.textContent === 'Mitglieder aktualisieren'), 'member refresh');
+    refresh.click();
+    const member = await wait(() => [...setup.querySelectorAll('.team-workspace-members li')]
+      .find((item) => item.textContent?.includes('Guest')), 'guest member');
+    const rights = member.querySelector('.team-workspace-member-rights');
+    if (!(rights instanceof HTMLDetailsElement)) throw new Error('Project rights are unavailable.');
+    rights.open = true;
+    const access = rights.querySelector('select');
+    if (!(access instanceof HTMLSelectElement) || !access.textContent?.includes('Projektstandard: kein Zugang')) {
+      throw new Error('The new project did not show its private default.');
+    }
+    await wait(() => !access.disabled, 'enabled project access');
+    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+    setter.call(access, 'read'); access.dispatchEvent(new Event('change', { bubbles: true }));
+    try {
+      await wait(async () => (await window.studio.hostedTeamProject(${JSON.stringify(secondProject.id)}))?.members
+        .some((item) => item.id === ${JSON.stringify(joined.memberId)} && item.projectAccess === 'read'), 'saved read access');
+    } catch (reason) {
+      const current = await window.studio.hostedTeamProject(${JSON.stringify(secondProject.id)});
+      throw new Error(String(reason) + '; members=' + JSON.stringify(current?.members.map((item) => ({
+        id: item.id, name: item.displayName, access: item.projectAccess }))) + '; ui=' + rights.textContent?.slice(0, 500));
+    }
+    const selector = document.querySelector('#project-select');
+    setter.call(selector, ${JSON.stringify(project.id)}); selector.dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(() => document.querySelector('.team-workspace-settings select')?.textContent?.includes('Teamrolle übernehmen'),
+      'original project rights');
+    return true;
+  })()`);
+  if (!(await guest.workspace(result.workspaceId)).projects.some((item) => item.id === secondProject.id)) {
+    throw new Error('The granted guest cannot see the second project.');
+  }
   const guestWatch = new AbortController();
   let guestReady: () => void = () => undefined;
   let guestFailed: (error: unknown) => void = () => undefined;
@@ -187,7 +264,7 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
     if (!(rights instanceof HTMLDetailsElement)) throw new Error('Project rights are unavailable.');
     rights.open = true;
     const allow = await wait(() => [...rights.querySelectorAll('button')]
-      .find((button) => button.textContent === 'Aufgabensteuerung erlauben'), 'task grant action');
+      .find((button) => button.textContent === 'Aufgabensteuerung erlauben' && !button.disabled), 'task grant action');
     allow.click();
     const confirm = await wait(() => [...rights.querySelectorAll('button')]
       .find((button) => button.textContent === 'Aufgabensteuerung bestätigen'), 'task grant confirmation');

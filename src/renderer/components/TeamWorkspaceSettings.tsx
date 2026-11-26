@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import type { HostedTeamWorkspace } from '../../main/team-local-service';
+import type { HostedTeamWorkspace, OwnedTeamWorkspace } from '../../main/team-local-service';
 import type { SavedTeamConnection } from '../../main/team-connection-store';
 import './team-workspace-settings.css';
 
@@ -9,6 +9,9 @@ const messageOf = (reason: unknown) => reason instanceof Error ? reason.message 
 
 export function TeamWorkspaceSettings({ projectId, onConnectionChange }: { projectId?: string; onConnectionChange?: () => void }) {
   const [hosted, setHosted] = useState<HostedTeamWorkspace | null>(null);
+  const [owned, setOwned] = useState<OwnedTeamWorkspace[]>([]);
+  const [workspaceChoice, setWorkspaceChoice] = useState('');
+  const [attachCandidate, setAttachCandidate] = useState<string | null>(null);
   const [connections, setConnections] = useState<SavedTeamConnection[]>([]);
   const [pendingJoin, setPendingJoin] = useState<{ coordinatorUrl: string; displayName: string } | null>(null);
   const [workspaceName, setWorkspaceName] = useState('');
@@ -29,9 +32,10 @@ export function TeamWorkspaceSettings({ projectId, onConnectionChange }: { proje
     let active = true;
     setLoading(true); setError(''); setNotice(''); setInvitation(null);
     void Promise.all([projectId ? window.studio.hostedTeamProject(projectId) : Promise.resolve(null),
-      window.studio.teamConnections(), window.studio.pendingTeamJoin()])
-      .then(([nextHosted, nextConnections, nextPending]) => {
-        if (active) { setHosted(nextHosted); setConnections(nextConnections); setPendingJoin(nextPending); if (nextHosted) onConnectionChange?.(); }
+      window.studio.teamConnections(), window.studio.pendingTeamJoin(), window.studio.ownedTeamWorkspaces()])
+      .then(([nextHosted, nextConnections, nextPending, nextOwned]) => {
+        if (active) { setHosted(nextHosted); setConnections(nextConnections); setPendingJoin(nextPending);
+          setOwned(nextOwned); setWorkspaceChoice(nextOwned[0]?.workspaceId ?? ''); if (nextHosted) onConnectionChange?.(); }
       })
       .catch((reason: unknown) => { if (active) setError(messageOf(reason)); })
       .finally(() => { if (active) setLoading(false); });
@@ -48,6 +52,19 @@ export function TeamWorkspaceSettings({ projectId, onConnectionChange }: { proje
       setHosted(next); setConnections(await window.studio.teamConnections());
       onConnectionChange?.();
       setNotice('Team-Workspace auf diesem Gerät erstellt.');
+    } catch (reason) { setError(messageOf(reason)); }
+    finally { setBusy(false); }
+  }
+
+  async function addToWorkspace() {
+    if (busy || !projectId || !owned.some((item) => item.workspaceId === workspaceChoice)) return;
+    if (attachCandidate !== workspaceChoice) { setAttachCandidate(workspaceChoice); return; }
+    setBusy(true); setError(''); setNotice('');
+    try {
+      setHosted(await window.studio.addProjectToTeamWorkspace({ projectId, workspaceId: workspaceChoice }));
+      setAttachCandidate(null);
+      onConnectionChange?.();
+      setNotice('Projekt verknüpft. Mitglieder erhalten erst nach ausdrücklicher Projektfreigabe Zugang.');
     } catch (reason) { setError(messageOf(reason)); }
     finally { setBusy(false); }
   }
@@ -139,13 +156,24 @@ export function TeamWorkspaceSettings({ projectId, onConnectionChange }: { proje
   }
 
   return <section className="team-workspace-settings" aria-label="Team-Workspace">
-    <header><h3>Team-Workspace</h3><p>Ein Projekt gemeinsam verwalten. Dieser erste Koordinator läuft nur auf diesem Gerät.</p></header>
+    <header><h3>Team-Workspace</h3><p>Projekte gemeinsam verwalten. Dieser erste Koordinator läuft nur auf diesem Gerät.</p></header>
     {loading ? <p className="team-workspace-muted">Teamzugang wird geladen…</p> : null}
     {!loading && !hosted && projectId ? <form className="team-workspace-form" onSubmit={(event) => void create(event)}>
       <label>Workspace-Name<input value={workspaceName} onChange={(event) => setWorkspaceName(event.currentTarget.value)} maxLength={80} required placeholder="Produktteam" /></label>
       <label>Dein Name<input value={ownerName} onChange={(event) => setOwnerName(event.currentTarget.value)} maxLength={80} required placeholder="Max" /></label>
       <button type="submit" className="secondary-button" disabled={busy}>Auf diesem Gerät erstellen</button>
     </form> : null}
+    {!loading && !hosted && projectId && owned.length ? <div className="team-workspace-attach">
+      <p>Dieses Projekt einem vorhandenen Workspace hinzufügen. Bestehende und spätere Mitglieder sehen es erst nach einer eigenen Projektfreigabe.</p>
+      <label>Team-Workspace<select value={workspaceChoice} disabled={busy} onChange={(event) => {
+        setWorkspaceChoice(event.currentTarget.value); setAttachCandidate(null);
+      }}>{owned.map((item) => <option key={item.workspaceId} value={item.workspaceId}>
+        {item.name} · {item.projectCount} Projekte · {item.memberCount} Mitglieder</option>)}</select></label>
+      {attachCandidate === workspaceChoice ? <span className="team-workspace-confirm">
+        <button type="button" disabled={busy} onClick={() => void addToWorkspace()}>Projekt hinzufügen bestätigen</button>
+        <button type="button" disabled={busy} onClick={() => setAttachCandidate(null)}>Abbrechen</button>
+      </span> : <button type="button" className="secondary-button" disabled={busy} onClick={() => void addToWorkspace()}>Projekt hinzufügen</button>}
+    </div> : null}
     {hosted ? <div className="team-workspace-hosted">
       <div className="team-workspace-title"><strong>{hosted.name}</strong><span>{hosted.members.filter((member) => !member.revokedAt).length} Mitglieder · lokal erreichbar</span>
         <button type="button" className="text-button" disabled={busy} onClick={() => void refreshMembers()}>Mitglieder aktualisieren</button></div>
@@ -158,7 +186,7 @@ export function TeamWorkspaceSettings({ projectId, onConnectionChange }: { proje
         {member.role !== 'owner' ? <details className="team-workspace-member-rights"><summary>Projektrechte</summary>
           <label>Projektzugang<select value={member.projectAccess ?? 'inherit'} disabled={busy} onChange={(event) => void setProjectAccess(member.id,
             event.currentTarget.value === 'inherit' ? null : event.currentTarget.value as 'none' | 'read' | 'edit')}>
-            <option value="inherit">Teamrolle übernehmen</option><option value="read">Nur lesen</option>
+            <option value="inherit">{hosted.defaultMemberAccess === 'none' ? 'Projektstandard: kein Zugang' : 'Teamrolle übernehmen'}</option><option value="read">Nur lesen</option>
             {member.role !== 'viewer' ? <option value="edit">Teamrolle im Projekt nutzen</option> : null}
             <option value="none">Kein Zugang</option>
           </select></label>

@@ -158,6 +158,29 @@ it('links several projects to a workspace and only narrows inherited project rig
   } finally { f.store.close(); }
 });
 
+it('keeps a newly linked project private across restart and later invitations', () => {
+  const f = fixture();
+  const secondPath = join(f.root, 'private-project'); mkdirSync(secondPath);
+  const second = f.store.createProject({ name: 'Private project', path: secondPath });
+  const owner = createTeamWorkspace(f.store.db, { workspaceName: 'Sample team', projectId: f.project.id, ownerName: 'Owner' });
+  const editor = acceptTeamMemberInvite(f.store.db,
+    createTeamMemberInvite(f.store.db, owner.credential, owner.workspaceId, 'editor').secret, 'Editor');
+  addTeamProject(f.store.db, owner.credential, second.id, true);
+  expect(() => requireTeamProjectCapability(f.store.db, editor.credential, second.id, 'read')).toThrow('not permitted');
+  f.store.close();
+  const reopened = new StudioStore(f.file);
+  try {
+    const later = acceptTeamMemberInvite(reopened.db,
+      createTeamMemberInvite(reopened.db, owner.credential, owner.workspaceId, 'viewer').secret, 'Later viewer');
+    expect(() => requireTeamProjectCapability(reopened.db, later.credential, second.id, 'read')).toThrow('not permitted');
+    setTeamProjectAccess(reopened.db, owner.credential, second.id, editor.member.id, 'read');
+    expect(requireTeamProjectCapability(reopened.db, editor.credential, second.id, 'read').id).toBe(editor.member.id);
+    expect(() => requireTeamProjectCapability(reopened.db, editor.credential, second.id, 'edit')).toThrow('not permitted');
+    setTeamProjectAccess(reopened.db, owner.credential, second.id, editor.member.id, null);
+    expect(() => requireTeamProjectCapability(reopened.db, editor.credential, second.id, 'read')).toThrow('not permitted');
+  } finally { reopened.close(); }
+});
+
 it('separates admin plan acceptance from member proposals and explicit developer grants', () => {
   const f = fixture();
   try {

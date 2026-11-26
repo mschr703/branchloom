@@ -118,6 +118,8 @@ export type TeamDraftWindowEvent = { watchId: string; event: import('../main/tea
 export interface StudioAPI {
   hostedTeamProject(projectId: string): Promise<import('../main/team-local-service').HostedTeamWorkspace | null>;
   createLocalTeamWorkspace(input: { projectId: string; workspaceName: string; ownerName: string }): Promise<import('../main/team-local-service').HostedTeamWorkspace>;
+  ownedTeamWorkspaces(): Promise<import('../main/team-local-service').OwnedTeamWorkspace[]>;
+  addProjectToTeamWorkspace(input: { projectId: string; workspaceId: string }): Promise<import('../main/team-local-service').HostedTeamWorkspace>;
   inviteTeamMember(input: { projectId: string; role: 'admin' | 'editor' | 'developer' | 'viewer' }): Promise<{ inviteSecret: string; coordinatorUrl: string; expiresAt: string }>;
   revokeTeamMember(input: { projectId: string; memberId: string }): Promise<import('../main/team-local-service').HostedTeamWorkspace>;
   setTeamProjectAccess(input: { projectId: string; memberId: string; access: 'none' | 'read' | 'edit' | null }): Promise<import('../main/team-local-service').HostedTeamWorkspace>;

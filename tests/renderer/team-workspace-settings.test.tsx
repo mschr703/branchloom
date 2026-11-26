@@ -10,7 +10,7 @@ const owner = { id: 'owner', workspaceId: 'workspace', displayName: 'Owner', rol
 const colleague = { id: 'colleague', workspaceId: 'workspace', displayName: 'Colleague', role: 'editor' as const, revokedAt: null,
   projectAccess: null, extraCapabilities: [] };
 const workspace: HostedTeamWorkspace = { workspaceId: 'workspace', projectId: 'project', name: 'Sample team',
-  coordinatorUrl: 'http://127.0.0.1:4567', members: [owner] };
+  coordinatorUrl: 'http://127.0.0.1:4567', defaultMemberAccess: 'edit', members: [owner] };
 
 function setInput(input: HTMLInputElement, value: string) {
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
@@ -33,6 +33,7 @@ it('creates a local workspace, exposes an invitation once, and requires a second
   let hosted: HostedTeamWorkspace | null = null;
   Object.defineProperty(window, 'studio', { configurable: true, value: {
     hostedTeamProject: vi.fn().mockImplementation(async () => hosted), teamConnections: vi.fn().mockResolvedValue([]),
+    ownedTeamWorkspaces: vi.fn().mockResolvedValue([]),
     pendingTeamJoin: vi.fn().mockResolvedValue(null), createLocalTeamWorkspace: create,
     inviteTeamMember: invite, revokeTeamMember: revoke,
     setTeamProjectAccess: setProjectAccess, setTeamCapabilityGrant: setCapabilityGrant,
@@ -98,6 +99,7 @@ it('joins from the visible member form without a local project and reports the s
   const changed = vi.fn();
   Object.defineProperty(window, 'studio', { configurable: true, value: {
     teamConnections: list, pendingTeamJoin: vi.fn().mockResolvedValue(null), joinTeam: join,
+    ownedTeamWorkspaces: vi.fn().mockResolvedValue([]),
   } });
   try {
     await act(async () => { root.render(<TeamWorkspaceSettings onConnectionChange={changed} />); });
@@ -115,6 +117,40 @@ it('joins from the visible member form without a local project and reports the s
     expect(host.textContent).toContain('gemeinsamen Kartenentwurf öffnen');
     expect(host.textContent).toContain('Gespeicherte Teamzugänge: 1');
     expect(inputs[1]?.value).toBe('');
+  } finally {
+    await act(async () => { root.unmount(); });
+    if (previousApi) Object.defineProperty(window, 'studio', previousApi); else Reflect.deleteProperty(window, 'studio');
+    if (previousAct) Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', previousAct);
+    else Reflect.deleteProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
+    host.remove();
+  }
+});
+
+it('adds a second project only after an explicit confirmation and shows its private default', async () => {
+  const host = document.createElement('div'); document.body.append(host);
+  const root = createRoot(host);
+  const previousApi = Object.getOwnPropertyDescriptor(window, 'studio');
+  const previousAct = Object.getOwnPropertyDescriptor(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
+  (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  const added: HostedTeamWorkspace = { ...workspace, projectId: 'second-project', defaultMemberAccess: 'none',
+    members: [owner, { ...colleague, projectAccess: null }] };
+  const add = vi.fn().mockResolvedValue(added);
+  Object.defineProperty(window, 'studio', { configurable: true, value: {
+    hostedTeamProject: vi.fn().mockResolvedValue(null), teamConnections: vi.fn().mockResolvedValue([]),
+    pendingTeamJoin: vi.fn().mockResolvedValue(null), ownedTeamWorkspaces: vi.fn().mockResolvedValue([
+      { workspaceId: 'workspace', name: 'Sample team', projectCount: 1, memberCount: 2 }]),
+    addProjectToTeamWorkspace: add,
+  } });
+  try {
+    await act(async () => { root.render(<TeamWorkspaceSettings projectId="second-project" />); });
+    expect(host.textContent).toContain('Bestehende und spätere Mitglieder');
+    await act(async () => { [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent === 'Projekt hinzufügen')!.click(); });
+    expect(add).not.toHaveBeenCalled();
+    await act(async () => { [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent === 'Projekt hinzufügen bestätigen')!.click(); });
+    expect(add).toHaveBeenCalledWith({ projectId: 'second-project', workspaceId: 'workspace' });
+    expect(host.textContent).toContain('Projektstandard: kein Zugang');
   } finally {
     await act(async () => { root.unmount(); });
     if (previousApi) Object.defineProperty(window, 'studio', previousApi); else Reflect.deleteProperty(window, 'studio');

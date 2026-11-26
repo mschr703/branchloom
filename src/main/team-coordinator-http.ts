@@ -108,7 +108,8 @@ export class TeamCoordinatorHttp {
         const projects = this.store.db.prepare(`SELECT project.id, project.name FROM team_projects linked
           JOIN projects project ON project.id = linked.project_id
           LEFT JOIN team_project_permissions permission ON permission.project_id = project.id AND permission.member_id = ?
-          WHERE linked.workspace_id = ? AND (? = 'owner' OR permission.access IS NULL OR permission.access != 'none')
+          LEFT JOIN team_project_defaults defaults ON defaults.project_id = project.id
+          WHERE linked.workspace_id = ? AND (? = 'owner' OR COALESCE(permission.access, defaults.access, 'edit') != 'none')
           ORDER BY project.name, project.id`).all(actor.id, actor.workspaceId, actor.role) as Array<{ id: string; name: string }>;
         return reply(response, 200, { member: actor, projects: projects.map((project) => {
           let canEditDraft = true;

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
@@ -6,6 +6,7 @@ import { TeamConnectionStore } from '../../src/main/team-connection-store';
 import { TeamJoinAttemptStore } from '../../src/main/team-join-attempt';
 import { TeamLocalService } from '../../src/main/team-local-service';
 import { TeamRemoteClient } from '../../src/main/team-remote-client';
+import { acceptTeamMemberInvite, requireTeamProjectCapability } from '../../src/main/team-workspace';
 import { StudioStore } from '../../src/main/store';
 
 const secure = {
@@ -38,6 +39,20 @@ it('hosts a project, refreshes the loopback port after restart, and revokes a jo
       inviteSecret: invite.inviteSecret, displayName: 'Colleague' });
     expect((await guest.workspace(member.workspaceId)).projects.map((item) => item.id)).toEqual([project.id]);
     expect((await host.hostedProject(project.id))?.members).toHaveLength(2);
+    const secondPath = join(root, 'second'); mkdirSync(secondPath);
+    const second = store.createProject({ name: 'Second project', path: secondPath });
+    const linked = await host.addProject(second.id, workspace.workspaceId);
+    expect(linked.defaultMemberAccess).toBe('none');
+    expect((await host.ownedWorkspaces())[0]).toMatchObject({ workspaceId: workspace.workspaceId, projectCount: 2, memberCount: 2 });
+    expect((await guest.workspace(member.workspaceId)).projects.map((item) => item.id)).toEqual([project.id]);
+    await host.setProjectAccess(second.id, member.memberId, 'read');
+    expect((await guest.workspace(member.workspaceId)).projects.map((item) => item.id)).toContain(second.id);
+    await host.setProjectAccess(second.id, member.memberId, null);
+    expect((await guest.workspace(member.workspaceId)).projects.map((item) => item.id)).toEqual([project.id]);
+    const laterInvite = await host.invite(second.id, 'viewer');
+    const laterGuest = acceptTeamMemberInvite(store.db, laterInvite.inviteSecret, 'Later viewer');
+    expect(() => requireTeamProjectCapability(store.db, laterGuest.credential, second.id, 'read')).toThrow('not permitted');
+    expect(requireTeamProjectCapability(store.db, laterGuest.credential, project.id, 'read').id).toBe(laterGuest.member.id);
     const narrowed = await host.setProjectAccess(project.id, member.memberId, 'read');
     expect(narrowed.members.find((item) => item.id === member.memberId)?.projectAccess).toBe('read');
     expect((await guest.workspace(member.workspaceId)).projects[0]?.canManageTask).toBe(false);

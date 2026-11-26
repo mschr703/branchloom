@@ -249,6 +249,8 @@ function installIpc(): void {
   bind('releaseUpdateState', () => releaseUpdater.snapshot());
   bind('hostedTeamProject', (projectId: string) => teamLocalService!.hostedProject(projectId));
   bind('createLocalTeamWorkspace', (input: Parameters<StudioAPI['createLocalTeamWorkspace']>[0]) => teamLocalService!.create(input));
+  bind('ownedTeamWorkspaces', () => teamLocalService!.ownedWorkspaces());
+  bind('addProjectToTeamWorkspace', (input: Parameters<StudioAPI['addProjectToTeamWorkspace']>[0]) => teamLocalService!.addProject(input.projectId, input.workspaceId));
   bind('inviteTeamMember', (input: Parameters<StudioAPI['inviteTeamMember']>[0]) => teamLocalService!.invite(input.projectId, input.role));
   bind('revokeTeamMember', (input: Parameters<StudioAPI['revokeTeamMember']>[0]) => teamLocalService!.revoke(input.projectId, input.memberId));
   bind('setTeamProjectAccess', (input: Parameters<StudioAPI['setTeamProjectAccess']>[0]) => teamLocalService!.setProjectAccess(input.projectId, input.memberId, input.access));
