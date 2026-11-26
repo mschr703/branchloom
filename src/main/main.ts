@@ -205,7 +205,8 @@ function installIpc(): void {
   }, agentCardMetadataBridge, agentBrowserBridge);
   workflowEngine = new WorkflowEngine(db, runner, () => net.isOnline());
   queueEngine = new ProjectQueueEngine(db, workflowEngine, () => net.isOnline());
-  recoveryMonitor = new SessionRecoveryMonitor(db, () => net.isOnline(), (sessionId) => runner?.hasLiveProcess(sessionId) ?? false, (projectId) => queueEngine.pauseForConnectionLoss(projectId));
+  recoveryMonitor = new SessionRecoveryMonitor(db, () => net.isOnline(), (sessionId) => runner?.hasLiveProcess(sessionId) ?? false,
+    (projectId) => queueEngine.pauseForConnectionLoss(projectId), () => queueEngine.resumeIdleAfterReconnect());
   recoveryMonitor.start();
   commandRunner = new CommandTerminalRunner(db, (event: CommandTerminalEvent) => {
     if (window && !window.isDestroyed()) window.webContents.send('studio:command-terminal-event', event);
@@ -542,6 +543,7 @@ function installIpc(): void {
   bind('workflowRunEvidence', (input: Parameters<StudioAPI['workflowRunEvidence']>[0]) => workflowRunEvidence(db, input));
   bind('setProjectQueue', (input: Parameters<StudioAPI['setProjectQueue']>[0]) => queueEngine.setState(input));
   bind('setQueueContinueBlocked', (input: Parameters<StudioAPI['setQueueContinueBlocked']>[0]) => db.setQueueContinueBlocked(input));
+  bind('setQueueAutoResumeIdle', (input: Parameters<StudioAPI['setQueueAutoResumeIdle']>[0]) => db.setQueueAutoResumeIdle(input));
   bind('setProjectRunPause', (input: Parameters<StudioAPI['setProjectRunPause']>[0]) => {
     const state = setProjectRunPause(db, input);
     if (input.paused) queueEngine.cancelProjectRetry(input.projectId);

@@ -69,7 +69,7 @@ export interface SessionSearchHit { sessionId: string; cardId: string; cardTitle
 export interface WorkflowStep { id: string; columnId: string; agentId: string | null; requireApproval: boolean; model?: string | null; effort?: ColumnEffort | null; useWorktree?: boolean; parallel?: boolean }
 export interface WorkflowStepHaltpoint { id: string; afterStepIndex: number; stepId: string; state: 'requested' | 'reached'; requestedAt: string; reachedAt: string | null }
 export interface Workflow { id: string; projectId: string; name: string; cardIds: string[]; steps: WorkflowStep[]; state: WorkflowState; currentStep: number; haltpoint?: WorkflowStepHaltpoint; pauseReason?: 'approval' | 'manual' | 'review' | 'wireframe' | 'haltpoint' | 'user'; startError?: { message: string; at: string }; queueSkip?: { reason: string; at: string }; createdAt: string; updatedAt: string }
-export interface ProjectQueue { projectId: string; state: QueueState; templateWorkflowId: string | null; activeWorkflowId: string | null; pauseReason: string | null; completedCount: number; updatedAt: string | null; continueBlocked?: boolean; runUntil?: string | null }
+export interface ProjectQueue { projectId: string; state: QueueState; templateWorkflowId: string | null; activeWorkflowId: string | null; pauseReason: string | null; completedCount: number; updatedAt: string | null; continueBlocked?: boolean; autoResumeIdle?: boolean; runUntil?: string | null }
 export interface ProjectRunPauseActivity { kind: 'agent' | 'integration-test' | 'integration'; id: string; cardId: string; title: string; startedAt: string }
 export interface ProjectRunPause { projectId: string; state: 'active' | 'requested' | 'paused'; requestedAt: string | null; running: ProjectRunPauseActivity[] }
 export interface WorkflowAgentSettings { agentId: string | null; model: string | null; effort: 'low' | 'medium' | 'high' | null }
@@ -306,6 +306,7 @@ export interface StudioAPI {
   workflowRunEvidence(input: { projectId: string; workflowId: string }): Promise<import('./workflow-evidence').WorkflowRunEvidence>;
   setProjectQueue(input: { projectId: string; state: QueueState; templateWorkflowId?: string; runUntil?: string | null }): Promise<ProjectQueue>;
   setQueueContinueBlocked(input: { projectId: string; enabled: boolean }): Promise<ProjectQueue>;
+  setQueueAutoResumeIdle(input: { projectId: string; enabled: boolean }): Promise<ProjectQueue>;
   setProjectRunPause(input: { projectId: string; paused: boolean }): Promise<ProjectRunPause>;
   queueCandidates(projectId: string): Promise<Card[]>;
   queueResults(projectId: string): Promise<import('./queue-results').QueueResults>;

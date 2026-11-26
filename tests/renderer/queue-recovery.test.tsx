@@ -40,6 +40,15 @@ describe('queue recovery view', () => {
     expect(control).toContain('checked=""');
     expect(control).toContain('disabled=""');
   });
+  it('makes idle reconnect an explicit setting and locks it during a run', () => {
+    const paused = renderToStaticMarkup(createElement(WorkflowView, { snapshot: { ...snapshot, queue: { ...snapshot.queue, autoResumeIdle: true } }, mutate }));
+    expect(paused).toContain('Ruhende Queue nach Netzrückkehr fortsetzen');
+    expect(paused).toContain('Begonnene Schritte, Nutzer-Pause und App-Neustart');
+    const running = renderToStaticMarkup(createElement(WorkflowView, { snapshot: { ...snapshot, queue: { ...snapshot.queue, state: 'running', autoResumeIdle: true } }, mutate }));
+    const control = running.match(/<input[^>]*type="checkbox"[^>]*><span>Ruhende Queue nach Netzrückkehr fortsetzen/u)?.[0];
+    expect(control).toContain('checked=""');
+    expect(control).toContain('disabled=""');
+  });
   it('disables activation and explains the missing To-Do column', () => {
     const inactive = { ...snapshot, queue: { ...snapshot.queue, state: 'off' as const, activeWorkflowId: null } };
     const html = renderToStaticMarkup(createElement(WorkflowView, { snapshot: inactive, mutate }));
