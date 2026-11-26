@@ -30,7 +30,7 @@ describe('Codex workflow access at the actual session boundary', () => {
       expect(firstArgs).toContain('--approve-for-me');
       expect(firstArgs).not.toContain('--dangerously-bypass-approvals-and-sandbox');
       runner.stop(firstSession.id);
-      setProjectCodexWorkflowAccess(store, { projectId: project.id, mode: 'full' });
+      setProjectCodexWorkflowAccess(store, { projectId: project.id, mode: 'full', acknowledgeFullAccess: true });
       runner.start({ cardId: second.id, agentId: agent.id, mode: 'one-shot', prompt: 'Synthetic task' });
       const secondArgs = pty.spawn.mock.calls[1]?.[1] as string[];
       expect(secondArgs).toContain('--dangerously-bypass-approvals-and-sandbox');

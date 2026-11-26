@@ -28,7 +28,7 @@ export function ProjectAgentRights({ projectId }: { projectId: string }) {
     if (loading || saving || mode === savedMode || (mode === 'full' && !acknowledged)) return;
     setSaving(true); setError(''); setNotice('');
     try {
-      const saved = await window.studio.setProjectCodexWorkflowAccess({ projectId, mode });
+      const saved = await window.studio.setProjectCodexWorkflowAccess({ projectId, mode, acknowledgeFullAccess: mode === 'full' && acknowledged });
       setSavedMode(saved.mode);
       setMode(saved.mode);
       setAcknowledged(false);

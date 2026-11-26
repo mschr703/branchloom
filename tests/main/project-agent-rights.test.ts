@@ -26,7 +26,8 @@ describe('explicit project Codex workflow access', () => {
     mkdirSync(otherPath);
     const other = store.createProject({ name: 'Other', path: otherPath });
     expect(projectCodexWorkflowAccess(store, project.id).mode).toBe('workspace');
-    expect(setProjectCodexWorkflowAccess(store, { projectId: project.id, mode: 'full' })).toMatchObject({ projectId: project.id, mode: 'full' });
+    expect(() => setProjectCodexWorkflowAccess(store, { projectId: project.id, mode: 'full' })).toThrow('Explicit acknowledgement');
+    expect(setProjectCodexWorkflowAccess(store, { projectId: project.id, mode: 'full', acknowledgeFullAccess: true })).toMatchObject({ projectId: project.id, mode: 'full' });
     expect(projectCodexWorkflowAccess(store, other.id).mode).toBe('workspace');
     store.close();
     const reopened = new StudioStore(dbPath);
@@ -39,7 +40,7 @@ describe('explicit project Codex workflow access', () => {
     const { store, project } = fixture();
     expect(() => setProjectCodexWorkflowAccess(store, { projectId: project.id, mode: 'unsafe' as never })).toThrow('Invalid');
     store.saveProjectQueue({ projectId: project.id, state: 'running', templateWorkflowId: null, activeWorkflowId: null, pauseReason: null });
-    expect(() => setProjectCodexWorkflowAccess(store, { projectId: project.id, mode: 'full' })).toThrow('Pause the project queue');
+    expect(() => setProjectCodexWorkflowAccess(store, { projectId: project.id, mode: 'full', acknowledgeFullAccess: true })).toThrow('Pause the project queue');
     expect(projectCodexWorkflowAccess(store, project.id).mode).toBe('workspace');
     store.close();
   });

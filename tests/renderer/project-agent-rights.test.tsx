@@ -28,7 +28,7 @@ describe('project Codex access settings', () => {
       await act(async () => { host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click(); });
       expect(host.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(false);
       await act(async () => { host.querySelector<HTMLButtonElement>('button[type="submit"]')!.click(); });
-      expect(save).toHaveBeenCalledWith({ projectId: 'synthetic', mode: 'full' });
+      expect(save).toHaveBeenCalledWith({ projectId: 'synthetic', mode: 'full', acknowledgeFullAccess: true });
       expect(host.textContent).toContain('Voller Codex-Zugriff ist');
     } finally {
       await act(async () => { root.unmount(); });

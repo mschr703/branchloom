@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import type { CodexWorkflowAccessMode, ProjectCodexWorkflowAccess } from '../shared/project-agent-rights';
+import type { CodexWorkflowAccessMode, ProjectCodexWorkflowAccess, SetProjectCodexWorkflowAccessInput } from '../shared/project-agent-rights';
 import type { StudioStore } from './store';
 
 export function installProjectAgentRights(db: Database.Database): void {
@@ -17,12 +17,16 @@ export function projectCodexWorkflowAccess(store: StudioStore, projectId: string
   return { projectId, mode: row?.mode ?? 'workspace' };
 }
 
-export function setProjectCodexWorkflowAccess(store: StudioStore, input: ProjectCodexWorkflowAccess): ProjectCodexWorkflowAccess {
+export function setProjectCodexWorkflowAccess(store: StudioStore, input: SetProjectCodexWorkflowAccessInput): ProjectCodexWorkflowAccess {
   if (!input || typeof input.projectId !== 'string' || !['workspace', 'full'].includes(input.mode)) {
     throw new Error('Invalid Codex workflow access mode.');
   }
   return store.db.transaction(() => {
     store.project(input.projectId);
+    const previous = projectCodexWorkflowAccess(store, input.projectId);
+    if (input.mode === 'full' && previous.mode !== 'full' && input.acknowledgeFullAccess !== true) {
+      throw new Error('Explicit acknowledgement is required before enabling full Codex workflow access.');
+    }
     if (store.projectQueue(input.projectId).state === 'running') {
       throw new Error('Pause the project queue before changing Codex workflow access.');
     }
