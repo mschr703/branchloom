@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net';
 import type { StudioStore } from './store';
 import type { CardPriority } from '../shared/types';
 import { acceptTeamMemberInvite, authenticateTeamMember, createTeamMemberInvite,
-  requireTeamProjectCapability, setTeamCardPriority, type TeamRole } from './team-workspace';
+  requireTeamProjectCapability, revokeTeamMember, setTeamCardPriority, type TeamRole } from './team-workspace';
 import { teamBoardSnapshot } from './team-board';
 
 const LOOPBACK = '127.0.0.1';
@@ -81,6 +81,11 @@ export class TeamCoordinatorHttp {
           value.role as Exclude<TeamRole, 'owner'>);
         return reply(response, 201, invite);
       }
+      const memberRevoke = /^\/v1\/workspace\/members\/([0-9a-f-]{36})\/revoke$/.exec(path);
+      if (request.method === 'POST' && memberRevoke) {
+        revokeTeamMember(this.store.db, actorCredential, memberRevoke[1]!);
+        return reply(response, 200, { revoked: true });
+      }
       if (request.method === 'GET' && path === '/v1/workspace') {
         const actor = authenticateTeamMember(this.store.db, actorCredential);
         const projects = this.store.db.prepare(`SELECT project.id, project.name FROM team_projects linked
@@ -112,7 +117,7 @@ export class TeamCoordinatorHttp {
         reply(response, 409, { error: 'Card changed. Reload before applying this team action.' });
       } else if (message === 'Unauthorized' || message === 'Team credential is unavailable.') {
         reply(response, 401, { error: 'Team credential is unavailable' });
-      } else if (message.includes('not permitted') || message.includes('cannot invite')) {
+      } else if (message.includes('not permitted') || message.includes('cannot invite') || message.includes('cannot be removed')) {
         reply(response, 403, { error: 'Team action is not permitted' });
       } else if (message === 'Invalid request body' || error instanceof SyntaxError || message.startsWith('Invalid team card')) {
         reply(response, 400, { error: 'Invalid team command' });

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { TeamCoordinatorHttp } from '../../src/main/team-coordinator-http';
-import { createTeamWorkspace, revokeTeamMember, setTeamCapabilityGrant, type TeamMember } from '../../src/main/team-workspace';
+import { createTeamWorkspace, setTeamCapabilityGrant, type TeamMember } from '../../src/main/team-workspace';
 import { StudioStore } from '../../src/main/store';
 
 it('authenticates two separate HTTP clients, rejects stale writes, and survives coordinator restart', async () => {
@@ -73,7 +73,10 @@ it('authenticates two separate HTTP clients, rejects stale writes, and survives 
     expect((await getBoard(editor.credential)).status).toBe(200);
     expect((await setPriority(editor.credential, 'urgent', 1, randomUUID())).status).toBe(200);
     expect(store.card(card.id).priority).toBe('urgent');
-    revokeTeamMember(store.db, owner.credential, editor.member.id);
+    const revoke = (key: string) => fetch(`${base}/v1/workspace/members/${editor.member.id}/revoke`,
+      { method: 'POST', headers: { Authorization: `Bearer ${key}` } });
+    expect((await revoke(viewer.credential)).status).toBe(403);
+    expect((await revoke(owner.credential)).status).toBe(200);
     expect((await getBoard(editor.credential)).status).toBe(401);
     expect((await setPriority(editor.credential, 'low', 2, randomUUID())).status).toBe(401);
   } finally {
