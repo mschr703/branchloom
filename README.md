@@ -30,7 +30,7 @@ Branchloom is an early Windows preview. The interface and detailed feature docs 
 
 During an active queue, the launch settings of agents and columns used by its route remain fixed until you pause the queue. New automatic column starts cannot be enabled mid-run.
 
-**Where it is going:** Branchloom is being built for small teams as well as solo work. Guests can now see a board view and, with a separate permission, comment on its cards; a saved screenshot can also be discussed through a separate link. The [team design](docs/TEAM_SYNC.md) targets simultaneous card and Whiteboard editing, clear roles, and a decision dashboard across laptop-hosted or self-hosted workspaces. Verified team identity, synchronized editing, guest agents, and coordinated parallel work remain planned. Today's agents and worktrees still run locally on the host machine.
+**Where it is going:** Branchloom is being built for small teams as well as solo work. Guests can see a board view and, with a separate permission, comment on cards; a saved screenshot can also be discussed through a separate link. The current source checkout adds a [local team preview](docs/TEAM_LOCAL_PREVIEW.md): two authenticated clients on one laptop can see the same board and contribute to a separate card draft. The [team design](docs/TEAM_SYNC.md) targets cross-device editing, shared Whiteboards, clear approvals, and a decision dashboard. Agent workers and worktrees still run locally on the host machine.
 
 ### A look inside
 
@@ -107,7 +107,7 @@ The local **safe pause** blocks new project work and waits for active runs to fi
 
 Usage shows recorded runs and known duration, **not** estimated tokens or provider cost. A QA screenshot or Git HEAD is evidence of a bounded check, not proof that every interaction passed. [Activity and usage](docs/ACTIVITY.md) · [QA scope](docs/CARD_QA.md).
 
-Account-based team invitations, shared editing and synchronization, and semantic Memory links are still open. The installed update path has been verified for 0.1.0 → 0.1.2 on a fresh Windows runner; other version pairs and code signing remain open. The [parity list](docs/PARITY.md) tracks these and other gaps.
+Cross-device team hosting, live Whiteboard editing, project-admin draft acceptance, and semantic Memory links are still open. The installed update path has been verified for 0.1.0 → 0.1.2 on a fresh Windows runner; other version pairs and code signing remain open. The [parity list](docs/PARITY.md) tracks these and other gaps.
 
 ## Documentation and contribution
 

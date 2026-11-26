@@ -15,6 +15,11 @@ import { closeTeamReviewRoom, createTeamReviewInvite, createTeamReviewRoom, reso
 import { TeamReviewHttp } from './team-review-http';
 import { createTeamBoardInvite, resolveTeamBoardInvite, revokeTeamBoardInvite, teamBoardCardComments, teamBoardComments, teamBoardInvites } from './team-board';
 import { TeamBoardHttp } from './team-board-http';
+import { TeamConnectionStore } from './team-connection-store';
+import { TeamJoinAttemptStore } from './team-join-attempt';
+import { TeamDraftOutboxStore } from './team-draft-outbox';
+import { TeamLocalService } from './team-local-service';
+import { TeamRemoteClient } from './team-remote-client';
 import { activeTailnetIPv4 } from './team-review-tailnet';
 import { bugScenarios, bugScenarioRuns, runBugScenario, saveBugScenario } from './bug-replay';
 import { qaCoverageRoutes, saveQaCoverageRoute, removeQaCoverageRoute, runQaCoverageCell } from './qa-coverage';
@@ -44,6 +49,7 @@ import { runUsageSmoke } from './smoke-usage';
 import { runChatCanvasSmoke } from './smoke-chat-canvas';
 import { runChangelogVisibleSmoke } from './smoke-changelog';
 import { runWhiteboardVisibleSmoke } from './smoke-whiteboard';
+import { runTeamWorkspaceVisibleSmoke } from './smoke-team-workspace';
 import { applyManualRevision, captureManualRevision, manualRevisionFiles, manualRevisions, previewManualRevision, setManualRevisionConflictChoice } from './manual-revision';
 import { runF03Acceptance } from './f03-acceptance-smoke';
 import { attestIntegrationReview, integrationEvidence, runIntegrationTest, setIntegrationTestScript } from './integration-evidence';
@@ -112,6 +118,7 @@ let teamReviewHttp: TeamReviewHttp | null = null;
 let tailnetReviewHttp: TeamReviewHttp | null = null;
 let tailnetReviewIp: string | null = null;
 let teamBoardHttp: TeamBoardHttp | null = null;
+let teamLocalService: TeamLocalService | null = null;
 let tailnetBoardHttp: TeamBoardHttp | null = null;
 let tailnetBoardIp: string | null = null;
 let runner: SessionRunner | null = null;
@@ -140,7 +147,8 @@ const smokeUsage = process.argv.includes('--studio-smoke-usage');
 const smokeChangelog = process.argv.includes('--studio-smoke-changelog');
 const smokeWhiteboard = process.argv.includes('--studio-smoke-whiteboard');
 const smokeChatCanvas = process.argv.includes('--studio-smoke-chat-canvas');
-const smoke = process.argv.includes('--studio-smoke') || smokeF01 || smokeF03 || smokeF06 || g02Smoke || smokeG02Auto || smokeUsage || smokeChangelog || smokeWhiteboard || smokeChatCanvas;
+const smokeTeamWorkspace = process.argv.includes('--studio-smoke-team-workspace');
+const smoke = process.argv.includes('--studio-smoke') || smokeF01 || smokeF03 || smokeF06 || g02Smoke || smokeG02Auto || smokeUsage || smokeChangelog || smokeWhiteboard || smokeChatCanvas || smokeTeamWorkspace;
 const smokeDataDirectory = smoke ? mkdtempSync(join(tmpdir(), 'branchloom-smoke-')) : null;
 const devDataDirectory = !app.isPackaged ? process.env.BRANCHLOOM_DEV_USER_DATA : undefined;
 if (smokeDataDirectory) {
@@ -191,6 +199,11 @@ function mustStore(): StudioStore {
 
 function installIpc(): void {
   const db = mustStore();
+  const teamConnections = new TeamConnectionStore(app.getPath('userData'), safeStorage);
+  const teamRemoteClient = new TeamRemoteClient(teamConnections,
+    new TeamJoinAttemptStore(app.getPath('userData'), safeStorage), fetch,
+    new TeamDraftOutboxStore(app.getPath('userData'), safeStorage));
+  teamLocalService = new TeamLocalService(db, teamConnections);
   apiContractHttp = new ApiContractHttp(db);
   const trello = new TrelloConnection(app.getPath('userData'), safeStorage);
   trelloSignIn = new TrelloSignIn(trello, trelloPublicAppKey(app.getAppPath()), (url) => shell.openExternal(url));
@@ -229,6 +242,21 @@ function installIpc(): void {
     });
   };
   bind('releaseUpdateState', () => releaseUpdater.snapshot());
+  bind('hostedTeamProject', (projectId: string) => teamLocalService!.hostedProject(projectId));
+  bind('createLocalTeamWorkspace', (input: Parameters<StudioAPI['createLocalTeamWorkspace']>[0]) => teamLocalService!.create(input));
+  bind('inviteTeamMember', (input: Parameters<StudioAPI['inviteTeamMember']>[0]) => teamLocalService!.invite(input.projectId, input.role));
+  bind('revokeTeamMember', (input: Parameters<StudioAPI['revokeTeamMember']>[0]) => teamLocalService!.revoke(input.projectId, input.memberId));
+  bind('teamConnections', () => teamConnections.list());
+  bind('pendingTeamJoin', () => teamRemoteClient.pendingJoin());
+  bind('joinTeam', (input: Parameters<StudioAPI['joinTeam']>[0]) => teamRemoteClient.beginJoin(input));
+  bind('resumeTeamJoin', () => teamRemoteClient.resumeJoin());
+  bind('cancelTeamJoin', () => teamRemoteClient.cancelPendingJoin());
+  bind('teamWorkspace', (workspaceId: string) => teamRemoteClient.workspace(workspaceId));
+  bind('teamBoard', (input: Parameters<StudioAPI['teamBoard']>[0]) => teamRemoteClient.board(input));
+  bind('teamCardDraft', (input: Parameters<StudioAPI['teamCardDraft']>[0]) => teamRemoteClient.cardDraft(input));
+  bind('updateTeamCardDraft', (input: Parameters<StudioAPI['updateTeamCardDraft']>[0]) => teamRemoteClient.updateCardDraft(input));
+  bind('pendingTeamCardDraftUpdates', (input: Parameters<StudioAPI['pendingTeamCardDraftUpdates']>[0]) => teamRemoteClient.pendingCardDraftUpdates(input));
+  bind('resumeTeamCardDraftUpdates', (input: Parameters<StudioAPI['resumeTeamCardDraftUpdates']>[0]) => teamRemoteClient.resumeCardDraftUpdates(input));
   bind('installReleaseUpdate', () => releaseUpdater.update());
   bind('laterReleaseUpdate', () => releaseUpdater.later());
   bind('projects', () => db.projects());
@@ -1066,7 +1094,14 @@ function createWindow(): void {
   // source modes, so it cannot decide this on its own.
   if (!app.isPackaged && process.env.JARVIS_STUDIO_DEV_SERVER === '1') void window.loadURL('http://127.0.0.1:5181');
   else void window.loadFile(join(__dirname, '../../dist/renderer/index.html'));
-  if (smokeWhiteboard) {
+  if (smokeTeamWorkspace) {
+    window.webContents.once('did-finish-load', () => {
+      void runTeamWorkspaceVisibleSmoke(window!, mustStore(), smokeDataDirectory!).then(() => {
+        process.stdout.write('STUDIO_SMOKE_TEAM_WORKSPACE_OK\n');
+        app.quit();
+      }).catch((error: unknown) => { console.error('STUDIO_SMOKE_TEAM_WORKSPACE_FAILED', error); app.exit(1); });
+    });
+  } else if (smokeWhiteboard) {
     window.webContents.once('did-finish-load', () => {
       void runWhiteboardVisibleSmoke(window!, mustStore(), smokeDataDirectory!).then(() => {
         process.stdout.write('STUDIO_SMOKE_WHITEBOARD_OK\n');
@@ -4641,6 +4676,8 @@ if (ownsSharedProfile) app.whenReady().then(async () => {
   agentBrowserBridge = new AgentBrowserBridge(store, inspectAgentBrowserPage);
   void agentBrowserBridge.start().catch((error) => console.error('[Branchloom] optional agent browser bridge unavailable', error));
   installIpc();
+  void teamLocalService?.resumeSavedHost().catch((error: unknown) =>
+    console.error('[Branchloom] saved local team coordinator could not restart', error));
   createWindow();
   integrationAutoTimer = setInterval(() => {
     if (!store) return;
@@ -4656,6 +4693,8 @@ if (ownsSharedProfile) app.whenReady().then(async () => {
 else app.quit();
 
 app.on('before-quit', () => {
+  void teamLocalService?.close();
+  teamLocalService = null;
   teamReviewHttp?.close();
   teamReviewHttp = null;
   tailnetReviewHttp?.close();

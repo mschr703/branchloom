@@ -5,6 +5,21 @@ import type { ReleaseUpdateState } from '../shared/release-update';
 const invoke = <T>(name: keyof StudioAPI, ...args: unknown[]): Promise<T> => ipcRenderer.invoke(`studio:${String(name)}`, ...args) as Promise<T>;
 
 const studio: StudioAPI = {
+  hostedTeamProject: (projectId) => invoke('hostedTeamProject', projectId),
+  createLocalTeamWorkspace: (input) => invoke('createLocalTeamWorkspace', input),
+  inviteTeamMember: (input) => invoke('inviteTeamMember', input),
+  revokeTeamMember: (input) => invoke('revokeTeamMember', input),
+  teamConnections: () => invoke('teamConnections'),
+  pendingTeamJoin: () => invoke('pendingTeamJoin'),
+  joinTeam: (input) => invoke('joinTeam', input),
+  resumeTeamJoin: () => invoke('resumeTeamJoin'),
+  cancelTeamJoin: () => invoke('cancelTeamJoin'),
+  teamWorkspace: (workspaceId) => invoke('teamWorkspace', workspaceId),
+  teamBoard: (input) => invoke('teamBoard', input),
+  teamCardDraft: (input) => invoke('teamCardDraft', input),
+  updateTeamCardDraft: (input) => invoke('updateTeamCardDraft', input),
+  pendingTeamCardDraftUpdates: (input) => invoke('pendingTeamCardDraftUpdates', input),
+  resumeTeamCardDraftUpdates: (input) => invoke('resumeTeamCardDraftUpdates', input),
   apiContractOverview: (projectId) => invoke('apiContractOverview', projectId),
   previewApiContract: (input) => invoke('previewApiContract', input),
   saveApiContract: (input) => invoke('saveApiContract', input),

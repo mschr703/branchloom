@@ -2,10 +2,18 @@ import type { SavedTeamConnection } from './team-connection-store';
 import { TeamConnectionStore } from './team-connection-store';
 import { TeamJoinAttemptStore } from './team-join-attempt';
 import type { TeamMember, TeamRole } from './team-workspace';
+import type { TeamCardDraft } from './team-card-draft';
+import { TeamDraftOutboxStore, type PendingTeamDraftUpdate } from './team-draft-outbox';
+import type { TeamBoardSnapshot } from '../shared/team-board';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ROLES: readonly TeamRole[] = ['owner', 'admin', 'editor', 'developer', 'viewer'];
-const MAX_RESPONSE = 256 * 1024;
+const MAX_RESPONSE = 768 * 1024;
+const PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'];
+
+export interface CollaborativeTeamBoard extends Omit<TeamBoardSnapshot, 'cards'> {
+  cards: Array<TeamBoardSnapshot['cards'][number] & { revision: number }>;
+}
 
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
@@ -21,6 +29,50 @@ function checkedMember(value: unknown): TeamMember {
   }
   return { id: item.id, workspaceId: item.workspaceId, displayName: item.displayName,
     role: item.role as TeamRole, revokedAt: null };
+}
+
+function checkedDraft(value: unknown, projectId: string, cardId: string): TeamCardDraft {
+  const item = record(value);
+  if (!item || item.projectId !== projectId || item.cardId !== cardId ||
+    typeof item.revision !== 'number' || !Number.isSafeInteger(item.revision) || item.revision < 0 ||
+    typeof item.update !== 'string' || item.update.length > 700_000 ||
+    (item.update && Buffer.from(item.update, 'base64').toString('base64') !== item.update) ||
+    (item.updatedAt !== null && (typeof item.updatedAt !== 'string' || Number.isNaN(Date.parse(item.updatedAt))))) {
+    throw new Error('Coordinator returned an invalid card draft.');
+  }
+  return { projectId, cardId, revision: item.revision, update: item.update, updatedAt: item.updatedAt as string | null };
+}
+
+function checkedBoard(value: unknown): CollaborativeTeamBoard {
+  const item = record(value);
+  if (!item || typeof item.projectName !== 'string' || item.projectName.length > 200 ||
+    typeof item.observedAt !== 'string' || Number.isNaN(Date.parse(item.observedAt)) ||
+    !['off', 'running', 'paused'].includes(String(item.queueState)) || typeof item.truncated !== 'boolean' ||
+    !Array.isArray(item.columns) || item.columns.length > 50 || !Array.isArray(item.cards) || item.cards.length > 200) {
+    throw new Error('Coordinator returned an invalid team board.');
+  }
+  const columns = item.columns.map((raw) => {
+    const column = record(raw);
+    if (!column || typeof column.id !== 'string' || !UUID.test(column.id) ||
+      typeof column.name !== 'string' || column.name.length > 200) throw new Error('Coordinator returned an invalid team board.');
+    return { id: column.id, name: column.name };
+  });
+  const columnIds = new Set(columns.map((column) => column.id));
+  const cards = item.cards.map((raw) => {
+    const card = record(raw);
+    if (!card || typeof card.id !== 'string' || !UUID.test(card.id) || typeof card.columnId !== 'string' ||
+      !columnIds.has(card.columnId) || typeof card.title !== 'string' || card.title.length > 200 ||
+      typeof card.priority !== 'string' || !PRIORITIES.includes(card.priority) ||
+      (card.runningSince !== null && (typeof card.runningSince !== 'string' || Number.isNaN(Date.parse(card.runningSince)))) ||
+      typeof card.revision !== 'number' || !Number.isSafeInteger(card.revision) || card.revision < 0) {
+      throw new Error('Coordinator returned an invalid team board.');
+    }
+    return { id: card.id, columnId: card.columnId, title: card.title,
+      priority: card.priority as TeamBoardSnapshot['cards'][number]['priority'],
+      runningSince: card.runningSince as string | null, revision: card.revision };
+  });
+  return { projectName: item.projectName, observedAt: item.observedAt, columns, cards,
+    queueState: item.queueState as TeamBoardSnapshot['queueState'], truncated: item.truncated };
 }
 
 async function limitedJson(response: Response): Promise<unknown> {
@@ -43,7 +95,8 @@ async function limitedJson(response: Response): Promise<unknown> {
 /** Network calls never follow redirects with a member credential. Pending joins survive uncertain replies. */
 export class TeamRemoteClient {
   constructor(private readonly connections: TeamConnectionStore,
-    private readonly attempts: TeamJoinAttemptStore, private readonly request: typeof fetch = fetch) {}
+    private readonly attempts: TeamJoinAttemptStore, private readonly request: typeof fetch = fetch,
+    private readonly outbox?: TeamDraftOutboxStore) {}
 
   async beginJoin(input: { coordinatorUrl: string; inviteSecret: string; displayName: string }): Promise<SavedTeamConnection> {
     await this.attempts.prepare(input);
@@ -83,7 +136,7 @@ export class TeamRemoteClient {
     return pending ? { coordinatorUrl: pending.coordinatorUrl, displayName: pending.displayName } : null;
   }
 
-  async workspace(workspaceId: string): Promise<{ member: TeamMember; projects: Array<{ id: string; name: string }> }> {
+  async workspace(workspaceId: string): Promise<{ member: TeamMember; projects: Array<{ id: string; name: string; canEditDraft: boolean }> }> {
     const connection = await this.connections.get(workspaceId);
     if (!connection) throw new Error('This team workspace is not saved on this device.');
     let response: Response;
@@ -100,9 +153,63 @@ export class TeamRemoteClient {
     const projects = value.projects.map((item) => {
       const project = record(item);
       if (!project || typeof project.id !== 'string' || !UUID.test(project.id) ||
-        typeof project.name !== 'string' || project.name.length > 200) throw new Error('Coordinator returned an invalid project.');
-      return { id: project.id, name: project.name };
+        typeof project.name !== 'string' || project.name.length > 200 || typeof project.canEditDraft !== 'boolean') {
+        throw new Error('Coordinator returned an invalid project.');
+      }
+      return { id: project.id, name: project.name, canEditDraft: project.canEditDraft };
     });
     return { member, projects };
+  }
+
+  async cardDraft(input: { workspaceId: string; projectId: string; cardId: string }): Promise<TeamCardDraft> {
+    if (!UUID.test(input.projectId) || !UUID.test(input.cardId)) throw new Error('Invalid team draft target.');
+    return checkedDraft(await this.authenticated(input.workspaceId,
+      `/v1/projects/${input.projectId}/cards/${input.cardId}/draft`), input.projectId, input.cardId);
+  }
+
+  async board(input: { workspaceId: string; projectId: string }): Promise<CollaborativeTeamBoard> {
+    if (!UUID.test(input.projectId)) throw new Error('Invalid team project.');
+    return checkedBoard(await this.authenticated(input.workspaceId, `/v1/projects/${input.projectId}/board`));
+  }
+
+  async updateCardDraft(input: { workspaceId: string; projectId: string; cardId: string;
+    mutationId: string; update: string }): Promise<TeamCardDraft & { repeated: boolean }> {
+    if (!UUID.test(input.projectId) || !UUID.test(input.cardId) || !UUID.test(input.mutationId) ||
+      typeof input.update !== 'string' || input.update.length > 90_000) throw new Error('Invalid team draft update.');
+    await this.outbox?.enqueue(input);
+    const value = record(await this.authenticated(input.workspaceId,
+      `/v1/projects/${input.projectId}/cards/${input.cardId}/draft`,
+      { mutationId: input.mutationId, update: input.update }));
+    if (typeof value?.repeated !== 'boolean') throw new Error('Coordinator returned an invalid card draft.');
+    const checked = checkedDraft(value, input.projectId, input.cardId);
+    await this.outbox?.acknowledge(input.mutationId);
+    return { ...checked, repeated: value.repeated };
+  }
+
+  async pendingCardDraftUpdates(input: { workspaceId: string; projectId: string; cardId: string }): Promise<PendingTeamDraftUpdate[]> {
+    return this.outbox?.list(input) ?? [];
+  }
+
+  async resumeCardDraftUpdates(input: { workspaceId: string; projectId: string; cardId: string }): Promise<number> {
+    const pending = await this.outbox?.list(input) ?? [];
+    for (const update of pending) await this.updateCardDraft(update);
+    return pending.length;
+  }
+
+  private async authenticated(workspaceId: string, path: string, body?: Record<string, unknown>): Promise<unknown> {
+    const connection = await this.connections.get(workspaceId);
+    if (!connection) throw new Error('This team workspace is not saved on this device.');
+    let response: Response;
+    try {
+      response = await this.request(`${connection.coordinatorUrl}${path}`, {
+        method: body ? 'POST' : 'GET', headers: { Authorization: `Bearer ${connection.credential}`,
+          ...(body ? { 'Content-Type': 'application/json' } : {}) },
+        body: body ? JSON.stringify(body) : undefined, redirect: 'error', signal: AbortSignal.timeout(15_000),
+      });
+    } catch { throw new Error('Coordinator is unavailable.'); }
+    if (response.status === 401 || response.status === 403) throw new Error('Team access was revoked or is unavailable.');
+    if (response.status === 409) throw new Error('Team draft changed. Reload before retrying.');
+    if (!response.ok) throw new Error(`Coordinator request failed (HTTP ${response.status}).`);
+    return limitedJson(response);
   }
 }

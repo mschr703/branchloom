@@ -1,7 +1,7 @@
-import { Activity, Bot, BrainCircuit, Columns3, GitBranch, GitCommitHorizontal, Globe2, History, Inbox, Lightbulb, MessageCircle, MousePointer2, Network, Settings2, TerminalSquare } from 'lucide-react';
+import { Activity, Bot, BrainCircuit, Columns3, GitBranch, GitCommitHorizontal, Globe2, History, Inbox, Lightbulb, MessageCircle, MousePointer2, Network, Settings2, TerminalSquare, UsersRound } from 'lucide-react';
 import type { ProjectSnapshot } from '../../shared/types';
 
-export type View = 'board' | 'ideas' | 'chat' | 'activity' | 'workflows' | 'decisions' | 'whiteboard' | 'memory' | 'milestones' | 'agents' | 'terminal' | 'browser' | 'design' | 'changelog' | 'settings';
+export type View = 'board' | 'ideas' | 'chat' | 'activity' | 'workflows' | 'team' | 'decisions' | 'whiteboard' | 'memory' | 'milestones' | 'agents' | 'terminal' | 'browser' | 'design' | 'changelog' | 'settings';
 
 export const views: { id: View; name: string; icon: typeof Columns3 }[] = [
   { id: 'board', name: 'Board', icon: Columns3 },
@@ -10,6 +10,7 @@ export const views: { id: View; name: string; icon: typeof Columns3 }[] = [
   { id: 'activity', name: 'Aktivität', icon: Activity },
   { id: 'changelog', name: 'Changelog', icon: GitCommitHorizontal },
   { id: 'workflows', name: 'Workflows', icon: GitBranch },
+  { id: 'team', name: 'Team', icon: UsersRound },
   { id: 'decisions', name: 'Entscheidungen', icon: Inbox },
   { id: 'whiteboard', name: 'Whiteboard', icon: Network },
   { id: 'memory', name: 'Memory', icon: BrainCircuit },
@@ -21,7 +22,7 @@ export const views: { id: View; name: string; icon: typeof Columns3 }[] = [
   { id: 'settings', name: 'Einstellungen', icon: Settings2 },
 ];
 
-const primaryViewIds: View[] = ['board', 'ideas', 'chat', 'workflows'];
+const primaryViewIds: View[] = ['board', 'ideas', 'chat', 'workflows', 'team'];
 const primaryViews = primaryViewIds.map((id) => views.find((item) => item.id === id)!);
 const secondaryGroups: { name: string; ids: View[] }[] = [
   { name: 'Entwurf & Wissen', ids: ['whiteboard', 'memory', 'design', 'milestones'] },

@@ -5,6 +5,7 @@ import type { CardPriority } from '../shared/types';
 import { authenticateTeamMember, claimTeamMemberInvite, createTeamMemberInvite,
   requireTeamProjectCapability, revokeTeamMember, setTeamCardPriority, type TeamRole } from './team-workspace';
 import { teamBoardSnapshot } from './team-board';
+import { applyTeamCardDraftUpdate, readTeamCardDraft } from './team-card-draft';
 
 const LOOPBACK = '127.0.0.1';
 const MAX_BODY = 4_096;
@@ -21,7 +22,7 @@ function credential(request: IncomingMessage): string {
   return value.slice(7);
 }
 
-async function body(request: IncomingMessage): Promise<Record<string, unknown>> {
+async function body(request: IncomingMessage, maxLength = MAX_BODY): Promise<Record<string, unknown>> {
   if (request.headers['content-type']?.split(';')[0]?.trim().toLowerCase() !== 'application/json') {
     throw new Error('Invalid request body');
   }
@@ -30,7 +31,7 @@ async function body(request: IncomingMessage): Promise<Record<string, unknown>> 
   for await (const chunk of request) {
     const part = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     length += part.length;
-    if (length > MAX_BODY) throw new Error('Invalid request body');
+    if (length > maxLength) throw new Error('Invalid request body');
     parts.push(part);
   }
   const value = JSON.parse(Buffer.concat(parts).toString('utf8')) as unknown;
@@ -44,13 +45,14 @@ export class TeamCoordinatorHttp {
 
   constructor(private readonly store: StudioStore) {}
 
-  async start(): Promise<string> {
+  async start(preferredPort = 0): Promise<string> {
     if (this.server) throw new Error('Team coordinator is already running.');
+    if (!Number.isInteger(preferredPort) || preferredPort < 0 || preferredPort > 65535) throw new Error('Invalid coordinator port.');
     const server = createServer((request, response) => { void this.handle(request, response); });
     try {
       await new Promise<void>((resolve, reject) => {
         server.once('error', reject);
-        server.listen(0, LOOPBACK, () => { server.off('error', reject); resolve(); });
+        server.listen(preferredPort, LOOPBACK, () => { server.off('error', reject); resolve(); });
       });
     } catch (error) { server.close(); throw error; }
     this.server = server;
@@ -95,7 +97,12 @@ export class TeamCoordinatorHttp {
           LEFT JOIN team_project_permissions permission ON permission.project_id = project.id AND permission.member_id = ?
           WHERE linked.workspace_id = ? AND (? = 'owner' OR permission.access IS NULL OR permission.access != 'none')
           ORDER BY project.name, project.id`).all(actor.id, actor.workspaceId, actor.role) as Array<{ id: string; name: string }>;
-        return reply(response, 200, { member: actor, projects });
+        return reply(response, 200, { member: actor, projects: projects.map((project) => {
+          let canEditDraft = true;
+          try { requireTeamProjectCapability(this.store.db, actorCredential, project.id, 'edit_draft'); }
+          catch { canEditDraft = false; }
+          return { ...project, canEditDraft };
+        }) });
       }
       const board = /^\/v1\/projects\/([0-9a-f-]{36})\/board$/.exec(path);
       if (request.method === 'GET' && board) {
@@ -108,6 +115,17 @@ export class TeamCoordinatorHttp {
           return { ...snapshot, cards: snapshot.cards.map((card) => ({ ...card, revision: revisions.get(card.id) ?? 0 })) };
         })();
         return reply(response, 200, view);
+      }
+      const draft = /^\/v1\/projects\/([0-9a-f-]{36})\/cards\/([0-9a-f-]{36})\/draft$/.exec(path);
+      if (draft && request.method === 'GET') {
+        return reply(response, 200, readTeamCardDraft(this.store.db, { credential: actorCredential,
+          projectId: draft[1]!, cardId: draft[2]! }));
+      }
+      if (draft && request.method === 'POST') {
+        const value = await body(request, 96 * 1024);
+        return reply(response, 200, applyTeamCardDraftUpdate(this.store.db, { credential: actorCredential,
+          projectId: draft[1]!, cardId: draft[2]!, mutationId: value.mutationId as string,
+          update: value.update as string }));
       }
       const priority = /^\/v1\/projects\/([0-9a-f-]{36})\/cards\/([0-9a-f-]{36})\/priority$/.exec(path);
       if (request.method === 'POST' && priority) {
@@ -126,7 +144,8 @@ export class TeamCoordinatorHttp {
         reply(response, 401, { error: 'Team credential is unavailable' });
       } else if (message.includes('not permitted') || message.includes('cannot invite') || message.includes('cannot be removed')) {
         reply(response, 403, { error: 'Team action is not permitted' });
-      } else if (message === 'Invalid request body' || error instanceof SyntaxError || message.startsWith('Invalid team card')) {
+      } else if (message === 'Invalid request body' || error instanceof SyntaxError ||
+        message.startsWith('Invalid team card') || message.startsWith('Invalid team draft')) {
         reply(response, 400, { error: 'Invalid team command' });
       } else {
         reply(response, 400, { error: 'Team command was not accepted' });

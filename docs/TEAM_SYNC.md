@@ -2,6 +2,10 @@
 
 This is the implementation direction for the first real team release. It describes intended behavior, not a shipped service. The [current guest board](TEAM_BOARD.md) remains a short-lived view hosted by one running desktop app.
 
+The [local two-client preview](TEAM_LOCAL_PREVIEW.md) has concrete startup steps and limits for the isolated S03e branch.
+
+The isolated `codex/s03e` branch now exercises a local, authenticated coordinator and a first shared card draft. It uses Yjs document updates and a 1.2-second client poll while the editor is open; that is near-live synchronization, not presence or a production remote service. The coordinator reuses its saved loopback port after restart. The accepted board card remains separate from the draft. Incremental outgoing updates are encrypted on the client before each send and replayed with their original mutation ID after a failed response or restart. This has a bounded queue; when full or when OS encryption is unavailable, saving fails visibly. The server remains authoritative about project rights. The admin acceptance command does not exist yet, so no draft is promoted by AI agreement.
+
 ## The first useful team session
 
 1. An owner creates a team workspace and a project, then invites a colleague. The workspace owns the project; the colleague has a team role and any narrower project rights.

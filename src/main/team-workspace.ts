@@ -75,6 +75,18 @@ export function installTeamWorkspaces(db: Database.Database): void {
     command TEXT NOT NULL, payload_json TEXT NOT NULL,
     base_revision INTEGER NOT NULL, committed_revision INTEGER NOT NULL,
     created_at TEXT NOT NULL, PRIMARY KEY (workspace_id, mutation_id)
+  );
+  CREATE TABLE IF NOT EXISTS team_card_drafts (
+    card_id TEXT PRIMARY KEY REFERENCES cards(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    state BLOB NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS team_card_draft_mutations (
+    workspace_id TEXT NOT NULL REFERENCES team_workspaces(id) ON DELETE CASCADE,
+    mutation_id TEXT NOT NULL, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+    update_hash TEXT NOT NULL, revision INTEGER NOT NULL,
+    PRIMARY KEY (workspace_id, mutation_id)
   );`);
 }
 

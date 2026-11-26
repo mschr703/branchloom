@@ -1,0 +1,29 @@
+# Local team preview
+
+This preview runs one authenticated coordinator on the owner's laptop. It binds only to `127.0.0.1`, so a second app instance on the same laptop can join; colleagues on other devices cannot connect yet. The hosted project stays in the owner's local SQLite database. Joining does not copy the project repository, source files, CLI credentials, or browser profile.
+
+## Start two separate local clients
+
+Use Windows, Node.js 24, Git, and a clean source checkout. Run `npm ci`, `npm run build`, and `npm run typecheck` once in the Branchloom folder. Then open two PowerShell windows in that folder:
+
+```powershell
+# Window 1: owner profile
+$env:BRANCHLOOM_DEV_USER_DATA = Join-Path $env:TEMP 'branchloom-team-owner-preview'
+npm start
+```
+
+```powershell
+# Window 2: member profile
+$env:BRANCHLOOM_DEV_USER_DATA = Join-Path $env:TEMP 'branchloom-team-member-preview'
+npm start
+```
+
+The profile paths must be distinct absolute paths. They retain the preview's local data and encrypted credentials across restarts. Do not use a profile that contains your regular Branchloom projects unless you intend to keep this preview there.
+
+1. In the owner window, add an existing local Git project and open **Team**. Create a workspace with your display name. The coordinator starts locally and reuses its saved port after an app restart.
+2. Choose a role and create an invitation. Copy its coordinator address and secret to the member window. The secret is shown once. It expires and cannot be used by a different member after acceptance.
+3. In the member window, open **Team**, enter the address, invitation secret, and display name, and join. If the acceptance response is lost, use the visible retry option; the client reuses the same protected credential and request ID.
+4. Select the same project and card in both windows. Edit the shared draft. The other open editor polls for updates about every 1.2 seconds. The accepted card description does not change. A viewer can read the draft but cannot edit it unless the owner explicitly grants the project capability.
+5. Close and reopen the app. The coordinator restarts on the saved local port. Pending encrypted draft updates are replayed when that card's editor opens again. A disconnected client may show an error until the host is running. A lost-response replay is covered by automated tests; long network outages and two physical machines are not yet verified.
+
+The owner can revoke a member in the Team setup. The next authenticated request is rejected. Project role and capability changes currently require backend support and have no complete UI. A shared draft cannot yet be accepted as the authoritative card or approved by a project admin; that is a separate upcoming command. The [team design](TEAM_SYNC.md) describes the wider roadmap.

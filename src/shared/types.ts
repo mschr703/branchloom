@@ -113,6 +113,21 @@ export interface WorktreeReview { cardId: string; path: string; branch: string; 
 export interface PrDraftPreview { cardId: string; sourceHead: string; targetHead: string; text: string; reportCount: number }
 
 export interface StudioAPI {
+  hostedTeamProject(projectId: string): Promise<import('../main/team-local-service').HostedTeamWorkspace | null>;
+  createLocalTeamWorkspace(input: { projectId: string; workspaceName: string; ownerName: string }): Promise<import('../main/team-local-service').HostedTeamWorkspace>;
+  inviteTeamMember(input: { projectId: string; role: 'admin' | 'editor' | 'developer' | 'viewer' }): Promise<{ inviteSecret: string; coordinatorUrl: string; expiresAt: string }>;
+  revokeTeamMember(input: { projectId: string; memberId: string }): Promise<import('../main/team-local-service').HostedTeamWorkspace>;
+  teamConnections(): Promise<import('../main/team-connection-store').SavedTeamConnection[]>;
+  pendingTeamJoin(): Promise<{ coordinatorUrl: string; displayName: string } | null>;
+  joinTeam(input: { coordinatorUrl: string; inviteSecret: string; displayName: string }): Promise<import('../main/team-connection-store').SavedTeamConnection>;
+  resumeTeamJoin(): Promise<import('../main/team-connection-store').SavedTeamConnection>;
+  cancelTeamJoin(): Promise<void>;
+  teamWorkspace(workspaceId: string): Promise<{ member: import('../main/team-workspace').TeamMember; projects: Array<{ id: string; name: string; canEditDraft: boolean }> }>;
+  teamBoard(input: { workspaceId: string; projectId: string }): Promise<import('../main/team-remote-client').CollaborativeTeamBoard>;
+  teamCardDraft(input: { workspaceId: string; projectId: string; cardId: string }): Promise<import('../main/team-card-draft').TeamCardDraft>;
+  updateTeamCardDraft(input: { workspaceId: string; projectId: string; cardId: string; mutationId: string; update: string }): Promise<import('../main/team-card-draft').TeamCardDraft & { repeated: boolean }>;
+  pendingTeamCardDraftUpdates(input: { workspaceId: string; projectId: string; cardId: string }): Promise<import('../main/team-draft-outbox').PendingTeamDraftUpdate[]>;
+  resumeTeamCardDraftUpdates(input: { workspaceId: string; projectId: string; cardId: string }): Promise<number>;
   apiContractOverview(projectId: string): Promise<import('./api-contract').ApiContractOverview>;
   previewApiContract(input: { projectId: string; draft: import('./api-contract').ApiContractDraft }): Promise<import('./api-contract').ApiContractPreview>;
   saveApiContract(input: { projectId: string; draft: import('./api-contract').ApiContractDraft; fingerprint: string; expectedLatestRevision: number }): Promise<import('./api-contract').ApiContractVersion>;
