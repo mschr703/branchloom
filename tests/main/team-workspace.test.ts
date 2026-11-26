@@ -167,6 +167,10 @@ it('separates admin plan acceptance from member proposals and explicit developer
     setTeamCapabilityGrant(f.store.db, owner.credential, f.project.id, developer.member.id, 'start_agent', true);
     expect(requireTeamProjectCapability(f.store.db, developer.credential, f.project.id, 'start_agent').id).toBe(developer.member.id);
     expect(() => requireTeamProjectCapability(f.store.db, developer.credential, f.project.id, 'accept_plan')).toThrow('not permitted');
+    setTeamProjectAccess(f.store.db, owner.credential, f.project.id, developer.member.id, 'read');
+    expect(() => requireTeamProjectCapability(f.store.db, developer.credential, f.project.id, 'start_agent')).toThrow('not permitted');
+    setTeamProjectAccess(f.store.db, owner.credential, f.project.id, developer.member.id, null);
+    expect(requireTeamProjectCapability(f.store.db, developer.credential, f.project.id, 'start_agent').id).toBe(developer.member.id);
     setTeamCapabilityGrant(f.store.db, owner.credential, f.project.id, developer.member.id, 'start_agent', false);
     expect(() => requireTeamProjectCapability(f.store.db, developer.credential, f.project.id, 'start_agent')).toThrow('not permitted');
     expect(() => setTeamCapabilityGrant(f.store.db, admin.credential, f.project.id, member.member.id, 'accept_plan', true)).toThrow('not permitted');
