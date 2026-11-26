@@ -44,6 +44,10 @@ function ResultItems({ items, onOpenCard, onOpenSession }: {
           ? item.test.queueActivationId === item.activationId ? 'im Kartenstart' : `Queue-Start ${item.test.queueActivationId.slice(0, 8)}`
           : 'ohne Queue-Startbeleg'}
       </small> : null}
+      {item.review ? <small title={`Diff-Review · Quell-Commit ${item.review.sourceHead} · Ziel-Commit ${item.review.targetHead}`}>
+        Gespeicherter Diff-Review · <time dateTime={item.review.reviewedAt}>{new Date(item.review.reviewedAt).toLocaleString('de-DE')}</time>
+        {' · '}{item.review.matchesSavedIntegration ? 'passt zum gespeicherten Integrationsstand' : 'frühere vorbereitete Revision'}
+      </small> : null}
       {item.qa ? <small title={`Browser-QA-Beleg ${item.qa.id} · DOM-Prüfung ${item.qa.pageCheck}`}>
         Gespeicherte Browser-QA {item.qa.id.slice(0, 8)} · {qaLabels[item.qa.status]}
         {item.qa.viewportWidth > 0 && item.qa.viewportHeight > 0 ? ` · ${item.qa.viewportWidth} × ${item.qa.viewportHeight} px` : ''}
@@ -119,7 +123,7 @@ export function QueueResultsPanel({ results, error, onRetry, onOpenCard, onOpenS
       </button>
     </div> : null}
     {copyError ? <p role="alert">{copyError}</p> : null}
-    <p>Eine abgeschlossene Route ist kein Test- oder Merge-Nachweis. Test-, Browser-QA- und Integrationsangaben sind gespeicherte Kartenbelege; ihr heutiger Git-Stand und die vom Dev-Server ausgelieferte Codeversion werden hier nicht erneut geprüft. Öffne die Karte für die aktuelle Prüfung.</p>
+    <p>Eine abgeschlossene Route ist kein Test- oder Merge-Nachweis. Test-, Review-, Browser-QA- und Integrationsangaben sind gespeicherte Kartenbelege; ihr heutiger Git-Stand und die vom Dev-Server ausgelieferte Codeversion werden hier nicht erneut geprüft. Öffne die Karte für die aktuelle Prüfung.</p>
     {results.latestActivation
       ? results.latestActivation.total > 0
         ? <><ResultItems items={results.latestItems} onOpenCard={onOpenCard} onOpenSession={onOpenSession} />

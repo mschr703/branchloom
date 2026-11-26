@@ -17,6 +17,7 @@ export interface QueueResultItem {
     integratedHead: string | null; approvalMode: 'manual' | 'automatic' | null } | null;
   test: { id: number; state: IntegrationTestState; scriptName: string; sourceHead: string;
     targetHead: string; endedAt: string | null; queueActivationId: string | null } | null;
+  review: { sourceHead: string; targetHead: string; reviewedAt: string; matchesSavedIntegration: boolean } | null;
   qa?: { id: string; status: CardQaReport['status']; endedAt: string; viewportWidth: number;
     viewportHeight: number; pageCheck: CardQaPageCheck } | null;
 }

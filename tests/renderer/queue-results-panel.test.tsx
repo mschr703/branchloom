@@ -9,7 +9,7 @@ describe('queue results panel', () => {
     const results: QueueResults = { projectId: 'p', total: 1, truncated: false, latestActivation: null, latestItems: [], latestTruncated: false,
       counts: { done: 0, 'needs-attention': 1, running: 0, skipped: 0, pending: 0 },
       items: [{ cardId: 'card', cardTitle: '<Check this>', workflowId: 'flow', workflowName: 'Review route', activationId: null,
-        status: 'needs-attention', updatedAt: '2026-11-26T01:00:00.000Z', lastSession: { id: 'session', state: 'failed', exitCode: 1 }, integration: null, test: null }] };
+        status: 'needs-attention', updatedAt: '2026-11-26T01:00:00.000Z', lastSession: { id: 'session', state: 'failed', exitCode: 1 }, integration: null, test: null, review: null }] };
     const html = renderToStaticMarkup(createElement(QueueResultsPanel, { results, error: null, onRetry: () => {}, onOpenCard: () => {}, onOpenSession: () => {} }));
     expect(html).toContain('1 brauchen Prüfung');
     expect(html).toContain('&lt;Check this&gt;');
@@ -23,8 +23,8 @@ describe('queue results panel', () => {
     const results: QueueResults = { projectId: 'p', total: 2, truncated: false, latestActivation: null, latestItems: [], latestTruncated: false,
       counts: { done: 0, 'needs-attention': 0, running: 1, skipped: 0, pending: 1 },
       items: [
-        { cardId: 'a', cardTitle: 'Running', workflowId: 'flow-a', workflowName: 'Route A', activationId: null, status: 'running', updatedAt: '2026-11-26T01:00:00.000Z', lastSession: null, integration: null, test: null },
-        { cardId: 'b', cardTitle: 'Pending', workflowId: 'flow-b', workflowName: 'Route B', activationId: null, status: 'pending', updatedAt: '2026-11-26T01:00:00.000Z', lastSession: null, integration: null, test: null },
+        { cardId: 'a', cardTitle: 'Running', workflowId: 'flow-a', workflowName: 'Route A', activationId: null, status: 'running', updatedAt: '2026-11-26T01:00:00.000Z', lastSession: null, integration: null, test: null, review: null },
+        { cardId: 'b', cardTitle: 'Pending', workflowId: 'flow-b', workflowName: 'Route B', activationId: null, status: 'pending', updatedAt: '2026-11-26T01:00:00.000Z', lastSession: null, integration: null, test: null, review: null },
       ] };
     const html = renderToStaticMarkup(createElement(QueueResultsPanel, { results, error: null, onRetry: () => {} }));
     expect(html).toContain('1 laufen');
@@ -48,9 +48,9 @@ describe('queue results panel', () => {
 
   it('shows the latest start first and keeps older cards in a separate history disclosure', () => {
     const old = { cardId: 'old', cardTitle: 'Earlier work', workflowId: 'flow-old', workflowName: 'Earlier route', activationId: 'first',
-      status: 'done' as const, updatedAt: '2026-11-26T00:00:00.000Z', lastSession: null, integration: null, test: null };
+      status: 'done' as const, updatedAt: '2026-11-26T00:00:00.000Z', lastSession: null, integration: null, test: null, review: null };
     const current = { cardId: 'current', cardTitle: 'Needs a decision', workflowId: 'flow-current', workflowName: 'Current route', activationId: 'second',
-      status: 'needs-attention' as const, updatedAt: '2026-11-26T01:00:00.000Z', lastSession: null, integration: null, test: null };
+      status: 'needs-attention' as const, updatedAt: '2026-11-26T01:00:00.000Z', lastSession: null, integration: null, test: null, review: null };
     const results: QueueResults = { projectId: 'p', total: 2, truncated: false, latestTruncated: false,
       counts: { done: 1, 'needs-attention': 1, running: 0, skipped: 0, pending: 0 }, items: [current, old], latestItems: [current],
       latestActivation: { id: 'second', startedAt: '2026-11-26T01:00:00.000Z', endedAt: '2026-11-26T02:00:00.000Z', endState: 'paused',
@@ -72,15 +72,21 @@ describe('queue results panel', () => {
         status: 'done', updatedAt: '2026-11-26T01:00:00.000Z', lastSession: null,
         integration: { id: 7, state: 'integrated', sourceHead, targetBranch: 'main', integratedHead: sourceHead, approvalMode: 'manual' },
         test: { id: 12, state: 'passed', scriptName: 'test', sourceHead, targetHead, endedAt: '2026-11-26T01:10:00.000Z', queueActivationId: null },
+        review: { sourceHead, targetHead, reviewedAt: '2026-11-26T01:09:00.000Z', matchesSavedIntegration: true },
         qa: { id: 'qa-synthetic', status: 'failed', endedAt: '2026-11-26T01:11:00.000Z',
           viewportWidth: 390, viewportHeight: 844, pageCheck: 'complete' } }] };
     const html = renderToStaticMarkup(createElement(QueueResultsPanel, { results, error: null, onRetry: () => {} }));
     expect(html).toContain('Gespeicherter Test #12: npm run test · bestanden');
     expect(html).toContain('ohne Queue-Startbeleg');
     expect(html).toContain('Gespeicherte Integration #7: übernommen · Ziel main · manuell');
+    expect(html).toContain('Gespeicherter Diff-Review');
+    expect(html).toContain('passt zum gespeicherten Integrationsstand');
     expect(html).toContain('Gespeicherte Browser-QA qa-synth · mit Fehlern · 390 × 844 px');
     expect(html).toContain(sourceHead);
     expect(html).toContain(targetHead);
     expect(html).toContain('Git-Stand und die vom Dev-Server ausgelieferte Codeversion werden hier nicht erneut geprüft');
+    const stale: QueueResults = { ...results, items: [{ ...results.items[0]!, review: { ...results.items[0]!.review!, matchesSavedIntegration: false } }] };
+    const staleHtml = renderToStaticMarkup(createElement(QueueResultsPanel, { results: stale, error: null, onRetry: () => {} }));
+    expect(staleHtml).toContain('frühere vorbereitete Revision');
   });
 });

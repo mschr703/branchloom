@@ -10,6 +10,7 @@ function appendCard(lines: string[], item: QueueResultItem): void {
     ? `  - Sitzung \`${md(item.lastSession.id)}\`: ${item.lastSession.state}; Exit ${item.lastSession.exitCode ?? 'unbekannt'}.`
     : '  - Sitzung: kein gespeicherter Beleg.');
   if (item.test) lines.push(`  - Gespeicherter npm-Test #${item.test.id}: \`npm run ${md(item.test.scriptName)}\` · ${item.test.state}; Quelle \`${md(item.test.sourceHead)}\`, Zielbasis \`${md(item.test.targetHead)}\`; Ende ${item.test.endedAt ? md(item.test.endedAt) : 'nicht gespeichert'}; Queue-Start ${item.test.queueActivationId ? `\`${md(item.test.queueActivationId)}\`` : 'nicht belegt'}.`);
+  if (item.review) lines.push(`  - Gespeicherter Diff-Review: Quelle \`${md(item.review.sourceHead)}\`, Zielbasis \`${md(item.review.targetHead)}\`; bestätigt ${md(item.review.reviewedAt)}; ${item.review.matchesSavedIntegration ? 'passt zum gespeicherten Integrationsstand' : 'gehört zu einer früheren vorbereiteten Revision'}.`);
   if (item.qa) lines.push(`  - Gespeicherte Browser-QA \`${md(item.qa.id)}\`: ${item.qa.status}; ${item.qa.viewportWidth > 0 && item.qa.viewportHeight > 0 ? `${item.qa.viewportWidth} × ${item.qa.viewportHeight} px` : 'Prüfgröße unbekannt'}; DOM ${item.qa.pageCheck}; Ende ${md(item.qa.endedAt)}.`);
   if (item.integration) lines.push(`  - Gespeicherte Integration #${item.integration.id}: ${item.integration.state}; Quelle \`${md(item.integration.sourceHead)}\`, Zielbranch ${md(item.integration.targetBranch)}${item.integration.integratedHead ? `, gespeicherter Ziel-Commit \`${md(item.integration.integratedHead)}\`` : ''}; Freigabe ${item.integration.approvalMode ?? 'nicht gespeichert'}.`);
 }
@@ -31,6 +32,6 @@ export function queueResultsMarkdown(results: QueueResults, generatedAt = new Da
   for (const item of items) appendCard(lines, item);
   if (activation ? results.latestTruncated : results.truncated)
     lines.push('', `Nur die ${items.length} neuesten Karten dieser Auswahl sind enthalten.`);
-  lines.push('', 'Eine abgeschlossene Route ist kein Test- oder Merge-Nachweis. Test-, Browser-QA- und Integrationsangaben sind gespeicherte Kartenbelege; der aktuelle Git-Stand und die vom Dev-Server ausgelieferte Codeversion wurden für diese Zusammenfassung nicht erneut geprüft.');
+  lines.push('', 'Eine abgeschlossene Route ist kein Test- oder Merge-Nachweis. Test-, Review-, Browser-QA- und Integrationsangaben sind gespeicherte Kartenbelege; der aktuelle Git-Stand und die vom Dev-Server ausgelieferte Codeversion wurden für diese Zusammenfassung nicht erneut geprüft.');
   return `${lines.join('\n')}\n`;
 }
