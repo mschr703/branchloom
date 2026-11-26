@@ -2,6 +2,10 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Agentenprofil während Queue-Lauf gebunden (Folgezweig, in Arbeit)
+
+- Eine laufende Queue sperrt Änderungen an Startbefehl, Argumenten, Modell und Aktivierungsstatus der Agentenprofile, die ihre Vorlage oder den aktiven Workflow ausführen. Das gilt auch zwischen Karten ohne laufende Sitzung und projektübergreifend für ein gemeinsam verwendetes Profil; eine reine Umbenennung ist erlaubt. Nach Pause kann das Profil geändert werden und der nächste bewusste Queue-Start prüft den neuen Stand. Zwölf gezielte Backend-Tests, Typprüfung, Build und Public-Scan bestanden; das Audit meldete keine hohen Funde (sechs moderate). Windows-CI steht noch aus. [Ablauf](QUEUE.md).
+
 ## Queue-Test mit Startkennung (Folgezweig, in Arbeit)
 
 - Neue automatisch ausgeführte npm-Tests speichern die Kennung des aktiven Queue-Starts am Testbeleg. Ansicht und kopierter Bericht zeigen diese Herkunft; manuelle und ältere Tests bleiben als solche ohne Startbeleg gekennzeichnet. Die Kennung wird direkt vor dem Test in SQLite gegen den noch aktiven Queue-Start geprüft. Sie belegt weder aktuellen Git-Stand noch Browser-QA, Review oder Veröffentlichung. Nach dem Rebase bestanden 20 gezielte Backend-/Renderer-Tests einschließlich echter npm-Ausführung und alter SQLite-Struktur, Typprüfung, Build und Public-Scan; Audit meldete keine hohen Funde (sechs moderate). Windows-CI für den kombinierten Stand steht noch aus.

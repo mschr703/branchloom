@@ -826,10 +826,17 @@ export class StudioStore {
     const command = trimmed(input.command, 'Agent command', 1000);
     if (/[\r\n]/.test(command)) throw new Error('Invalid agent command');
     const value: AgentPreset = { id: input.id ?? randomUUID(), name: trimmed(input.name, 'Agent name'), kind: input.kind, command, args: input.args, model: input.model ? trimmed(input.model, 'Model name', 200) : null, enabled: input.enabled === true };
-    const previous = input.id ? this.db.prepare('SELECT kind, command, args_json, model FROM agents WHERE id = ?').get(input.id) as Pick<AgentRow, 'kind' | 'command' | 'args_json' | 'model'> | undefined : undefined;
+    const previous = input.id ? this.db.prepare('SELECT kind, command, args_json, model, enabled FROM agents WHERE id = ?').get(input.id) as Pick<AgentRow, 'kind' | 'command' | 'args_json' | 'model' | 'enabled'> | undefined : undefined;
     const launchChanged = Boolean(previous && (previous.kind !== value.kind || previous.command !== value.command || previous.args_json !== json(value.args) || previous.model !== value.model));
     if (launchChanged && this.db.prepare("SELECT 1 FROM sessions WHERE agent_id = ? AND state = 'running' LIMIT 1").get(value.id)) {
       throw new Error('Laufendes Agentenprofil zuerst stoppen, bevor Startparameter geändert werden.');
+    }
+    if (previous && (launchChanged || previous.enabled !== Number(value.enabled))
+      && this.db.prepare(`SELECT 1 FROM project_queues q JOIN workflows w
+        ON w.id IN (q.template_workflow_id, q.active_workflow_id)
+        JOIN json_each(w.steps_json) step
+        WHERE q.state = 'running' AND json_extract(step.value, '$.agentId') = ? LIMIT 1`).get(value.id)) {
+      throw new Error('Pause the project queue before changing an agent used by its route.');
     }
     this.db.prepare('INSERT INTO agents VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, kind=excluded.kind, command=excluded.command, args_json=excluded.args_json, model=excluded.model, enabled=excluded.enabled').run(value.id, value.name, value.kind, value.command, json(value.args), value.model, Number(value.enabled));
     if (launchChanged) clearAgentCapabilityEvidence(this.db, value.id);
