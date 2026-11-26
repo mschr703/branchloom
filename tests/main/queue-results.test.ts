@@ -54,6 +54,20 @@ describe('project queue result sources', () => {
     const sourceHead = 'a'.repeat(40);
     const targetHead = 'b'.repeat(40);
     const timestamp = new Date().toISOString();
+    const addQa = (id: string, cardId: string, projectId: string, status: string, width: number) =>
+      store.db.prepare(`INSERT INTO card_qa_reports
+        (id, card_id, project_id, requested_url, started_at, ended_at, status, diagnostics_json,
+          viewport_width, viewport_height)
+        VALUES (?, ?, ?, 'http://127.0.0.1:5181/fixture-internal-route', ?, ?, ?, '[]', ?, 800)`)
+        .run(id, cardId, projectId, timestamp, timestamp, status, width);
+    addQa('qa-old', queued.id, project.id, 'failed', 390);
+    addQa('qa-new', queued.id, project.id, 'passed', 1280);
+    const otherCard = store.createCard({ projectId: other.id, columnId: store.snapshot(other.id).columns[0]!.id,
+      title: 'Other project card' });
+    addQa('qa-other', otherCard.id, other.id, 'error', 768);
+    expect(queueResults(store, project.id).items[0]?.qa).toMatchObject({ id: 'qa-new', status: 'passed',
+      viewportWidth: 1280, viewportHeight: 800, pageCheck: 'not-run' });
+    expect(JSON.stringify(queueResults(store, project.id))).not.toContain('fixture-internal-route');
     const receipt = store.db.prepare(`INSERT INTO integration_items
       (project_id, card_id, repository_key, target_branch, source_head, target_head, card_fingerprint,
         state, reason, created_at, updated_at, integrated_head, approval_mode)
@@ -68,6 +82,7 @@ describe('project queue result sources', () => {
     expect(queueResults(store, project.id).items[0]).toMatchObject({
       integration: { id: receipt.lastInsertRowid, state: 'integrated', sourceHead, targetBranch: 'main', integratedHead: sourceHead, approvalMode: 'manual' },
       test: { state: 'passed', scriptName: 'test', sourceHead, targetHead, endedAt: timestamp },
+      qa: { id: 'qa-new', status: 'passed' },
     });
     expect(queueResults(store, other.id).items).toEqual([]);
     store.saveProjectQueue({ projectId: project.id, state: 'running', templateWorkflowId: template.id, activeWorkflowId: null, pauseReason: null });
@@ -84,7 +99,7 @@ describe('project queue result sources', () => {
     expect(queueResults(reopened, project.id).counts).toMatchObject({ done: 1, skipped: 1 });
     expect(queueResults(reopened, project.id).latestActivation).toMatchObject({ id: firstActivation?.id, endState: 'paused', total: 2 });
     expect(queueResults(reopened, project.id).items.find((item) => item.cardId === queued.id)).toMatchObject({
-      integration: { state: 'integrated', sourceHead }, test: { state: 'passed', sourceHead },
+      integration: { state: 'integrated', sourceHead }, test: { state: 'passed', sourceHead }, qa: { id: 'qa-new' },
     });
     reopened.close();
   });
