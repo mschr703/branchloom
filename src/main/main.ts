@@ -80,6 +80,7 @@ import { agentHandoffReceipt, previewAgentHandoff, startAgentHandoff } from './a
 import { agentCardMetadataAudit, agentCardMetadataEnabled, setAgentCardMetadataEnabled } from './agent-card-metadata';
 import { AgentCardMetadataBridge } from './agent-card-metadata-bridge';
 import { agentBrowserPolicy, setAgentBrowserPolicy } from './agent-browser-policy';
+import { projectCodexWorkflowAccess, setProjectCodexWorkflowAccess } from './project-agent-rights';
 import { AgentBrowserBridge } from './agent-browser-bridge';
 import { inspectAgentBrowserPage } from './agent-browser-inspector';
 import { DevEnvironmentRunner, devEnvironmentAudit, devEnvironmentProfile, saveDevEnvironmentProfile, startApprovedDevEnvironment } from './dev-environment';
@@ -359,6 +360,8 @@ function installIpc(): void {
   });
   bind('agentCardMetadataAudit', (projectId: string) => agentCardMetadataAudit(db, projectId));
   bind('agentBrowserPolicy', (projectId: string) => agentBrowserPolicy(db, projectId));
+  bind('projectCodexWorkflowAccess', (projectId: string) => projectCodexWorkflowAccess(db, projectId));
+  bind('setProjectCodexWorkflowAccess', (input: Parameters<StudioAPI['setProjectCodexWorkflowAccess']>[0]) => setProjectCodexWorkflowAccess(db, input));
   bind('agentBrowserAvailable', () => agentBrowserBridge?.available === true);
   bind('setAgentBrowserPolicy', (input: Parameters<StudioAPI['setAgentBrowserPolicy']>[0]) => {
     const policy = setAgentBrowserPolicy(db, input);
