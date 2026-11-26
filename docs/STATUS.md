@@ -2,6 +2,10 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Kopierbare Zusammenfassung des jüngsten Queue-Starts (Folgezweig, in Arbeit)
+
+- Ein bewusster Klick auf „Zusammenfassung kopieren“ liest die aktuelle Queue-Ergebnisquelle erneut und schreibt eine begrenzte Markdown-Fassung mit Startkennung, Status, Karten- und Sitzungsbezug sowie vorhandenen gespeicherten Test- und Integrationsbelegen in die Zwischenablage. Titel und Gründe werden einzeilig maskiert. Die Ausgabe belegt keine erneute Git-Prüfung, automatische QA oder Veröffentlichung. Zehn gezielte Renderer-/Backend-Tests einschließlich frischem IPC-Lesen und Fehleranzeige beim Kopieren, Typprüfung, Build, breiter Quell-Electron-Smoke, Audit ohne hohe Funde und Public-Scan bestanden. Windows-CI steht noch aus. [Ablauf und Grenzen](QUEUE.md).
+
 ## Gespeicherte Test- und Integrationsbelege im Queue-Bericht (Folgezweig, in Arbeit)
 
 - Der jüngste Queue-Start und die Gesamthistorie zeigen je Karte nun die zugehörige gespeicherte Integrationsquittung und den letzten gespeicherten npm-Integrationstest mit Belegnummern, Skript, Ergebnis und Git-Fingerabdrücken. Die Abfrage ist projektgebunden und bleibt nach erneutem Öffnen der SQLite-Datei erhalten. Sie ist ein historischer Beleg, keine erneute Git- oder Testprüfung und kein Nachweis, dass der Test während genau dieses Queue-Starts lief; die Karten-Ergebnismappe bleibt für die aktuelle Zielbranch-Prüfung zuständig. Acht gezielte Backend-/Renderer-Tests, Typprüfung, Build, Audit ohne hohe Funde, Public-Scan und breiter Quell-Electron-Smoke bestanden. Windows-CI steht noch aus. [Ablauf und Grenzen](QUEUE.md).
