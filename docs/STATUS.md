@@ -2,6 +2,10 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Gespeicherter Diff-Review im Queue-Bericht (Folgezweig, in Arbeit)
+
+- Die Ergebnisansicht und kopierte Zusammenfassung zeigen den vorhandenen Diff-Review-Beleg einer Queue-Karte mit Quell-/Ziel-Commit und Zeitpunkt. Ein Vergleich der gespeicherten Kartenrevision und Commits kennzeichnet, ob der Review noch zum gespeicherten Integrationsstand passt oder einer früheren vorbereiteten Revision gehört. Das ist eine historische Anzeige, keine neue oder automatische Codeprüfung. Zehn gezielte Backend-/Renderer-Tests, Typprüfung, Build und Public-Scan bestanden; das Audit meldete keine hohen Funde (sechs moderate). Die lokale Gesamtsuite läuft, Windows-CI steht aus. P02 bleibt für automatische Browser-QA, Review und Push offen. [Ablauf](QUEUE.md).
+
 ## Automatischen Queue-Test an Start binden (in main)
 
 - Eine neue Queue-Aktivierung akzeptiert keinen automatischen npm-Testbeleg aus einem vorherigen Start als Freigabe der nächsten Karte. Ein bewusst nach der letzten Pause manuell neu ausgeführter Beleg bleibt bei aktuellem Git- und Skriptstand nutzbar. Der bestehende Testbeleg enthält die Startkennung; die Integrations-API gibt sie nun ebenfalls aus. Zwölf gezielte Queue-/Wiederaufnahme-Tests und der vollständige Pause→Test→Fortsetzen-Fall, Typprüfung, Build, Public-Scan und zwei Windows-Verify-Läufe bestanden. Audit ohne hohe Funde (sechs moderate). [PR #24](https://github.com/mschr703/branchloom/pull/24) · [Ablauf](QUEUE.md).

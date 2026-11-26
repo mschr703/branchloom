@@ -27,8 +27,10 @@ function resultItems(store: StudioStore, projectId: string, activationId: string
   const latestSession = store.db.prepare(`SELECT s.id, s.state, s.exit_code FROM session_usage_origins o
     JOIN sessions s ON s.id = o.session_id WHERE o.workflow_id = ? AND s.card_id = ?
     ORDER BY s.started_at DESC, s.id DESC LIMIT 1`);
-  const integrationItem = store.db.prepare(`SELECT id, state, source_head, target_branch, integrated_head, approval_mode
+  const integrationItem = store.db.prepare(`SELECT id, state, source_head, target_head, card_fingerprint, target_branch, integrated_head, approval_mode
     FROM integration_items WHERE project_id = ? AND card_id = ?`);
+  const savedReview = store.db.prepare(`SELECT source_head, target_head, card_fingerprint, reviewed_at
+    FROM integration_reviews WHERE item_id = ?`);
   const latestTest = store.db.prepare(`SELECT id, state, script_name, source_head, target_head, ended_at, queue_activation_id
     FROM integration_test_runs WHERE item_id = ? ORDER BY id DESC LIMIT 1`);
   const latestQa = store.db.prepare(`SELECT id, status, ended_at, viewport_width, viewport_height, page_check
@@ -36,8 +38,10 @@ function resultItems(store: StudioStore, projectId: string, activationId: string
   return rows.map((row) => {
     const session = latestSession.get(row.workflow_id, row.card_id) as { id: string; state: SessionState; exit_code: number | null } | undefined;
     const integration = integrationItem.get(projectId, row.card_id) as { id: number; state: IntegrationState;
-      source_head: string; target_branch: string; integrated_head: string | null;
+      source_head: string; target_head: string; card_fingerprint: string; target_branch: string; integrated_head: string | null;
       approval_mode: 'manual' | 'automatic' | null } | undefined;
+    const review = integration ? savedReview.get(integration.id) as { source_head: string; target_head: string;
+      card_fingerprint: string; reviewed_at: string } | undefined : undefined;
     const test = integration ? latestTest.get(integration.id) as { id: number; state: IntegrationTestState;
       script_name: string; source_head: string; target_head: string; ended_at: string | null;
       queue_activation_id: string | null } | undefined : undefined;
@@ -51,6 +55,9 @@ function resultItems(store: StudioStore, projectId: string, activationId: string
         approvalMode: integration.approval_mode } : null,
       test: test ? { id: test.id, state: test.state, scriptName: test.script_name, sourceHead: test.source_head,
         targetHead: test.target_head, endedAt: test.ended_at, queueActivationId: test.queue_activation_id } : null,
+      review: review ? { sourceHead: review.source_head, targetHead: review.target_head, reviewedAt: review.reviewed_at,
+        matchesSavedIntegration: review.source_head === integration?.source_head
+          && review.target_head === integration.target_head && review.card_fingerprint === integration.card_fingerprint } : null,
       qa: qa ? { id: qa.id, status: qa.status, endedAt: qa.ended_at, viewportWidth: qa.viewport_width,
         viewportHeight: qa.viewport_height, pageCheck: qa.page_check } : null };
   });

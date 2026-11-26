@@ -79,11 +79,18 @@ describe('project queue result sources', () => {
         state, exit_code, output_tail, started_at, ended_at)
       VALUES (?, ?, ?, ?, 'fingerprint', 'test', 'script-hash', 'passed', 0, 'synthetic pass', ?, ?)`)
       .run(receipt.lastInsertRowid, queued.id, sourceHead, targetHead, timestamp, timestamp);
+    store.db.prepare(`INSERT INTO integration_reviews
+      (item_id, card_id, source_head, target_head, card_fingerprint, reviewed_at)
+      VALUES (?, ?, ?, ?, 'fingerprint', ?)`).run(receipt.lastInsertRowid, queued.id, sourceHead, targetHead, timestamp);
     expect(queueResults(store, project.id).items[0]).toMatchObject({
       integration: { id: receipt.lastInsertRowid, state: 'integrated', sourceHead, targetBranch: 'main', integratedHead: sourceHead, approvalMode: 'manual' },
       test: { state: 'passed', scriptName: 'test', sourceHead, targetHead, endedAt: timestamp, queueActivationId: null },
+      review: { sourceHead, targetHead, reviewedAt: timestamp, matchesSavedIntegration: true },
       qa: { id: 'qa-new', status: 'passed' },
     });
+    store.db.prepare('UPDATE integration_reviews SET target_head = ? WHERE item_id = ?')
+      .run('c'.repeat(40), receipt.lastInsertRowid);
+    expect(queueResults(store, project.id).items[0]?.review?.matchesSavedIntegration).toBe(false);
     store.db.prepare('UPDATE integration_test_runs SET queue_activation_id = ? WHERE item_id = ?')
       .run(firstActivation?.id, receipt.lastInsertRowid);
     expect(queueResults(store, project.id).items[0]?.test?.queueActivationId).toBe(firstActivation?.id);
@@ -102,7 +109,8 @@ describe('project queue result sources', () => {
     expect(queueResults(reopened, project.id).counts).toMatchObject({ done: 1, skipped: 1 });
     expect(queueResults(reopened, project.id).latestActivation).toMatchObject({ id: firstActivation?.id, endState: 'paused', total: 2 });
     expect(queueResults(reopened, project.id).items.find((item) => item.cardId === queued.id)).toMatchObject({
-      integration: { state: 'integrated', sourceHead }, test: { state: 'passed', sourceHead }, qa: { id: 'qa-new' },
+      integration: { state: 'integrated', sourceHead }, test: { state: 'passed', sourceHead },
+      review: { matchesSavedIntegration: false }, qa: { id: 'qa-new' },
     });
     reopened.close();
   });
