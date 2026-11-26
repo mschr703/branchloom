@@ -2,6 +2,10 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Gespeicherte Test- und Integrationsbelege im Queue-Bericht (Folgezweig, in Arbeit)
+
+- Der jüngste Queue-Start und die Gesamthistorie zeigen je Karte nun die zugehörige gespeicherte Integrationsquittung und den letzten gespeicherten npm-Integrationstest mit Belegnummern, Skript, Ergebnis und Git-Fingerabdrücken. Die Abfrage ist projektgebunden und bleibt nach erneutem Öffnen der SQLite-Datei erhalten. Sie ist ein historischer Beleg, keine erneute Git- oder Testprüfung und kein Nachweis, dass der Test während genau dieses Queue-Starts lief; die Karten-Ergebnismappe bleibt für die aktuelle Zielbranch-Prüfung zuständig. Acht gezielte Backend-/Renderer-Tests, Typprüfung, Build, Audit ohne hohe Funde, Public-Scan und breiter Quell-Electron-Smoke bestanden. Windows-CI steht noch aus. [Ablauf und Grenzen](QUEUE.md).
+
 ## Ergebnisansicht je Queue-Start (Folgezweig, in Arbeit)
 
 - Die Workflow-Seite zeigt die Zuordnungen des jüngsten Queue-Starts mit eigenen Statuszählern; ältere Karten stehen getrennt unter der gesamten Historie. Eine Karte wird nur dann diesem Start zugerechnet, wenn ihre gespeicherte Startkennung passt. Beide Ansichten nennen ihre Begrenzung auf 100 Einträge. Sie verlinken Karte, Workflow und letzte Sitzung, behaupten jedoch keine Tests, Git-Integration oder Veröffentlichung. Sieben gezielte Backend-/Renderer-Tests, Typprüfung, Build, Audit ohne hohe Funde, Public-Scan und der breite Quell-Electron-Smoke mit normaler Zeitgrenze bestanden. Ein vorheriger, auf 180 Sekunden verkürzter Smoke hatte unter paralleler Vollsuite das Limit nach der Memory-Karte getroffen; die unveränderte Wiederholung bestand. Zwei Windows-Verify-Läufe bestanden vor dem Rebase. [Ablauf und Grenzen](QUEUE.md).

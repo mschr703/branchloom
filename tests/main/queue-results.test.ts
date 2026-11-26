@@ -50,7 +50,26 @@ describe('project queue result sources', () => {
     store.finishWorkflowCard(session.id, true);
     store.advanceWorkflow(flow.id);
     const completed = queueResults(store, project.id);
-    expect(completed).toMatchObject({ total: 1, counts: { done: 1 }, items: [{ status: 'done', lastSession: { id: session.id, state: 'exited', exitCode: 0 } }] });
+    expect(completed).toMatchObject({ total: 1, counts: { done: 1 }, items: [{ status: 'done', lastSession: { id: session.id, state: 'exited', exitCode: 0 }, integration: null, test: null }] });
+    const sourceHead = 'a'.repeat(40);
+    const targetHead = 'b'.repeat(40);
+    const timestamp = new Date().toISOString();
+    const receipt = store.db.prepare(`INSERT INTO integration_items
+      (project_id, card_id, repository_key, target_branch, source_head, target_head, card_fingerprint,
+        state, reason, created_at, updated_at, integrated_head, approval_mode)
+      VALUES (@projectId, @cardId, 'synthetic', 'main', @sourceHead, @targetHead, 'fingerprint',
+        'integrated', NULL, @timestamp, @timestamp, @sourceHead, 'manual')`)
+      .run({ projectId: project.id, cardId: queued.id, sourceHead, targetHead, timestamp });
+    store.db.prepare(`INSERT INTO integration_test_runs
+      (item_id, card_id, source_head, target_head, card_fingerprint, script_name, script_hash,
+        state, exit_code, output_tail, started_at, ended_at)
+      VALUES (?, ?, ?, ?, 'fingerprint', 'test', 'script-hash', 'passed', 0, 'synthetic pass', ?, ?)`)
+      .run(receipt.lastInsertRowid, queued.id, sourceHead, targetHead, timestamp, timestamp);
+    expect(queueResults(store, project.id).items[0]).toMatchObject({
+      integration: { id: receipt.lastInsertRowid, state: 'integrated', sourceHead, targetBranch: 'main', integratedHead: sourceHead, approvalMode: 'manual' },
+      test: { state: 'passed', scriptName: 'test', sourceHead, targetHead, endedAt: timestamp },
+    });
+    expect(queueResults(store, other.id).items).toEqual([]);
     store.saveProjectQueue({ projectId: project.id, state: 'running', templateWorkflowId: template.id, activeWorkflowId: null, pauseReason: null });
     const secondFlow = store.claimQueueCard(project.id, manual.id, template.id);
     store.setWorkflowState(secondFlow.id, 'paused');
@@ -64,6 +83,9 @@ describe('project queue result sources', () => {
     stores.push(reopened);
     expect(queueResults(reopened, project.id).counts).toMatchObject({ done: 1, skipped: 1 });
     expect(queueResults(reopened, project.id).latestActivation).toMatchObject({ id: firstActivation?.id, endState: 'paused', total: 2 });
+    expect(queueResults(reopened, project.id).items.find((item) => item.cardId === queued.id)).toMatchObject({
+      integration: { state: 'integrated', sourceHead }, test: { state: 'passed', sourceHead },
+    });
     reopened.close();
   });
 
