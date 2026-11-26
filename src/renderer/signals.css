@@ -59,7 +59,7 @@
 :root[data-theme] .board-card-wrap > .board-bulk-card-select input { width: 15px; height: 15px; min-height: 15px; margin: 0; }
 :root[data-theme] .card-quick-trigger { top: 5px; right: 5px; width: 26px; height: 26px; }
 :root[data-theme] .board-card-wrap > .card-order-actions { position: absolute; z-index: 3; right: 5px; bottom: 5px; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); box-shadow: 0 4px 12px #0002; opacity: 0; pointer-events: none; }
-:root[data-theme] .board-card-wrap:has(> .task-card:hover) > .card-order-actions,
+:root[data-theme] .board-card-wrap:hover:not(:has(> .card-move-form)) > .card-order-actions,
 :root[data-theme] .board-card-wrap > .card-order-actions:focus-within { opacity: 1; pointer-events: auto; }
 :root[data-theme] .card-order-actions > button:not(.card-move-trigger) { width: 25px; height: 25px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); }
 :root[data-theme] .card-order-actions > button:not(.card-move-trigger):hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
