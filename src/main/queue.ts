@@ -40,7 +40,12 @@ export class ProjectQueueEngine {
       if (template.projectId !== input.projectId) throw new Error('Workflow-Vorlage gehört zu einem anderen Projekt.');
       if (current.activeWorkflowId) {
         const active = this.store.workflow(current.activeWorkflowId);
-        if (active.state !== 'done' && active.state !== 'running') throw new Error(`${pauseMessage(active)} Die Queue setzt diesen Schritt nicht selbst erneut in Gang.`);
+        const canDefer = current.continueBlocked === true && active.state === 'paused'
+          && ['approval', 'manual', 'review', 'wireframe'].includes(active.pauseReason ?? '')
+          && !this.store.activeSessionForProject(input.projectId);
+        if (active.state !== 'done' && active.state !== 'running' && !canDefer) {
+          throw new Error(`${pauseMessage(active)} Die Queue setzt diesen Schritt nicht selbst erneut in Gang.`);
+        }
         if (active.state === 'done' && active.currentStep < active.steps.length) throw new Error('Aktiver Workflow wurde vorzeitig als erledigt markiert; bitte prüfen.');
       }
       this.store.saveProjectQueue({ projectId: input.projectId, state: 'running', templateWorkflowId, activeWorkflowId: current.activeWorkflowId, pauseReason: null });

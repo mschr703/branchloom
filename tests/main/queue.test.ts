@@ -252,6 +252,21 @@ describe('explicit durable project queue', () => {
     reopened.close();
   });
 
+  it('can opt in after a blocked run and continue without restarting that run', () => {
+    const { store, project, template, first, second, started, workflows, queue } = fixture();
+    queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id });
+    const blockedFlowId = store.projectQueue(project.id).activeWorkflowId!;
+    const failed = store.finishSession(started[0]!.id, 'failed', 1);
+    workflows.onSessionFinished(failed, 'Agent could not finish');
+    queue.onSessionFinished(failed);
+    expect(store.projectQueue(project.id).state).toBe('paused');
+    store.setQueueContinueBlocked({ projectId: project.id, enabled: true });
+    queue.setState({ projectId: project.id, state: 'running' });
+    expect(started.map((session) => session.cardId)).toEqual([first.id, second.id]);
+    expect(store.workflow(blockedFlowId).queueSkip?.reason).toContain('review');
+    store.close();
+  });
+
   it('passes blocked dependent cards to start later independent work beyond the preview limit', () => {
     const { store, project, columns, template, first, second, started, workflows, queue } = fixture();
     store.setQueueContinueBlocked({ projectId: project.id, enabled: true });
