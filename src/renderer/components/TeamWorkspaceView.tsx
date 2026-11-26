@@ -19,6 +19,7 @@ export function TeamWorkspaceView({ projectId }: { projectId?: string }) {
   const [board, setBoard] = useState<CollaborativeTeamBoard | null>(null);
   const [cardId, setCardId] = useState('');
   const [error, setError] = useState('');
+  const [actionNotice, setActionNotice] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -33,7 +34,7 @@ export function TeamWorkspaceView({ projectId }: { projectId?: string }) {
   useEffect(() => {
     if (!workspaceId) { setWorkspace(null); setRemoteProjectId(''); return; }
     let active = true;
-    setError(''); setWorkspace(null); setBoard(null); setCardId('');
+    setError(''); setActionNotice(''); setWorkspace(null); setBoard(null); setCardId('');
     const load = () => { void window.studio.teamWorkspace(workspaceId).then((next) => {
       if (!active) return;
       setWorkspace(next);
@@ -48,7 +49,7 @@ export function TeamWorkspaceView({ projectId }: { projectId?: string }) {
   useEffect(() => {
     if (!workspaceId || !remoteProjectId) { setBoard(null); return; }
     let active = true;
-    setBoard(null); setCardId('');
+    setBoard(null); setCardId(''); setActionNotice('');
     const load = () => { void window.studio.teamBoard({ workspaceId, projectId: remoteProjectId }).then((next) => {
       if (!active) return;
       setBoard(next); setError('');
@@ -76,18 +77,19 @@ export function TeamWorkspaceView({ projectId }: { projectId?: string }) {
         <div className="team-workspace-columns">{board.columns.map((column) => <section key={column.id} aria-label={`Spalte ${column.name}`}>
           <h4>{column.name} <small>{board.cards.filter((card) => card.columnId === column.id).length}</small></h4>
           {board.cards.filter((card) => card.columnId === column.id).map((card) => <button key={card.id} type="button"
-            className={cardId === card.id ? 'team-workspace-card selected' : 'team-workspace-card'} onClick={() => setCardId(card.id)}
+            className={cardId === card.id ? 'team-workspace-card selected' : 'team-workspace-card'} onClick={() => { setCardId(card.id); setActionNotice(''); }}
             aria-pressed={cardId === card.id}><strong>{card.title}</strong><small>{card.runningSince ? 'Agent aktiv' : card.priority === 'none' ? 'Ohne Priorität' : card.priority}</small></button>)}
         </section>)}</div></div>
         <div className="team-workspace-detail">{selectedCard ? <>
+          {actionNotice ? <p className="inline-note" role="status">{actionNotice}</p> : null}
           {workspace?.projects.find((item) => item.id === remoteProjectId)?.canManageTask ? <TeamCardPriorityControl
             key={`${selectedCard.id}:${selectedCard.revision}`} workspaceId={workspaceId} projectId={remoteProjectId}
-            card={selectedCard} onReload={async () => {
+            card={selectedCard} onSaved={() => setActionNotice('Priorität gespeichert.')} onReload={async () => {
               setBoard(await window.studio.teamBoard({ workspaceId, projectId: remoteProjectId }));
             }} /> : null}
           {workspace?.projects.find((item) => item.id === remoteProjectId)?.canManageTask ? <TeamCardColumnControl
             key={`column:${selectedCard.id}:${selectedCard.revision}`} workspaceId={workspaceId} projectId={remoteProjectId}
-            card={selectedCard} columns={board.columns} onReload={async () => {
+            card={selectedCard} columns={board.columns} onSaved={() => setActionNotice('Spalte gespeichert. Kein Agent wurde gestartet.')} onReload={async () => {
               setBoard(await window.studio.teamBoard({ workspaceId, projectId: remoteProjectId }));
             }} /> : null}
           <TeamCardDraftEditor key={`${workspaceId}:${remoteProjectId}:${selectedCard.id}`}

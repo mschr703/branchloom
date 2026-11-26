@@ -107,6 +107,8 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
     await wait(async () => (await window.studio.teamBoard({ workspaceId: ${JSON.stringify(result.workspaceId)},
       projectId: ${JSON.stringify(project.id)} })).cards.find((item) => item.id === ${JSON.stringify(card.id)})?.columnId === destination.value,
       'revisioned team column move');
+    await wait(() => document.querySelector('.team-workspace-detail [role="status"]')?.textContent?.includes('Spalte gespeichert'),
+      'visible move confirmation');
     await wait(() => document.querySelector('.team-card-presence')?.textContent?.includes('Live verbunden') &&
       document.querySelector('.team-card-presence')?.textContent?.includes('Owner') &&
       document.querySelector('.team-card-presence')?.textContent?.includes('Guest'), 'live team presence');

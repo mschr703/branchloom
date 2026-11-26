@@ -94,6 +94,17 @@ it('merges two authenticated clients on one card draft and reconnects after host
     await expect(ownerClient.setCardPriority({ workspaceId: workspace.workspaceId, projectId: project.id,
       cardId: card.id, priority: 'urgent', expectedRevision: 0, mutationId: randomUUID() }))
       .rejects.toThrow('changed');
+    const nextColumn = store.snapshot(project.id).columns[1]!;
+    await expect(first.moveCard({ workspaceId: workspace.workspaceId, projectId: project.id,
+      cardId: card.id, columnId: nextColumn.id, expectedRevision: 1, mutationId: randomUUID() }))
+      .rejects.toThrow('revoked or is unavailable');
+    expect((await ownerClient.moveCard({ workspaceId: workspace.workspaceId, projectId: project.id,
+      cardId: card.id, columnId: nextColumn.id, expectedRevision: 1, mutationId: randomUUID() })).revision).toBe(2);
+    expect((await second.board({ workspaceId: workspace.workspaceId, projectId: project.id })).cards[0])
+      .toMatchObject({ columnId: nextColumn.id, revision: 2 });
+    await expect(ownerClient.moveCard({ workspaceId: workspace.workspaceId, projectId: project.id,
+      cardId: card.id, columnId: store.snapshot(project.id).columns[0]!.id,
+      expectedRevision: 1, mutationId: randomUUID() })).rejects.toThrow('changed');
     const alex = new Y.Doc(); const sam = new Y.Doc();
     alex.getText('body').insert(0, 'Review the empty state. ');
     sam.getText('body').insert(0, 'Check keyboard access. ');
