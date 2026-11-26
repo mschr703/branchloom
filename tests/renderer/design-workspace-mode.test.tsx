@@ -38,6 +38,7 @@ it('keeps an unsaved draft mounted while inspecting the running app and hides na
   Object.defineProperty(window, 'studio', { configurable: true, value: {
     designSelections: async () => [], onDesignSelection: () => () => undefined,
     listProjectWireframes: async () => ({ items: [], moreAvailable: false }),
+    listProjectQaCaptures: async () => ({ items: [], moreAvailable: false }),
     designInspectionSetBounds: setBounds, designInspectionSetVisible: setVisible,
     designInspectionStart: async () => ({ projectId: 'synthetic-project', sourceUrl: 'http://127.0.0.1:5173/', ready: true, armed: false, themePreview: null, elementPreview: null }),
   } });

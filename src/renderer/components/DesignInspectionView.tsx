@@ -11,7 +11,7 @@ import { DesignVoiceTask } from './DesignVoiceTask';
 import { DesignElementStyleEditor } from './DesignElementStyleEditor';
 import { TaskWireframeEditor } from './TaskWireframeEditor';
 import { DesignProjectOverview } from './DesignProjectOverview';
-import type { Card, Column, QueueState } from '../../shared/types';
+import type { Card, Column, ProjectQaCaptureIndex, QueueState } from '../../shared/types';
 import type { ProjectWireframeIndex } from '../../shared/card-wireframe';
 import './design-inspection.css';
 
@@ -42,10 +42,14 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
   const [workspaceMode, setWorkspaceMode] = useState<'overview' | 'draft' | 'preview'>(startCardId ? 'draft' : 'overview');
   const [openedCardId, setOpenedCardId] = useState<string | null>(startCardId ?? null);
   const [editorOpenRevision, setEditorOpenRevision] = useState(0);
-  const [wireframeIndex, setWireframeIndex] = useState<ProjectWireframeIndex | null>(null);
+  const [wireframeIndex, setWireframeIndex] = useState<{ projectId: string; index: ProjectWireframeIndex } | null>(null);
   const [wireframeIndexError, setWireframeIndexError] = useState('');
   const [wireframeIndexLoading, setWireframeIndexLoading] = useState(false);
   const [wireframeIndexRevision, setWireframeIndexRevision] = useState(0);
+  const [qaCaptureIndex, setQaCaptureIndex] = useState<{ projectId: string; index: ProjectQaCaptureIndex } | null>(null);
+  const [qaCaptureError, setQaCaptureError] = useState('');
+  const [qaCaptureLoading, setQaCaptureLoading] = useState(false);
+  const [qaCaptureRevision, setQaCaptureRevision] = useState(0);
   const [focusPending, setFocusPending] = useState(false);
   const focusTransition = useRef(false);
   const focused = useRef(false);
@@ -86,7 +90,7 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
     setWireframeFocus(false);
     setWorkspaceMode(startCardId ? 'draft' : 'overview');
     setOpenedCardId(startCardId ?? null);
-    setWireframeIndex(null); setWireframeIndexError('');
+    setWireframeIndex(null); setWireframeIndexError(''); setQaCaptureIndex(null); setQaCaptureError('');
     setSelections([]); setState(emptyState); setError(''); setUrl(''); setSelector(''); setA11yCheck(null); setA11yError(null); setA11yBusyId(null); setVoiceSelectionId(null); setStyleRequest(null);
     void window.studio.designSelections(projectId).then((items) => { if (mounted) setSelections(items); }).catch((reason: unknown) => { if (mounted) setError(messageOf(reason)); });
     const unsubscribe = window.studio.onDesignSelection((selection) => {
@@ -109,11 +113,21 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
     if (!active || workspaceMode !== 'overview') return;
     let mounted = true;
     setWireframeIndexLoading(true); setWireframeIndexError('');
-    void window.studio.listProjectWireframes(projectId).then((index) => { if (mounted) setWireframeIndex(index); })
+    void window.studio.listProjectWireframes(projectId).then((index) => { if (mounted) setWireframeIndex({ projectId, index }); })
       .catch((reason: unknown) => { if (mounted) { setWireframeIndex(null); setWireframeIndexError(messageOf(reason)); } })
       .finally(() => { if (mounted) setWireframeIndexLoading(false); });
     return () => { mounted = false; };
   }, [projectId, active, workspaceMode, wireframeIndexRevision]);
+
+  useEffect(() => {
+    if (!active || workspaceMode !== 'overview') return;
+    let mounted = true;
+    setQaCaptureLoading(true); setQaCaptureError('');
+    void window.studio.listProjectQaCaptures(projectId).then((index) => { if (mounted) setQaCaptureIndex({ projectId, index }); })
+      .catch((reason: unknown) => { if (mounted) { setQaCaptureIndex(null); setQaCaptureError(messageOf(reason)); } })
+      .finally(() => { if (mounted) setQaCaptureLoading(false); });
+    return () => { mounted = false; };
+  }, [projectId, active, workspaceMode, qaCaptureRevision]);
 
   useEffect(() => {
     if (!active) { setA11yCheck(null); setA11yError(null); setVoiceSelectionId(null); setStyleRequest(null); void window.studio.designInspectionSetVisible(false).then(setState).catch(() => undefined); return; }
@@ -211,7 +225,7 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
   const previewActive = active && !wireframeFocus && workspaceMode === 'preview';
   return <section className={`design-inspection${wireframeFocus ? ' wireframe-focus' : ''}`} aria-label="Design-Arbeitsbereich">
     {!wireframeFocus ? <nav className="design-workspace-modes" aria-label="Design-Ansicht wählen"><button type="button" aria-pressed={workspaceMode === 'overview'} onClick={() => setWorkspaceMode('overview')}>Übersicht</button><button type="button" aria-pressed={workspaceMode === 'draft'} onClick={() => setWorkspaceMode('draft')}>Entwurf</button><button type="button" aria-pressed={workspaceMode === 'preview'} onClick={() => setWorkspaceMode('preview')}>Laufende App prüfen{state.ready ? <span aria-label="Vorschau geöffnet" className="design-workspace-preview-indicator" /> : null}</button></nav> : null}
-    <div hidden={workspaceMode !== 'overview'}><DesignProjectOverview cards={cards} index={wireframeIndex} selections={selections} loading={wireframeIndexLoading} error={wireframeIndexError} onRetry={() => setWireframeIndexRevision((value) => value + 1)} onOpenDraft={(cardId) => { setOpenedCardId(cardId ?? null); setEditorOpenRevision((value) => value + 1); setWorkspaceMode('draft'); }} onOpenPreview={() => setWorkspaceMode('preview')} /></div>
+    <div hidden={workspaceMode !== 'overview'}><DesignProjectOverview cards={cards} index={wireframeIndex?.projectId === projectId ? wireframeIndex.index : null} captures={qaCaptureIndex?.projectId === projectId ? qaCaptureIndex.index : null} selections={selections.filter((item) => item.projectId === projectId)} loading={wireframeIndexLoading} error={wireframeIndexError} captureLoading={qaCaptureLoading} captureError={qaCaptureError} onRetry={() => setWireframeIndexRevision((value) => value + 1)} onRetryCaptures={() => setQaCaptureRevision((value) => value + 1)} onOpenDraft={(cardId) => { setOpenedCardId(cardId ?? null); setEditorOpenRevision((value) => value + 1); setWorkspaceMode('draft'); }} onOpenQaCard={onOpenCard} onOpenPreview={() => setWorkspaceMode('preview')} /></div>
     <div className="design-workspace-draft" hidden={workspaceMode !== 'draft'}><TaskWireframeEditor key={`${projectId}:${openedCardId ?? 'last'}:${editorOpenRevision}`} projectId={projectId} cards={cards} startCardId={openedCardId} focusMode={wireframeFocus} focusPending={focusPending} canEnterFocus={active && !busy && !state.armed} onFocusModeChange={(next) => void changeWireframeFocus(next)} /></div>
     <div className="design-inspection-tools" hidden={!previewActive}>
     <div className="design-inspection-intro"><div><h2>Design-Inspektion</h2><p>Öffne eine laufende lokale Vorschau. Wähle anschließend genau ein Element; Branchloom speichert dessen begrenzte CSS-Belege nur in diesem Projekt.</p></div></div>

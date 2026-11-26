@@ -348,6 +348,7 @@ const studio: StudioAPI = {
   runCardQa: (input) => invoke('runCardQa', input),
   runCardQaBatch: (input) => invoke('runCardQaBatch', input),
   cardQaScreenshot: (input) => invoke('cardQaScreenshot', input),
+  listProjectQaCaptures: (projectId) => invoke('listProjectQaCaptures', projectId),
   startTeamReviewRoom: (input) => invoke('startTeamReviewRoom', input),
   teamReviewRooms: (cardId) => invoke('teamReviewRooms', cardId),
   teamReviewInvites: (roomId) => invoke('teamReviewInvites', roomId),

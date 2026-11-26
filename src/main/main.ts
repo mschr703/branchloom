@@ -10,7 +10,7 @@ import type { AgentPreset, CommandTerminalEvent, QueueState, SessionEvent, Studi
 import { StudioBrowser } from './browser';
 import { projectMemoryMapSources, readProjectMemorySource, refreshProjectMemoryIndex, searchProjectMemoryIndex } from './project-memory-index';
 import { createDiagnosticCard } from './error-catcher';
-import { cardQaReports, cardQaScreenshot, runCardQa, runCardQaBatch } from './card-qa';
+import { cardQaReports, cardQaScreenshot, listProjectQaCaptures, runCardQa, runCardQaBatch } from './card-qa';
 import { closeTeamReviewRoom, createTeamReviewInvite, createTeamReviewRoom, resolveTeamReviewInvite, revokeTeamReviewInvite, teamReviewComments, teamReviewImage, teamReviewInvites, teamReviewRevision, teamReviewRooms } from './team-review';
 import { TeamReviewHttp } from './team-review-http';
 import { createTeamBoardInvite, resolveTeamBoardInvite, revokeTeamBoardInvite, teamBoardCardComments, teamBoardComments, teamBoardInvites } from './team-board';
@@ -816,6 +816,7 @@ function installIpc(): void {
   bind('runCardQa', (input: Parameters<StudioAPI['runCardQa']>[0]) => runCardQa(db, input));
   bind('runCardQaBatch', (input: Parameters<StudioAPI['runCardQaBatch']>[0]) => runCardQaBatch(db, input));
   bind('cardQaScreenshot', (input: Parameters<StudioAPI['cardQaScreenshot']>[0]) => cardQaScreenshot(db, input));
+  bind('listProjectQaCaptures', (projectId: string) => listProjectQaCaptures(db, projectId));
   bind('startTeamReviewRoom', async (input: Parameters<StudioAPI['startTeamReviewRoom']>[0]) => {
     teamReviewHttp ??= new TeamReviewHttp(db);
     await teamReviewHttp.start();
@@ -2855,6 +2856,11 @@ function createWindow(): void {
               for (let attempt = 0; attempt < 100 && !document.querySelector('.design-overview')?.textContent?.includes('Noch kein Entwurf gespeichert'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const designOverview = document.querySelector('.design-overview');
               if (!designOverview || !designOverview.textContent?.includes('Noch kein Entwurf gespeichert')) throw new Error('Design-Projektübersicht zeigt keinen ehrlichen Leerzustand.');
+              for (let attempt = 0; attempt < 100 && !designOverview.querySelector('.design-overview-capture img'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const projectCapture = designOverview.querySelector('.design-overview-capture img');
+              if (!(projectCapture instanceof HTMLImageElement) || !projectCapture.src.startsWith('data:image/png;base64,') || !designOverview.textContent?.includes('App-Aufnahmen') || !designOverview.textContent?.includes('Smoke-Karte')) throw new Error('Gespeicherter QA-Screenshot erschien nicht als belegte Projektaufnahme im Designbereich.');
+              await projectCapture.decode();
+              if (!projectCapture.naturalWidth || !projectCapture.naturalHeight) throw new Error('Design-Projektaufnahme ist kein dekodierbares Bild.');
               const draftTab = [...document.querySelectorAll('.design-workspace-modes button')].find((button) => button.textContent?.trim() === 'Entwurf');
               if (!(draftTab instanceof HTMLButtonElement)) throw new Error('Design-Entwurf ist nicht erreichbar.');
               draftTab.click();

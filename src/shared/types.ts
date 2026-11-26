@@ -94,6 +94,9 @@ export type CardQaPageObservation =
   | { kind: 'horizontal-overflow'; pixels: number; clientWidth: number };
 export type CardQaPageCheck = 'not-run' | 'complete' | 'partial' | 'unavailable';
 export interface CardQaReport { id: string; cardId: string; projectId: string; requestedUrl: string; finalUrl: string | null; startedAt: string; endedAt: string; status: 'passed' | 'failed' | 'error'; diagnostics: BrowserDiagnostic[]; pageCheck: CardQaPageCheck; pageObservations: CardQaPageObservation[]; note: string | null; screenshotAvailable: boolean; viewportWidth: number; viewportHeight: number; gitEvidence: QaGitEvidence | null }
+/** Saved local QA screenshots, shown as evidence rather than editable design drafts. */
+export interface ProjectQaCapture { id: string; cardId: string; requestedUrl: string; endedAt: string; status: CardQaReport['status']; viewportWidth: number; viewportHeight: number }
+export interface ProjectQaCaptureIndex { items: ProjectQaCapture[]; moreAvailable: boolean }
 export type CardQaViewport = 'desktop' | 'tablet' | 'mobile';
 export interface CardQaBatchResult { requested: number; reports: CardQaReport[]; error: string | null }
 export interface TrelloImportCard { sourceId: string; title: string; description: string; labels: string[]; labelNote: string | null; listId: string | null; listName: string | null; archived: boolean; eligible: boolean; reason: string | null; importedCardId: string | null; importedIdeaId: string | null; sourceChange?: 'changed' | 'same' | 'unknown' }
@@ -449,6 +452,7 @@ export interface StudioAPI {
   runCardQa(input: { cardId: string; url: string; viewport: CardQaViewport }): Promise<CardQaReport>;
   runCardQaBatch(input: { cardId: string; urls: string[]; viewport: CardQaViewport }): Promise<CardQaBatchResult>;
   cardQaScreenshot(input: { cardId: string; reportId: string }): Promise<string>;
+  listProjectQaCaptures(projectId: string): Promise<ProjectQaCaptureIndex>;
   startTeamReviewRoom(input: { projectId: string; cardId: string; qaReportId: string; scenario: string; reviewerName: string }): Promise<{ room: import('./team-review').TeamReviewRoom; invite: import('./team-review').TeamReviewInvite; reviewerSecret: string; url: string }>;
   teamReviewRooms(cardId: string): Promise<import('./team-review').TeamReviewRoom[]>;
   teamReviewInvites(roomId: string): Promise<import('./team-review').TeamReviewInvite[]>;

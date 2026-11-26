@@ -52,7 +52,7 @@ vi.mock('electron', async () => {
 });
 
 import { StudioStore } from '../../src/main/store';
-import { cardQaReports, cardQaScreenshot, normalizeCardQaUrl, runCardQa, runCardQaBatch } from '../../src/main/card-qa';
+import { cardQaReports, cardQaScreenshot, listProjectQaCaptures, normalizeCardQaUrl, runCardQa, runCardQaBatch } from '../../src/main/card-qa';
 
 const roots: string[] = [];
 afterEach(() => { for (const release of fake.releases.splice(0)) release(); fake.mode = 'clean'; fake.windows.length = 0; for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -69,6 +69,24 @@ function fixture() {
 }
 
 describe('explicit local card QA', () => {
+  it('indexes only saved screenshot evidence from the requested project', async () => {
+    const { store, project, card } = fixture();
+    const otherPath = join(project.path, 'other'); mkdirSync(otherPath);
+    const otherProject = store.createProject({ name: 'Other', path: otherPath });
+    const otherCard = store.createCard({ projectId: otherProject.id, columnId: store.snapshot(otherProject.id).columns[0]!.id, title: 'Other view' });
+    const report = await runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/account?token=private', viewport: 'desktop' });
+    await runCardQa(store, { cardId: otherCard.id, url: 'http://127.0.0.1:5173/other', viewport: 'mobile' });
+    fake.mode = 'capture-error';
+    await runCardQa(store, { cardId: card.id, url: 'http://127.0.0.1:5173/no-image', viewport: 'tablet' });
+    const index = listProjectQaCaptures(store, project.id);
+    expect(index).toMatchObject({ moreAvailable: false, items: [{ id: report.id, cardId: card.id, status: 'passed', viewportWidth: 1280, viewportHeight: 800 }] });
+    expect(index.items).toHaveLength(1);
+    expect(JSON.stringify(index)).not.toContain('token=private');
+    expect(cardQaScreenshot(store, { cardId: card.id, reportId: index.items[0]!.id })).toMatch(/^data:image\/png;base64,/);
+    expect(() => listProjectQaCaptures(store, 'missing-project')).toThrow();
+    store.close();
+  });
+
   it('persists actual checkout HEAD evidence beside a QA screenshot without claiming the page came from Git', async () => {
     const { store, file, project, card } = fixture();
     const git = (...args: string[]) => {

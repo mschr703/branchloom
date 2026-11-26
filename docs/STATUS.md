@@ -2,6 +2,10 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Gespeicherte App-Aufnahmen im Designbereich (lokal geprüft)
+
+- Die Design-Übersicht zeigt bis zu sechs neueste tatsächlich gespeicherte QA-Screenshots des aktuellen Projekts mit Bild, Quellkarte, lokaler Route, Prüfgröße, Zeitpunkt und QA-Ergebnis. Ein Klick öffnet die Quellkarte. Die Bilder werden einzeln und größenbegrenzt aus der vorhandenen Screenshot-API geladen; fehlende Bilder erhalten einen eigenen Fehlerzustand. Die Projektliste enthält keine Bildbytes oder URL-Abfragewerte. 21 gezielte Backend-/Renderer-Tests, Typprüfung, Build und der vollständige Quell-Electron-Smoke bestanden; der Smoke dekodierte eine im QA-Lauf gespeicherte Aufnahme direkt in der Designübersicht. Das Audit meldete sechs moderate transitive Befunde, keine hohen oder kritischen. Die Screenshots entstehen weiterhin nur durch einen ausdrücklich gestarteten lokalen Browsercheck, nicht automatisch nach Agentenarbeit. Sie sind kein editierbarer Entwurf und beweisen nicht den aktuellen Code-Stand. [Bedienung](CARD_WIREFRAME.md).
+
 ## Design-Projekteinstieg (lokal geprüft)
 
 - Die Design-Ansicht öffnet mit einer projektbezogenen Übersicht statt einer sofortigen Kartenwahl. Ein neuer lesender SQLite-/IPC-Pfad liefert höchstens 24 neueste gespeicherte Wireframes, nach Projekt isoliert und nach Änderungszeit geordnet; die vorhandenen erfassten Live-Elemente erscheinen als getrennte Belege. Ein Entwurf öffnet den bestehenden Editor der richtigen Karte. Ein leerer Projektstand bleibt ehrlich leer. 22 gezielte Backend-/Renderer-Tests, Typprüfung, Build und der vollständige Quell-Electron-Smoke bestanden. Der Smoke prüft den neuen Weg aus der Übersicht in den Editor und zurück über das Board samt Erhalt ungespeicherter Arbeit. Projektweite Skizzen ohne Karte, automatisch übernommene Agenten-Designartefakte und eine gemeinsame visuelle Bearbeitung mit dem Agenten fehlen noch. [Bedienung](CARD_WIREFRAME.md).

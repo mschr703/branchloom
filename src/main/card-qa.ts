@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { BrowserWindow } from 'electron';
 import type Database from 'better-sqlite3';
-import type { BrowserDiagnostic, Card, CardQaBatchResult, CardQaPageCheck, CardQaPageObservation, CardQaReport, CardQaViewport } from '../shared/types';
+import type { BrowserDiagnostic, Card, CardQaBatchResult, CardQaPageCheck, CardQaPageObservation, CardQaReport, CardQaViewport, ProjectQaCaptureIndex } from '../shared/types';
 import { diagnosticSource, isLocalDevUrl, normalizeBrowserAddress } from './browser-policy';
 import { inspectCardQaPage } from './card-qa-page';
 import { qaGitEvidence, qaGitPoint } from './qa-git-evidence';
@@ -77,6 +77,17 @@ export function normalizeCardQaUrl(value: string): string {
 export function cardQaReports(store: StudioStore, cardId: string): CardQaReport[] {
   store.card(cardId);
   return (store.db.prepare(`SELECT ${reportColumns} FROM card_qa_reports WHERE card_id = ? ORDER BY rowid DESC LIMIT ${MAX_REPORTS}`).all(cardId) as ReportRow[]).map(reportFromRow);
+}
+
+/** Recent stored images for a project's Design overview. No raw screenshot bytes cross this list IPC. */
+export function listProjectQaCaptures(store: StudioStore, projectId: string): ProjectQaCaptureIndex {
+  store.project(projectId);
+  const rows = store.db.prepare(`SELECT id, card_id, requested_url, ended_at, status, viewport_width, viewport_height
+    FROM card_qa_reports WHERE project_id = ? AND screenshot_png IS NOT NULL
+    ORDER BY ended_at DESC, rowid DESC LIMIT 7`).all(projectId) as Array<{
+      id: string; card_id: string; requested_url: string; ended_at: string; status: CardQaReport['status']; viewport_width: number; viewport_height: number;
+    }>;
+  return { items: rows.slice(0, 6).map((row) => ({ id: row.id, cardId: row.card_id, requestedUrl: diagnosticSource(row.requested_url) ?? '', endedAt: row.ended_at, status: row.status, viewportWidth: row.viewport_width, viewportHeight: row.viewport_height })), moreAvailable: rows.length > 6 };
 }
 
 export function cardQaScreenshot(store: StudioStore, input: { cardId: string; reportId: string }): string {
