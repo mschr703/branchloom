@@ -21,6 +21,16 @@ const snapshot: ProjectSnapshot = {
 const mutate = async <T,>(action: () => Promise<T>): Promise<T> => action();
 
 describe('queue recovery view', () => {
+  it('shows the selected run deadline and locks its duration while running', () => {
+    const html = renderToStaticMarkup(createElement(WorkflowView, { snapshot: {
+      ...snapshot, queue: { ...snapshot.queue, state: 'running', runUntil: '2026-11-26T08:00:00.000Z' },
+    }, mutate }));
+    expect(html).toContain('Automatisch anhalten nach');
+    expect(html).toContain('Keine neuen Karten nach');
+    expect(html).toContain('Ein bereits gestarteter Agent wird zur Endzeit nicht abgebrochen.');
+    expect(html.match(/Automatisch anhalten nach<select[^>]*>/u)?.[0]).toContain('disabled=""');
+  });
+
   it('shows the continuation choice only as editable while the queue is stopped', () => {
     const paused = renderToStaticMarkup(createElement(WorkflowView, { snapshot: { ...snapshot, queue: { ...snapshot.queue, continueBlocked: true } }, mutate }));
     expect(paused).toMatch(/type="checkbox" checked=""/u);

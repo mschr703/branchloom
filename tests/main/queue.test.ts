@@ -56,6 +56,68 @@ function fixture(spawnFailures = 0, failureKind: 'spawn' | 'other' = 'spawn') {
 }
 
 describe('explicit durable project queue', () => {
+  it('persists an end time and stops new work without killing an active agent', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-26T01:00:00.000Z'));
+    const { store, dbPath, project, template, first, second, started, stopped, workflows, queue } = fixture();
+    const runUntil = '2026-11-26T01:01:00.000Z';
+    expect(() => queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id, runUntil: '2026-11-26T00:59:00.000Z' })).toThrow('Endzeit');
+    expect(store.projectQueue(project.id).state).toBe('off');
+    queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id, runUntil });
+    expect(started.map((session) => session.cardId)).toEqual([first.id]);
+    const activeWorkflowId = store.projectQueue(project.id).activeWorkflowId!;
+    expect(store.projectQueue(project.id).runUntil).toBe(runUntil);
+    vi.advanceTimersByTime(60_000);
+    expect(store.projectQueue(project.id)).toMatchObject({ state: 'paused', runUntil });
+    expect(store.projectQueue(project.id).pauseReason).toContain('Endzeit');
+    expect(stopped).toEqual([]);
+    expect(store.session(started[0]!.id).state).toBe('running');
+    expect(store.workflow(activeWorkflowId).state).toBe('paused');
+    const finished = store.finishSession(started[0]!.id, 'exited', 0);
+    workflows.onSessionFinished(finished, `Done\n${DONE_MARKER}`);
+    queue.onSessionFinished(finished);
+    expect(started.map((session) => session.cardId)).toEqual([first.id]);
+    expect(store.workflow(activeWorkflowId).state).toBe('paused');
+    expect(() => queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id })).toThrow('Endzeit');
+    queue.dispose();
+    store.close();
+    const reopened = new StudioStore(dbPath);
+    expect(reopened.projectQueue(project.id)).toMatchObject({ state: 'paused', runUntil });
+    reopened.close();
+    const resumed = new StudioStore(dbPath);
+    const resumeWorkflows = new WorkflowEngine(resumed, {
+      start: ({ cardId, agentId }: { cardId: string; agentId: string }) => resumed.createSession({ cardId, agentId }),
+    } as SessionRunner);
+    const resumeQueue = new ProjectQueueEngine(resumed, resumeWorkflows);
+    expect(() => resumeQueue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id, runUntil: '2026-11-26T01:02:00.000Z' })).toThrow('ausdrücklich fortsetzen');
+    resumeWorkflows.setState({ id: activeWorkflowId, state: 'running' });
+    expect(resumed.workflow(activeWorkflowId).state).toBe('done');
+    resumeQueue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id, runUntil: '2026-11-26T01:02:00.000Z' });
+    expect(resumed.projectQueue(project.id).runUntil).toBe('2026-11-26T01:02:00.000Z');
+    expect(resumed.activeSessionForProject(project.id)?.cardId).toBe(second.id);
+    resumeQueue.dispose();
+    resumed.close();
+  });
+
+  it('does not start a later step of the same workflow after the deadline', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-26T02:00:00.000Z'));
+    const { store, project, columns, template, started, workflows, queue } = fixture();
+    const secondAgent = store.agents().find((item) => item.kind === 'codex')!;
+    store.updateDraftWorkflow({ id: template.id, name: template.name, cardIds: template.cardIds,
+      steps: [...template.steps, { id: 'review', columnId: columns[3]!.id, agentId: secondAgent.id, requireApproval: false }] });
+    queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id, runUntil: '2026-11-26T02:01:00.000Z' });
+    const activeWorkflowId = store.projectQueue(project.id).activeWorkflowId!;
+    vi.advanceTimersByTime(60_000);
+    const finished = store.finishSession(started[0]!.id, 'exited', 0);
+    workflows.onSessionFinished(finished, `Done\n${DONE_MARKER}`);
+    queue.onSessionFinished(finished);
+    expect(started).toHaveLength(1);
+    expect(store.workflow(activeWorkflowId)).toMatchObject({ state: 'paused', currentStep: 0 });
+    queue.dispose();
+    store.close();
+  });
+
   it('retries only a proven synchronous PTY spawn error twice, with persisted delay and no duplicate claim', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-11-24T02:00:00.000Z'));

@@ -536,7 +536,7 @@ function installIpc(): void {
   });
   bind('setWorkflowStepHaltpoint', (input: Parameters<StudioAPI['setWorkflowStepHaltpoint']>[0]) => workflowEngine.setStepHaltpoint(input));
   bind('workflowRunEvidence', (input: Parameters<StudioAPI['workflowRunEvidence']>[0]) => workflowRunEvidence(db, input));
-  bind('setProjectQueue', (input: { projectId: string; state: QueueState; templateWorkflowId?: string }) => queueEngine.setState(input));
+  bind('setProjectQueue', (input: Parameters<StudioAPI['setProjectQueue']>[0]) => queueEngine.setState(input));
   bind('setQueueContinueBlocked', (input: Parameters<StudioAPI['setQueueContinueBlocked']>[0]) => db.setQueueContinueBlocked(input));
   bind('setProjectRunPause', (input: Parameters<StudioAPI['setProjectRunPause']>[0]) => {
     const state = setProjectRunPause(db, input);

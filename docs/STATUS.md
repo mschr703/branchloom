@@ -2,6 +2,10 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Projekt-Queue: gewähltes Laufzeitende (Folgezweig, in Arbeit)
+
+- Vor bewusstem Start oder Fortsetzen lässt sich eine Dauer von 1, 4 oder 8 Stunden wählen; ohne Auswahl bleibt die bestehende unbegrenzte Queue möglich. Die absolute Endzeit wird projektbezogen gespeichert und angezeigt. Bei Fristablauf pausiert die Queue auch ohne weitere Ereignisse, startet keine neue Karte oder einen weiteren Workflow-Schritt und stoppt einen bereits laufenden Agenten nicht. Nach App-Neustart bleibt der Queue-Stand pausiert und braucht bewusste Prüfung und neue Aktivierung. Zwei gezielte Queue-Tests mit künstlicher Uhr, mehrstufigem Ablauf und Datenbank-Neustart sowie sechs Renderer-Tests, Typprüfung und Build bestanden; die vollständige Suite läuft, UI-Sichtprüfung und Windows-CI stehen noch aus. Dies ist keine Kostenbremse und keine automatische Prozessbeendigung. [Ablauf und Grenzen](QUEUE.md).
+
 ## Git-Vergleich für Bild-Reviews (Folgezweig, in Arbeit)
 
 - Host und Gast vergleichen die gespeicherte QA-Checkout-Beobachtung mit dem aktuellen, verifizierten Karten-Checkout. Ein abweichender HEAD, ungespeicherte Änderungen und ein Wechsel des Checkout-Typs erscheinen getrennt; unsaubere QA- oder fehlende Git-Daten bleiben ausdrücklich unbekannt. Die Gast-API begrenzt wiederholte Git-Abfragen per kurzem Cache; ein nach Widerruf noch laufender Vergleich gibt danach keine Reviewdaten mehr zurück. Der Vergleich beweist **nicht**, was der Dev-Server ausgeliefert hat. Gezielt bestanden acht Tests einschließlich echtem temporären Git-Repo, Guest-HTTP-Pfad und Renderer-Zustand sowie die Typprüfung. Breiter Quell-/Paket-Smoke und Windows-CI stehen noch aus.
