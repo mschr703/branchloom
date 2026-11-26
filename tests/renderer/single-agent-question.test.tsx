@@ -39,6 +39,8 @@ it('lets a user answer one receivable question from the decision view', async ()
     await act(async () => { choose?.click(); });
     const answer = host.querySelector<HTMLTextAreaElement>('textarea');
     expect(answer).not.toBeNull();
+    expect(host.textContent).toContain('Prüfe die ursprüngliche Frage und die betroffene Sitzung.');
+    expect(answer?.closest('label')?.textContent).toBe('Antwort');
     await act(async () => {
       const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
       setter.call(answer, 'Email first.');
