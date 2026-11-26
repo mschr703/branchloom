@@ -18,7 +18,7 @@ export function QueueResultsPanel({ results, error, onRetry, onOpenCard, onOpenS
     <p role="alert">Queue-Ergebnisse konnten nicht geladen werden: {error}</p>
     <button type="button" onClick={onRetry}>Erneut laden</button>
   </div>;
-  if (!results?.total) return null;
+  if (!results || (!results.total && !results.latestActivation)) return null;
 
   return <details className="queue-results">
     <summary>
@@ -31,8 +31,27 @@ export function QueueResultsPanel({ results, error, onRetry, onOpenCard, onOpenS
         {results.counts.skipped > 0 ? ` · ${results.counts.skipped} zurückgestellt` : null}
       </span>
     </summary>
-    <p>Gespeicherte Karten und Workflow-Belege dieses Projekts, über alle Queue-Starts hinweg. Eine abgeschlossene Route ist kein Nachweis für bestandene Tests oder einen Merge.</p>
-    <ol>{results.items.map((item) => {
+    {results.latestActivation ? <div className="queue-results-run">
+      <strong>Letzter Start</strong>
+      <span><time dateTime={results.latestActivation.startedAt}>{new Date(results.latestActivation.startedAt).toLocaleString('de-DE')}</time>
+        {' · '}{results.latestActivation.total} beanspruchte Karten
+        {' · '}{results.latestActivation.endedAt ? results.latestActivation.endState === 'off' ? 'beendet' : 'pausiert' : 'läuft'}
+      </span>
+      {results.latestActivation.total > 0 ? <small>
+        {results.latestActivation.counts.done} abgeschlossen
+        {' · '}{results.latestActivation.counts['needs-attention']} brauchen Prüfung
+        {' · '}{results.latestActivation.counts.skipped} zurückgestellt
+        {results.latestActivation.counts.running > 0 ? ` · ${results.latestActivation.counts.running} laufen` : null}
+        {results.latestActivation.counts.pending > 0 ? ` · ${results.latestActivation.counts.pending} ausstehend` : null}
+      </small> : null}
+      {results.latestActivation.runUntil ? <small>Gewähltes Ende: <time dateTime={results.latestActivation.runUntil}>{new Date(results.latestActivation.runUntil).toLocaleString('de-DE')}</time></small> : null}
+      {results.latestActivation.continueBlocked ? <small>Unabhängige Karten nach einem Blocker waren zugelassen.</small> : null}
+      {results.latestActivation.endReason ? <small>{results.latestActivation.endReason}</small> : null}
+    </div> : null}
+    {results.total
+      ? <p>Gespeicherte Karten und Workflow-Belege dieses Projekts, über alle Queue-Starts hinweg. Eine abgeschlossene Route ist kein Nachweis für bestandene Tests oder einen Merge.</p>
+      : <p>Dieser Queue-Start hat noch keine Karte beansprucht.</p>}
+    {results.total ? <ol>{results.items.map((item) => {
       const session = item.lastSession;
       return <li key={item.workflowId}>
       <div>
@@ -50,7 +69,7 @@ export function QueueResultsPanel({ results, error, onRetry, onOpenCard, onOpenS
             : `Sitzung ${session.state}`}</>
           : ' · Noch keine Sitzung'}
       </small>
-    </li>; })}</ol>
+    </li>; })}</ol> : null}
     {results.truncated ? <p>Die 100 neuesten Queue-Karten werden gezeigt; {results.total} sind insgesamt gespeichert.</p> : null}
   </details>;
 }

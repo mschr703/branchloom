@@ -2,6 +2,10 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Queue-Startprotokoll (Folgezweig, in Arbeit)
+
+- Neue bewusste Queue-Starts erhalten eine in SQLite gespeicherte Kennung mit Beginn, Ende, Grund, gewählter Frist und der damaligen Fortsetzungsoption. Beanspruchte Karten werden dieser Kennung zugeordnet; Pause, sichere Projektpause und App-Neustart schließen den Start, ohne einen Agentenauftrag erneut zu senden. Die Workflow-Seite nennt den jüngsten Start auch bei null beanspruchten Karten. Vorhandene ältere Queue-Karten bleiben im Gesamtverlauf, ohne nachträglich einem neuen Start zugeschrieben zu werden. 43 betroffene Queue-/Pause-/Recovery-/Migrations-/Renderer-Tests, Typprüfung, Build, Audit ohne hohe Funde und der breite Electron-Quell-Smoke bestanden. Der breite Smoke öffnet die neue Startübersicht nicht eigens; Renderer und SQL-Pfad sind gezielt geprüft. Ein detaillierter Bericht je Start mit Test-, Diff- und Git-Belegen bleibt offen. [Queue-Verhalten](QUEUE.md).
+
 ## Queue-Ergebnisübersicht (Folgezweig, in Arbeit)
 
 - Die Workflow-Seite zeigt einen aus SQLite gelesenen, projektgebundenen Überblick über alle bisherigen Queue-Zuordnungen. Sie trennt abgeschlossene, laufende, prüfbedürftige, ungestartete und bewusst zurückgestellte Routen, verlinkt Karte und Workflow sowie die letzte gespeicherte Sitzung. Die Liste begrenzt sich auf 100 neueste Karten und nennt die Gesamtzahl; sie behauptet keine bestandenen Tests oder Merges. Ein Backend-Test für echte Queue-Beanspruchung, Sitzungsbezug, Projektisolation, Abschluss, Zurückstellung und Datenbank-Neustart sowie zwei Renderer-Tests bestanden; Typprüfung, Build, Audit ohne hohe Funde und der breite Electron-Quell-Smoke bestanden. Der Smoke öffnet nicht eigens den neuen Bericht. Breite Suite, Paket-CI und ein einzelner zeitlich abgegrenzter Nachtlaufbericht stehen noch aus. [Ablauf und Grenzen](QUEUE.md).

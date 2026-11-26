@@ -20,6 +20,7 @@ import { installCardComponentChoices } from './card-component-choice';
 import { installIntegrationQueue } from './integration-queue';
 import { installManualRevisions } from './manual-revision';
 import { installIntegrationEvidence } from './integration-evidence';
+import { installQueueActivations } from './queue-activations';
 import { installProjectRunPause, projectRunPause } from './project-pause';
 import { clearAgentCapabilityEvidence, installAgentCapabilities, listAgentCapabilityEvidence, recordAgentCapability } from './agent-capabilities';
 import { installSessionEvidence } from './session-evidence';
@@ -166,6 +167,7 @@ export class StudioStore {
     const queueColumns = this.db.pragma('table_info(project_queues)') as Array<{ name: string }>;
     if (!queueColumns.some((item) => item.name === 'continue_blocked')) this.db.exec('ALTER TABLE project_queues ADD COLUMN continue_blocked INTEGER NOT NULL DEFAULT 0 CHECK (continue_blocked IN (0, 1))');
     if (!queueColumns.some((item) => item.name === 'run_until')) this.db.exec('ALTER TABLE project_queues ADD COLUMN run_until TEXT');
+    installQueueActivations(this.db);
     if (!cardColumns.some((item) => item.name === 'archived_at')) this.db.exec('ALTER TABLE cards ADD COLUMN archived_at TEXT');
     if (!cardColumns.some((item) => item.name === 'priority')) this.db.exec("ALTER TABLE cards ADD COLUMN priority TEXT NOT NULL DEFAULT 'none'");
     if (!cardColumns.some((item) => item.name === 'labels_json')) this.db.exec("ALTER TABLE cards ADD COLUMN labels_json TEXT NOT NULL DEFAULT '[]'");
@@ -471,7 +473,11 @@ export class StudioStore {
       if (template.projectId !== projectId) throw new Error('Workflow-Vorlage gehört zu einem anderen Projekt.');
       const card = this.card(cardId);
       const flow = this.createWorkflow({ projectId, name: `${template.name}: ${card.title}`.slice(0, 200), cardIds: [cardId], steps: template.steps.map((step) => ({ ...step, id: randomUUID() })) });
-      this.db.prepare('INSERT INTO queue_runs (project_id, card_id, workflow_id) VALUES (?, ?, ?)').run(projectId, cardId, flow.id);
+      const activation = this.db.prepare('SELECT id FROM queue_activations WHERE project_id = ? AND ended_at IS NULL ORDER BY rowid DESC LIMIT 1')
+        .get(projectId) as { id: string } | undefined;
+      if (!activation) throw new Error('Queue activation is missing; no card was claimed.');
+      this.db.prepare('INSERT INTO queue_runs (project_id, card_id, workflow_id, activation_id) VALUES (?, ?, ?, ?)')
+        .run(projectId, cardId, flow.id, activation.id);
       this.saveProjectQueue({ projectId, state: 'running', templateWorkflowId, activeWorkflowId: flow.id, pauseReason: null });
       return flow;
     })();
