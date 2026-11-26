@@ -153,11 +153,11 @@ it('separates admin plan acceptance from member proposals and explicit developer
   const f = fixture();
   try {
     const owner = createTeamWorkspace(f.store.db, { workspaceName: 'Sample team', projectId: f.project.id, ownerName: 'Owner' });
-    const join = (role: 'admin' | 'editor' | 'developer') => acceptTeamMemberInvite(f.store.db,
+    const joinMember = (role: 'admin' | 'editor' | 'developer') => acceptTeamMemberInvite(f.store.db,
       createTeamMemberInvite(f.store.db, owner.credential, owner.workspaceId, role).secret, role);
-    const admin = join('admin');
-    const member = join('editor');
-    const developer = join('developer');
+    const admin = joinMember('admin');
+    const member = joinMember('editor');
+    const developer = joinMember('developer');
     expect(requireTeamProjectCapability(f.store.db, admin.credential, f.project.id, 'accept_plan').id).toBe(admin.member.id);
     expect(requireTeamProjectCapability(f.store.db, admin.credential, f.project.id, 'manage_task').id).toBe(admin.member.id);
     expect(requireTeamProjectCapability(f.store.db, member.credential, f.project.id, 'propose_plan').id).toBe(member.member.id);
@@ -170,5 +170,14 @@ it('separates admin plan acceptance from member proposals and explicit developer
     setTeamCapabilityGrant(f.store.db, owner.credential, f.project.id, developer.member.id, 'start_agent', false);
     expect(() => requireTeamProjectCapability(f.store.db, developer.credential, f.project.id, 'start_agent')).toThrow('not permitted');
     expect(() => setTeamCapabilityGrant(f.store.db, admin.credential, f.project.id, member.member.id, 'accept_plan', true)).toThrow('not permitted');
+    const unrelatedPath = join(f.root, 'unrelated');
+    mkdirSync(unrelatedPath);
+    const unrelatedProject = f.store.createProject({ name: 'Unrelated', path: unrelatedPath });
+    const unrelatedOwner = createTeamWorkspace(f.store.db, { workspaceName: 'Another team',
+      projectId: unrelatedProject.id, ownerName: 'Other owner' });
+    expect(() => setTeamCapabilityGrant(f.store.db, owner.credential, f.project.id,
+      unrelatedOwner.owner.id, 'accept_plan', true)).toThrow('unavailable');
+    expect(() => setTeamCapabilityGrant(f.store.db, owner.credential, unrelatedProject.id,
+      member.member.id, 'accept_plan', true)).toThrow('not permitted');
   } finally { f.store.close(); }
 });
