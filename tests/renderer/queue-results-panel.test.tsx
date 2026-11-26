@@ -71,11 +71,12 @@ describe('queue results panel', () => {
       items: [{ cardId: 'card', cardTitle: 'Finished card', workflowId: 'flow', workflowName: 'Route', activationId: null,
         status: 'done', updatedAt: '2026-11-26T01:00:00.000Z', lastSession: null,
         integration: { id: 7, state: 'integrated', sourceHead, targetBranch: 'main', integratedHead: sourceHead, approvalMode: 'manual' },
-        test: { id: 12, state: 'passed', scriptName: 'test', sourceHead, targetHead, endedAt: '2026-11-26T01:10:00.000Z' },
+        test: { id: 12, state: 'passed', scriptName: 'test', sourceHead, targetHead, endedAt: '2026-11-26T01:10:00.000Z', queueActivationId: null },
         qa: { id: 'qa-synthetic', status: 'failed', endedAt: '2026-11-26T01:11:00.000Z',
           viewportWidth: 390, viewportHeight: 844, pageCheck: 'complete' } }] };
     const html = renderToStaticMarkup(createElement(QueueResultsPanel, { results, error: null, onRetry: () => {} }));
     expect(html).toContain('Gespeicherter Test #12: npm run test · bestanden');
+    expect(html).toContain('ohne Queue-Startbeleg');
     expect(html).toContain('Gespeicherte Integration #7: übernommen · Ziel main · manuell');
     expect(html).toContain('Gespeicherte Browser-QA qa-synth · mit Fehlern · 390 × 844 px');
     expect(html).toContain(sourceHead);

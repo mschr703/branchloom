@@ -21,7 +21,10 @@ export async function testCompletedQueueCard(store: StudioStore, projectId: stri
   const prepared = prepareIntegration(store, cardId);
   if (prepared.state !== 'ready') throw new Error(prepared.reason ?? 'Git-Stand ist für den Test nicht bereit.');
   if (store.projectQueue(projectId).state !== 'running' || store.projectQueue(projectId).activeWorkflowId !== workflowId) return;
-  const test = await runIntegrationTest(store, cardId, undefined, policy.hash);
+  const activation = store.db.prepare(`SELECT id FROM queue_activations
+    WHERE project_id = ? AND ended_at IS NULL ORDER BY rowid DESC LIMIT 1`).get(projectId) as { id: string } | undefined;
+  if (!activation) throw new Error('The active queue start has no saved provenance.');
+  const test = await runIntegrationTest(store, cardId, undefined, policy.hash, activation.id);
   if (test.state !== 'passed' || !test.current)
     throw new Error(`npm run ${test.scriptName} endete mit ${test.state}${test.current ? '' : ' oder veraltetem Git-Stand'}.`);
 }

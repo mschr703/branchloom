@@ -11,6 +11,7 @@ import { createCardCriterion } from '../../src/main/card-acceptance';
 import { StudioStore } from '../../src/main/store';
 import { ProjectQueueEngine, testCompletedQueueCard } from '../../src/main/queue';
 import { WorkflowEngine } from '../../src/main/workflows';
+import { queueResults } from '../../src/main/queue-results';
 import type { SessionRunner } from '../../src/main/cli';
 
 const roots: string[] = [];
@@ -48,6 +49,17 @@ function fixture(script = 'node -e "process.stdout.write(\'verified\\n\')"', que
 }
 
 describe('commit-bound integration evidence', () => {
+  it('adds queue provenance to an existing test history without changing old receipts', () => {
+    const { store, dbPath } = fixture();
+    store.db.exec('ALTER TABLE integration_test_runs DROP COLUMN queue_activation_id');
+    store.close();
+    const reopened = new StudioStore(dbPath);
+    try {
+      const columns = reopened.db.pragma('table_info(integration_test_runs)') as Array<{ name: string }>;
+      expect(columns.some((column) => column.name === 'queue_activation_id')).toBe(true);
+    } finally { reopened.close(); }
+  });
+
   it('records a passing check for a completed queue card without integrating its commit', async () => {
     const { store, project, card, tree, sourceHead, repo } = fixture(undefined, false);
     try {
@@ -61,6 +73,9 @@ describe('commit-bound integration evidence', () => {
       await testCompletedQueueCard(store, project.id, workflow.id, card.id);
       const receipt = integrationEvidence(store, card.id).test;
       expect(receipt).toMatchObject({ state: 'passed', current: true, sourceHead });
+      const activation = queueResults(store, project.id).latestActivation;
+      expect(store.db.prepare('SELECT queue_activation_id FROM integration_test_runs WHERE id = ?').get(receipt?.id))
+        .toEqual({ queue_activation_id: activation?.id });
       expect(receipt?.scriptHash).toBe(npmScriptApprovalHash(repo, 'verify'));
       const second = store.createCard({ projectId: project.id, columnId, title: 'Next synthetic card' });
       store.db.prepare("UPDATE workflows SET state = 'done', current_step = 1 WHERE id = ?").run(workflow.id);
@@ -116,6 +131,8 @@ describe('commit-bound integration evidence', () => {
       expect(() => approveIntegration(store, { cardId: card.id, confirm: true })).toThrow('configured test');
       const test = await runIntegrationTest(store, card.id);
       expect(test).toMatchObject({ state: 'passed', current: true, sourceHead, scriptName: 'verify', exitCode: 0 });
+      expect(store.db.prepare('SELECT queue_activation_id FROM integration_test_runs WHERE id = ?').get(test.id))
+        .toEqual({ queue_activation_id: null });
       expect(test.outputTail).toContain('verified');
       expect(git(tree.path, ['status', '--porcelain'])).toBe('');
       expect(approveIntegration(store, { cardId: card.id, confirm: true }).state).toBe('integrated');
