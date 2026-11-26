@@ -19,19 +19,29 @@ function pauseMessage(workflow: Workflow): string {
 export class ProjectQueueEngine {
   private readonly pumping = new Set<string>();
   private readonly retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly deadlineTimers = new Map<string, ReturnType<typeof setTimeout>>();
   constructor(private readonly store: StudioStore, private readonly workflows: WorkflowEngine, private readonly deviceOnline: () => boolean = () => true) {}
 
   dispose(): void {
     for (const timer of this.retryTimers.values()) clearTimeout(timer);
     this.retryTimers.clear();
+    for (const timer of this.deadlineTimers.values()) clearTimeout(timer);
+    this.deadlineTimers.clear();
   }
 
   cancelProjectRetry(projectId: string): void { this.clearLaunchRetry(projectId); }
 
-  setState(input: { projectId: string; state: QueueState; templateWorkflowId?: string }): ProjectQueue {
+  setState(input: { projectId: string; state: QueueState; templateWorkflowId?: string; runUntil?: string | null }): ProjectQueue {
     const current = this.store.projectQueue(input.projectId);
     const templateWorkflowId = input.templateWorkflowId ?? current.templateWorkflowId;
     if (input.state === 'running') {
+      const runUntil = input.runUntil === undefined ? current.runUntil ?? null : input.runUntil;
+      if (runUntil !== null) {
+        const remaining = typeof runUntil === 'string' ? Date.parse(runUntil) - Date.now() : NaN;
+        if (!Number.isFinite(remaining) || remaining < 1_000 || remaining > 24 * 60 * 60 * 1_000) {
+          throw new Error('Queue-Endzeit muss zwischen einer Sekunde und 24 Stunden in der Zukunft liegen.');
+        }
+      }
       assertProjectCanStart(this.store, input.projectId);
       if (!this.deviceOnline()) throw new Error('Gerät meldet offline. Warteschlange nach Netzprüfung bewusst fortsetzen.');
       if (!templateWorkflowId) throw new Error('Zuerst eine Workflow-Route als Vorlage wählen.');
@@ -48,14 +58,16 @@ export class ProjectQueueEngine {
         }
         if (active.state === 'done' && active.currentStep < active.steps.length) throw new Error('Aktiver Workflow wurde vorzeitig als erledigt markiert; bitte prüfen.');
       }
-      this.store.saveProjectQueue({ projectId: input.projectId, state: 'running', templateWorkflowId, activeWorkflowId: current.activeWorkflowId, pauseReason: null });
+      this.store.saveProjectQueue({ projectId: input.projectId, state: 'running', templateWorkflowId, activeWorkflowId: current.activeWorkflowId, pauseReason: null, runUntil });
+      this.scheduleDeadline(input.projectId);
       this.pump(input.projectId);
       return this.store.projectQueue(input.projectId);
     }
     if (input.state !== 'paused' && input.state !== 'off') throw new Error('Ungültiger Warteschlangen-Status.');
     this.clearLaunchRetry(input.projectId);
+    this.clearDeadline(input.projectId);
     this.store.saveProjectQueue({ projectId: input.projectId, state: input.state, templateWorkflowId, activeWorkflowId: current.activeWorkflowId,
-      pauseReason: input.state === 'paused' ? 'Vom Nutzer pausiert; aktiven Workflow vor Fortsetzung prüfen.' : null });
+      pauseReason: input.state === 'paused' ? 'Vom Nutzer pausiert; aktiven Workflow vor Fortsetzung prüfen.' : null, runUntil: input.state === 'off' ? null : undefined });
     if (current.activeWorkflowId) {
       const active = this.store.workflow(current.activeWorkflowId);
       if (active.state === 'running') this.workflows.setState({ id: active.id, state: 'paused' });
@@ -80,6 +92,7 @@ export class ProjectQueueEngine {
   pauseForConnectionLoss(projectId: string): void {
     if (this.store.projectQueue(projectId).state !== 'running') return;
     this.clearLaunchRetry(projectId);
+    this.clearDeadline(projectId);
     const current = this.store.projectQueue(projectId);
     this.store.saveProjectQueue({ projectId, state: 'paused', templateWorkflowId: current.templateWorkflowId, activeWorkflowId: current.activeWorkflowId,
       pauseReason: 'Gerät meldete offline. Lauf und mögliche Änderungen prüfen; nach Rückkehr nur bewusst fortsetzen.' });
@@ -87,6 +100,7 @@ export class ProjectQueueEngine {
 
   private pause(projectId: string, message: string): void {
     this.clearLaunchRetry(projectId);
+    this.clearDeadline(projectId);
     const queue = this.store.projectQueue(projectId);
     this.store.saveProjectQueue({ projectId, state: 'paused', templateWorkflowId: queue.templateWorkflowId, activeWorkflowId: queue.activeWorkflowId, pauseReason: message });
   }
@@ -96,6 +110,34 @@ export class ProjectQueueEngine {
     if (timer) clearTimeout(timer);
     this.retryTimers.delete(projectId);
     this.store.clearQueueLaunchRetry(projectId);
+  }
+
+  private clearDeadline(projectId: string): void {
+    const timer = this.deadlineTimers.get(projectId);
+    if (timer) clearTimeout(timer);
+    this.deadlineTimers.delete(projectId);
+  }
+
+  private deadlineReached(projectId: string): boolean {
+    const until = this.store.projectQueue(projectId).runUntil;
+    if (!until || Date.parse(until) > Date.now()) return false;
+    const activeId = this.store.projectQueue(projectId).activeWorkflowId;
+    if (activeId && this.store.workflow(activeId).state === 'running') {
+      // Keep the PTY alive, but prevent WorkflowEngine.onSessionFinished from launching its next step.
+      this.store.setWorkflowState(activeId, 'paused');
+    }
+    this.pause(projectId, `Queue-Endzeit ${new Date(until).toLocaleString('de-DE')} erreicht. Ein bereits laufender Agent darf seinen Schritt beenden; es starten keine weiteren Schritte oder Karten. Danach Ergebnis prüfen, Workflow und Queue ausdrücklich fortsetzen.`);
+    return true;
+  }
+
+  private scheduleDeadline(projectId: string): void {
+    this.clearDeadline(projectId);
+    const until = this.store.projectQueue(projectId).runUntil;
+    if (!until) return;
+    this.deadlineTimers.set(projectId, setTimeout(() => {
+      this.deadlineTimers.delete(projectId);
+      if (this.store.projectQueue(projectId).state === 'running') this.deadlineReached(projectId);
+    }, Math.max(0, Date.parse(until) - Date.now())));
   }
 
   private scheduleLaunchRetry(projectId: string, workflowId: string, error: AgentSpawnError): void {
@@ -118,6 +160,7 @@ export class ProjectQueueEngine {
 
   private pump(projectId: string): void {
     if (this.pumping.has(projectId) || this.store.projectQueue(projectId).state !== 'running') return;
+    if (this.deadlineReached(projectId)) return;
     if (projectPauseRequested(this.store, projectId)) {
       this.pause(projectId, 'Projektweite sichere Pause angefordert. Queue nach Prüfung bewusst fortsetzen.');
       return;
@@ -126,6 +169,7 @@ export class ProjectQueueEngine {
     this.pumping.add(projectId);
     try {
       for (let pass = 0; pass < 50; pass += 1) {
+        if (this.deadlineReached(projectId)) return;
         if (!this.deviceOnline()) { this.pauseForConnectionLoss(projectId); return; }
         if (projectPauseRequested(this.store, projectId)) {
           this.pause(projectId, 'Projektweite sichere Pause angefordert. Queue nach Prüfung bewusst fortsetzen.');
