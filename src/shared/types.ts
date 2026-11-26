@@ -429,8 +429,9 @@ export interface StudioAPI {
   closeTeamReviewRoom(roomId: string): Promise<import('./team-review').TeamReviewRoom>;
   openTeamReviewInvite(input: { secret: string; transport: 'local' | 'tailnet' }): Promise<void>;
   copyTeamReviewInvite(input: { secret: string; transport: 'local' | 'tailnet' }): Promise<void>;
-  createTeamBoardInvite(input: { projectId: string; displayName: string; transport: 'local' | 'tailnet' }): Promise<{ invite: import('./team-board').TeamBoardInvite; secret: string; url: string }>;
+  createTeamBoardInvite(input: { projectId: string; displayName: string; transport: 'local' | 'tailnet'; canComment?: boolean }): Promise<{ invite: import('./team-board').TeamBoardInvite; secret: string; url: string }>;
   teamBoardInvites(projectId: string): Promise<import('./team-board').TeamBoardInvite[]>;
+  teamBoardComments(projectId: string): Promise<import('./team-board').TeamBoardComment[]>;
   revokeTeamBoardInvite(input: { projectId: string; inviteId: string }): Promise<import('./team-board').TeamBoardInvite>;
   openTeamBoardInvite(input: { secret: string; transport: 'local' | 'tailnet' }): Promise<void>;
   copyTeamBoardInvite(input: { secret: string; transport: 'local' | 'tailnet' }): Promise<void>;

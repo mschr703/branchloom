@@ -332,6 +332,7 @@ const studio: StudioAPI = {
   copyTeamReviewInvite: (input) => invoke('copyTeamReviewInvite', input),
   createTeamBoardInvite: (input) => invoke('createTeamBoardInvite', input),
   teamBoardInvites: (projectId) => invoke('teamBoardInvites', projectId),
+  teamBoardComments: (projectId) => invoke('teamBoardComments', projectId),
   revokeTeamBoardInvite: (input) => invoke('revokeTeamBoardInvite', input),
   openTeamBoardInvite: (input) => invoke('openTeamBoardInvite', input),
   copyTeamBoardInvite: (input) => invoke('copyTeamBoardInvite', input),

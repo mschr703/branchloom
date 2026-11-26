@@ -3,7 +3,7 @@ const { writeFileSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { join, resolve, sep } = require('node:path');
 const { StudioStore } = require('../dist-main/main/store');
-const { createTeamBoardInvite, revokeTeamBoardInvite } = require('../dist-main/main/team-board');
+const { createTeamBoardInvite, revokeTeamBoardInvite, teamBoardComments } = require('../dist-main/main/team-board');
 const { TeamBoardHttp } = require('../dist-main/main/team-board-http');
 const { activeTailnetIPv4 } = require('../dist-main/main/team-review-tailnet');
 
@@ -40,7 +40,8 @@ app.whenReady().then(async () => {
     store.createCard({ projectId: project.id, columnId: columns[3].id, title: 'Check guest view' });
     const alex = createTeamBoardInvite(store, { projectId: project.id, displayName: 'Alex' });
     const sam = createTeamBoardInvite(store, { projectId: project.id, displayName: 'Sam' });
-    listener.allowSecret(alex.secret); listener.allowSecret(sam.secret);
+    const taylor = createTeamBoardInvite(store, { projectId: project.id, displayName: 'Taylor', canComment: true });
+    listener.allowSecret(alex.secret); listener.allowSecret(sam.secret); listener.allowSecret(taylor.secret);
     await listener.start();
     const openGuest = async (secret, partition) => {
       const window = new BrowserWindow({ show: false, width: 1250, height: 810,
@@ -52,6 +53,38 @@ app.whenReady().then(async () => {
     };
     const alexWindow = await openGuest(alex.secret, 'team-board-alex');
     const samWindow = await openGuest(sam.secret, 'team-board-sam');
+    const taylorWindow = await openGuest(taylor.secret, 'team-board-taylor');
+    if (await samWindow.webContents.executeJavaScript('document.querySelectorAll(".comment-action").length')) throw new Error('Read-only guest received comment controls.');
+    await taylorWindow.webContents.executeJavaScript(`(() => {
+      const findCard = () => [...document.querySelectorAll('.card')].find((item) => item.textContent.includes('Review settings'));
+      findCard().querySelector('.comment-action').click();
+      const first = findCard();
+      const field = first.querySelector('textarea');
+      field.value = 'Please check the empty state.';
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`);
+    if (process.env.BRANCHLOOM_TEAM_BOARD_COMMENT_SCREENSHOT) {
+      await taylorWindow.webContents.executeJavaScript('new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+      writeFileSync(process.env.BRANCHLOOM_TEAM_BOARD_COMMENT_SCREENSHOT, (await taylorWindow.capturePage()).toPNG());
+    }
+    await taylorWindow.webContents.executeJavaScript(`(() => {
+      const originalFetch = window.fetch.bind(window);
+      let dropped = false;
+      window.fetch = (...args) => {
+        if (!dropped && args[1]?.method === 'POST') {
+          dropped = true;
+          return originalFetch(...args).then(() => { throw new Error('Synthetic response loss'); });
+        }
+        return originalFetch(...args);
+      };
+      [...document.querySelectorAll('.card')].find((item) => item.textContent.includes('Review settings')).querySelector('form').requestSubmit();
+    })()`);
+    await waitFor(() => teamBoardComments(store, project.id).length === 1, 'comment from guest browser');
+    await waitFor(() => taylorWindow.webContents.executeJavaScript("document.body.textContent.includes('Senden nicht bestätigt')"), 'retry prompt after lost response');
+    await taylorWindow.webContents.executeJavaScript("[...document.querySelectorAll('.card')].find((item) => item.textContent.includes('Review settings')).querySelector('form').requestSubmit()");
+    await waitFor(() => taylorWindow.webContents.executeJavaScript("document.getElementById('updated').textContent === 'Kommentar gesendet'"), 'idempotent comment retry');
+    if (teamBoardComments(store, project.id).length !== 1) throw new Error('Lost-response retry duplicated the guest comment.');
+    if (teamBoardComments(store, project.id)[0].displayName !== 'Taylor') throw new Error('Guest comment was attributed to the wrong invitation.');
     if (await samWindow.webContents.executeJavaScript('typeof window.studio !== "undefined"')) throw new Error('Guest has host IPC access.');
     if (await samWindow.webContents.executeJavaScript("document.body.textContent.includes('Not shared with guests')")) throw new Error('Private card description reached the guest.');
     if (process.env.BRANCHLOOM_TEAM_BOARD_SCREENSHOT) {

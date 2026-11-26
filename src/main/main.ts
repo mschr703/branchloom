@@ -13,7 +13,7 @@ import { createDiagnosticCard } from './error-catcher';
 import { cardQaReports, cardQaScreenshot, runCardQa, runCardQaBatch } from './card-qa';
 import { closeTeamReviewRoom, createTeamReviewInvite, createTeamReviewRoom, resolveTeamReviewInvite, revokeTeamReviewInvite, teamReviewComments, teamReviewImage, teamReviewInvites, teamReviewRevision, teamReviewRooms } from './team-review';
 import { TeamReviewHttp } from './team-review-http';
-import { createTeamBoardInvite, resolveTeamBoardInvite, revokeTeamBoardInvite, teamBoardInvites } from './team-board';
+import { createTeamBoardInvite, resolveTeamBoardInvite, revokeTeamBoardInvite, teamBoardComments, teamBoardInvites } from './team-board';
 import { TeamBoardHttp } from './team-board-http';
 import { activeTailnetIPv4 } from './team-review-tailnet';
 import { bugScenarios, bugScenarioRuns, runBugScenario, saveBugScenario } from './bug-replay';
@@ -798,6 +798,7 @@ function installIpc(): void {
     return { ...created, url: listener.url(created.secret) };
   });
   bind('teamBoardInvites', (projectId: string) => teamBoardInvites(db, projectId));
+  bind('teamBoardComments', (projectId: string) => teamBoardComments(db, projectId));
   bind('revokeTeamBoardInvite', (input: Parameters<StudioAPI['revokeTeamBoardInvite']>[0]) => revokeTeamBoardInvite(db, input));
   bind('openTeamBoardInvite', async (input: Parameters<StudioAPI['openTeamBoardInvite']>[0]) => {
     resolveTeamBoardInvite(db, input.secret);
