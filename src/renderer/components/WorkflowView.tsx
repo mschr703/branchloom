@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, GitBranch, Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react';
 import type { Card, Column, ColumnEffort, ProjectSnapshot, Workflow, WorkflowStep } from '../../shared/types';
+import type { QueueResults } from '../../shared/queue-results';
 import type { Mutate } from './shared';
 import { WorkflowPlanner } from './WorkflowPlanner';
 import { WorkflowStepRows } from './WorkflowStepRows';
 import { WorkflowRunEvidencePanel } from './WorkflowRunEvidencePanel';
 import { WorkflowStepHaltpointControl } from './WorkflowStepHaltpointControl';
+import { QueueResultsPanel } from './QueueResultsPanel';
 import '../queue-preview.css';
 import './workflow-workbench.css';
 
@@ -91,6 +93,8 @@ export function WorkflowView({ snapshot, mutate, openWorkflow, openPlan, onOpenC
   const [skipReason, setSkipReason] = useState('');
   const [deleteWorkflowId, setDeleteWorkflowId] = useState<string | null>(null);
   const [queuePreview, setQueuePreview] = useState<{ projectId: string; cards: Card[]; error: string | null } | null>(null);
+  const [queueReport, setQueueReport] = useState<{ projectId: string; results: QueueResults | null; error: string | null } | null>(null);
+  const [queueReportRetry, setQueueReportRetry] = useState(0);
   const skipWorkflow = snapshot.workflows.find((item) => item.id === skipWorkflowId);
   const skipCardTitle = snapshot.cards.find((item) => item.id === skipWorkflow?.cardIds[0])?.title ?? skipWorkflow?.name ?? 'Unbekannte Karte';
   const deleteWorkflow = snapshot.workflows.find((item) => item.id === deleteWorkflowId);
@@ -106,6 +110,15 @@ export function WorkflowView({ snapshot, mutate, openWorkflow, openPlan, onOpenC
     );
     return () => { active = false; };
   }, [snapshot]);
+  useEffect(() => {
+    let active = true;
+    const projectId = snapshot.project.id;
+    void window.studio.queueResults(projectId).then(
+      (results) => { if (active) setQueueReport({ projectId, results, error: null }); },
+      (error: unknown) => { if (active) setQueueReport({ projectId, results: null, error: error instanceof Error ? error.message : 'Abfrage nicht verfügbar.' }); },
+    );
+    return () => { active = false; };
+  }, [snapshot, queueReportRetry]);
 
   useEffect(() => { if (openWorkflow) document.getElementById(`workflow-${openWorkflow.id}`)?.scrollIntoView({ block: 'center' }); }, [openWorkflow?.id, openWorkflow?.token, snapshot.project.id]);
 
@@ -189,6 +202,7 @@ export function WorkflowView({ snapshot, mutate, openWorkflow, openPlan, onOpenC
         {snapshot.queue.state !== 'off' ? <button className="secondary-button small" type="button" onClick={() => void mutate(() => window.studio.setProjectQueue({ projectId: snapshot.project.id, state: 'off' }))}>Ausschalten</button> : null}
       </div>
       {snapshot.queue.state !== 'running' && snapshot.queue.activeWorkflowId && snapshot.workflows.find((item) => item.id === snapshot.queue.activeWorkflowId)?.state === 'paused' ? <div className="workflow-actions"><span>Wenn diese Karte blockiert bleibt, kannst du sie mit Begründung überspringen. Der Verlauf bleibt erhalten. Die nächste Karte startet erst nach ausdrücklichem Aktivieren der Queue.</span><button className="secondary-button small" type="button" onClick={() => setSkipWorkflowId(snapshot.queue.activeWorkflowId)}>Aktive Karte überspringen</button></div> : null}
+      <QueueResultsPanel results={queueReport?.projectId === snapshot.project.id ? queueReport.results : null} error={queueReport?.projectId === snapshot.project.id ? queueReport.error : null} onRetry={() => setQueueReportRetry((value) => value + 1)} onOpenCard={onOpenCard} onOpenSession={onOpenSession} />
     </section>
 
     <div className="workflow-list-heading"><h3>Gespeicherte Workflows</h3><span>{snapshot.workflows.length}</span></div>

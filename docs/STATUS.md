@@ -2,6 +2,10 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Queue-Ergebnisübersicht (Folgezweig, in Arbeit)
+
+- Die Workflow-Seite zeigt einen aus SQLite gelesenen, projektgebundenen Überblick über alle bisherigen Queue-Zuordnungen. Sie trennt abgeschlossene, laufende, prüfbedürftige, ungestartete und bewusst zurückgestellte Routen, verlinkt Karte und Workflow sowie die letzte gespeicherte Sitzung. Die Liste begrenzt sich auf 100 neueste Karten und nennt die Gesamtzahl; sie behauptet keine bestandenen Tests oder Merges. Ein Backend-Test für echte Queue-Beanspruchung, Sitzungsbezug, Projektisolation, Abschluss, Zurückstellung und Datenbank-Neustart sowie zwei Renderer-Tests bestanden; Typprüfung, Build, Audit ohne hohe Funde und der breite Electron-Quell-Smoke bestanden. Der Smoke öffnet nicht eigens den neuen Bericht. Breite Suite, Paket-CI und ein einzelner zeitlich abgegrenzter Nachtlaufbericht stehen noch aus. [Ablauf und Grenzen](QUEUE.md).
+
 ## Projekt-Queue: gewähltes Laufzeitende (in main)
 
 - Vor bewusstem Start oder Fortsetzen lässt sich eine Dauer von 1, 4 oder 8 Stunden wählen; ohne Auswahl bleibt die bestehende unbegrenzte Queue möglich. Die absolute Endzeit wird projektbezogen gespeichert und angezeigt. Bei Fristablauf pausiert die Queue auch ohne weitere Ereignisse, startet keine neue Karte oder einen weiteren Workflow-Schritt und stoppt einen bereits laufenden Agenten nicht. Nach App-Neustart bleibt der Queue-Stand pausiert und braucht bewusste Prüfung und neue Aktivierung. 971 lokale Tests (acht optionale übersprungen), zwei vollständige Windows-Verify-Läufe, gezielte Queue-/Renderer-Tests, Typprüfung und Build bestanden. Dies ist keine Kostenbremse und keine automatische Prozessbeendigung. [Ablauf und Grenzen](QUEUE.md).
