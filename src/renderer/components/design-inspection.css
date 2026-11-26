@@ -80,6 +80,7 @@
 .design-inspection-tools[hidden] { display: none; }
 .design-inspection.wireframe-focus { position: fixed; inset: 0; z-index: 50; max-width: none; min-height: 0; padding: 18px 22px; overflow: auto; align-content: start; background: var(--bg); }
 @media (max-width: 650px) { .design-inspection.wireframe-focus { padding: 12px; } }
+@media (max-width: 650px) { .design-workspace-draft .task-wireframe.is-focused .task-wireframe-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 8px; } .design-workspace-draft .task-wireframe.is-focused .task-wireframe-actions > span { flex-basis: 100%; } .design-workspace-draft .task-wireframe.is-focused .task-wireframe-actions button { min-height: 32px; } }
 .design-inspection-intro h2 { margin: 0 0 4px; font-size: 21px; letter-spacing: -.02em; }
 .design-inspection-intro p, .design-inspection-limit { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; max-width: 75ch; }
 .design-inspection-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }

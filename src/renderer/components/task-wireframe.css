@@ -75,14 +75,16 @@ body .design-workspace-draft .task-wireframe:not(.is-focused) .task-wireframe-to
 .task-wireframe-draw-tools small { margin-left: 6px; color: var(--muted); font-size: 12px; }
 .task-wireframe.is-focused .task-wireframe-draw-tools { grid-column: 1 / -1; }
 .task-wireframe-layout { display: grid; grid-template-columns: 150px minmax(0, 1fr) 210px; gap: 12px; align-items: start; }
-.task-wireframe.is-focused { grid-template-columns: minmax(0, 1fr) minmax(260px, 360px); gap: 8px 14px; padding: 0 0 20px; border-bottom: 0; }
+.task-wireframe.is-focused { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 14px; padding: 0 0 20px; border-bottom: 0; }
 .task-wireframe.is-focused .task-wireframe-head { grid-column: 1; grid-row: 1; align-items: center; }
 .task-wireframe.is-focused .task-wireframe-head h2 { margin: 0; font-size: 18px; }
 .task-wireframe.is-focused .task-wireframe-head p { display: none; }
 .task-wireframe.is-focused .task-wireframe-source { grid-column: 2; grid-row: 1; justify-content: flex-end; }
 .task-wireframe.is-focused .task-wireframe-source label { display: flex; align-items: center; gap: 8px; width: min(360px, 100%); }
 .task-wireframe.is-focused .task-wireframe-source select { min-width: 0; flex: 1; }
-.task-wireframe.is-focused > :not(.task-wireframe-head):not(.task-wireframe-source) { grid-column: 1 / -1; }
+.task-wireframe.is-focused > :where(:not(.task-wireframe-head):not(.task-wireframe-source)) { grid-column: 1 / -1; }
+.task-wireframe.is-focused .task-wireframe-toolbar { grid-column: 1; min-width: 0; }
+.task-wireframe.is-focused .task-wireframe-actions { grid-column: 2; margin: 0; }
 .task-wireframe.is-focused .task-wireframe-actions { position: sticky; bottom: 0; z-index: 8; padding: 8px 0; border-top: 1px solid var(--border); background: var(--bg); }
 .task-wireframe.is-focused .task-wireframe-layout { grid-template-columns: 160px minmax(0, 1fr) 272px; gap: 14px; }
 .task-wireframe.is-focused .task-wireframe-layers, .task-wireframe.is-focused .task-wireframe-properties { max-height: min(72vh, 900px); overflow: auto; }
@@ -181,6 +183,7 @@ body .design-workspace-draft .task-wireframe:not(.is-focused) .task-wireframe-to
 .task-wireframe-actions .primary-button { display: inline-flex; align-items: center; gap: 6px; }
 @media (max-width: 1050px) { .task-wireframe-layout { grid-template-columns: 130px minmax(0, 1fr); } .task-wireframe-properties { grid-column: 1 / -1; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; } .task-wireframe-properties h3, .task-wireframe-style { grid-column: 1 / -1; } .task-wireframe-style { grid-template-columns: repeat(3, minmax(0, 1fr)); } .task-wireframe-style legend { grid-column: 1 / -1; } }
 @media (max-width: 1050px) { .task-wireframe.is-focused .task-wireframe-layout { grid-template-columns: 160px minmax(0, 1fr); } .task-wireframe.is-focused .task-wireframe-properties { grid-column: 1 / -1; } }
+@media (max-width: 1100px) { .task-wireframe.is-focused .task-wireframe-toolbar, .task-wireframe.is-focused .task-wireframe-actions { grid-column: 1 / -1; } }
 @media (max-width: 900px) { .task-wireframe.is-focused { grid-template-columns: 1fr; } .task-wireframe.is-focused .task-wireframe-head, .task-wireframe.is-focused .task-wireframe-source { grid-column: 1; grid-row: auto; justify-content: flex-start; } }
 @media (max-width: 650px) { .task-wireframe { padding-inline: 12px; } .task-wireframe-layout { grid-template-columns: 1fr; } .task-wireframe-layers { min-height: 0; } .task-wireframe-layers ol { display: flex; overflow-x: auto; } .task-wireframe-layers li button { min-width: 110px; max-width: 160px; } .task-wireframe-properties { grid-column: auto; grid-template-columns: 1fr 1fr; min-height: 0; } .task-wireframe-properties h3, .task-wireframe-properties > label:first-of-type, .task-wireframe-properties p { grid-column: 1 / -1; } .task-wireframe-style { grid-template-columns: repeat(2, minmax(0, 1fr)); } .task-wireframe-resize { width: 30px; height: 30px; } }
 @media (max-width: 650px) { .task-wireframe.is-focused .task-wireframe-layout { grid-template-columns: 1fr; } .task-wireframe.is-focused .task-wireframe-properties { grid-column: auto; } .task-wireframe.is-focused .task-wireframe-layers, .task-wireframe.is-focused .task-wireframe-properties { max-height: none; } .task-wireframe.is-focused .task-wireframe-canvas-viewport { max-height: 62vh; } }

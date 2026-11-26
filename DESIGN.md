@@ -27,7 +27,7 @@ Team presence belongs to the place where work happens: a quiet count or face in 
 | Board | Cards in a readable workflow column | Column settings, search/filter, and task actions stay close to the relevant work. |
 | Architecture | Diagram on a spacious canvas | Selection, source evidence, draft discussion, and explicit incorporation; no permanent empty inspector taking diagram space. |
 | Memory | One source and its proven local relationships | Source/age, depth, filters, inspector, and a path to the complete excerpt. Node position never implies semantic similarity. |
-| Design | Editable artboard or explicitly opened local app | Layers and properties remain visible; a compact tool cluster keeps the canvas in the first viewport. Save and agent approval are separate steps. |
+| Design | Editable artboard or explicitly opened local app | Layers and properties remain visible; a compact tool cluster keeps the canvas in the first viewport. The focused editor uses shallow artboard previews and shares a toolbar row with save and approval when space allows. Save and agent approval are separate steps. |
 
 ## Interaction and verification
 

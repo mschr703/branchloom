@@ -15,18 +15,18 @@
   letter-spacing: -.025em;
 }
 .task-wireframe.is-focused .task-wireframe-overview {
-  grid-template-columns: repeat(3, minmax(0, 164px));
+  grid-template-columns: repeat(3, minmax(0, 146px));
   gap: 6px;
   padding-block: 2px;
 }
 .task-wireframe.is-focused .task-wireframe-overview-card {
-  grid-template-rows: auto 56px auto;
-  gap: 3px;
-  padding: 7px 9px;
+  grid-template-rows: auto 36px auto;
+  gap: 2px;
+  padding: 5px 8px;
   border-radius: 4px;
   box-shadow: none;
 }
-.task-wireframe.is-focused .task-wireframe-overview-surface { max-height: 56px; }
+.task-wireframe.is-focused .task-wireframe-overview-surface { max-height: 36px; }
 .task-wireframe.is-focused .task-wireframe-overview-card.active {
   border-color: var(--accent);
   background: var(--surface);
