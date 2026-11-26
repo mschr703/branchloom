@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { afterEach, expect, it } from 'vitest';
 import { StudioStore } from '../../src/main/store';
 import { acceptTeamMemberInvite, addTeamProject, authenticateTeamMember, createTeamMemberInvite, createTeamWorkspace,
-  requireTeamProjectCapability, revokeTeamMember, revokeTeamMemberInvite, setTeamCardPriority,
+  requireTeamProjectCapability, revokeTeamMember, revokeTeamMemberInvite, setTeamCardPriority, moveTeamCard,
   setTeamCapabilityGrant, setTeamProjectAccess } from '../../src/main/team-workspace';
 
 const roots: string[] = [];
@@ -93,6 +93,8 @@ it('serializes card metadata commands from two clients and keeps retries idempot
   const secondClient = new StudioStore(f.file);
   const firstMutation = randomUUID();
   const secondMutation = randomUUID();
+  const moveMutation = randomUUID();
+  const nextColumn = f.store.snapshot(f.project.id).columns[1]!;
   try {
     const first = setTeamCardPriority(f.store, { credential: owner.credential, projectId: f.project.id,
       cardId: card.id, priority: 'high', expectedRevision: 0, mutationId: firstMutation });
@@ -108,9 +110,12 @@ it('serializes card metadata commands from two clients and keeps retries idempot
       cardId: card.id, priority: 'urgent', expectedRevision: 1, mutationId: secondMutation });
     expect(second).toMatchObject({ revision: 2, priority: 'urgent', repeated: false });
     expect(f.store.card(card.id).priority).toBe('urgent');
+    expect(moveTeamCard(secondClient, { credential: owner.credential, projectId: f.project.id,
+      cardId: card.id, columnId: nextColumn.id, expectedRevision: 2, mutationId: moveMutation }))
+      .toMatchObject({ revision: 3, columnId: nextColumn.id, repeated: false });
     revokeTeamMember(f.store.db, owner.credential, colleague.member.id);
     expect(() => setTeamCardPriority(secondClient, { credential: colleague.credential, projectId: f.project.id,
-      cardId: card.id, priority: 'low', expectedRevision: 2, mutationId: randomUUID() })).toThrow('unavailable');
+      cardId: card.id, priority: 'low', expectedRevision: 3, mutationId: randomUUID() })).toThrow('unavailable');
   } finally { secondClient.close(); f.store.close(); }
   const restarted = new StudioStore(f.file);
   try {
@@ -118,6 +123,10 @@ it('serializes card metadata commands from two clients and keeps retries idempot
       cardId: card.id, priority: 'high', expectedRevision: 0, mutationId: firstMutation }))
       .toMatchObject({ revision: 1, repeated: true });
     expect(restarted.card(card.id).priority).toBe('urgent');
+    expect(moveTeamCard(restarted, { credential: owner.credential, projectId: f.project.id,
+      cardId: card.id, columnId: nextColumn.id, expectedRevision: 2, mutationId: moveMutation }))
+      .toMatchObject({ revision: 3, repeated: true });
+    expect(restarted.card(card.id).columnId).toBe(nextColumn.id);
   } finally { restarted.close(); }
 });
 
