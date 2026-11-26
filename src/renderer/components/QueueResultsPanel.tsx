@@ -1,4 +1,6 @@
+import { useEffect, useRef, useState } from 'react';
 import type { QueueResultItem, QueueResultStatus, QueueResults } from '../../shared/queue-results';
+import { queueResultsMarkdown } from '../../shared/queue-results-markdown';
 import './queue-results.css';
 
 const labels: Record<QueueResultStatus, string> = {
@@ -50,6 +52,24 @@ export function QueueResultsPanel({ results, error, onRetry, onOpenCard, onOpenS
   results: QueueResults | null; error: string | null; onRetry: () => void;
   onOpenCard?: (cardId: string) => void; onOpenSession?: (sessionId: string) => void;
 }) {
+  const [copying, setCopying] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState('');
+  const projectRef = useRef(results?.projectId);
+  projectRef.current = results?.projectId;
+  useEffect(() => { setCopying(false); setCopied(false); setCopyError(''); }, [results?.projectId]);
+  async function copyLatest() {
+    if (!results || copying) return;
+    const projectId = results.projectId;
+    setCopying(true); setCopied(false); setCopyError('');
+    try {
+      const fresh = await window.studio.queueResults(projectId);
+      if (projectRef.current !== projectId) return;
+      await navigator.clipboard.writeText(queueResultsMarkdown(fresh));
+      if (projectRef.current === projectId) setCopied(true);
+    } catch { if (projectRef.current === projectId) setCopyError('Die Queue-Zusammenfassung konnte nicht kopiert werden.'); }
+    finally { if (projectRef.current === projectId) setCopying(false); }
+  }
   if (!results && !error) return null;
   if (error) return <div className="queue-results">
     <p role="alert">Queue-Ergebnisse konnten nicht geladen werden: {error}</p>
@@ -85,7 +105,11 @@ export function QueueResultsPanel({ results, error, onRetry, onOpenCard, onOpenS
       {results.latestActivation.runUntil ? <small>Gewähltes Ende: <time dateTime={results.latestActivation.runUntil}>{new Date(results.latestActivation.runUntil).toLocaleString('de-DE')}</time></small> : null}
       {results.latestActivation.continueBlocked ? <small>Unabhängige Karten nach einem Blocker waren zugelassen.</small> : null}
       {results.latestActivation.endReason ? <small>{results.latestActivation.endReason}</small> : null}
+      <button type="button" className="text-button" disabled={copying} onClick={() => void copyLatest()}>
+        {copying ? 'Lade aktuellen Stand …' : copied ? 'Zusammenfassung kopiert' : 'Zusammenfassung kopieren'}
+      </button>
     </div> : null}
+    {copyError ? <p role="alert">{copyError}</p> : null}
     <p>Eine abgeschlossene Route ist kein Test- oder Merge-Nachweis. Test- und Integrationsangaben sind gespeicherte Kartenbelege; ihr heutiger Git-Stand wird hier nicht erneut geprüft. Öffne die Karte für die aktuelle Prüfung.</p>
     {results.latestActivation
       ? results.latestActivation.total > 0
