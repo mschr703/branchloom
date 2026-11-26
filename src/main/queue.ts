@@ -1,4 +1,5 @@
 import type { ProjectQueue, QueueState, Session, Workflow } from '../shared/types';
+import type { IntegrationTestEvidence } from '../shared/integration-evidence';
 import { StudioStore } from './store';
 import { WorkflowEngine } from './workflows';
 import { detectQueueFailureLoop } from './loop-guard';
@@ -8,6 +9,20 @@ import { enqueueIntegration, prepareIntegration } from './integration-queue';
 import { integrationEvidence, runIntegrationTest } from './integration-evidence';
 
 const RETRY_DELAYS_MS = [5_000, 20_000] as const;
+
+/** Automatic receipts belong to this start; manual receipts may follow its preceding pause. */
+export function queueTestMatchesActiveStart(store: StudioStore, projectId: string,
+  receipt: Pick<IntegrationTestEvidence, 'queueActivationId' | 'startedAt'>): boolean {
+  const active = store.db.prepare(`SELECT id, started_at FROM queue_activations
+    WHERE project_id = ? AND ended_at IS NULL ORDER BY rowid DESC LIMIT 1`).get(projectId) as { id: string; started_at: string } | undefined;
+  if (!active) return false;
+  if (receipt.queueActivationId) return receipt.queueActivationId === active.id;
+  const previous = store.db.prepare(`SELECT ended_at FROM queue_activations
+    WHERE project_id = ? AND id != ? AND ended_at IS NOT NULL ORDER BY rowid DESC LIMIT 1`)
+    .get(projectId, active.id) as { ended_at: string } | undefined;
+  const boundary = previous?.ended_at ?? active.started_at;
+  return Number.isFinite(Date.parse(receipt.startedAt)) && Date.parse(receipt.startedAt) > Date.parse(boundary);
+}
 
 /** One opt-in, bounded npm check for the exact prepared source; no merge or push follows. */
 export async function testCompletedQueueCard(store: StudioStore, projectId: string, workflowId: string, cardId: string): Promise<void> {
@@ -285,7 +300,8 @@ export class ProjectQueueEngine {
               .get(projectId) as { hash: string | null } | undefined;
             const cardId = active.cardIds[0];
             const test = cardId ? integrationEvidence(this.store, cardId).test : null;
-            if (!approved?.hash || test?.state !== 'passed' || !test.current || test.scriptHash !== approved.hash) {
+            if (!approved?.hash || test?.state !== 'passed' || !test.current || test.scriptHash !== approved.hash
+              || !queueTestMatchesActiveStart(this.store, projectId, test)) {
               this.pause(projectId, 'Automatischer npm-Test für die abgeschlossene Karte fehlt, ist fehlgeschlagen oder passt nicht mehr zum freigegebenen Skript- und Git-Stand. Karte und Testbeleg prüfen; danach Test erneut ausführen oder die Einstellung bewusst ausschalten.');
               return;
             }
