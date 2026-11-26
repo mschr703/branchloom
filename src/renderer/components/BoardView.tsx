@@ -233,7 +233,7 @@ export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenBrow
 
   return <div className="board-page">
     <div className="board-toolbar board-header-actions">
-      <div className="board-project-heading"><h2>{snapshot.project.name}</h2><span>{snapshot.sessions.filter((session) => session.state === 'running').length} {snapshot.sessions.filter((session) => session.state === 'running').length === 1 ? 'Agent aktiv' : 'Agenten aktiv'}</span></div>
+      <div className="board-project-heading"><h2>Board</h2><span>{snapshot.sessions.filter((session) => session.state === 'running').length} {snapshot.sessions.filter((session) => session.state === 'running').length === 1 ? 'Agent aktiv' : 'Agenten aktiv'}</span></div>
       <div className="board-header-tools"><button className="secondary-button" type="button" onClick={() => setShowTaskDraft(true)} title="Mit einem Agenten aus einer Idee eine überprüfbare Aufgabe formulieren"><MessageCircle size={16} /> Aufgabe vorbereiten</button><button className="secondary-button" type="button" onClick={() => setShowImport(true)}><FileJson2 size={16} /> Trello importieren</button><QaCoveragePanel key={snapshot.project.id} snapshot={snapshot} onOpenQaReport={onOpenQaReport ?? ((cardId) => openBoardCard(cardId))} />{visibility !== 'archived' && columns[0] ? <button className="board-new-task primary-button" type="button" onClick={() => { setCreatingIn(columns[0]!.id); setTitle(''); }}><Plus size={16} aria-hidden="true" />Neue Aufgabe</button> : null}</div>
     </div>
     <div className="board-filters" role="search" aria-label="Board-Filter">
