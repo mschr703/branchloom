@@ -47,6 +47,25 @@ function answerInput(fixture: ReturnType<typeof fixture>, ids = [0, 1]) {
 }
 
 describe('shared agent questions', () => {
+  it('keeps answerable questions visible ahead of more than one page of stale history', () => {
+    const f = fixture();
+    try {
+      f.store.updateCard({ id: f.cards[0]!.id, description: 'Changed after the first question' });
+      const insert = f.store.db.prepare(`INSERT INTO agent_questions
+        (id, project_id, card_id, session_id, request_id, card_revision, question, asked_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
+      for (let index = 0; index < 101; index++) {
+        insert.run(randomUUID(), f.project.id, f.cards[0]!.id, f.runs[0]!.id, randomUUID(),
+          f.questions[0]!.cardRevision, `Old question ${index}`, '2030-01-01T00:00:00.000Z');
+      }
+      const visible = agentQuestions(f.store, f.project.id);
+      expect(visible).toHaveLength(100);
+      expect(visible.slice(0, 2).map((item) => item.id)).toEqual(expect.arrayContaining([f.questions[1]!.id, f.questions[2]!.id]));
+      expect(visible.slice(0, 2).every((item) => item.receivable)).toBe(true);
+      expect(agentQuestionDecisionCount(f.store, f.project.id)).toBe(2);
+    } finally { f.store.close(); }
+  });
+
   it('counts only currently answerable questions for the decision indicator', () => {
     const f = fixture();
     try {

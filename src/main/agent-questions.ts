@@ -11,6 +11,11 @@ type Row = {
   delivery_note: string | null;
 };
 
+const RECEIVABLE_SQL = `q.delivery = 'open' AND q.answer_id IS NULL
+  AND c.archived_at IS NULL AND c.content_revision = q.card_revision AND s.state = 'running'
+  AND s.id = (SELECT latest.id FROM sessions latest WHERE latest.card_id = q.card_id
+    ORDER BY latest.started_at DESC, latest.rowid DESC LIMIT 1)`;
+
 export function installAgentQuestions(db: Database.Database): void {
   db.exec(`CREATE TABLE IF NOT EXISTS agent_question_answers (
     id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -57,8 +62,12 @@ function asQuestion(store: StudioStore, row: Row): AgentQuestion {
 
 export function agentQuestions(store: StudioStore, projectId: string): AgentQuestion[] {
   store.project(projectId);
-  const rows = store.db.prepare(`SELECT q.id FROM agent_questions q WHERE q.project_id = ?
-    ORDER BY CASE WHEN q.answer_id IS NULL THEN 0 ELSE 1 END, q.asked_at DESC, q.id DESC LIMIT 100`)
+  const rows = store.db.prepare(`SELECT q.id FROM agent_questions q
+    JOIN cards c ON c.id = q.card_id AND c.project_id = q.project_id
+    JOIN sessions s ON s.id = q.session_id AND s.card_id = q.card_id AND s.project_id = q.project_id
+    WHERE q.project_id = ?
+    ORDER BY CASE WHEN ${RECEIVABLE_SQL} THEN 0 WHEN q.answer_id IS NULL THEN 1 ELSE 2 END,
+      q.asked_at DESC, q.id DESC LIMIT 100`)
     .all(projectId) as Array<{ id: string }>;
   return rows.map((row) => questionRow(store, row.id)).filter((row): row is Row => Boolean(row)).map((row) => asQuestion(store, row));
 }
@@ -69,10 +78,7 @@ export function agentQuestionDecisionCount(store: StudioStore, projectId: string
   const row = store.db.prepare(`SELECT COUNT(*) AS count FROM agent_questions q
     JOIN cards c ON c.id = q.card_id AND c.project_id = q.project_id
     JOIN sessions s ON s.id = q.session_id AND s.card_id = q.card_id AND s.project_id = q.project_id
-    WHERE q.project_id = ? AND q.delivery = 'open' AND q.answer_id IS NULL
-      AND c.archived_at IS NULL AND c.content_revision = q.card_revision AND s.state = 'running'
-      AND s.id = (SELECT latest.id FROM sessions latest WHERE latest.card_id = q.card_id
-        ORDER BY latest.started_at DESC, latest.rowid DESC LIMIT 1)`)
+    WHERE q.project_id = ? AND ${RECEIVABLE_SQL}`)
     .get(projectId) as { count: number };
   return row.count;
 }
