@@ -1,4 +1,4 @@
-import type { SessionState } from './types';
+import type { CardQaPageCheck, CardQaReport, SessionState } from './types';
 import type { IntegrationState } from './integration-queue';
 import type { IntegrationTestState } from './integration-evidence';
 
@@ -17,6 +17,8 @@ export interface QueueResultItem {
     integratedHead: string | null; approvalMode: 'manual' | 'automatic' | null } | null;
   test: { id: number; state: IntegrationTestState; scriptName: string; sourceHead: string;
     targetHead: string; endedAt: string | null } | null;
+  qa?: { id: string; status: CardQaReport['status']; endedAt: string; viewportWidth: number;
+    viewportHeight: number; pageCheck: CardQaPageCheck } | null;
 }
 
 export interface QueueActivationSummary {

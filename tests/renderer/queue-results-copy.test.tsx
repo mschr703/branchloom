@@ -19,14 +19,17 @@ describe('queue result copy', () => {
       latestItems: [{ cardId: 'card', cardTitle: '<Title>\n# forged', workflowId: 'flow', workflowName: 'Route',
         activationId: 'start-1', status: 'done' as const, updatedAt: '2026-11-26T02:00:00.000Z', lastSession: null,
         test: { id: 4, state: 'passed' as const, scriptName: 'test', sourceHead, targetHead: 'b'.repeat(40), endedAt: '2026-11-26T02:01:00.000Z' },
+        qa: { id: 'qa-123', status: 'failed' as const, endedAt: '2026-11-26T02:02:00.000Z',
+          viewportWidth: 390, viewportHeight: 844, pageCheck: 'complete' as const },
         integration: { id: 7, state: 'integrated' as const, sourceHead, targetBranch: 'main', integratedHead: sourceHead, approvalMode: 'manual' as const } }] };
     const markdown = queueResultsMarkdown(report, '2026-11-26T03:00:00.000Z');
     expect(markdown).toContain('Start-ID: `start-1`');
     expect(markdown).toContain('**\\<Title\\> # forged**');
     expect(markdown).toContain('Gespeicherter npm-Test #4');
+    expect(markdown).toContain('Gespeicherte Browser-QA `qa-123`: failed; 390 × 844 px; DOM complete');
     expect(markdown).toContain('Gespeicherte Integration #7');
     expect(markdown).toContain(sourceHead);
-    expect(markdown).toContain('Git-Stand wurde für diese Zusammenfassung nicht erneut geprüft');
+    expect(markdown).toContain('Git-Stand und die vom Dev-Server ausgelieferte Codeversion wurden für diese Zusammenfassung nicht erneut geprüft');
     expect(markdown).not.toContain('\n# forged');
   });
 
