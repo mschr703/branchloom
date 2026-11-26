@@ -46,6 +46,12 @@ export function installTeamWorkspaces(db: Database.Database): void {
     added_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_team_projects_workspace ON team_projects(workspace_id);
+  CREATE TABLE IF NOT EXISTS team_project_permissions (
+    project_id TEXT NOT NULL REFERENCES team_projects(project_id) ON DELETE CASCADE,
+    member_id TEXT NOT NULL REFERENCES team_members(id) ON DELETE CASCADE,
+    access TEXT NOT NULL CHECK(access IN ('none','read','edit')),
+    PRIMARY KEY (project_id, member_id)
+  );
   CREATE TABLE IF NOT EXISTS team_member_invites (
     id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES team_workspaces(id) ON DELETE CASCADE,
     role TEXT NOT NULL CHECK(role IN ('editor','viewer')), secret_hash TEXT NOT NULL UNIQUE,
@@ -137,8 +143,45 @@ export function requireTeamProjectCapability(db: Database.Database, credential: 
   if (!['read', 'edit', 'start_agent', 'integrate', 'manage_members'].includes(capability)) throw new Error('Invalid team capability.');
   const actor = authenticateTeamMember(db, credential);
   const linked = db.prepare('SELECT 1 FROM team_projects WHERE project_id = ? AND workspace_id = ?').get(projectId, actor.workspaceId);
-  if (!linked || !allowed(actor.role, capability)) throw new Error('Team member is not permitted for this project action.');
+  const override = db.prepare('SELECT access FROM team_project_permissions WHERE project_id = ? AND member_id = ?')
+    .get(projectId, actor.id) as { access: 'none' | 'read' | 'edit' } | undefined;
+  const permittedByProject = actor.role === 'owner' || !override ||
+    (override.access === 'edit' && (capability === 'read' || capability === 'edit')) ||
+    (override.access === 'read' && capability === 'read');
+  if (!linked || !allowed(actor.role, capability) || !permittedByProject) throw new Error('Team member is not permitted for this project action.');
   return actor;
+}
+
+export function addTeamProject(db: Database.Database, actorCredential: string, projectId: string): void {
+  const actor = authenticateTeamMember(db, actorCredential);
+  if (actor.role !== 'owner') throw new Error('Only a team owner can add a project.');
+  db.transaction(() => {
+    if (!db.prepare('SELECT 1 FROM projects WHERE id = ?').get(projectId)) throw new Error('Project is unavailable.');
+    if (db.prepare('SELECT 1 FROM team_projects WHERE project_id = ?').get(projectId)) throw new Error('Project already belongs to a team.');
+    db.prepare('INSERT INTO team_projects (project_id, workspace_id, added_at) VALUES (?, ?, ?)')
+      .run(projectId, actor.workspaceId, new Date().toISOString());
+  }).immediate();
+}
+
+/** A project override can narrow a team role, never broaden it. Null restores inherited access. */
+export function setTeamProjectAccess(db: Database.Database, actorCredential: string, projectId: string,
+  memberId: string, access: 'none' | 'read' | 'edit' | null): void {
+  if (access !== null && access !== 'none' && access !== 'read' && access !== 'edit') throw new Error('Invalid project access.');
+  const actor = requireTeamProjectCapability(db, actorCredential, projectId, 'manage_members');
+  db.transaction(() => {
+    const target = db.prepare('SELECT id, workspace_id, role, revoked_at FROM team_members WHERE id = ?')
+      .get(memberId) as Pick<MemberRow, 'id' | 'workspace_id' | 'role' | 'revoked_at'> | undefined;
+    if (!target || target.workspace_id !== actor.workspaceId || target.revoked_at || target.role === 'owner') {
+      throw new Error('Team member is unavailable for project access.');
+    }
+    if (target.role === 'viewer' && access === 'edit') throw new Error('Project access cannot exceed the team role.');
+    if (access === null) {
+      db.prepare('DELETE FROM team_project_permissions WHERE project_id = ? AND member_id = ?').run(projectId, memberId);
+    } else {
+      db.prepare(`INSERT INTO team_project_permissions (project_id, member_id, access) VALUES (?, ?, ?)
+        ON CONFLICT(project_id, member_id) DO UPDATE SET access = excluded.access`).run(projectId, memberId, access);
+    }
+  }).immediate();
 }
 
 export function createTeamMemberInvite(db: Database.Database, actorCredential: string, workspaceId: string,

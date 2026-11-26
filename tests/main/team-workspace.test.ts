@@ -4,9 +4,9 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { afterEach, expect, it } from 'vitest';
 import { StudioStore } from '../../src/main/store';
-import { acceptTeamMemberInvite, authenticateTeamMember, createTeamMemberInvite, createTeamWorkspace,
-  requireTeamProjectCapability, revokeTeamMember, revokeTeamMemberInvite } from '../../src/main/team-workspace';
-import { setTeamCardPriority } from '../../src/main/team-workspace';
+import { acceptTeamMemberInvite, addTeamProject, authenticateTeamMember, createTeamMemberInvite, createTeamWorkspace,
+  requireTeamProjectCapability, revokeTeamMember, revokeTeamMemberInvite, setTeamCardPriority,
+  setTeamProjectAccess } from '../../src/main/team-workspace';
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -118,4 +118,32 @@ it('serializes card metadata commands from two clients and keeps retries idempot
       .toMatchObject({ revision: 1, repeated: true });
     expect(restarted.card(card.id).priority).toBe('urgent');
   } finally { restarted.close(); }
+});
+
+it('links several projects to a workspace and only narrows inherited project rights', () => {
+  const f = fixture();
+  try {
+    const otherPath = join(f.root, 'second');
+    mkdirSync(otherPath);
+    const second = f.store.createProject({ name: 'Second project', path: otherPath });
+    const owner = createTeamWorkspace(f.store.db, { workspaceName: 'Sample team', projectId: f.project.id, ownerName: 'Owner' });
+    const editor = acceptTeamMemberInvite(f.store.db,
+      createTeamMemberInvite(f.store.db, owner.credential, owner.workspaceId, 'editor').secret, 'Editor');
+    const viewer = acceptTeamMemberInvite(f.store.db,
+      createTeamMemberInvite(f.store.db, owner.credential, owner.workspaceId, 'viewer').secret, 'Viewer');
+    expect(() => requireTeamProjectCapability(f.store.db, editor.credential, second.id, 'read')).toThrow('not permitted');
+    expect(() => addTeamProject(f.store.db, editor.credential, second.id)).toThrow('Only a team owner');
+    addTeamProject(f.store.db, owner.credential, second.id);
+    expect(requireTeamProjectCapability(f.store.db, editor.credential, second.id, 'edit').id).toBe(editor.member.id);
+    setTeamProjectAccess(f.store.db, owner.credential, second.id, editor.member.id, 'read');
+    expect(requireTeamProjectCapability(f.store.db, editor.credential, second.id, 'read').id).toBe(editor.member.id);
+    expect(() => requireTeamProjectCapability(f.store.db, editor.credential, second.id, 'edit')).toThrow('not permitted');
+    setTeamProjectAccess(f.store.db, owner.credential, second.id, editor.member.id, 'none');
+    expect(() => requireTeamProjectCapability(f.store.db, editor.credential, second.id, 'read')).toThrow('not permitted');
+    expect(requireTeamProjectCapability(f.store.db, editor.credential, f.project.id, 'edit').id).toBe(editor.member.id);
+    expect(() => setTeamProjectAccess(f.store.db, editor.credential, second.id, viewer.member.id, 'none')).toThrow();
+    expect(() => setTeamProjectAccess(f.store.db, owner.credential, second.id, viewer.member.id, 'edit')).toThrow('cannot exceed');
+    setTeamProjectAccess(f.store.db, owner.credential, second.id, editor.member.id, null);
+    expect(requireTeamProjectCapability(f.store.db, editor.credential, second.id, 'edit').id).toBe(editor.member.id);
+  } finally { f.store.close(); }
 });
