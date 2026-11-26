@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { TeamCoordinatorHttp } from '../../src/main/team-coordinator-http';
-import { createTeamWorkspace, setTeamCapabilityGrant, type TeamMember } from '../../src/main/team-workspace';
+import { addTeamProject, createTeamWorkspace, setTeamCapabilityGrant, setTeamProjectAccess,
+  type TeamMember } from '../../src/main/team-workspace';
 import { StudioStore } from '../../src/main/store';
 
 it('authenticates two separate HTTP clients, rejects stale writes, and survives coordinator restart', async () => {
@@ -48,6 +49,13 @@ it('authenticates two separate HTTP clients, rejects stale writes, and survives 
     expect(firstBoard.status).toBe(200);
     expect(secondBoard.status).toBe(200);
     expect((await (await getWorkspace(owner.credential)).json()).projects).toEqual([{ id: project.id, name: project.name }]);
+    expect((await (await getWorkspace(editor.credential)).json()).projects).toEqual([{ id: project.id, name: project.name }]);
+    const secondPath = join(root, 'other');
+    mkdirSync(secondPath);
+    const secondProject = store.createProject({ name: 'Private subproject', path: secondPath });
+    addTeamProject(store.db, owner.credential, secondProject.id);
+    setTeamProjectAccess(store.db, owner.credential, secondProject.id, editor.member.id, 'none');
+    expect((await (await getWorkspace(owner.credential)).json()).projects).toHaveLength(2);
     expect((await (await getWorkspace(editor.credential)).json()).projects).toEqual([{ id: project.id, name: project.name }]);
     expect((await firstBoard.json()).cards[0]).toMatchObject({ id: card.id, revision: 0 });
     expect((await secondBoard.json()).cards[0]).toMatchObject({ id: card.id, revision: 0 });

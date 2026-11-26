@@ -89,13 +89,11 @@ export class TeamCoordinatorHttp {
       if (request.method === 'GET' && path === '/v1/workspace') {
         const actor = authenticateTeamMember(this.store.db, actorCredential);
         const projects = this.store.db.prepare(`SELECT project.id, project.name FROM team_projects linked
-          JOIN projects project ON project.id = linked.project_id WHERE linked.workspace_id = ? ORDER BY project.name, project.id`)
-          .all(actor.workspaceId) as Array<{ id: string; name: string }>;
-        const visible = projects.filter((project) => {
-          try { requireTeamProjectCapability(this.store.db, actorCredential, project.id, 'read'); return true; }
-          catch { return false; }
-        });
-        return reply(response, 200, { member: actor, projects: visible });
+          JOIN projects project ON project.id = linked.project_id
+          LEFT JOIN team_project_permissions permission ON permission.project_id = project.id AND permission.member_id = ?
+          WHERE linked.workspace_id = ? AND (? = 'owner' OR permission.access IS NULL OR permission.access != 'none')
+          ORDER BY project.name, project.id`).all(actor.id, actor.workspaceId, actor.role) as Array<{ id: string; name: string }>;
+        return reply(response, 200, { member: actor, projects });
       }
       const board = /^\/v1\/projects\/([0-9a-f-]{36})\/board$/.exec(path);
       if (request.method === 'GET' && board) {
