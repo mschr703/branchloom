@@ -6,7 +6,7 @@ import { afterEach, expect, it } from 'vitest';
 import { StudioStore } from '../../src/main/store';
 import { acceptTeamMemberInvite, addTeamProject, authenticateTeamMember, createTeamMemberInvite, createTeamWorkspace,
   requireTeamProjectCapability, revokeTeamMember, revokeTeamMemberInvite, setTeamCardPriority,
-  setTeamProjectAccess } from '../../src/main/team-workspace';
+  setTeamCapabilityGrant, setTeamProjectAccess } from '../../src/main/team-workspace';
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -145,5 +145,27 @@ it('links several projects to a workspace and only narrows inherited project rig
     expect(() => setTeamProjectAccess(f.store.db, owner.credential, second.id, viewer.member.id, 'edit')).toThrow('cannot exceed');
     setTeamProjectAccess(f.store.db, owner.credential, second.id, editor.member.id, null);
     expect(requireTeamProjectCapability(f.store.db, editor.credential, second.id, 'edit').id).toBe(editor.member.id);
+  } finally { f.store.close(); }
+});
+
+it('separates admin plan acceptance from member proposals and explicit developer grants', () => {
+  const f = fixture();
+  try {
+    const owner = createTeamWorkspace(f.store.db, { workspaceName: 'Sample team', projectId: f.project.id, ownerName: 'Owner' });
+    const join = (role: 'admin' | 'editor' | 'developer') => acceptTeamMemberInvite(f.store.db,
+      createTeamMemberInvite(f.store.db, owner.credential, owner.workspaceId, role).secret, role);
+    const admin = join('admin');
+    const member = join('editor');
+    const developer = join('developer');
+    expect(requireTeamProjectCapability(f.store.db, admin.credential, f.project.id, 'accept_plan').id).toBe(admin.member.id);
+    expect(requireTeamProjectCapability(f.store.db, member.credential, f.project.id, 'propose_plan').id).toBe(member.member.id);
+    expect(() => requireTeamProjectCapability(f.store.db, member.credential, f.project.id, 'accept_plan')).toThrow('not permitted');
+    expect(() => requireTeamProjectCapability(f.store.db, developer.credential, f.project.id, 'accept_plan')).toThrow('not permitted');
+    setTeamCapabilityGrant(f.store.db, owner.credential, f.project.id, developer.member.id, 'start_agent', true);
+    expect(requireTeamProjectCapability(f.store.db, developer.credential, f.project.id, 'start_agent').id).toBe(developer.member.id);
+    expect(() => requireTeamProjectCapability(f.store.db, developer.credential, f.project.id, 'accept_plan')).toThrow('not permitted');
+    setTeamCapabilityGrant(f.store.db, owner.credential, f.project.id, developer.member.id, 'start_agent', false);
+    expect(() => requireTeamProjectCapability(f.store.db, developer.credential, f.project.id, 'start_agent')).toThrow('not permitted');
+    expect(() => setTeamCapabilityGrant(f.store.db, admin.credential, f.project.id, member.member.id, 'accept_plan', true)).toThrow('not permitted');
   } finally { f.store.close(); }
 });
