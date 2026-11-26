@@ -1,4 +1,6 @@
 import type { SessionState } from './types';
+import type { IntegrationState } from './integration-queue';
+import type { IntegrationTestState } from './integration-evidence';
 
 export type QueueResultStatus = 'done' | 'needs-attention' | 'running' | 'skipped' | 'pending';
 
@@ -11,6 +13,10 @@ export interface QueueResultItem {
   status: QueueResultStatus;
   updatedAt: string;
   lastSession: { id: string; state: SessionState; exitCode: number | null } | null;
+  integration: { id: number; state: IntegrationState; sourceHead: string; targetBranch: string;
+    integratedHead: string | null; approvalMode: 'manual' | 'automatic' | null } | null;
+  test: { id: number; state: IntegrationTestState; scriptName: string; sourceHead: string;
+    targetHead: string; endedAt: string | null } | null;
 }
 
 export interface QueueActivationSummary {

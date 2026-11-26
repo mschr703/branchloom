@@ -8,6 +8,10 @@ const labels: Record<QueueResultStatus, string> = {
   skipped: 'Zurückgestellt',
   pending: 'Noch nicht gestartet',
 };
+const testLabels = { running: 'läuft', passed: 'bestanden', failed: 'fehlgeschlagen',
+  interrupted: 'unterbrochen', stale: 'veraltet' } as const;
+const integrationLabels = { queued: 'vorgemerkt', ready: 'bereit', blocked: 'blockiert',
+  integrating: 'wird übernommen', integrated: 'übernommen' } as const;
 
 function ResultItems({ items, onOpenCard, onOpenSession }: {
   items: QueueResultItem[]; onOpenCard?: (cardId: string) => void; onOpenSession?: (sessionId: string) => void;
@@ -30,6 +34,14 @@ function ResultItems({ items, onOpenCard, onOpenSession }: {
             : `Sitzung ${session.state}`}</>
           : ' · Noch keine Sitzung'}
       </small>
+      {item.test ? <small title={`Testbeleg #${item.test.id} · Quell-Commit ${item.test.sourceHead} · Ziel-Commit ${item.test.targetHead}`}>
+        Gespeicherter Test #{item.test.id}: npm run {item.test.scriptName} · {testLabels[item.test.state]}
+        {item.test.endedAt ? <> · <time dateTime={item.test.endedAt}>{new Date(item.test.endedAt).toLocaleString('de-DE')}</time></> : null}
+      </small> : null}
+      {item.integration ? <small title={`Integrationsbeleg #${item.integration.id} · Quell-Commit ${item.integration.sourceHead}${item.integration.integratedHead ? ` · gespeicherter Ziel-Commit ${item.integration.integratedHead}` : ''}`}>
+        Gespeicherte Integration #{item.integration.id}: {integrationLabels[item.integration.state]} · Ziel {item.integration.targetBranch}
+        {item.integration.approvalMode ? ` · ${item.integration.approvalMode === 'automatic' ? 'Projekt-Automatik' : 'manuell'}` : null}
+      </small> : null}
     </li>;
   })}</ol>;
 }
@@ -74,7 +86,7 @@ export function QueueResultsPanel({ results, error, onRetry, onOpenCard, onOpenS
       {results.latestActivation.continueBlocked ? <small>Unabhängige Karten nach einem Blocker waren zugelassen.</small> : null}
       {results.latestActivation.endReason ? <small>{results.latestActivation.endReason}</small> : null}
     </div> : null}
-    <p>Eine abgeschlossene Route ist kein Nachweis für bestandene Tests oder einen Merge. Öffne Karte und Sitzung für die gespeicherten Belege.</p>
+    <p>Eine abgeschlossene Route ist kein Test- oder Merge-Nachweis. Test- und Integrationsangaben sind gespeicherte Kartenbelege; ihr heutiger Git-Stand wird hier nicht erneut geprüft. Öffne die Karte für die aktuelle Prüfung.</p>
     {results.latestActivation
       ? results.latestActivation.total > 0
         ? <><ResultItems items={results.latestItems} onOpenCard={onOpenCard} onOpenSession={onOpenSession} />
