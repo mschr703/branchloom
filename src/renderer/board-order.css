@@ -1,7 +1,0 @@
-.card-order-actions { display:flex; align-items:center; gap:3px; }
-.card-order-actions > button:not(.card-move-trigger) { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border:1px solid #3b5962; border-radius:7px; background:#1a303c; color:#a7ded7; }
-.card-order-actions > button:not(.card-move-trigger):hover:not(:disabled) { background:#28484e; color:#d4fff6; }
-.card-order-actions > button:disabled { opacity:.42; cursor:not-allowed; }
-.card-order-actions .card-move-trigger { margin-left:auto; }
-:root[data-theme='light'] .card-order-actions > button:not(.card-move-trigger) { color:#205d62; background:#e9f5f3; border-color:#9bbfc1; }
-:root[data-theme='light'] .card-order-actions > button:not(.card-move-trigger):hover:not(:disabled) { background:#d5eeeb; }

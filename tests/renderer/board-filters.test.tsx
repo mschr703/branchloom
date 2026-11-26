@@ -32,11 +32,12 @@ describe('board filters and archive visibility', () => {
     } as ProjectSnapshot;
     try {
       await act(async () => { root.render(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() })); });
-      await act(async () => { host.querySelector<HTMLButtonElement>('.card-move-trigger')!.click(); });
-      expect(host.querySelector('.card-move-form')).not.toBeNull();
-      await act(async () => { host.querySelector<HTMLButtonElement>('.card-move-actions .secondary-button')!.click(); });
-      expect(host.querySelector('.card-move-form')).toBeNull();
-      expect(host.querySelector('.card-move-trigger')?.getAttribute('aria-expanded')).toBe('false');
+      await act(async () => { host.querySelector<HTMLButtonElement>('.card-quick-trigger')!.click(); });
+      await act(async () => { [...document.querySelectorAll<HTMLButtonElement>('.card-quick-actions button')].find((button) => button.textContent?.includes('Verschieben'))!.click(); });
+      expect(document.querySelector('.card-move-form')).not.toBeNull();
+      await act(async () => { document.querySelector<HTMLButtonElement>('.card-move-actions .secondary-button')!.click(); });
+      expect(document.querySelector('.card-move-form')).toBeNull();
+      expect(host.querySelector('.card-quick-trigger')?.getAttribute('aria-expanded')).toBe('false');
     } finally {
       await act(async () => { root.unmount(); });
       if (previousAct) Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', previousAct);
@@ -99,7 +100,6 @@ describe('board filters and archive visibility', () => {
     expect(html).toContain('role="search"');
     expect(html).toContain('aria-live="polite"');
     expect(html).toContain('aria-keyshortcuts="M"');
-    expect(html).toContain('Verschieben');
     expect(html).toContain('Karte „Aktive Suche“ in „To Do“ öffnen');
     expect(html).toContain('Schnellaktionen für „Aktive Suche“');
     expect(html).toContain('aria-expanded="false"');

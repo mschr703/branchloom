@@ -17,7 +17,6 @@ import { BoardWorkflowMarkers } from './BoardWorkflowMarkers';
 import { cardWorkflowSignal, type BoardWorkflowSignal } from '../board-workflow-signals';
 import { filterBoardCards, type BoardVisibility } from '../board-filters';
 import '../board-metadata.css';
-import '../board-order.css';
 import '../board-bulk.css';
 import '../column-order.css';
 import '../column-settings.css';
@@ -379,10 +378,12 @@ function BoardCard({ card, column, columns, snapshot, workflowSignal, onSelect, 
 }) {
   const destinations = moveDestinations(columns, card);
   const [moveOpen, setMoveOpen] = useState(false);
+  const [movePosition, setMovePosition] = useState({ top: 0, left: 0 });
   const [destinationId, setDestinationId] = useState(destinations[0]?.id ?? '');
   const [moving, setMoving] = useState(false);
   const [reordering, setReordering] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [actionsPosition, setActionsPosition] = useState({ top: 0, left: 0 });
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState('');
   const cardButton = useRef<HTMLButtonElement>(null);
@@ -400,19 +401,42 @@ function BoardCard({ card, column, columns, snapshot, workflowSignal, onSelect, 
 
   useEffect(() => { if (moveOpen) destinationSelect.current?.focus(); }, [moveOpen]);
   useEffect(() => {
+    if (!moveOpen) return;
+    const closeOnScroll = () => setMoveOpen(false);
+    document.addEventListener('scroll', closeOnScroll, true);
+    window.addEventListener('resize', closeOnScroll);
+    return () => { document.removeEventListener('scroll', closeOnScroll, true); window.removeEventListener('resize', closeOnScroll); };
+  }, [moveOpen]);
+  useEffect(() => {
     if (!actionsOpen) return;
     const dismiss = (event: PointerEvent) => {
       if (event.target instanceof Node && (actionsPanel.current?.contains(event.target) || actionsTrigger.current?.contains(event.target))) return;
       setActionsOpen(false);
     };
     document.addEventListener('pointerdown', dismiss);
-    return () => document.removeEventListener('pointerdown', dismiss);
+    const dismissOnScroll = () => setActionsOpen(false);
+    document.addEventListener('scroll', dismissOnScroll, true);
+    window.addEventListener('resize', dismissOnScroll);
+    actionsPanel.current?.querySelector('button')?.focus();
+    return () => { document.removeEventListener('pointerdown', dismiss); document.removeEventListener('scroll', dismissOnScroll, true); window.removeEventListener('resize', dismissOnScroll); };
   }, [actionsOpen]);
   useEffect(() => { if (destinations.length && !destinations.some((item) => item.id === destinationId)) setDestinationId(destinations[0]!.id); }, [columns, card.columnId, card.archivedAt, destinationId]);
 
   function closeMove() {
     setMoveOpen(false);
     requestAnimationFrame(() => cardButton.current?.focus());
+  }
+
+  function openMove() {
+    const rect = cardButton.current?.getBoundingClientRect();
+    if (rect) {
+      const height = 178;
+      setMovePosition({
+        top: rect.bottom + 6 + height <= window.innerHeight ? rect.bottom + 6 : Math.max(8, rect.top - height - 6),
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - 272)),
+      });
+    }
+    setMoveOpen(true);
   }
 
   async function submitMove(event: React.FormEvent<HTMLFormElement>) {
@@ -463,7 +487,7 @@ function BoardCard({ card, column, columns, snapshot, workflowSignal, onSelect, 
 
   return <div className={`board-card-wrap${bulkMode ? ' is-selecting' : ''}`} data-card-id={card.id}>
     {!card.archivedAt && bulkMode ? <label className="board-bulk-card-select"><input type="checkbox" checked={bulkSelected} onChange={() => onToggleBulk(card.id)} aria-label={`„${card.title}“ für Sammelaktion auswählen`} /><span className="sr-only">Auswählen</span></label> : null}
-    <button ref={cardButton} id={`board-card-${card.id}`} type="button" draggable={!card.archivedAt} onDragStart={(event) => { if (!card.archivedAt) event.dataTransfer.setData('text/card-id', card.id); }} className={`task-card${card.archivedAt ? ' archived' : ''}${active ? ' is-running' : ''}`} data-priority={card.priority} aria-label={`Karte „${card.title}“ in „${column.name}“ öffnen${card.archivedAt ? ', archiviert' : ''}${active ? ', Agent läuft' : ''}`} aria-describedby={[card.description ? `board-card-description-${card.id}` : null, workflowSignal ? `board-card-workflow-${card.id}` : null].filter(Boolean).join(' ') || undefined} aria-keyshortcuts={destinations.length ? 'M' : undefined} onKeyDown={(event) => { if (destinations.length && isMoveShortcut(event)) { event.preventDefault(); setMoveOpen(true); } }} onClick={() => onSelect(card.id)}>
+    <button ref={cardButton} id={`board-card-${card.id}`} type="button" draggable={!card.archivedAt} onDragStart={(event) => { if (!card.archivedAt) event.dataTransfer.setData('text/card-id', card.id); }} className={`task-card${card.archivedAt ? ' archived' : ''}${active ? ' is-running' : ''}`} data-priority={card.priority} aria-label={`Karte „${card.title}“ in „${column.name}“ öffnen${card.archivedAt ? ', archiviert' : ''}${active ? ', Agent läuft' : ''}`} aria-describedby={[card.description ? `board-card-description-${card.id}` : null, workflowSignal ? `board-card-workflow-${card.id}` : null].filter(Boolean).join(' ') || undefined} aria-keyshortcuts={destinations.length ? 'M' : undefined} onKeyDown={(event) => { if (destinations.length && isMoveShortcut(event)) { event.preventDefault(); openMove(); } }} onClick={() => onSelect(card.id)}>
       <span className="task-card-grip" aria-hidden="true">{card.archivedAt ? <Archive size={15} /> : <GripVertical size={15} />}</span>
       <span className="task-card-kicker"><span title={`Karten-ID: ${card.id}`}>#{card.id.slice(0, 6)}</span>{card.priority !== 'none' ? <span className={`task-card-priority-text priority-${card.priority}`}>{priority?.label ?? card.priority}</span> : null}</span>
       <strong>{card.title}</strong>
@@ -476,18 +500,16 @@ function BoardCard({ card, column, columns, snapshot, workflowSignal, onSelect, 
       {card.description ? <span className="task-card-description" id={`board-card-description-${card.id}`}>{card.description}</span> : null}
       {!card.archivedAt || sessions.length > 0 ? <span className="task-card-footer"><span>{active ? <><span className="live-dot" /> {assignedAgent?.name ?? 'Agent'} arbeitet</> : assignedAgent ? <><Terminal size={13} /> {assignedAgent.name} {column.autoStart ? '· Start beim Verschieben' : '· bereit'}</> : sessions.length ? <><Terminal size={13} /> Letzter Lauf beendet</> : 'Manueller Schritt'}</span>{!active && sessions.length > 0 ? <span className="task-card-run-count">{sessions.length} Lauf{sessions.length === 1 ? '' : 'e'}</span> : null}</span> : null}
     </button>
-    <button ref={actionsTrigger} className="card-quick-trigger" type="button" aria-label={`Schnellaktionen für „${card.title}“`} aria-expanded={actionsOpen} aria-controls={actionsOpen ? `card-actions-${card.id}` : undefined} onKeyDown={(event) => { if (actionsOpen && event.key === 'Escape') { event.preventDefault(); closeActions(); } }} onClick={() => { setActionError(''); setActionsOpen((open) => !open); }}><MoreHorizontal size={18} aria-hidden="true" /></button>
-    {actionsOpen ? <div ref={actionsPanel} className="card-quick-actions" id={`card-actions-${card.id}`} role="group" aria-label={`Schnellaktionen für „${card.title}“`} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeActions(); } }}>
+    <button ref={actionsTrigger} className="card-quick-trigger" type="button" aria-label={`Schnellaktionen für „${card.title}“`} aria-expanded={actionsOpen} aria-controls={actionsOpen ? `card-actions-${card.id}` : undefined} onKeyDown={(event) => { if (actionsOpen && event.key === 'Escape') { event.preventDefault(); closeActions(); } }} onClick={() => { setActionError(''); if (!actionsOpen) { const rect = actionsTrigger.current?.getBoundingClientRect(); if (rect) { const height = 220; const top = rect.bottom + 5 + height <= window.innerHeight ? rect.bottom + 5 : Math.max(8, rect.top - height - 5); setActionsPosition({ top, left: Math.max(8, Math.min(rect.right - 220, window.innerWidth - 228)) }); } } setActionsOpen((open) => !open); }}><MoreHorizontal size={18} aria-hidden="true" /></button>
+    {actionsOpen ? createPortal(<div ref={actionsPanel} className="card-quick-actions card-quick-popover" style={actionsPosition} id={`card-actions-${card.id}`} role="group" aria-label={`Schnellaktionen für „${card.title}“`} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeActions(); } }}>
+      {!card.archivedAt && destinations.length ? <button type="button" onClick={() => { setActionsOpen(false); openMove(); }}>Verschieben <kbd>M</kbd></button> : null}
+      {!card.archivedAt && previousTitle ? <button type="button" disabled={reordering} onClick={() => { setActionsOpen(false); void submitReorder('up'); }}><ArrowUp size={15} aria-hidden="true" /> Vor „{previousTitle}“ setzen</button> : null}
+      {!card.archivedAt && nextTitle ? <button type="button" disabled={reordering} onClick={() => { setActionsOpen(false); void submitReorder('down'); }}><ArrowDown size={15} aria-hidden="true" /> Hinter „{nextTitle}“ setzen</button> : null}
       {sessions.length ? <button type="button" onClick={() => { setActionsOpen(false); onOpenSession(card.id); }}><Terminal size={15} aria-hidden="true" /> Sitzung ansehen</button> : null}
       {hasWorktree ? <button type="button" disabled={actionBusy} onClick={() => void openWorktree()}><FolderOpen size={15} aria-hidden="true" /> Worktree öffnen</button> : null}
       <button type="button" onClick={() => void copyCardId()}><Copy size={15} aria-hidden="true" /> Karten-ID kopieren</button>
       {actionError ? <p className="card-quick-error" role="alert">{actionError}</p> : null}
-    </div> : null}
-    {!card.archivedAt ? <div className="card-order-actions">
-      <button type="button" disabled={!previousTitle || reordering} aria-label={`„${card.title}“ in „${column.name}“ nach oben setzen${previousTitle ? `, vor „${previousTitle}“` : ''}`} title={previousTitle ? `Vor „${previousTitle}“ setzen` : 'Bereits oben'} onClick={() => void submitReorder('up')}><ArrowUp size={14} aria-hidden="true" /></button>
-      <button type="button" disabled={!nextTitle || reordering} aria-label={`„${card.title}“ in „${column.name}“ nach unten setzen${nextTitle ? `, hinter „${nextTitle}“` : ''}`} title={nextTitle ? `Hinter „${nextTitle}“ setzen` : 'Bereits unten'} onClick={() => void submitReorder('down')}><ArrowDown size={14} aria-hidden="true" /></button>
-      {destinations.length ? <button className="card-move-trigger" type="button" aria-expanded={moveOpen} aria-controls={moveOpen ? `board-move-${card.id}` : undefined} onClick={() => setMoveOpen((old) => !old)}>Verschieben <kbd>M</kbd></button> : null}
-    </div> : null}
-    {moveOpen && destination ? <form className="card-move-form" id={`board-move-${card.id}`} onSubmit={(event) => void submitMove(event)} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeMove(); } }}><label htmlFor={`board-destination-${card.id}`}>Zielspalte für „{card.title}“</label><select ref={destinationSelect} id={`board-destination-${card.id}`} value={destinationId} disabled={moving} onChange={(event) => setDestinationId(event.target.value)}>{destinations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>{destination.autoStart && destination.agentId ? <p className="card-move-warning" id={`board-move-warning-${card.id}`}>Beim Verschieben versucht Jarvis, {destinationAgent?.name ?? 'den Spaltenagenten'} automatisch zu starten.</p> : null}<div className="card-move-actions"><button className="primary-button small" type="submit" disabled={moving} aria-describedby={destination.autoStart && destination.agentId ? `board-move-warning-${card.id}` : undefined}>Nach „{destination.name}“ verschieben</button><button className="secondary-button small" type="button" onClick={closeMove} disabled={moving}>Abbrechen</button></div></form> : null}
+    </div>, document.body) : null}
+    {moveOpen && destination ? createPortal(<form className="card-move-form card-move-popover" style={movePosition} id={`board-move-${card.id}`} onSubmit={(event) => void submitMove(event)} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeMove(); } }}><label htmlFor={`board-destination-${card.id}`}>Zielspalte für „{card.title}“</label><select ref={destinationSelect} id={`board-destination-${card.id}`} value={destinationId} disabled={moving} onChange={(event) => setDestinationId(event.target.value)}>{destinations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>{destination.autoStart && destination.agentId ? <p className="card-move-warning" id={`board-move-warning-${card.id}`}>Beim Verschieben versucht Jarvis, {destinationAgent?.name ?? 'den Spaltenagenten'} automatisch zu starten.</p> : null}<div className="card-move-actions"><button className="primary-button small" type="submit" disabled={moving} aria-describedby={destination.autoStart && destination.agentId ? `board-move-warning-${card.id}` : undefined}>Nach „{destination.name}“ verschieben</button><button className="secondary-button small" type="button" onClick={closeMove} disabled={moving}>Abbrechen</button></div></form>, document.body) : null}
   </div>;
 }

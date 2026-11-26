@@ -58,13 +58,6 @@
 :root[data-theme] .board-card-wrap > .board-bulk-card-select { position: absolute; z-index: 2; top: 8px; left: 8px; width: 23px; height: 25px; padding: 4px; }
 :root[data-theme] .board-card-wrap > .board-bulk-card-select input { width: 15px; height: 15px; min-height: 15px; margin: 0; }
 :root[data-theme] .card-quick-trigger { top: 5px; right: 5px; width: 26px; height: 26px; }
-:root[data-theme] .board-card-wrap > .card-order-actions { position: absolute; z-index: 3; right: 5px; bottom: 5px; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); box-shadow: 0 4px 12px #0002; opacity: 0; pointer-events: none; }
-:root[data-theme] .board-card-wrap:hover:not(:has(> .card-move-form)) > .card-order-actions,
-:root[data-theme] .board-card-wrap > .card-order-actions:focus-within { opacity: 1; pointer-events: auto; }
-:root[data-theme] .card-order-actions > button:not(.card-move-trigger) { width: 25px; height: 25px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); }
-:root[data-theme] .card-order-actions > button:not(.card-move-trigger):hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
-:root[data-theme] .card-order-actions .card-move-trigger { min-height: 25px; margin-left: 0; padding: 2px 5px; background: transparent; color: var(--text); font-size: 10px; }
-:root[data-theme] .card-order-actions .card-move-trigger:hover { background: var(--surface-2); }
 :root[data-theme] .column-footer { padding: 4px 9px; background: var(--surface-2); }
 :root[data-theme] .column-add-task { min-height: 33px; font-size: 12px; color: var(--muted); }
 :root[data-theme] .column-add-task:hover { color: var(--text); }
@@ -143,15 +136,15 @@
 :root[data-theme] .board-bulk-actions { margin: 3px 29px 9px 0; padding: 7px 9px; border-color: var(--border); border-radius: 6px; background: var(--surface); font-size: 12px; }
 /* Quiet column washes make adjacent work stages easier to scan. The colored
    agent-start line above each heading remains a separate, factual signal. */
-:root[data-theme='light'] .board-columns > .board-column:nth-child(5n + 1) { --column-wash: #f1f0ed; }
-:root[data-theme='light'] .board-columns > .board-column:nth-child(5n + 2) { --column-wash: #f1eef6; }
-:root[data-theme='light'] .board-columns > .board-column:nth-child(5n + 3) { --column-wash: #edf1f5; }
-:root[data-theme='light'] .board-columns > .board-column:nth-child(5n + 4) { --column-wash: #f5f0e8; }
-:root[data-theme='light'] .board-columns > .board-column:nth-child(5n) { --column-wash: #edf2ee; }
-:root[data-theme='light'] .board-columns > .board-column[data-tint='lilac'] { --column-wash: #eee9f7; }
-:root[data-theme='light'] .board-columns > .board-column[data-tint='blue'] { --column-wash: #e6eef7; }
-:root[data-theme='light'] .board-columns > .board-column[data-tint='sand'] { --column-wash: #f6eee0; }
-:root[data-theme='light'] .board-columns > .board-column[data-tint='coral'] { --column-wash: #f5e7e5; }
+:root[data-theme='light'] .board-columns > .board-column:nth-child(5n + 1) { --column-wash: #f3f1ef; --column-edge: #bab6ae; }
+:root[data-theme='light'] .board-columns > .board-column:nth-child(5n + 2) { --column-wash: #f1edf8; --column-edge: #b9a4d1; }
+:root[data-theme='light'] .board-columns > .board-column:nth-child(5n + 3) { --column-wash: #edf2f8; --column-edge: #9eb6d4; }
+:root[data-theme='light'] .board-columns > .board-column:nth-child(5n + 4) { --column-wash: #f8f2e8; --column-edge: #d3b98e; }
+:root[data-theme='light'] .board-columns > .board-column:nth-child(5n) { --column-wash: #f0f1f2; --column-edge: #aeb5bb; }
+:root[data-theme='light'] .board-columns > .board-column[data-tint='lilac'] { --column-wash: #eee9f7; --column-edge: #aa91cc; }
+:root[data-theme='light'] .board-columns > .board-column[data-tint='blue'] { --column-wash: #e6eef7; --column-edge: #8aaed2; }
+:root[data-theme='light'] .board-columns > .board-column[data-tint='sand'] { --column-wash: #f6eee0; --column-edge: #cbaa72; }
+:root[data-theme='light'] .board-columns > .board-column[data-tint='coral'] { --column-wash: #f5e7e5; --column-edge: #d39a91; }
 :root[data-theme='dark'] .board-column[data-tint='lilac'] { --column-wash: #302d38; }
 :root[data-theme='dark'] .board-column[data-tint='blue'] { --column-wash: #29313a; }
 :root[data-theme='dark'] .board-column[data-tint='sand'] { --column-wash: #38332b; }
@@ -188,8 +181,8 @@
 
 /* Card hierarchy: a quiet identity line, readable task, then real work state. */
 :root[data-theme] .board-scroll { padding-bottom: 0; }
-:root[data-theme] .board-columns { height: 100%; min-height: 0; align-items: stretch; padding-bottom: 10px; }
-:root[data-theme] .board-column { height: 100%; min-height: 0; max-height: none; }
+:root[data-theme] .board-columns { height: 100%; min-height: 0; align-items: stretch; gap: 10px; padding-bottom: 10px; }
+:root[data-theme] .board-column { width: 244px; min-width: 244px; height: 100%; min-height: 0; max-height: none; }
 :root[data-theme] .board-column .column-body { flex: 1 1 auto; min-height: 0; }
 :root[data-theme] .board-card-wrap > .task-card {
   display: flex;
@@ -198,6 +191,7 @@
   min-height: 114px;
   padding: 10px 34px 0 12px;
   border-color: color-mix(in srgb, var(--border) 80%, var(--text) 20%);
+  border-top: 2px solid var(--column-edge, var(--border));
   border-radius: 5px;
   box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 5%, transparent);
 }
@@ -224,3 +218,6 @@
 :root[data-theme] .board-session-running.state-exited { background: var(--muted); }
 :root[data-theme] .board-session-running.state-stopped { background: var(--warning); }
 :root[data-theme] .board-session-running.state-failed { background: var(--danger); }
+@media (max-width: 600px) {
+  :root[data-theme] .board-column { width: min(244px, calc(100vw - 42px)); min-width: min(244px, calc(100vw - 42px)); }
+}
