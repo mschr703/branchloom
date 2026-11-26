@@ -1,53 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ProjectSnapshot, ProjectQueue } from '../../shared/types';
-import type { ProjectCodexWorkflowAccess } from '../../shared/project-agent-rights';
-import type { IntegrationPolicy } from '../../shared/integration-queue';
-import type { Card } from '../../shared/types';
+import type { QueueStartReview } from '../../shared/queue-start-review';
 import type { Mutate } from './shared';
 import './queue-start-preview.css';
 
-interface StartReview {
-  project: { id: string; name: string; path: string };
-  route: { id: string; name: string; steps: string[]; usesCodex: boolean };
-  candidates: Array<{ id: string; title: string }>;
-  codexMode: ProjectCodexWorkflowAccess['mode'];
-  integrationMode: IntegrationPolicy['mode'];
-  continueBlocked: boolean;
-  autoResumeIdle: boolean;
-  autoTest: boolean;
-  queueState: ProjectQueue['state'];
-  pauseReason: string | null;
-}
-
-export function queueStartReview(snapshot: ProjectSnapshot, templateId: string, candidates: Card[],
-  codex: ProjectCodexWorkflowAccess, integration: IntegrationPolicy): StartReview {
-  const route = snapshot.workflows.find((item) => item.id === templateId);
-  if (!route) throw new Error('Die gewählte Route existiert nicht mehr. Wähle eine aktuelle Vorlage.');
-  return {
-    project: { id: snapshot.project.id, name: snapshot.project.name, path: snapshot.project.path },
-    route: { id: route.id, name: route.name, usesCodex: route.steps.some((step) => snapshot.agents.find((item) => item.id === step.agentId)?.kind === 'codex'),
-      steps: route.steps.map((step) => {
-        const column = snapshot.columns.find((item) => item.id === step.columnId)?.name ?? 'Entfernte Spalte';
-        const agent = step.agentId ? snapshot.agents.find((item) => item.id === step.agentId)?.name ?? 'Entfernter Agent' : 'manuell';
-        return `${column} · ${agent}${step.requireApproval ? ' · Freigabe' : ''}`;
-      }) },
-    candidates: candidates.map(({ id, title }) => ({ id, title })),
-    codexMode: codex.mode, integrationMode: integration.mode,
-    continueBlocked: snapshot.queue.continueBlocked === true,
-    autoResumeIdle: snapshot.queue.autoResumeIdle === true,
-    autoTest: snapshot.queue.autoTest === true,
-    queueState: snapshot.queue.state,
-    pauseReason: snapshot.queue.pauseReason,
-  };
-}
-
-async function loadReview(projectId: string, templateId: string): Promise<StartReview> {
-  const [snapshot, candidates, codex, integration] = await Promise.all([
-    window.studio.snapshot(projectId), window.studio.queueCandidates(projectId),
-    window.studio.projectCodexWorkflowAccess(projectId), window.studio.integrationPolicy(projectId),
-  ]);
-  return queueStartReview(snapshot, templateId, candidates, codex, integration);
-}
+const loadReview = (projectId: string, templateId: string, hours: number) => window.studio.queueStartPreview({
+  projectId, templateWorkflowId: templateId, durationHours: hours as 0 | 1 | 4 | 8,
+});
 
 export function QueueStartPreview({ projectId, templateId, hours, mutate, onClose }: {
   projectId: string; templateId: string; hours: number; mutate: Mutate; onClose: () => void;
@@ -55,7 +13,7 @@ export function QueueStartPreview({ projectId, templateId, hours, mutate, onClos
   const headingRef = useRef<HTMLHeadingElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const startingRef = useRef(false);
-  const [review, setReview] = useState<StartReview | null>(null);
+  const [review, setReview] = useState<QueueStartReview | null>(null);
   const [error, setError] = useState('');
   const [starting, setStarting] = useState(false);
   const [retry, setRetry] = useState(0);
@@ -82,27 +40,27 @@ export function QueueStartPreview({ projectId, templateId, hours, mutate, onClos
   useEffect(() => {
     let active = true;
     setReview(null); setError('');
-    void loadReview(projectId, templateId).then(
+    void loadReview(projectId, templateId, hours).then(
       (value) => { if (active) setReview(value); },
       (reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : String(reason)); },
     );
     return () => { active = false; };
-  }, [projectId, templateId, retry]);
+  }, [projectId, templateId, hours, retry]);
 
   async function start() {
     if (!review || starting) return;
     startingRef.current = true;
     setStarting(true); setError('');
     try {
-      const current = await loadReview(projectId, templateId);
+      const current = await loadReview(projectId, templateId, hours);
       if (JSON.stringify(current) !== JSON.stringify(review)) {
         setReview(current);
         setError('Projekt, Route oder Einstellungen haben sich geändert. Prüfe die aktualisierte Vorschau und klicke erneut.');
         return;
       }
       if (current.queueState === 'running') throw new Error('Die Queue läuft bereits. Lade den aktuellen Projektstand.');
-      const runUntil = hours ? new Date(Date.now() + hours * 60 * 60 * 1_000).toISOString() : null;
-      const saved = await mutate(() => window.studio.setProjectQueue({ projectId, state: 'running', templateWorkflowId: templateId, runUntil }));
+      const saved = await mutate(() => window.studio.setProjectQueue({ projectId, state: 'running', templateWorkflowId: templateId,
+        durationHours: current.durationHours, reviewToken: current.token }));
       if (saved) onClose();
       else setError('Der Start wurde nicht bestätigt. Prüfe die Fehlermeldung und versuche es erneut.');
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
