@@ -2,6 +2,10 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Gespeicherte QA-Aufnahme als Designreferenz (lokal geprüft)
+
+- In der Design-Übersicht kann eine tatsächlich gespeicherte QA-Aufnahme der zugehörigen Karte als visuelle Referenz geöffnet werden. Der Editor öffnet im großen Modus und legt das Bild auf die Zeichenfläche; Ein-/Ausblenden und Deckkraft sind reine Ansichtsänderungen. Eine Karte ohne Wireframe zeigt die Aufnahme vor der Wahl einer leeren Fläche oder Fenstergrundlage. Die Aufnahme wird nicht in die Wireframe-Revision, den PNG-Export oder den Agentenauftrag geschrieben. Der synthetische Electron-Pfad prüfte Galerie → Editor und das Ausblenden; gezielte Renderer-Tests prüfen Bildquelle, Umschalten und ausbleibendes Speichern. Die Aufnahme kann veraltet sein und ist kein editierbares Agentenartefakt. Eine automatische Übergabe nach einem Agentenlauf bleibt offen.
+
 ## Text direkt auf dem Artboard platzieren (lokal geprüft)
 
 - Das obere Textwerkzeug setzt per Klick ein Textfeld innerhalb der aktiven Zeichenfläche und öffnet direkt dessen Texteingabe. Ziehen legt stattdessen Breite und Höhe fest. Aktive Zeichenwerkzeuge treffen die Zeichenfläche auch über vorhandenen Elementen; zum Bewegen eines Elements muss wieder **Auswählen** aktiv sein. Die Position bleibt auch nahe dem rechten oder unteren Rand innerhalb des Artboards. Im synthetischen Electron-Profil wurde auf einer leeren Mobile-Fläche ein Textfeld angelegt, in „Mobile heading“ geändert und mit Enter übernommen; der Entwurf wurde dabei nicht gespeichert. Fünf gezielte Renderer-/Geometrietests, Typprüfung und Produktionsbuild bestanden. Die Kartenbindung und die separate Freigabe bleiben unverändert; reichhaltige Seitenentwürfe aus echten Agentenartefakten sind weiterhin offen.

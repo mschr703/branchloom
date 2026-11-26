@@ -7,7 +7,7 @@ function MiniArtboard({ elements }: { elements: WireframeElement[] }) {
   return <span className="design-overview-artboard" aria-hidden="true"><span className="design-overview-artboard-stage">{elements.slice(0, 18).map((item) => <span key={item.id} className={`design-overview-shape kind-${item.kind}`} style={{ left: `${item.x / 9.6}%`, top: `${item.y / 6}%`, width: `${item.width / 9.6}%`, height: `${item.height / 6}%` }} />)}</span></span>;
 }
 
-function CaptureTile({ capture, card, onOpen }: { capture: ProjectQaCapture; card: Card | undefined; onOpen: () => void | Promise<void> }) {
+function CaptureTile({ capture, card, onOpen, onUseReference }: { capture: ProjectQaCapture; card: Card | undefined; onOpen: () => void | Promise<void>; onUseReference: (image: string) => void }) {
   const [image, setImage] = useState<string | null>(null);
   const [error, setError] = useState(false);
   useEffect(() => {
@@ -21,15 +21,15 @@ function CaptureTile({ capture, card, onOpen }: { capture: ProjectQaCapture; car
   try { route = new URL(capture.requestedUrl).pathname || '/'; } catch { /* Legacy report without a valid URL. */ }
   const date = new Date(capture.endedAt);
   const when = Number.isNaN(date.getTime()) ? 'Zeit unbekannt' : new Intl.DateTimeFormat('de-DE', { dateStyle: 'short', timeStyle: 'short' }).format(date);
-  return <button type="button" className="design-overview-capture" disabled={!card} onClick={() => void onOpen()} aria-label={`QA-Aufnahme zu „${card?.title ?? 'nicht verfügbarer Karte'}“ öffnen`}>
+  return <div className="design-overview-capture-tile"><button type="button" className="design-overview-capture" disabled={!card} onClick={() => void onOpen()} aria-label={`QA-Aufnahme zu „${card?.title ?? 'nicht verfügbarer Karte'}“ öffnen`}>
     <span className="design-overview-capture-image">{image ? <img src={image} alt={`Gespeicherte lokale Aufnahme der Route ${route}`} onError={() => { setImage(null); setError(true); }} /> : <span>{error ? 'Aufnahme nicht verfügbar' : 'Aufnahme laden…'}</span>}</span>
     <span className="design-overview-document-text"><strong>{card?.title ?? 'Karte nicht im Board'}</strong><small>{route} · {capture.viewportWidth} × {capture.viewportHeight}</small><span>{when} · QA {capture.status === 'passed' ? 'bestanden' : capture.status === 'failed' ? 'mit Befunden' : 'mit Fehler'}</span></span>
-  </button>;
+  </button><button type="button" className="design-overview-reference-action" disabled={!card || !image} onClick={() => { if (image) onUseReference(image); }}>Als Referenz im Editor öffnen</button></div>;
 }
 
-export function DesignProjectOverview({ cards, index, captures, selections, loading, error, captureLoading, captureError, onRetry, onRetryCaptures, onOpenDraft, onOpenQaCard, onOpenPreview }: {
+export function DesignProjectOverview({ cards, index, captures, selections, loading, error, captureLoading, captureError, onRetry, onRetryCaptures, onOpenDraft, onOpenQaCard, onOpenReference, onOpenPreview }: {
   cards: Card[]; index: ProjectWireframeIndex | null; captures: ProjectQaCaptureIndex | null; selections: DesignSelection[]; loading: boolean; error: string; captureLoading: boolean; captureError: string;
-  onRetry: () => void; onRetryCaptures: () => void; onOpenDraft: (cardId?: string) => void; onOpenQaCard: (cardId: string) => void | Promise<void>; onOpenPreview: () => void;
+  onRetry: () => void; onRetryCaptures: () => void; onOpenDraft: (cardId?: string) => void; onOpenQaCard: (cardId: string) => void | Promise<void>; onOpenReference: (capture: ProjectQaCapture, image: string) => void; onOpenPreview: () => void;
 }) {
   const cardById = new Map(cards.map((card) => [card.id, card]));
   const hasCaptures = captureLoading || Boolean(captureError) || Boolean(captures?.items.length);
@@ -49,7 +49,7 @@ export function DesignProjectOverview({ cards, index, captures, selections, load
     </section>}
     {hasCaptures ? <section className="design-overview-section" aria-label="Gespeicherte App-Aufnahmen">
       <div className="design-overview-section-heading"><h3>App-Aufnahmen</h3><span>{captures?.items.length ?? 0}{captures?.moreAvailable ? '+' : ''} aus Karten-QA</span></div>
-      {captureLoading ? <p role="status">Aufnahmen werden geladen…</p> : captureError ? <p role="alert">Aufnahmen konnten nicht geladen werden: {captureError} <button type="button" onClick={onRetryCaptures}>Erneut laden</button></p> : <div className="design-overview-grid">{captures?.items.map((capture) => <CaptureTile key={capture.id} capture={capture} card={cardById.get(capture.cardId)} onOpen={() => onOpenQaCard(capture.cardId)} />)}</div>}
+      {captureLoading ? <p role="status">Aufnahmen werden geladen…</p> : captureError ? <p role="alert">Aufnahmen konnten nicht geladen werden: {captureError} <button type="button" onClick={onRetryCaptures}>Erneut laden</button></p> : <div className="design-overview-grid">{captures?.items.map((capture) => <CaptureTile key={capture.id} capture={capture} card={cardById.get(capture.cardId)} onOpen={() => onOpenQaCard(capture.cardId)} onUseReference={(image) => onOpenReference(capture, image)} />)}</div>}
       <p className="design-overview-note">Diese Bilder stammen aus einem gespeicherten lokalen Browsercheck. Sie sind weder ein bearbeitbarer Entwurf noch ein Beleg für den aktuellen Code-Stand.</p>
     </section> : null}
     </div>

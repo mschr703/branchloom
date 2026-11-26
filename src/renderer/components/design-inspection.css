@@ -17,6 +17,12 @@
 .design-overview-document { display: grid; min-width: 0; padding: 0; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text); text-align: left; font: inherit; overflow: hidden; cursor: pointer; }
 .design-overview-document:hover { border-color: var(--muted); }
 .design-overview-capture { display: grid; min-width: 0; padding: 0; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text); text-align: left; font: inherit; overflow: hidden; cursor: pointer; }
+.design-overview-capture-tile { display: grid; min-width: 0; align-content: start; }
+.design-overview-capture-tile .design-overview-capture { border-radius: 5px 5px 0 0; }
+.design-overview-reference-action { min-height: 35px; padding: 7px 11px; border: 1px solid var(--border); border-top: 0; border-radius: 0 0 5px 5px; background: var(--surface); color: var(--text); text-align: left; font: inherit; font-size: 12px; cursor: pointer; }
+.design-overview-reference-action:not(:disabled):hover { background: var(--surface-2); }
+.design-overview-reference-action:disabled { color: var(--muted); cursor: default; }
+.design-overview-reference-action:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .design-overview-capture:not(:disabled):hover { border-color: var(--muted); }
 .design-overview-capture:disabled { cursor: default; opacity: .7; }
 .design-overview-capture-image { display: grid; place-items: center; height: 130px; background: var(--bg); color: var(--muted); font-size: 12px; overflow: hidden; }

@@ -11,7 +11,7 @@ import { DesignVoiceTask } from './DesignVoiceTask';
 import { DesignElementStyleEditor } from './DesignElementStyleEditor';
 import { TaskWireframeEditor } from './TaskWireframeEditor';
 import { DesignProjectOverview } from './DesignProjectOverview';
-import type { Card, Column, ProjectQaCaptureIndex, QueueState } from '../../shared/types';
+import type { Card, Column, ProjectQaCapture, ProjectQaCaptureIndex, QueueState } from '../../shared/types';
 import type { ProjectWireframeIndex } from '../../shared/card-wireframe';
 import './design-inspection.css';
 
@@ -41,6 +41,7 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
   const [wireframeFocus, setWireframeFocus] = useState(false);
   const [workspaceMode, setWorkspaceMode] = useState<'overview' | 'draft' | 'preview'>(startCardId ? 'draft' : 'overview');
   const [openedCardId, setOpenedCardId] = useState<string | null>(startCardId ?? null);
+  const [referenceCapture, setReferenceCapture] = useState<{ capture: ProjectQaCapture; image: string } | null>(null);
   const [editorOpenRevision, setEditorOpenRevision] = useState(0);
   const [wireframeIndex, setWireframeIndex] = useState<{ projectId: string; index: ProjectWireframeIndex } | null>(null);
   const [wireframeIndexError, setWireframeIndexError] = useState('');
@@ -90,6 +91,7 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
     setWireframeFocus(false);
     setWorkspaceMode(startCardId ? 'draft' : 'overview');
     setOpenedCardId(startCardId ?? null);
+    setReferenceCapture(null);
     setWireframeIndex(null); setWireframeIndexError(''); setQaCaptureIndex(null); setQaCaptureError('');
     setSelections([]); setState(emptyState); setError(''); setUrl(''); setSelector(''); setA11yCheck(null); setA11yError(null); setA11yBusyId(null); setVoiceSelectionId(null); setStyleRequest(null);
     void window.studio.designSelections(projectId).then((items) => { if (mounted) setSelections(items); }).catch((reason: unknown) => { if (mounted) setError(messageOf(reason)); });
@@ -225,8 +227,8 @@ export function DesignInspectionView({ projectId, active, cards, startCardId, co
   const previewActive = active && !wireframeFocus && workspaceMode === 'preview';
   return <section className={`design-inspection${wireframeFocus ? ' wireframe-focus' : ''}`} aria-label="Design-Arbeitsbereich">
     {!wireframeFocus ? <nav className="design-workspace-modes" aria-label="Design-Ansicht wählen"><button type="button" aria-pressed={workspaceMode === 'overview'} onClick={() => setWorkspaceMode('overview')}>Übersicht</button><button type="button" aria-pressed={workspaceMode === 'draft'} onClick={() => setWorkspaceMode('draft')}>Entwurf</button><button type="button" aria-pressed={workspaceMode === 'preview'} onClick={() => setWorkspaceMode('preview')}>Laufende App prüfen{state.ready ? <span aria-label="Vorschau geöffnet" className="design-workspace-preview-indicator" /> : null}</button></nav> : null}
-    <div hidden={workspaceMode !== 'overview'}><DesignProjectOverview cards={cards} index={wireframeIndex?.projectId === projectId ? wireframeIndex.index : null} captures={qaCaptureIndex?.projectId === projectId ? qaCaptureIndex.index : null} selections={selections.filter((item) => item.projectId === projectId)} loading={wireframeIndexLoading} error={wireframeIndexError} captureLoading={qaCaptureLoading} captureError={qaCaptureError} onRetry={() => setWireframeIndexRevision((value) => value + 1)} onRetryCaptures={() => setQaCaptureRevision((value) => value + 1)} onOpenDraft={(cardId) => { setOpenedCardId(cardId ?? null); setEditorOpenRevision((value) => value + 1); setWorkspaceMode('draft'); if (cardId) void changeWireframeFocus(true); }} onOpenQaCard={onOpenCard} onOpenPreview={() => setWorkspaceMode('preview')} /></div>
-    <div className="design-workspace-draft" hidden={workspaceMode !== 'draft'}><TaskWireframeEditor key={`${projectId}:${openedCardId ?? 'last'}:${editorOpenRevision}`} projectId={projectId} cards={cards} startCardId={openedCardId} focusMode={wireframeFocus} focusPending={focusPending} canEnterFocus={active && !busy && !state.armed} onFocusModeChange={(next) => void changeWireframeFocus(next)} /></div>
+    <div hidden={workspaceMode !== 'overview'}><DesignProjectOverview cards={cards} index={wireframeIndex?.projectId === projectId ? wireframeIndex.index : null} captures={qaCaptureIndex?.projectId === projectId ? qaCaptureIndex.index : null} selections={selections.filter((item) => item.projectId === projectId)} loading={wireframeIndexLoading} error={wireframeIndexError} captureLoading={qaCaptureLoading} captureError={qaCaptureError} onRetry={() => setWireframeIndexRevision((value) => value + 1)} onRetryCaptures={() => setQaCaptureRevision((value) => value + 1)} onOpenDraft={(cardId) => { setReferenceCapture(null); setOpenedCardId(cardId ?? null); setEditorOpenRevision((value) => value + 1); setWorkspaceMode('draft'); if (cardId) void changeWireframeFocus(true); }} onOpenQaCard={onOpenCard} onOpenReference={(capture, image) => { setReferenceCapture({ capture, image }); setOpenedCardId(capture.cardId); setEditorOpenRevision((value) => value + 1); setWorkspaceMode('draft'); void changeWireframeFocus(true); }} onOpenPreview={() => setWorkspaceMode('preview')} /></div>
+    <div className="design-workspace-draft" hidden={workspaceMode !== 'draft'}><TaskWireframeEditor key={`${projectId}:${openedCardId ?? 'last'}:${editorOpenRevision}`} projectId={projectId} cards={cards} startCardId={openedCardId} referenceCapture={referenceCapture} focusMode={wireframeFocus} focusPending={focusPending} canEnterFocus={active && !busy && !state.armed} onFocusModeChange={(next) => void changeWireframeFocus(next)} /></div>
     <div className="design-inspection-tools" hidden={!previewActive}>
     <div className="design-inspection-intro"><div><h2>Design-Inspektion</h2><p>Öffne eine laufende lokale Vorschau. Wähle anschließend genau ein Element; Branchloom speichert dessen begrenzte CSS-Belege nur in diesem Projekt.</p></div></div>
     <form className="design-inspection-toolbar" onSubmit={(event) => void start(event)}>

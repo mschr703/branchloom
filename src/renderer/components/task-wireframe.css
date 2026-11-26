@@ -113,7 +113,18 @@ body .design-workspace-draft .task-wireframe:not(.is-focused) .task-wireframe-to
 .task-wireframe-canvas-viewport:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 2px; }
 .task-wireframe-canvas-scale { position: relative; }
 .task-wireframe-canvas-hint { display: flex; align-items: center; gap: 4px; margin: 7px 0 0; font-size: 12px; color: var(--muted); }
+.task-wireframe-reference-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+.task-wireframe-reference-controls > span { margin-right: auto; }
+.task-wireframe-reference-controls label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.task-wireframe-reference-controls input[type="range"] { width: 86px; accent-color: var(--accent); }
+.task-wireframe-reference-controls input:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 2px; }
+.task-wireframe-start-reference { display: grid; gap: 6px; max-width: 440px; }
+.task-wireframe-start-reference img { display: block; max-width: 100%; max-height: 220px; object-fit: contain; border: 1px solid var(--border); background: var(--surface); }
+.task-wireframe-start-reference small { color: var(--muted); font-size: 12px; line-height: 1.45; }
 .task-wireframe-canvas { position: relative; container-type: inline-size; width: 100%; aspect-ratio: 960 / 600; overflow: hidden; transform-origin: top left; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); box-shadow: 0 7px 20px color-mix(in srgb, var(--text) 8%, transparent); }
+.task-wireframe-reference-image { position: absolute; inset: 0; z-index: 1; display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; user-select: none; }
+.task-wireframe-canvas:has(.task-wireframe-reference-image) .task-wireframe-element { z-index: 2; }
+.task-wireframe-canvas:has(.task-wireframe-reference-image) .task-wireframe-element.kind-panel { background-color: color-mix(in srgb, var(--surface) 24%, transparent) !important; border-style: dashed; }
 .task-wireframe-canvas.has-grid { background-image: linear-gradient(to right, color-mix(in srgb, var(--text) 12%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, var(--text) 12%, transparent) 1px, transparent 1px); }
 .task-wireframe-canvas.draw-ready { cursor: crosshair; }
 .task-wireframe-canvas.draw-ready .task-wireframe-element,
