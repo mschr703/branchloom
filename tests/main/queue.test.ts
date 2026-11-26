@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { Session } from '../../src/shared/types';
 import { AgentSpawnError, DONE_MARKER, type SessionRunner } from '../../src/main/cli';
 import { ProjectQueueEngine } from '../../src/main/queue';
+import { setCardRunDependencies } from '../../src/main/parallel-runs';
 import { StudioStore } from '../../src/main/store';
 import { WorkflowEngine } from '../../src/main/workflows';
 
@@ -211,6 +212,122 @@ describe('explicit durable project queue', () => {
     expect(store.queueLaunchRetry(project.id)).toBeNull();
     expect(started).toHaveLength(1);
     expect(() => queue.setState({ projectId: project.id, state: 'running' })).toThrow('nicht selbst erneut');
+    store.close();
+  });
+
+  it('keeps the continuation policy off by default and persists an explicit choice', () => {
+    const { store, dbPath, project, template, queue } = fixture();
+    expect(store.projectQueue(project.id).continueBlocked).toBe(false);
+    expect(store.setQueueContinueBlocked({ projectId: project.id, enabled: true }).continueBlocked).toBe(true);
+    queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id });
+    expect(() => store.setQueueContinueBlocked({ projectId: project.id, enabled: false })).toThrow('Pause the queue');
+    queue.setState({ projectId: project.id, state: 'paused' });
+    expect(store.projectQueue(project.id).continueBlocked).toBe(true);
+    store.close();
+    const reopened = new StudioStore(dbPath);
+    expect(reopened.projectQueue(project.id)).toMatchObject({ state: 'paused', continueBlocked: true });
+    reopened.setQueueContinueBlocked({ projectId: project.id, enabled: false });
+    expect(reopened.projectQueue(project.id).continueBlocked).toBe(false);
+    reopened.close();
+  });
+
+  it('records a blocked run and starts an independent next card without replaying the failed one', () => {
+    const { store, dbPath, project, template, first, second, started, workflows, queue } = fixture();
+    store.setQueueContinueBlocked({ projectId: project.id, enabled: true });
+    queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id });
+    const firstFlowId = store.projectQueue(project.id).activeWorkflowId!;
+    const failed = store.finishSession(started[0]!.id, 'failed', 1);
+    workflows.onSessionFinished(failed, 'Agent could not finish');
+    queue.onSessionFinished(failed);
+    expect(started.map((session) => session.cardId)).toEqual([first.id, second.id]);
+    expect(store.workflow(firstFlowId)).toMatchObject({ state: 'paused', queueSkip: { reason: expect.stringContaining('Automatisch') } });
+    expect(store.projectQueue(project.id)).toMatchObject({ state: 'running', completedCount: 0, continueBlocked: true });
+    expect(() => workflows.setState({ id: firstFlowId, state: 'running' })).toThrow('übersprungen');
+    queue.setState({ projectId: project.id, state: 'paused' });
+    store.close();
+    const reopened = new StudioStore(dbPath);
+    expect(reopened.workflow(firstFlowId).queueSkip?.reason).toContain('Automatisch');
+    expect(reopened.projectQueue(project.id).continueBlocked).toBe(true);
+    expect(reopened.snapshot(project.id).sessions.filter((session) => session.cardId === first.id)).toHaveLength(1);
+    reopened.close();
+  });
+
+  it('can opt in after a blocked run and continue without restarting that run', () => {
+    const { store, project, template, first, second, started, workflows, queue } = fixture();
+    queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id });
+    const blockedFlowId = store.projectQueue(project.id).activeWorkflowId!;
+    const failed = store.finishSession(started[0]!.id, 'failed', 1);
+    workflows.onSessionFinished(failed, 'Agent could not finish');
+    queue.onSessionFinished(failed);
+    expect(store.projectQueue(project.id).state).toBe('paused');
+    store.setQueueContinueBlocked({ projectId: project.id, enabled: true });
+    queue.setState({ projectId: project.id, state: 'running' });
+    expect(started.map((session) => session.cardId)).toEqual([first.id, second.id]);
+    expect(store.workflow(blockedFlowId).queueSkip?.reason).toContain('review');
+    store.close();
+  });
+
+  it('passes blocked dependent cards to start later independent work beyond the preview limit', () => {
+    const { store, project, columns, template, first, second, started, workflows, queue } = fixture();
+    store.setQueueContinueBlocked({ projectId: project.id, enabled: true });
+    setCardRunDependencies(store, { cardId: second.id, prerequisiteCardIds: [first.id] });
+    for (let index = 0; index < 20; index += 1) {
+      const dependent = store.createCard({ projectId: project.id, columnId: columns[0]!.id, title: `Dependent ${index}` });
+      setCardRunDependencies(store, { cardId: dependent.id, prerequisiteCardIds: [first.id] });
+    }
+    const independent = store.createCard({ projectId: project.id, columnId: columns[0]!.id, title: 'Independent next' });
+    queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id });
+    const failed = store.finishSession(started[0]!.id, 'failed', 1);
+    workflows.onSessionFinished(failed, 'Agent could not finish');
+    queue.onSessionFinished(failed);
+    expect(started.map((session) => session.cardId)).toEqual([first.id, independent.id]);
+    expect(store.card(second.id).columnId).toBe(columns[0]!.id);
+    expect(store.queueCandidates(project.id, 20).length).toBe(20);
+    expect(store.nextQueueCard(project.id)).toBeNull();
+    store.close();
+  });
+
+  it('waits when every remaining card depends on failed work and resumes after the blocker changes', () => {
+    const { store, project, template, first, second, started, workflows, queue } = fixture();
+    store.setQueueContinueBlocked({ projectId: project.id, enabled: true });
+    setCardRunDependencies(store, { cardId: second.id, prerequisiteCardIds: [first.id] });
+    queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id });
+    const failed = store.finishSession(started[0]!.id, 'failed', 1);
+    workflows.onSessionFinished(failed, 'Agent could not finish');
+    queue.onSessionFinished(failed);
+    expect(store.projectQueue(project.id)).toMatchObject({ state: 'running', activeWorkflowId: null });
+    expect(store.runnableQueueCandidates(project.id)).toEqual([]);
+    expect(started.map((session) => session.cardId)).toEqual([first.id]);
+    setCardRunDependencies(store, { cardId: second.id, prerequisiteCardIds: [] });
+    queue.onBoardChanged(project.id);
+    expect(started.map((session) => session.cardId)).toEqual([first.id, second.id]);
+    store.close();
+  });
+
+  it('defers an approval blocked card without starting its agent and keeps its record', () => {
+    const { store, project, template, first, second, started, queue } = fixture();
+    const approvalTemplate = store.createWorkflow({ projectId: project.id, name: 'Approval route', cardIds: template.cardIds,
+      steps: template.steps.map((step) => ({ ...step, id: 'approval-step', requireApproval: true })) });
+    store.setQueueContinueBlocked({ projectId: project.id, enabled: true });
+    queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: approvalTemplate.id });
+    expect(started).toHaveLength(0);
+    expect(store.projectQueue(project.id)).toMatchObject({ state: 'running', completedCount: 0, activeWorkflowId: null });
+    const runs = store.snapshot(project.id).workflows.filter((workflow) => workflow.id !== template.id && workflow.id !== approvalTemplate.id);
+    expect(new Set(runs.map((workflow) => workflow.cardIds[0]))).toEqual(new Set([first.id, second.id]));
+    expect(runs.every((workflow) => workflow.queueSkip?.reason.includes('approval'))).toBe(true);
+    store.close();
+  });
+
+  it('respects a deliberate queue pause even when continuation is enabled', () => {
+    const { store, project, template, started, queue } = fixture();
+    store.setQueueContinueBlocked({ projectId: project.id, enabled: true });
+    queue.setState({ projectId: project.id, state: 'running', templateWorkflowId: template.id });
+    const firstFlowId = store.projectQueue(project.id).activeWorkflowId!;
+    queue.setState({ projectId: project.id, state: 'paused' });
+    queue.onSessionFinished(store.session(started[0]!.id));
+    expect(store.projectQueue(project.id)).toMatchObject({ state: 'paused', activeWorkflowId: firstFlowId });
+    expect(store.workflow(firstFlowId).queueSkip).toBeUndefined();
+    expect(started).toHaveLength(1);
     store.close();
   });
 

@@ -19,4 +19,10 @@ describe('queue preview', () => {
     expect(renderToStaticMarkup(createElement(QueuePreview, { cards: [], loading: false, error: null }))).toContain('Keine freie To-Do-Karte');
     expect(renderToStaticMarkup(createElement(QueuePreview, { cards: [], loading: false, error: 'Für die Warteschlange fehlt eine To-Do-Spalte.' }))).toContain('fehlt eine To-Do-Spalte');
   });
+
+  it('labels the opt-in preview as startable and explains pending dependencies', () => {
+    const html = renderToStaticMarkup(createElement(QueuePreview, { cards: [], loading: false, error: null, skipBlocked: true }));
+    expect(html).toContain('Nächste startbare To-Do-Karten');
+    expect(html).toContain('Karten mit offenen Vorgängern bleiben im Board');
+  });
 });

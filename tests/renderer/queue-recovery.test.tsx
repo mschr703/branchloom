@@ -21,6 +21,15 @@ const snapshot: ProjectSnapshot = {
 const mutate = async <T,>(action: () => Promise<T>): Promise<T> => action();
 
 describe('queue recovery view', () => {
+  it('shows the continuation choice only as editable while the queue is stopped', () => {
+    const paused = renderToStaticMarkup(createElement(WorkflowView, { snapshot: { ...snapshot, queue: { ...snapshot.queue, continueBlocked: true } }, mutate }));
+    expect(paused).toMatch(/type="checkbox" checked=""/u);
+    expect(paused).toContain('Bei blockierten Karten mit anderen Aufgaben weitermachen');
+    const running = renderToStaticMarkup(createElement(WorkflowView, { snapshot: { ...snapshot, queue: { ...snapshot.queue, state: 'running', continueBlocked: true } }, mutate }));
+    const control = running.match(/<input[^>]*type="checkbox"[^>]*>/u)?.[0];
+    expect(control).toContain('checked=""');
+    expect(control).toContain('disabled=""');
+  });
   it('disables activation and explains the missing To-Do column', () => {
     const inactive = { ...snapshot, queue: { ...snapshot.queue, state: 'off' as const, activeWorkflowId: null } };
     const html = renderToStaticMarkup(createElement(WorkflowView, { snapshot: inactive, mutate }));

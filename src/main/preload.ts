@@ -203,6 +203,7 @@ const studio: StudioAPI = {
   setWorkflowStepHaltpoint: (input) => invoke('setWorkflowStepHaltpoint', input),
   workflowRunEvidence: (input) => invoke('workflowRunEvidence', input),
   setProjectQueue: (input) => invoke('setProjectQueue', input),
+  setQueueContinueBlocked: (input) => invoke('setQueueContinueBlocked', input),
   setProjectRunPause: (input) => invoke('setProjectRunPause', input),
   queueCandidates: (projectId) => invoke('queueCandidates', projectId),
   skipQueuedCard: (input) => invoke('skipQueuedCard', input),
