@@ -29,7 +29,7 @@ function resultItems(store: StudioStore, projectId: string, activationId: string
     ORDER BY s.started_at DESC, s.id DESC LIMIT 1`);
   const integrationItem = store.db.prepare(`SELECT id, state, source_head, target_branch, integrated_head, approval_mode
     FROM integration_items WHERE project_id = ? AND card_id = ?`);
-  const latestTest = store.db.prepare(`SELECT id, state, script_name, source_head, target_head, ended_at
+  const latestTest = store.db.prepare(`SELECT id, state, script_name, source_head, target_head, ended_at, queue_activation_id
     FROM integration_test_runs WHERE item_id = ? ORDER BY id DESC LIMIT 1`);
   const latestQa = store.db.prepare(`SELECT id, status, ended_at, viewport_width, viewport_height, page_check
     FROM card_qa_reports WHERE project_id = ? AND card_id = ? ORDER BY rowid DESC LIMIT 1`);
@@ -39,7 +39,8 @@ function resultItems(store: StudioStore, projectId: string, activationId: string
       source_head: string; target_branch: string; integrated_head: string | null;
       approval_mode: 'manual' | 'automatic' | null } | undefined;
     const test = integration ? latestTest.get(integration.id) as { id: number; state: IntegrationTestState;
-      script_name: string; source_head: string; target_head: string; ended_at: string | null } | undefined : undefined;
+      script_name: string; source_head: string; target_head: string; ended_at: string | null;
+      queue_activation_id: string | null } | undefined : undefined;
     const qa = latestQa.get(projectId, row.card_id) as { id: string; status: CardQaReport['status'];
       ended_at: string; viewport_width: number; viewport_height: number; page_check: CardQaPageCheck } | undefined;
     return { cardId: row.card_id, cardTitle: row.card_title, workflowId: row.workflow_id, workflowName: row.workflow_name,
@@ -49,7 +50,7 @@ function resultItems(store: StudioStore, projectId: string, activationId: string
         targetBranch: integration.target_branch, integratedHead: integration.integrated_head,
         approvalMode: integration.approval_mode } : null,
       test: test ? { id: test.id, state: test.state, scriptName: test.script_name, sourceHead: test.source_head,
-        targetHead: test.target_head, endedAt: test.ended_at } : null,
+        targetHead: test.target_head, endedAt: test.ended_at, queueActivationId: test.queue_activation_id } : null,
       qa: qa ? { id: qa.id, status: qa.status, endedAt: qa.ended_at, viewportWidth: qa.viewport_width,
         viewportHeight: qa.viewport_height, pageCheck: qa.page_check } : null };
   });

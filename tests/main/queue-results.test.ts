@@ -81,9 +81,12 @@ describe('project queue result sources', () => {
       .run(receipt.lastInsertRowid, queued.id, sourceHead, targetHead, timestamp, timestamp);
     expect(queueResults(store, project.id).items[0]).toMatchObject({
       integration: { id: receipt.lastInsertRowid, state: 'integrated', sourceHead, targetBranch: 'main', integratedHead: sourceHead, approvalMode: 'manual' },
-      test: { state: 'passed', scriptName: 'test', sourceHead, targetHead, endedAt: timestamp },
+      test: { state: 'passed', scriptName: 'test', sourceHead, targetHead, endedAt: timestamp, queueActivationId: null },
       qa: { id: 'qa-new', status: 'passed' },
     });
+    store.db.prepare('UPDATE integration_test_runs SET queue_activation_id = ? WHERE item_id = ?')
+      .run(firstActivation?.id, receipt.lastInsertRowid);
+    expect(queueResults(store, project.id).items[0]?.test?.queueActivationId).toBe(firstActivation?.id);
     expect(queueResults(store, other.id).items).toEqual([]);
     store.saveProjectQueue({ projectId: project.id, state: 'running', templateWorkflowId: template.id, activeWorkflowId: null, pauseReason: null });
     const secondFlow = store.claimQueueCard(project.id, manual.id, template.id);

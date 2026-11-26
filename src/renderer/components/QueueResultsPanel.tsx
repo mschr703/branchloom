@@ -40,6 +40,9 @@ function ResultItems({ items, onOpenCard, onOpenSession }: {
       {item.test ? <small title={`Testbeleg #${item.test.id} · Quell-Commit ${item.test.sourceHead} · Ziel-Commit ${item.test.targetHead}`}>
         Gespeicherter Test #{item.test.id}: npm run {item.test.scriptName} · {testLabels[item.test.state]}
         {item.test.endedAt ? <> · <time dateTime={item.test.endedAt}>{new Date(item.test.endedAt).toLocaleString('de-DE')}</time></> : null}
+        {' · '}{item.test.queueActivationId
+          ? item.test.queueActivationId === item.activationId ? 'im Kartenstart' : `Queue-Start ${item.test.queueActivationId.slice(0, 8)}`
+          : 'ohne Queue-Startbeleg'}
       </small> : null}
       {item.qa ? <small title={`Browser-QA-Beleg ${item.qa.id} · DOM-Prüfung ${item.qa.pageCheck}`}>
         Gespeicherte Browser-QA {item.qa.id.slice(0, 8)} · {qaLabels[item.qa.status]}

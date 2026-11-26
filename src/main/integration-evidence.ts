@@ -33,7 +33,8 @@ export function installIntegrationEvidence(store: StudioStore): void {
     source_head TEXT NOT NULL, target_head TEXT NOT NULL, card_fingerprint TEXT NOT NULL,
     script_name TEXT NOT NULL, script_hash TEXT NOT NULL,
     state TEXT NOT NULL CHECK (state IN ('running','passed','failed','interrupted','stale')),
-    exit_code INTEGER, output_tail TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT, owner_pid INTEGER
+    exit_code INTEGER, output_tail TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT, owner_pid INTEGER,
+    queue_activation_id TEXT REFERENCES queue_activations(id) ON DELETE SET NULL
   );
   CREATE UNIQUE INDEX IF NOT EXISTS idx_integration_running_test ON integration_test_runs(item_id) WHERE state = 'running';
   CREATE INDEX IF NOT EXISTS idx_integration_test_latest ON integration_test_runs(item_id, id DESC);
@@ -42,6 +43,9 @@ export function installIntegrationEvidence(store: StudioStore): void {
     card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
     source_head TEXT NOT NULL, target_head TEXT NOT NULL, card_fingerprint TEXT NOT NULL, reviewed_at TEXT NOT NULL
   );`);
+  const columns = store.db.pragma('table_info(integration_test_runs)') as Array<{ name: string }>;
+  if (!columns.some((column) => column.name === 'queue_activation_id'))
+    store.db.exec('ALTER TABLE integration_test_runs ADD COLUMN queue_activation_id TEXT REFERENCES queue_activations(id) ON DELETE SET NULL');
   const running = store.db.prepare("SELECT DISTINCT item_id FROM integration_test_runs WHERE state = 'running'")
     .all() as Array<{ item_id: number }>;
   for (const row of running) reconcileRunning(store, row.item_id);
@@ -208,7 +212,7 @@ function cleanTemporaryRoot(root: string): void {
 
 /** Run a selected npm script in a detached checkout of the prepared source commit. */
 export async function runIntegrationTest(store: StudioStore, cardId: string, timeoutMs = TEST_TIMEOUT_MS,
-  expectedScriptHash?: string): Promise<IntegrationTestEvidence> {
+  expectedScriptHash?: string, queueActivationId?: string): Promise<IntegrationTestEvidence> {
   const prepared = currentPreparedIntegration(store, cardId);
   assertProjectCanStart(store, prepared.item.projectId);
   const scriptName = configuredScript(store, prepared.item.projectId);
@@ -236,12 +240,19 @@ export async function runIntegrationTest(store: StudioStore, cardId: string, tim
       if (fresh.item.sourceHead !== prepared.item.sourceHead || fresh.item.targetHead !== prepared.item.targetHead
         || fresh.item.cardFingerprint !== prepared.item.cardFingerprint || configuredScript(store, fresh.item.projectId) !== scriptName)
         throw new Error('Integration changed before test start. Prepare again.');
+      if (queueActivationId) {
+        const active = store.db.prepare(`SELECT a.id FROM queue_activations a
+          JOIN project_queues q ON q.project_id = a.project_id
+          WHERE a.id = ? AND a.project_id = ? AND a.ended_at IS NULL AND q.state = 'running'`)
+          .get(queueActivationId, prepared.item.projectId);
+        if (!active) throw new Error('The queue start changed before its automatic test began.');
+      }
       reconcileRunning(store, prepared.item.id);
       return store.db.prepare(`INSERT INTO integration_test_runs
         (item_id, card_id, source_head, target_head, card_fingerprint, script_name, script_hash,
-         state, exit_code, output_tail, started_at, ended_at, owner_pid)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'running', NULL, '', ?, NULL, ?)`).run(prepared.item.id, cardId,
-        prepared.item.sourceHead, prepared.item.targetHead, prepared.item.cardFingerprint, scriptName, scriptHash, now(), process.pid);
+         state, exit_code, output_tail, started_at, ended_at, owner_pid, queue_activation_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'running', NULL, '', ?, NULL, ?, ?)`).run(prepared.item.id, cardId,
+        prepared.item.sourceHead, prepared.item.targetHead, prepared.item.cardFingerprint, scriptName, scriptHash, now(), process.pid, queueActivationId ?? null);
     }).immediate();
     testId = Number(inserted.lastInsertRowid);
     const result = await runNpm(checkout, scriptName, Math.max(50, Math.min(TEST_TIMEOUT_MS, timeoutMs)));

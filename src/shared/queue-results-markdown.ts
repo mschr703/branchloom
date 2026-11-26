@@ -9,7 +9,7 @@ function appendCard(lines: string[], item: QueueResultItem): void {
   lines.push(item.lastSession
     ? `  - Sitzung \`${md(item.lastSession.id)}\`: ${item.lastSession.state}; Exit ${item.lastSession.exitCode ?? 'unbekannt'}.`
     : '  - Sitzung: kein gespeicherter Beleg.');
-  if (item.test) lines.push(`  - Gespeicherter npm-Test #${item.test.id}: \`npm run ${md(item.test.scriptName)}\` · ${item.test.state}; Quelle \`${md(item.test.sourceHead)}\`, Zielbasis \`${md(item.test.targetHead)}\`; Ende ${item.test.endedAt ? md(item.test.endedAt) : 'nicht gespeichert'}.`);
+  if (item.test) lines.push(`  - Gespeicherter npm-Test #${item.test.id}: \`npm run ${md(item.test.scriptName)}\` · ${item.test.state}; Quelle \`${md(item.test.sourceHead)}\`, Zielbasis \`${md(item.test.targetHead)}\`; Ende ${item.test.endedAt ? md(item.test.endedAt) : 'nicht gespeichert'}; Queue-Start ${item.test.queueActivationId ? `\`${md(item.test.queueActivationId)}\`` : 'nicht belegt'}.`);
   if (item.qa) lines.push(`  - Gespeicherte Browser-QA \`${md(item.qa.id)}\`: ${item.qa.status}; ${item.qa.viewportWidth > 0 && item.qa.viewportHeight > 0 ? `${item.qa.viewportWidth} × ${item.qa.viewportHeight} px` : 'Prüfgröße unbekannt'}; DOM ${item.qa.pageCheck}; Ende ${md(item.qa.endedAt)}.`);
   if (item.integration) lines.push(`  - Gespeicherte Integration #${item.integration.id}: ${item.integration.state}; Quelle \`${md(item.integration.sourceHead)}\`, Zielbranch ${md(item.integration.targetBranch)}${item.integration.integratedHead ? `, gespeicherter Ziel-Commit \`${md(item.integration.integratedHead)}\`` : ''}; Freigabe ${item.integration.approvalMode ?? 'nicht gespeichert'}.`);
 }
