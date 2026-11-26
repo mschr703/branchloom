@@ -81,12 +81,12 @@ describe('explicit fix card from saved local QA', () => {
 
   it('blocks targets that might start an agent automatically', () => {
     const { store, project, columns, card, reportId } = fixture('error');
+    store.updateColumn({ id: columns[1]!.id, agentId: store.agents()[0]!.id, autoStart: true });
     const preview = previewQaFixCard(store, { projectId: project.id, sourceCardId: card.id, reportId });
     const input = { projectId: project.id, sourceCardId: card.id, reportId, token: preview.token, title: preview.title, description: preview.description,
       columnId: columns[0]!.id };
     store.saveProjectQueue({ projectId: project.id, state: 'running', templateWorkflowId: null, activeWorkflowId: null, pauseReason: null });
     expect(() => createQaFixCard(store, input)).toThrow('Pausiere');
-    store.updateColumn({ id: columns[1]!.id, agentId: store.agents()[0]!.id, autoStart: true });
     expect(() => createQaFixCard(store, { ...input, columnId: columns[1]!.id })).toThrow('automatisch');
     expect(createQaFixCard(store, { ...input, columnId: columns[2]!.id }).columnId).toBe(columns[2]!.id);
   });
