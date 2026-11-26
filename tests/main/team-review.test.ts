@@ -61,6 +61,7 @@ it('revokes reviewer access and rejects a foreign card or missing screenshot', (
   const { store, root, project, card, reportId } = fixture();
   const created = createTeamReviewRoom(store, { projectId: project.id, cardId: card.id, qaReportId: reportId, scenario: 'Signed out settings', reviewerName: 'Alex' });
   const second = createTeamReviewInvite(store, { roomId: created.room.id, reviewerName: 'Sam' });
+  store.db.prepare('UPDATE team_review_invites SET created_at = ? WHERE room_id = ?').run('2026-01-01T10:00:00.000Z', created.room.id);
   expect(teamReviewInvites(store, created.room.id).map((item) => item.displayName)).toEqual(['Alex', 'Sam']);
   expect(resolveTeamReviewInvite(store, second.reviewerSecret).invite.displayName).toBe('Sam');
   revokeTeamReviewInvite(store, { roomId: created.room.id, inviteId: created.invite.id });
