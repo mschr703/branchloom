@@ -27,6 +27,7 @@ import { parseProjectPackage, type ProjectPackage } from './project-package';
 import { installAgentHandoffs } from './agent-handoff';
 import { installAgentCardMetadata } from './agent-card-metadata';
 import { installAgentBrowserPolicy } from './agent-browser-policy';
+import { installProjectAgentRights } from './project-agent-rights';
 import { installDevEnvironments } from './dev-environment';
 import { installDevAccounts } from './dev-account';
 import { attachmentAvailable, canOpenAttachment, checkedAttachmentPath, MAX_CARD_ATTACHMENTS } from './card-attachments';
@@ -202,6 +203,7 @@ export class StudioStore {
     installAgentHandoffs(this.db);
     installAgentCardMetadata(this.db);
     installAgentBrowserPolicy(this.db);
+    installProjectAgentRights(this.db);
     installDevEnvironments(this);
     installDevAccounts(this.db);
     installParallelRuns(this.db);

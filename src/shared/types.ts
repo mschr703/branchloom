@@ -137,6 +137,8 @@ export interface StudioAPI {
   setAgentCardMetadataEnabled(input: { projectId: string; enabled: boolean }): Promise<boolean>;
   agentCardMetadataAudit(projectId: string): Promise<import('./agent-card-metadata').AgentCardMetadataAudit[]>;
   agentBrowserPolicy(projectId: string): Promise<import('./agent-browser').AgentBrowserPolicy>;
+  projectCodexWorkflowAccess(projectId: string): Promise<import('./project-agent-rights').ProjectCodexWorkflowAccess>;
+  setProjectCodexWorkflowAccess(input: import('./project-agent-rights').ProjectCodexWorkflowAccess): Promise<import('./project-agent-rights').ProjectCodexWorkflowAccess>;
   agentBrowserAvailable(): Promise<boolean>;
   setAgentBrowserPolicy(input: import('./agent-browser').AgentBrowserPolicy): Promise<import('./agent-browser').AgentBrowserPolicy>;
   devEnvironmentProfile(projectId: string): Promise<import('./dev-environment').DevEnvironmentProfile | null>;

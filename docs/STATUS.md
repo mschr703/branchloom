@@ -2,9 +2,13 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
-## Projekt-Queue: gewähltes Laufzeitende (Folgezweig, in Arbeit)
+## Projekt-Queue: gewähltes Laufzeitende (in main)
 
-- Vor bewusstem Start oder Fortsetzen lässt sich eine Dauer von 1, 4 oder 8 Stunden wählen; ohne Auswahl bleibt die bestehende unbegrenzte Queue möglich. Die absolute Endzeit wird projektbezogen gespeichert und angezeigt. Bei Fristablauf pausiert die Queue auch ohne weitere Ereignisse, startet keine neue Karte oder einen weiteren Workflow-Schritt und stoppt einen bereits laufenden Agenten nicht. Nach App-Neustart bleibt der Queue-Stand pausiert und braucht bewusste Prüfung und neue Aktivierung. Zwei gezielte Queue-Tests mit künstlicher Uhr, mehrstufigem Ablauf und Datenbank-Neustart sowie sechs Renderer-Tests, Typprüfung und Build bestanden; die vollständige Suite läuft, UI-Sichtprüfung und Windows-CI stehen noch aus. Dies ist keine Kostenbremse und keine automatische Prozessbeendigung. [Ablauf und Grenzen](QUEUE.md).
+- Vor bewusstem Start oder Fortsetzen lässt sich eine Dauer von 1, 4 oder 8 Stunden wählen; ohne Auswahl bleibt die bestehende unbegrenzte Queue möglich. Die absolute Endzeit wird projektbezogen gespeichert und angezeigt. Bei Fristablauf pausiert die Queue auch ohne weitere Ereignisse, startet keine neue Karte oder einen weiteren Workflow-Schritt und stoppt einen bereits laufenden Agenten nicht. Nach App-Neustart bleibt der Queue-Stand pausiert und braucht bewusste Prüfung und neue Aktivierung. 971 lokale Tests (acht optionale übersprungen), zwei vollständige Windows-Verify-Läufe, gezielte Queue-/Renderer-Tests, Typprüfung und Build bestanden. Dies ist keine Kostenbremse und keine automatische Prozessbeendigung. [Ablauf und Grenzen](QUEUE.md).
+
+## Projekt-Codex-Rechte (in Arbeit)
+
+- Die Projekteinstellungen speichern pro Projekt den Codex-Modus für neu gestartete One-Shot-Workflow-Schritte. Standard bleibt die automatische Workspace-Prüfung. Voller CLI-Zugriff verlangt eine getrennte sichtbare Bestätigung und wird nur vom gespeicherten Projekteinstellungswert in das Codex-Startargument umgesetzt; ein Agentenprofil darf den Bypass weiterhin nicht einschmuggeln. Während eine Projekt-Queue läuft, ist die Änderung gesperrt. Der Modus betrifft weder andere Agenten noch Branchloom-Freigaben für QA, Integration oder Push. Zwölf gezielte Backend-/CLI-/Renderer-Tests, Typprüfung, Build, Diff-Prüfung, Audit ohne hohe Funde und der breite Quell-Electron-Smoke bestanden; ein echter unbeaufsichtigter Codex-Full-Access-Lauf, umfassende Suite, Paket-CI und UI-Sichtprüfung stehen noch aus. [Rechte und Grenzen](WORKFLOW_STEPS.md).
 
 ## Git-Vergleich für Bild-Reviews (Folgezweig, in Arbeit)
 

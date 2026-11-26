@@ -9,6 +9,8 @@ import { StudioStore } from './store';
 import { ensureCardWorktree } from './git-worktree';
 import { cardRunGate, reserveCardSession } from './parallel-runs';
 import { buildAntigravityArgs } from './antigravity';
+import { projectCodexWorkflowAccess } from './project-agent-rights';
+import type { CodexWorkflowAccessMode } from '../shared/project-agent-rights';
 import { CodexJsonlOutput } from './codex-jsonl';
 import { approvedCardWireframeContext } from './card-wireframe';
 import { savedWhiteboardCardContext } from './whiteboard-card-context';
@@ -173,10 +175,12 @@ function codexWorkflowProfileArgs(profileArgs: string[]): string[] {
   return normalized;
 }
 
-export function buildAgentArgs(agent: AgentPreset, prompt: string, mode: 'interactive' | 'one-shot', finalMessagePath?: string, column?: { model: string | null; effort: ColumnEffort | null }): string[] {
+export function buildAgentArgs(agent: AgentPreset, prompt: string, mode: 'interactive' | 'one-shot', finalMessagePath?: string,
+  column?: { model: string | null; effort: ColumnEffort | null }, codexAccess: CodexWorkflowAccessMode = 'workspace'): string[] {
   if (agent.kind === 'antigravity') return buildAntigravityArgs(agent.args, prompt, mode, column?.model ?? agent.model, column?.effort ?? null);
   const args = mode === 'one-shot' && agent.kind === 'codex'
-    ? ['exec', '--json', '--approve-for-me', ...(finalMessagePath ? ['--output-last-message', finalMessagePath] : []), ...codexWorkflowProfileArgs(agent.args)]
+    ? ['exec', '--json', codexAccess === 'full' ? '--dangerously-bypass-approvals-and-sandbox' : '--approve-for-me',
+      ...(finalMessagePath ? ['--output-last-message', finalMessagePath] : []), ...codexWorkflowProfileArgs(agent.args)]
     : [...agent.args];
   const model = column?.model ?? agent.model;
   if (model) {
@@ -305,7 +309,10 @@ export class SessionRunner {
     try {
       metadataEnv = this.metadataBridge?.environment(row.id) ?? {};
       browserEnv = this.browserBridge?.environment(row.id) ?? {};
-      args = [...launcher.prefixArgs, ...codexPackagedArgs(launcher, agent), ...buildAgentArgs(agent, prompt, input.mode ?? 'interactive', finalFile?.path, launchOverrides)];
+      const codexAccess = input.mode === 'one-shot' && agent.kind === 'codex'
+        ? projectCodexWorkflowAccess(this.store, project.id).mode : 'workspace';
+      args = [...launcher.prefixArgs, ...codexPackagedArgs(launcher, agent),
+        ...buildAgentArgs(agent, prompt, input.mode ?? 'interactive', finalFile?.path, launchOverrides, codexAccess)];
     } catch (error) {
       this.metadataBridge?.revoke(row.id);
       this.browserBridge?.revoke(row.id);
