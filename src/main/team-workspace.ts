@@ -18,7 +18,8 @@ export interface TeamMember {
 }
 
 type MemberRow = { id: string; workspace_id: string; display_name: string; role: TeamRole; revoked_at: string | null };
-type InviteRow = { id: string; workspace_id: string; role: 'admin' | 'editor' | 'developer' | 'viewer'; expires_at: string; revoked_at: string | null; accepted_member_id: string | null };
+type InviteRow = { id: string; workspace_id: string; role: 'admin' | 'editor' | 'developer' | 'viewer'; expires_at: string;
+  revoked_at: string | null; accepted_member_id: string | null; accepted_request_id: string | null };
 
 const secret = (): string => randomBytes(32).toString('base64url');
 const hash = (value: string): string => createHash('sha256').update(value).digest('hex');
@@ -64,7 +65,7 @@ export function installTeamWorkspaces(db: Database.Database): void {
     id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES team_workspaces(id) ON DELETE CASCADE,
     role TEXT NOT NULL CHECK(role IN ('admin','editor','developer','viewer')), secret_hash TEXT NOT NULL UNIQUE,
     created_at TEXT NOT NULL, expires_at TEXT NOT NULL, revoked_at TEXT,
-    accepted_member_id TEXT REFERENCES team_members(id)
+    accepted_member_id TEXT REFERENCES team_members(id), accepted_request_id TEXT
   );
   CREATE TABLE IF NOT EXISTS team_card_commands (
     workspace_id TEXT NOT NULL REFERENCES team_workspaces(id) ON DELETE CASCADE,
@@ -250,23 +251,41 @@ export function revokeTeamMemberInvite(db: Database.Database, actorCredential: s
 export function acceptTeamMemberInvite(db: Database.Database, inviteSecret: string, displayName: string): {
   member: TeamMember; credential: string;
 } {
-  if (!validSecret(inviteSecret)) throw new Error('Team invitation is unavailable.');
-  const checkedName = name(displayName);
-  const memberId = randomUUID();
   const credential = secret();
+  const member = claimTeamMemberInvite(db, { inviteSecret, displayName, credential, requestId: randomUUID() });
+  return { member, credential };
+}
+
+/** The client chooses and retains its credential before the network request, so an uncertain reply is retryable. */
+export function claimTeamMemberInvite(db: Database.Database, input: {
+  inviteSecret: string; displayName: string; credential: string; requestId: string;
+}): TeamMember {
+  if (!input || !validSecret(input.inviteSecret) || !validSecret(input.credential) ||
+    typeof input.requestId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.requestId)) {
+    throw new Error('Team invitation is unavailable.');
+  }
+  const checkedName = name(input.displayName);
   const joinedAt = new Date().toISOString();
-  const result = db.transaction(() => {
-    const invite = db.prepare('SELECT * FROM team_member_invites WHERE secret_hash = ?').get(hash(inviteSecret)) as InviteRow | undefined;
-    if (!invite || invite.revoked_at || invite.accepted_member_id || invite.expires_at <= joinedAt) {
-      throw new Error('Team invitation is unavailable.');
+  return db.transaction(() => {
+    const invite = db.prepare('SELECT * FROM team_member_invites WHERE secret_hash = ?')
+      .get(hash(input.inviteSecret)) as InviteRow | undefined;
+    if (!invite || invite.revoked_at || invite.expires_at <= joinedAt) throw new Error('Team invitation is unavailable.');
+    if (invite.accepted_member_id) {
+      const existing = db.prepare('SELECT id, workspace_id, display_name, role, revoked_at, credential_hash FROM team_members WHERE id = ?')
+        .get(invite.accepted_member_id) as (MemberRow & { credential_hash: string }) | undefined;
+      if (invite.accepted_request_id !== input.requestId || !existing || existing.revoked_at ||
+        existing.credential_hash !== hash(input.credential) || existing.display_name !== checkedName) {
+        throw new Error('Team invitation is unavailable.');
+      }
+      return member(existing);
     }
+    const memberId = randomUUID();
     db.prepare('INSERT INTO team_members (id, workspace_id, display_name, role, credential_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(memberId, invite.workspace_id, checkedName, invite.role, hash(credential), joinedAt);
-    db.prepare('UPDATE team_member_invites SET accepted_member_id = ? WHERE id = ? AND accepted_member_id IS NULL')
-      .run(memberId, invite.id);
-    return { member: { id: memberId, workspaceId: invite.workspace_id, displayName: checkedName, role: invite.role, revokedAt: null }, credential };
+      .run(memberId, invite.workspace_id, checkedName, invite.role, hash(input.credential), joinedAt);
+    db.prepare(`UPDATE team_member_invites SET accepted_member_id = ?, accepted_request_id = ?
+      WHERE id = ? AND accepted_member_id IS NULL`).run(memberId, input.requestId, invite.id);
+    return { id: memberId, workspaceId: invite.workspace_id, displayName: checkedName, role: invite.role, revokedAt: null };
   }).immediate();
-  return result;
 }
 
 export function revokeTeamMember(db: Database.Database, actorCredential: string, memberId: string): void {

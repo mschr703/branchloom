@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -23,18 +23,26 @@ it('authenticates two separate HTTP clients, rejects stale writes, and survives 
     const invite = async (role: 'editor' | 'viewer', credential = owner.credential) => fetch(`${base}/v1/workspace/invitations`,
       { method: 'POST', headers: { Authorization: `Bearer ${credential}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ role }) });
-    const accept = async (secret: string, displayName: string) => fetch(`${base}/v1/invitations/accept`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ secret, displayName }) });
+    const accept = async (secret: string, displayName: string, credential: string, requestId: string) =>
+      fetch(`${base}/v1/invitations/accept`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret, displayName, credential, requestId }) });
     const editorInvite = await invite('editor');
     expect(editorInvite.status).toBe(201);
     const editorSecret = (await editorInvite.json() as { secret: string }).secret;
-    const editorResponse = await accept(editorSecret, 'Colleague');
+    const editorCredential = randomBytes(32).toString('base64url');
+    const editorRequestId = randomUUID();
+    const editorResponse = await accept(editorSecret, 'Colleague', editorCredential, editorRequestId);
     expect(editorResponse.status).toBe(201);
-    const editor = await editorResponse.json() as { member: TeamMember; credential: string };
-    expect((await accept(editorSecret, 'Duplicate')).status).toBe(400);
+    const editor = { member: (await editorResponse.json() as { member: TeamMember }).member, credential: editorCredential };
+    const inviteRetry = await accept(editorSecret, 'Colleague', editorCredential, editorRequestId);
+    expect(inviteRetry.status).toBe(201);
+    expect((await inviteRetry.json() as { member: TeamMember }).member.id).toBe(editor.member.id);
+    expect((await accept(editorSecret, 'Duplicate', randomBytes(32).toString('base64url'), randomUUID())).status).toBe(400);
     const viewerInvite = await invite('viewer');
-    const viewerResponse = await accept((await viewerInvite.json() as { secret: string }).secret, 'Observer');
-    const viewer = await viewerResponse.json() as { member: TeamMember; credential: string };
+    const viewerCredential = randomBytes(32).toString('base64url');
+    const viewerResponse = await accept((await viewerInvite.json() as { secret: string }).secret, 'Observer',
+      viewerCredential, randomUUID());
+    const viewer = { member: (await viewerResponse.json() as { member: TeamMember }).member, credential: viewerCredential };
     expect((await invite('editor', viewer.credential)).status).toBe(403);
     const getBoard = (key: string, projectId = project.id) => fetch(`${base}/v1/projects/${projectId}/board`,
       { headers: { Authorization: `Bearer ${key}` } });
@@ -79,6 +87,9 @@ it('authenticates two separate HTTP clients, rejects stale writes, and survives 
     await coordinator.close();
     coordinator = new TeamCoordinatorHttp(store);
     base = await coordinator.start();
+    const recoveredInvite = await accept(editorSecret, 'Colleague', editorCredential, editorRequestId);
+    expect(recoveredInvite.status).toBe(201);
+    expect((await recoveredInvite.json() as { member: TeamMember }).member.id).toBe(editor.member.id);
     expect((await getBoard(editor.credential)).status).toBe(200);
     expect((await setPriority(editor.credential, 'urgent', 1, randomUUID())).status).toBe(200);
     expect(store.card(card.id).priority).toBe('urgent');

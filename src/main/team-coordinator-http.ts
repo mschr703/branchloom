@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net';
 import type { StudioStore } from './store';
 import type { CardPriority } from '../shared/types';
-import { acceptTeamMemberInvite, authenticateTeamMember, createTeamMemberInvite,
+import { authenticateTeamMember, claimTeamMemberInvite, createTeamMemberInvite,
   requireTeamProjectCapability, revokeTeamMember, setTeamCardPriority, type TeamRole } from './team-workspace';
 import { teamBoardSnapshot } from './team-board';
 
@@ -70,8 +70,10 @@ export class TeamCoordinatorHttp {
       const path = new URL(request.url ?? '/', `http://${LOOPBACK}`).pathname;
       if (request.method === 'POST' && path === '/v1/invitations/accept') {
         const value = await body(request);
-        const accepted = acceptTeamMemberInvite(this.store.db, value.secret as string, value.displayName as string);
-        return reply(response, 201, accepted);
+        const member = claimTeamMemberInvite(this.store.db, { inviteSecret: value.secret as string,
+          displayName: value.displayName as string, credential: value.credential as string,
+          requestId: value.requestId as string });
+        return reply(response, 201, { member });
       }
       const actorCredential = credential(request);
       if (request.method === 'POST' && path === '/v1/workspace/invitations') {
