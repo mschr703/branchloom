@@ -15,12 +15,14 @@ export function installSessionRecovery(db: Database.Database): void {
 /** A device-network observation is evidence about the interface, never proof that a model answered. */
 export class SessionRecoveryMonitor {
   private timer: ReturnType<typeof setInterval> | null = null;
+  private lastSignal: ConnectionSignal | null = null;
 
   constructor(
     private readonly store: StudioStore,
     private readonly deviceOnline: () => boolean,
     private readonly attached: (sessionId: string) => boolean,
     private readonly pauseQueue: (projectId: string) => void,
+    private readonly resumeIdleQueue: () => void = () => {},
   ) {}
 
   start(): void {
@@ -32,10 +34,12 @@ export class SessionRecoveryMonitor {
   dispose(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    this.lastSignal = null;
   }
 
   poll(): ConnectionSignal {
     const signal: ConnectionSignal = this.deviceOnline() ? 'online' : 'offline';
+    const previousSignal = this.lastSignal;
     const active = this.store.db.prepare("SELECT id, project_id FROM sessions WHERE state = 'running'").all() as Array<{ id: string; project_id: string }>;
     const latest = this.store.db.prepare('SELECT signal FROM session_connection_events WHERE session_id = ? ORDER BY id DESC LIMIT 1');
     const insert = this.store.db.prepare('INSERT INTO session_connection_events (session_id, signal, observed_at) VALUES (?, ?, ?)');
@@ -56,6 +60,8 @@ export class SessionRecoveryMonitor {
         for (const row of queues) this.pauseQueue(row.project_id);
       }
     })();
+    this.lastSignal = signal;
+    if (previousSignal === 'offline' && signal === 'online') this.resumeIdleQueue();
     return signal;
   }
 

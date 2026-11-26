@@ -84,7 +84,7 @@ interface CommandTerminalRow { id: string; project_id: string; shell: CommandShe
 export interface CardWorktree { cardId: string; projectId: string; sourceRoot: string; path: string; branch: string; createdAt: string }
 interface WorktreeRow { card_id: string; project_id: string; source_root: string; path: string; branch: string; created_at: string }
 interface WorkflowRow { id: string; project_id: string; name: string; card_ids_json: string; steps_json: string; state: WorkflowState; current_step: number; created_at: string; updated_at: string }
-interface QueueRow { project_id: string; state: QueueState; template_workflow_id: string | null; active_workflow_id: string | null; pause_reason: string | null; updated_at: string; continue_blocked: number; run_until: string | null }
+interface QueueRow { project_id: string; state: QueueState; template_workflow_id: string | null; active_workflow_id: string | null; pause_reason: string | null; updated_at: string; continue_blocked: number; auto_resume_idle: number; run_until: string | null }
 interface QueueLaunchRetryRow { project_id: string; workflow_id: string; attempt_count: number; retry_at: string; last_error: string }
 interface NoteRow { id: string; project_id: string; title: string; body: string; tags_json: string; links_json: string; created_at: string; updated_at: string }
 interface AttachmentRow { id: string; card_id: string; path: string; name: string; size: number; added_at: string }
@@ -131,7 +131,7 @@ export class StudioStore {
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value_json TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS trello_imports (project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, source_id TEXT NOT NULL, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, imported_at TEXT NOT NULL, PRIMARY KEY (project_id, source_id));
       CREATE TABLE IF NOT EXISTS card_worktrees (card_id TEXT PRIMARY KEY REFERENCES cards(id) ON DELETE CASCADE, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, source_root TEXT NOT NULL, path TEXT NOT NULL UNIQUE, branch TEXT NOT NULL, created_at TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS project_queues (project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE, state TEXT NOT NULL, template_workflow_id TEXT REFERENCES workflows(id), active_workflow_id TEXT REFERENCES workflows(id), pause_reason TEXT, updated_at TEXT NOT NULL, continue_blocked INTEGER NOT NULL DEFAULT 0 CHECK (continue_blocked IN (0, 1)), run_until TEXT);
+      CREATE TABLE IF NOT EXISTS project_queues (project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE, state TEXT NOT NULL, template_workflow_id TEXT REFERENCES workflows(id), active_workflow_id TEXT REFERENCES workflows(id), pause_reason TEXT, updated_at TEXT NOT NULL, continue_blocked INTEGER NOT NULL DEFAULT 0 CHECK (continue_blocked IN (0, 1)), auto_resume_idle INTEGER NOT NULL DEFAULT 0 CHECK (auto_resume_idle IN (0, 1)), run_until TEXT);
       CREATE TABLE IF NOT EXISTS queue_runs (project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, workflow_id TEXT NOT NULL UNIQUE REFERENCES workflows(id) ON DELETE CASCADE, PRIMARY KEY (project_id, card_id));
       CREATE TABLE IF NOT EXISTS queue_run_skips (workflow_id TEXT PRIMARY KEY REFERENCES workflows(id) ON DELETE CASCADE, reason TEXT NOT NULL, skipped_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS queue_launch_retries (project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE, workflow_id TEXT NOT NULL REFERENCES workflows(id) ON DELETE CASCADE, attempt_count INTEGER NOT NULL CHECK (attempt_count BETWEEN 1 AND 2), retry_at TEXT NOT NULL, last_error TEXT NOT NULL);
@@ -166,6 +166,7 @@ export class StudioStore {
     const cardColumns = this.db.pragma('table_info(cards)') as Array<{ name: string }>;
     const queueColumns = this.db.pragma('table_info(project_queues)') as Array<{ name: string }>;
     if (!queueColumns.some((item) => item.name === 'continue_blocked')) this.db.exec('ALTER TABLE project_queues ADD COLUMN continue_blocked INTEGER NOT NULL DEFAULT 0 CHECK (continue_blocked IN (0, 1))');
+    if (!queueColumns.some((item) => item.name === 'auto_resume_idle')) this.db.exec('ALTER TABLE project_queues ADD COLUMN auto_resume_idle INTEGER NOT NULL DEFAULT 0 CHECK (auto_resume_idle IN (0, 1))');
     if (!queueColumns.some((item) => item.name === 'run_until')) this.db.exec('ALTER TABLE project_queues ADD COLUMN run_until TEXT');
     installQueueActivations(this.db);
     if (!cardColumns.some((item) => item.name === 'archived_at')) this.db.exec('ALTER TABLE cards ADD COLUMN archived_at TEXT');
@@ -397,8 +398,8 @@ export class StudioStore {
     this.project(projectId);
     const row = this.db.prepare('SELECT * FROM project_queues WHERE project_id = ?').get(projectId) as QueueRow | undefined;
     const completedCount = (this.db.prepare("SELECT COUNT(*) AS count FROM queue_runs q JOIN workflows w ON w.id = q.workflow_id WHERE q.project_id = ? AND w.state = 'done' AND w.current_step >= json_array_length(w.steps_json)").get(projectId) as { count: number }).count;
-    return row ? { projectId, state: row.state, templateWorkflowId: row.template_workflow_id, activeWorkflowId: row.active_workflow_id, pauseReason: row.pause_reason, completedCount, updatedAt: row.updated_at, continueBlocked: row.continue_blocked === 1, runUntil: row.run_until }
-      : { projectId, state: 'off', templateWorkflowId: null, activeWorkflowId: null, pauseReason: null, completedCount, updatedAt: null, continueBlocked: false, runUntil: null };
+    return row ? { projectId, state: row.state, templateWorkflowId: row.template_workflow_id, activeWorkflowId: row.active_workflow_id, pauseReason: row.pause_reason, completedCount, updatedAt: row.updated_at, continueBlocked: row.continue_blocked === 1, autoResumeIdle: row.auto_resume_idle === 1, runUntil: row.run_until }
+      : { projectId, state: 'off', templateWorkflowId: null, activeWorkflowId: null, pauseReason: null, completedCount, updatedAt: null, continueBlocked: false, autoResumeIdle: false, runUntil: null };
   }
   setQueueContinueBlocked(input: { projectId: string; enabled: boolean }): ProjectQueue {
     if (!input || typeof input.projectId !== 'string' || typeof input.enabled !== 'boolean') throw new Error('Invalid queue continuation policy.');
@@ -407,6 +408,17 @@ export class StudioStore {
       if (queue.state === 'running') throw new Error('Pause the queue before changing its continuation policy.');
       if (queue.updatedAt === null) this.saveProjectQueue({ projectId: input.projectId, state: 'off', templateWorkflowId: null, activeWorkflowId: null, pauseReason: null });
       this.db.prepare('UPDATE project_queues SET continue_blocked = ?, updated_at = ? WHERE project_id = ?')
+        .run(Number(input.enabled), now(), input.projectId);
+      return this.projectQueue(input.projectId);
+    }).immediate();
+  }
+  setQueueAutoResumeIdle(input: { projectId: string; enabled: boolean }): ProjectQueue {
+    if (!input || typeof input.projectId !== 'string' || typeof input.enabled !== 'boolean') throw new Error('Invalid queue reconnect policy.');
+    return this.db.transaction(() => {
+      const queue = this.projectQueue(input.projectId);
+      if (queue.state === 'running') throw new Error('Pause the queue before changing its reconnect policy.');
+      if (queue.updatedAt === null) this.saveProjectQueue({ projectId: input.projectId, state: 'off', templateWorkflowId: null, activeWorkflowId: null, pauseReason: null });
+      this.db.prepare('UPDATE project_queues SET auto_resume_idle = ?, updated_at = ? WHERE project_id = ?')
         .run(Number(input.enabled), now(), input.projectId);
       return this.projectQueue(input.projectId);
     }).immediate();

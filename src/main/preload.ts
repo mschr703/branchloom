@@ -206,6 +206,7 @@ const studio: StudioAPI = {
   workflowRunEvidence: (input) => invoke('workflowRunEvidence', input),
   setProjectQueue: (input) => invoke('setProjectQueue', input),
   setQueueContinueBlocked: (input) => invoke('setQueueContinueBlocked', input),
+  setQueueAutoResumeIdle: (input) => invoke('setQueueAutoResumeIdle', input),
   setProjectRunPause: (input) => invoke('setProjectRunPause', input),
   queueCandidates: (projectId) => invoke('queueCandidates', projectId),
   queueResults: (projectId) => invoke('queueResults', projectId),

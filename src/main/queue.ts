@@ -6,6 +6,8 @@ import { AgentSpawnError } from './cli';
 import { assertProjectCanStart, projectPauseRequested } from './project-pause';
 
 const RETRY_DELAYS_MS = [5_000, 20_000] as const;
+const CONNECTION_PAUSE_PREFIX = 'Gerät meldete offline.';
+const IDLE_RECONNECT_PAUSE_REASON = `${CONNECTION_PAUSE_PREFIX} Die ruhende Queue kann nach Rückkehr innerhalb ihrer Frist ohne erneut gesendeten Auftrag fortfahren.`;
 
 function pauseMessage(workflow: Workflow): string {
   if (workflow.pauseReason === 'approval') return 'Workflow wartet auf eine ausdrückliche Schrittfreigabe.';
@@ -94,8 +96,34 @@ export class ProjectQueueEngine {
     this.clearLaunchRetry(projectId);
     this.clearDeadline(projectId);
     const current = this.store.projectQueue(projectId);
+    const idleAutoResume = current.autoResumeIdle === true && !current.activeWorkflowId && !this.store.activeSessionForProject(projectId);
     this.store.saveProjectQueue({ projectId, state: 'paused', templateWorkflowId: current.templateWorkflowId, activeWorkflowId: current.activeWorkflowId,
-      pauseReason: 'Gerät meldete offline. Lauf und mögliche Änderungen prüfen; nach Rückkehr nur bewusst fortsetzen.' });
+      pauseReason: idleAutoResume
+        ? IDLE_RECONNECT_PAUSE_REASON
+        : `${CONNECTION_PAUSE_PREFIX} Lauf und mögliche Änderungen prüfen; nach Rückkehr nur bewusst fortsetzen.` });
+  }
+
+  /** Only an idle, explicitly opted-in queue can continue after a device-online transition. */
+  resumeIdleAfterReconnect(): void {
+    if (!this.deviceOnline()) return;
+    const rows = this.store.db.prepare(`SELECT project_id FROM project_queues
+      WHERE state = 'paused' AND auto_resume_idle = 1 AND active_workflow_id IS NULL
+        AND pause_reason = ?`).all(IDLE_RECONNECT_PAUSE_REASON) as Array<{ project_id: string }>;
+    for (const { project_id: projectId } of rows) {
+      const current = this.store.projectQueue(projectId);
+      if (this.store.activeSessionForProject(projectId) || projectPauseRequested(this.store, projectId)) continue;
+      if (current.runUntil && Date.parse(current.runUntil) - Date.now() < 1_000) {
+        this.store.saveProjectQueue({ projectId, state: 'paused', templateWorkflowId: current.templateWorkflowId,
+          activeWorkflowId: null, pauseReason: 'Queue-Endzeit während der Netzunterbrechung erreicht. Ergebnisse prüfen und bewusst neu starten.' });
+        continue;
+      }
+      try {
+        this.setState({ projectId, state: 'running' });
+      } catch (error) {
+        this.store.saveProjectQueue({ projectId, state: 'paused', templateWorkflowId: current.templateWorkflowId,
+          activeWorkflowId: null, pauseReason: `Automatische Wiederaufnahme der ruhenden Queue fehlgeschlagen: ${error instanceof Error ? error.message.slice(0, 240) : String(error).slice(0, 240)}. Bitte prüfen und bewusst starten.` });
+      }
+    }
   }
 
   private pause(projectId: string, message: string): void {
