@@ -95,11 +95,25 @@ it('merges two authenticated clients on one card draft and reconnects after host
       cardId: card.id, priority: 'urgent', expectedRevision: 0, mutationId: randomUUID() }))
       .rejects.toThrow('changed');
     const nextColumn = store.snapshot(project.id).columns[1]!;
+    const streamAbort = new AbortController();
+    let streamReady: () => void = () => undefined;
+    let cardChanged: (revision: number) => void = () => undefined;
+    const readyEvent = new Promise<void>((resolve) => { streamReady = resolve; });
+    const changedEvent = new Promise<number>((resolve) => { cardChanged = resolve; });
+    const streamTask = second.streamCardDraft({ workspaceId: workspace.workspaceId, projectId: project.id,
+      cardId: card.id }, (event) => {
+      if (event.type === 'presence') streamReady();
+      if (event.type === 'card') cardChanged(event.revision);
+    }, streamAbort.signal);
+    await readyEvent;
     await expect(first.moveCard({ workspaceId: workspace.workspaceId, projectId: project.id,
       cardId: card.id, columnId: nextColumn.id, expectedRevision: 1, mutationId: randomUUID() }))
       .rejects.toThrow('revoked or is unavailable');
     expect((await ownerClient.moveCard({ workspaceId: workspace.workspaceId, projectId: project.id,
       cardId: card.id, columnId: nextColumn.id, expectedRevision: 1, mutationId: randomUUID() })).revision).toBe(2);
+    expect(await changedEvent).toBe(2);
+    streamAbort.abort();
+    await streamTask;
     expect((await second.board({ workspaceId: workspace.workspaceId, projectId: project.id })).cards[0])
       .toMatchObject({ columnId: nextColumn.id, revision: 2 });
     await expect(ownerClient.moveCard({ workspaceId: workspace.workspaceId, projectId: project.id,

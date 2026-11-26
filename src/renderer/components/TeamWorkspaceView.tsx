@@ -94,7 +94,9 @@ export function TeamWorkspaceView({ projectId }: { projectId?: string }) {
             }} /> : null}
           <TeamCardDraftEditor key={`${workspaceId}:${remoteProjectId}:${selectedCard.id}`}
             workspaceId={workspaceId} projectId={remoteProjectId} cardId={selectedCard.id} cardTitle={selectedCard.title}
-            canEdit={workspace?.projects.find((item) => item.id === remoteProjectId)?.canEditDraft === true} /></>
+            canEdit={workspace?.projects.find((item) => item.id === remoteProjectId)?.canEditDraft === true}
+            onCardChanged={() => { void window.studio.teamBoard({ workspaceId, projectId: remoteProjectId })
+              .then(setBoard).catch((reason: unknown) => setError(messageOf(reason))); }} /></>
           : <p>Wähle eine Karte, um den gemeinsamen Entwurf zu öffnen.</p>}</div></div> : null}
       {!board && !error ? <p className="team-workspace-muted">Teamboard wird geladen…</p> : null}
     </div> : null}

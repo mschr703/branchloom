@@ -167,7 +167,9 @@ export class TeamCoordinatorHttp {
         const result = setTeamCardPriority(this.store, { credential: actorCredential,
           projectId: priority[1]!, cardId: priority[2]!, priority: value.priority as CardPriority,
           expectedRevision: value.expectedRevision as number, mutationId: value.mutationId as string });
-        return reply(response, 200, result);
+        reply(response, 200, result);
+        if (!result.repeated) this.broadcastCard(priority[1]!, priority[2]!, result.revision);
+        return;
       }
       const move = /^\/v1\/projects\/([0-9a-f-]{36})\/cards\/([0-9a-f-]{36})\/column$/.exec(path);
       if (request.method === 'POST' && move) {
@@ -175,7 +177,9 @@ export class TeamCoordinatorHttp {
         const result = moveTeamCard(this.store, { credential: actorCredential,
           projectId: move[1]!, cardId: move[2]!, columnId: value.columnId as string,
           expectedRevision: value.expectedRevision as number, mutationId: value.mutationId as string });
-        return reply(response, 200, result);
+        reply(response, 200, result);
+        if (!result.repeated) this.broadcastCard(move[1]!, move[2]!, result.revision);
+        return;
       }
       reply(response, 404, { error: 'Route is unavailable' });
     } catch (error) {
@@ -233,6 +237,12 @@ export class TeamCoordinatorHttp {
   private broadcastDraft(projectId: string, cardId: string, revision: number): void {
     for (const subscriber of this.matching(projectId, cardId)) {
       if (this.authorized(subscriber)) this.send(subscriber, 'draft', { revision });
+    }
+  }
+
+  private broadcastCard(projectId: string, cardId: string, revision: number): void {
+    for (const subscriber of this.matching(projectId, cardId)) {
+      if (this.authorized(subscriber)) this.send(subscriber, 'card', { revision });
     }
   }
 }

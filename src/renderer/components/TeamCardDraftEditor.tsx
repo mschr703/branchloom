@@ -5,8 +5,9 @@ type PendingUpdate = { mutationId: string; update: string };
 const messageOf = (reason: unknown) => reason instanceof Error ? reason.message : String(reason);
 
 /** Collaborative text is still a proposal; this editor never changes the accepted card. */
-export function TeamCardDraftEditor({ workspaceId, projectId, cardId, cardTitle, canEdit }: {
+export function TeamCardDraftEditor({ workspaceId, projectId, cardId, cardTitle, canEdit, onCardChanged }: {
   workspaceId: string; projectId: string; cardId: string; cardTitle: string; canEdit: boolean;
+  onCardChanged?: () => void;
 }) {
   const documentRef = useRef<Y.Doc | null>(null);
   const [text, setText] = useState('');
@@ -91,6 +92,7 @@ export function TeamCardDraftEditor({ workspaceId, projectId, cardId, cardTitle,
       if (!active || event.watchId !== watchId) return;
       if ('event' in event) {
         if (event.event.type === 'presence') setMembers(event.event.members.map((member) => member.displayName));
+        if (event.event.type === 'card') onCardChanged?.();
         if (event.event.type === 'draft' && loaded) {
           void window.studio.teamCardDraft(source).then((draft) => {
             if (!active) return;

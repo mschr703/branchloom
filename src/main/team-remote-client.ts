@@ -18,7 +18,7 @@ export interface CollaborativeTeamBoard extends Omit<TeamBoardSnapshot, 'cards'>
 
 export type TeamDraftStreamEvent =
   | { type: 'presence'; members: Array<{ memberId: string; displayName: string }> }
-  | { type: 'draft'; revision: number };
+  | { type: 'draft' | 'card'; revision: number };
 
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
@@ -289,11 +289,11 @@ export class TeamRemoteClient {
             let value: unknown;
             try { value = JSON.parse(data) as unknown; } catch { throw new Error('Coordinator event is invalid.'); }
             const body = record(value);
-            if (type === 'draft') {
+            if (type === 'draft' || type === 'card') {
               if (!body || !Number.isSafeInteger(body.revision) || Number(body.revision) < 0) {
                 throw new Error('Coordinator event is invalid.');
               }
-              onEvent({ type: 'draft', revision: body.revision as number });
+              onEvent({ type, revision: body.revision as number });
             } else if (type === 'presence') {
               if (!body || !Array.isArray(body.members) || body.members.length > 100) {
                 throw new Error('Coordinator event is invalid.');

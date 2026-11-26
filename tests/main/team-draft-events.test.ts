@@ -77,6 +77,20 @@ it('pushes authenticated draft and presence events and ends a revoked member str
     expect((await nextFirst('draft')).revision).toBe(1);
     expect((await nextSecond('draft')).revision).toBe(1);
     expect(store.snapshot(project.id).cards.find((item) => item.id === card.id)?.description).toBe('Accepted version');
+    const priority = await fetch(`${base}/v1/projects/${project.id}/cards/${card.id}/priority`, {
+      method: 'POST', headers: { Authorization: `Bearer ${owner.credential}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mutationId: randomUUID(), expectedRevision: 0, priority: 'high' }),
+    });
+    expect(priority.status).toBe(200);
+    expect((await nextSecond('card')).revision).toBe(1);
+    const columnId = store.snapshot(project.id).columns[1]!.id;
+    const moved = await fetch(`${base}/v1/projects/${project.id}/cards/${card.id}/column`, {
+      method: 'POST', headers: { Authorization: `Bearer ${owner.credential}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mutationId: randomUUID(), expectedRevision: 1, columnId }),
+    });
+    expect(moved.status).toBe(200);
+    expect((await nextSecond('card')).revision).toBe(2);
+    expect(store.card(card.id).columnId).toBe(columnId);
     revokeTeamMember(store.db, owner.credential, colleague.id);
     // A periodic authorization check closes an already-open stream after revocation.
     await new Promise((resolve) => setTimeout(resolve, 5_200));
