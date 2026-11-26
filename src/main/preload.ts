@@ -315,6 +315,7 @@ const studio: StudioAPI = {
   teamReviewRooms: (cardId) => invoke('teamReviewRooms', cardId),
   teamReviewInvites: (roomId) => invoke('teamReviewInvites', roomId),
   teamReviewComments: (roomId) => invoke('teamReviewComments', roomId),
+  teamReviewRevision: (roomId) => invoke('teamReviewRevision', roomId),
   teamReviewImage: (roomId) => invoke('teamReviewImage', roomId),
   newTeamReviewInvite: (input) => invoke('newTeamReviewInvite', input),
   newTailnetTeamReviewInvite: (input) => invoke('newTailnetTeamReviewInvite', input),

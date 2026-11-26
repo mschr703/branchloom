@@ -14,6 +14,13 @@ export interface TeamReviewRoom {
   closedAt: string | null;
 }
 
+/** Compares Git checkout observations; it never identifies the files served by a dev server. */
+export interface TeamReviewRevision {
+  status: 'same-clean-head' | 'different-head' | 'working-tree-dirty' | 'checkout-changed' | 'unavailable';
+  currentHead: string | null;
+  checkedAt: string;
+}
+
 export interface TeamReviewInvite {
   id: string;
   roomId: string;

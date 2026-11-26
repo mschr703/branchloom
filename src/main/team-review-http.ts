@@ -1,7 +1,8 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { StudioStore } from './store';
-import { addTeamReviewComment, resolveTeamReviewInvite, teamReviewComments, teamReviewImage } from './team-review';
+import type { TeamReviewRevision } from '../shared/team-review';
+import { addTeamReviewComment, resolveTeamReviewInvite, teamReviewComments, teamReviewImage, teamReviewRevision } from './team-review';
 import { teamReviewCss, teamReviewHtml, teamReviewJs } from './team-review-page';
 
 const TOKEN_PATH = /^\/(?:r|api\/r)\/([A-Za-z0-9_-]{43})(?:\/(image|comments))?$/;
@@ -42,6 +43,8 @@ export class TeamReviewHttp {
   private server: Server | null = null;
   private address: string | null = null;
   private starting: Promise<string> | null = null;
+  private readonly revisionCache = new Map<string, { value: TeamReviewRevision; until: number }>();
+  private readonly revisionReads = new Map<string, Promise<TeamReviewRevision>>();
 
   constructor(private readonly store: StudioStore, private readonly host = '127.0.0.1',
     private readonly allowedSecrets: Set<string> | null = null) {}
@@ -88,7 +91,20 @@ export class TeamReviewHttp {
     return `${this.address}/r/${secret}`;
   }
 
-  close(): void { this.server?.close(); this.server = null; this.address = null; }
+  close(): void { this.server?.close(); this.server = null; this.address = null; this.revisionCache.clear(); this.revisionReads.clear(); }
+
+  private currentRevision(roomId: string): Promise<TeamReviewRevision> {
+    const cached = this.revisionCache.get(roomId);
+    if (cached && cached.until > Date.now()) return Promise.resolve(cached.value);
+    const pending = this.revisionReads.get(roomId);
+    if (pending) return pending;
+    const read = teamReviewRevision(this.store, roomId).then((value) => {
+      this.revisionCache.set(roomId, { value, until: Date.now() + 15_000 });
+      return value;
+    }).finally(() => { this.revisionReads.delete(roomId); });
+    this.revisionReads.set(roomId, read);
+    return read;
+  }
 
   private async handle(request: IncomingMessage, response: ServerResponse): Promise<void> {
     if (!this.address) { json(response, 503, { error: 'Review listener is unavailable.' }); return; }
@@ -112,8 +128,11 @@ export class TeamReviewHttp {
       return;
     }
     if (path.startsWith('/api/r/') && request.method === 'GET' && (!match[2] || match[2] === 'comments')) {
-      json(response, 200, match[2] === 'comments' ? { comments: teamReviewComments(this.store, access.room.id) }
-        : { room: access.room, comments: teamReviewComments(this.store, access.room.id) });
+      if (match[2] === 'comments') { json(response, 200, { comments: teamReviewComments(this.store, access.room.id) }); return; }
+      const revision = await this.currentRevision(access.room.id);
+      try { resolveTeamReviewInvite(this.store, secret); }
+      catch { json(response, 403, { error: 'Review invitation is unavailable.' }); return; }
+      json(response, 200, { room: access.room, comments: teamReviewComments(this.store, access.room.id), revision });
       return;
     }
     if (path.startsWith('/api/r/') && request.method === 'POST' && match[2] === 'comments') {

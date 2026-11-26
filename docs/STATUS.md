@@ -2,6 +2,10 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Git-Vergleich für Bild-Reviews (Folgezweig, in Arbeit)
+
+- Host und Gast vergleichen die gespeicherte QA-Checkout-Beobachtung mit dem aktuellen, verifizierten Karten-Checkout. Ein abweichender HEAD, ungespeicherte Änderungen und ein Wechsel des Checkout-Typs erscheinen getrennt; unsaubere QA- oder fehlende Git-Daten bleiben ausdrücklich unbekannt. Die Gast-API begrenzt wiederholte Git-Abfragen per kurzem Cache; ein nach Widerruf noch laufender Vergleich gibt danach keine Reviewdaten mehr zurück. Der Vergleich beweist **nicht**, was der Dev-Server ausgeliefert hat. Gezielt bestanden acht Tests einschließlich echtem temporären Git-Repo, Guest-HTTP-Pfad und Renderer-Zustand sowie die Typprüfung. Breiter Quell-/Paket-Smoke und Windows-CI stehen noch aus.
+
 ## Optionaler Tailscale-Reviewlink (Folgezweig, in Arbeit)
 
 - Aus einem gespeicherten Bild-Review kann der Host nach bewusstem Klick einen **separaten** Gastlink über die aktive eigene Tailscale-IPv4-Adresse erstellen. Der Dienst bindet nur an diese Adresse, nicht an alle Netzwerkkarten; bestehende Tailscale-Serve-Konfigurationen werden weder geändert noch gelöscht. Das Browserformular nutzt für Kommentar-Wiederholungs-IDs bei einer HTTP-Tailnet-Adresse `crypto.getRandomValues`, da `randomUUID` dort nicht als Secure-Context-API verfügbar sein muss. Neun gezielte Tests, Typprüfung und ein echter isolierter Chromium-Lauf über die Tailscale-IP auf diesem Computer bestanden. Ein zweites physisches Gerät, ein WLAN-Abbruch, Paketprüfung und vollständige Teamidentität sind noch nicht getestet beziehungsweise implementiert. [Bedienung und Grenzen](TEAM_REVIEW.md).
