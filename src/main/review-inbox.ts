@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import type { AcknowledgeQaInboxReport, AcknowledgeReviewInboxComment, ReviewInboxItem, ReviewInboxPage, ReviewInboxQuery, ReviewInboxSource } from '../shared/review-inbox';
+import type { AcknowledgeGuestInboxComment, AcknowledgeQaInboxReport, AcknowledgeReviewInboxComment, ReviewInboxItem, ReviewInboxPage, ReviewInboxQuery, ReviewInboxSource } from '../shared/review-inbox';
 import type { StudioStore } from './store';
 
 const LIMIT = 100;
@@ -20,6 +20,11 @@ export function installReviewInbox(db: Database.Database): void {
     report_id TEXT NOT NULL REFERENCES card_qa_reports(id) ON DELETE CASCADE,
     acknowledged_at TEXT NOT NULL,
     PRIMARY KEY(project_id, report_id)
+  ); CREATE TABLE IF NOT EXISTS guest_inbox_acknowledgements (
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    comment_id TEXT NOT NULL REFERENCES team_board_comments(id) ON DELETE CASCADE,
+    acknowledged_at TEXT NOT NULL,
+    PRIMARY KEY(project_id, comment_id)
   );`);
 }
 
@@ -56,8 +61,15 @@ export function reviewInboxItems(store: StudioStore, input: ReviewInboxQuery): R
     FROM card_qa_reports q JOIN cards c ON c.id = q.card_id AND c.project_id = q.project_id
     LEFT JOIN qa_inbox_acknowledgements ack ON ack.project_id = q.project_id AND ack.report_id = q.id
     WHERE q.project_id = ? AND q.status IN ('failed','error') AND c.archived_at IS NULL AND ack.report_id IS NULL
+    UNION ALL
+    SELECT tc.id, 'guest' AS kind, tc.project_id, c.id AS source_id,
+      c.title AS source_title, 'Gastfeedback von ' || tc.display_name AS location,
+      tc.body, tc.created_at, NULL AS qa_status
+    FROM team_board_comments tc JOIN cards c ON c.id = tc.card_id AND c.project_id = tc.project_id
+    LEFT JOIN guest_inbox_acknowledgements ack ON ack.project_id = tc.project_id AND ack.comment_id = tc.id
+    WHERE tc.project_id = ? AND c.archived_at IS NULL AND ack.comment_id IS NULL
   ) WHERE (? = '' OR instr(review_search_fold(source_title), ?) > 0 OR instr(review_search_fold(location), ?) > 0 OR instr(review_search_fold(body), ?) > 0)
-    ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`).all(projectId, projectId, projectId, query, query, query, query, LIMIT + 1, input.offset ?? 0) as Row[];
+    ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`).all(projectId, projectId, projectId, projectId, query, query, query, query, LIMIT + 1, input.offset ?? 0) as Row[];
   return { items: rows.slice(0, LIMIT).map(fromRow), hasMore: rows.length > LIMIT };
 }
 
@@ -88,5 +100,20 @@ export function acknowledgeReviewInboxComment(store: StudioStore, input: Acknowl
     if (!source || source.project_id !== input.projectId) throw new Error('Review-Kommentar gehört nicht zu diesem aktiven Projekt.');
     store.db.prepare(`INSERT OR IGNORE INTO review_inbox_acknowledgements (project_id, kind, comment_id, acknowledged_at)
       VALUES (?, ?, ?, ?)`).run(input.projectId, input.kind, input.commentId, new Date().toISOString());
+  })();
+}
+
+/** Hide one guest comment from the host inbox without deleting it or modifying its card. */
+export function acknowledgeGuestInboxComment(store: StudioStore, input: AcknowledgeGuestInboxComment): void {
+  if (!input || typeof input.projectId !== 'string' || typeof input.commentId !== 'string' || !input.commentId)
+    throw new Error('Invalid guest comment.');
+  store.db.transaction(() => {
+    store.project(input.projectId);
+    const source = store.db.prepare(`SELECT tc.project_id FROM team_board_comments tc
+      JOIN cards c ON c.id = tc.card_id AND c.project_id = tc.project_id
+      WHERE tc.id = ? AND c.archived_at IS NULL`).get(input.commentId) as { project_id: string } | undefined;
+    if (!source || source.project_id !== input.projectId) throw new Error('Guest comment does not belong to this active project.');
+    store.db.prepare('INSERT OR IGNORE INTO guest_inbox_acknowledgements (project_id, comment_id, acknowledged_at) VALUES (?, ?, ?)')
+      .run(input.projectId, input.commentId, new Date().toISOString());
   })();
 }

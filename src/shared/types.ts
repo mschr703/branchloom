@@ -5,7 +5,7 @@ import type { CardDiffPreview, CreateReviewComment, ReviewComment } from './diff
 import type { ChangelogPeriod, ChangelogScope, ProjectChangelog } from './changelog';
 import type { ThemeTokenInventory, ThemeTokenDefinition, ThemeTokenEditPreview, ThemeTokenEditResult } from './theme-tokens';
 import type { CreateReviewRuleFromComment, ReviewRule, UpdateReviewRule } from './review-rules';
-import type { ReviewInboxPage, ReviewInboxQuery, AcknowledgeReviewInboxComment, AcknowledgeQaInboxReport } from './review-inbox';
+import type { ReviewInboxPage, ReviewInboxQuery, AcknowledgeReviewInboxComment, AcknowledgeQaInboxReport, AcknowledgeGuestInboxComment } from './review-inbox';
 import type { CreateOutputErrorCard, OutputErrorPreview, OutputErrorSourceKind } from './output-errors';
 import type { WhiteboardImpact, WhiteboardDirectImporter } from './whiteboard-impact';
 import type { DesignElementPreviewInput, DesignInspectionState, DesignSelection, ThemePreviewInput } from './design-inspection';
@@ -351,6 +351,7 @@ export interface StudioAPI {
   globalInboxItems(input: GlobalInboxQuery): Promise<GlobalInboxPage>;
   acknowledgeReviewInboxComment(input: AcknowledgeReviewInboxComment): Promise<void>;
   acknowledgeQaInboxReport(input: AcknowledgeQaInboxReport): Promise<void>;
+  acknowledgeGuestInboxComment(input: AcknowledgeGuestInboxComment): Promise<void>;
   reviewRules(projectId: string): Promise<ReviewRule[]>;
   createReviewRuleFromComment(input: CreateReviewRuleFromComment): Promise<ReviewRule>;
   updateReviewRule(input: UpdateReviewRule): Promise<ReviewRule>;
@@ -432,6 +433,7 @@ export interface StudioAPI {
   createTeamBoardInvite(input: { projectId: string; displayName: string; transport: 'local' | 'tailnet'; canComment?: boolean }): Promise<{ invite: import('./team-board').TeamBoardInvite; secret: string; url: string }>;
   teamBoardInvites(projectId: string): Promise<import('./team-board').TeamBoardInvite[]>;
   teamBoardComments(projectId: string): Promise<import('./team-board').TeamBoardComment[]>;
+  teamBoardCardComments(input: { projectId: string; cardId: string }): Promise<import('./team-board').TeamBoardComment[]>;
   revokeTeamBoardInvite(input: { projectId: string; inviteId: string }): Promise<import('./team-board').TeamBoardInvite>;
   openTeamBoardInvite(input: { secret: string; transport: 'local' | 'tailnet' }): Promise<void>;
   copyTeamBoardInvite(input: { secret: string; transport: 'local' | 'tailnet' }): Promise<void>;

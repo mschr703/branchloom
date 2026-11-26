@@ -96,6 +96,18 @@ export function teamBoardComments(store: StudioStore, projectId: string): TeamBo
   return rows.map(asComment);
 }
 
+/** Host-only card history. The project binding is checked before showing guest text. */
+export function teamBoardCardComments(store: StudioStore, input: { projectId: string; cardId: string }): TeamBoardComment[] {
+  if (!input || typeof input.projectId !== 'string' || typeof input.cardId !== 'string') throw new Error('Invalid card comment query.');
+  store.project(input.projectId);
+  const card = store.db.prepare('SELECT project_id FROM cards WHERE id = ?').get(input.cardId) as { project_id: string } | undefined;
+  if (!card || card.project_id !== input.projectId) throw new Error('Card does not belong to this project.');
+  const rows = store.db.prepare(`SELECT comment.*, card.title AS card_title FROM team_board_comments AS comment
+    JOIN cards AS card ON card.id = comment.card_id WHERE comment.project_id = ? AND comment.card_id = ?
+    ORDER BY comment.created_at DESC, comment.id DESC LIMIT 300`).all(input.projectId, input.cardId) as CommentRow[];
+  return rows.map(asComment);
+}
+
 export function addTeamBoardComment(store: StudioStore, input: {
   secret: string; cardId: string; body: string; clientMutationId: string;
 }): TeamBoardComment {

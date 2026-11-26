@@ -231,6 +231,7 @@ export function App() {
     else if (item.kind === 'session') void openSessionFromMemory(item.sourceId);
     else if (item.kind === 'plan') { setOpenPlan((old) => ({ id: item.sourceId, token: (old?.token ?? 0) + 1 })); setView('workflows'); }
     else if (item.kind === 'diff') navigateToDiffComment(item.sourceId, item.id.slice(5));
+    else if (item.kind === 'guest') navigateToEntity('card', item.sourceId);
     else navigateToQaReport(item.sourceId, item.id.slice(3));
   }, [pendingGlobalItem, projectId, snapshot?.project.id]);
 

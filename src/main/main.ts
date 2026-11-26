@@ -13,7 +13,7 @@ import { createDiagnosticCard } from './error-catcher';
 import { cardQaReports, cardQaScreenshot, runCardQa, runCardQaBatch } from './card-qa';
 import { closeTeamReviewRoom, createTeamReviewInvite, createTeamReviewRoom, resolveTeamReviewInvite, revokeTeamReviewInvite, teamReviewComments, teamReviewImage, teamReviewInvites, teamReviewRevision, teamReviewRooms } from './team-review';
 import { TeamReviewHttp } from './team-review-http';
-import { createTeamBoardInvite, resolveTeamBoardInvite, revokeTeamBoardInvite, teamBoardComments, teamBoardInvites } from './team-board';
+import { createTeamBoardInvite, resolveTeamBoardInvite, revokeTeamBoardInvite, teamBoardCardComments, teamBoardComments, teamBoardInvites } from './team-board';
 import { TeamBoardHttp } from './team-board-http';
 import { activeTailnetIPv4 } from './team-review-tailnet';
 import { bugScenarios, bugScenarioRuns, runBugScenario, saveBugScenario } from './bug-replay';
@@ -53,7 +53,7 @@ import { componentRecommendations } from './component-recommendations';
 import { addCardComponentChoice, addCardComponentVariant, cardComponentChoiceState, cardComponentVariantScreenshot, projectComponentLibrary, removeCardComponentChoice, removeCardComponentVariant } from './card-component-choice';
 import { checkoutMilestone, compareMilestone, createMilestone, createMilestoneWithPreview, listMilestones, milestonePreviewImage } from './milestones';
 import { createReviewComment, listReviewComments, previewCardDiff } from './diff-review';
-import { acknowledgeQaInboxReport, acknowledgeReviewInboxComment, reviewInboxItems } from './review-inbox';
+import { acknowledgeGuestInboxComment, acknowledgeQaInboxReport, acknowledgeReviewInboxComment, reviewInboxItems } from './review-inbox';
 import { agentQuestions, answerAgentQuestions } from './agent-questions';
 import { globalInboxItems } from './global-inbox';
 import { acceptReviewedPlan, createPlanComment, listPlanComments, listReviewedPlans, saveReviewedPlan } from './plan-review';
@@ -621,6 +621,7 @@ function installIpc(): void {
   bind('globalInboxItems', (input: Parameters<StudioAPI['globalInboxItems']>[0]) => globalInboxItems(db, input));
   bind('acknowledgeReviewInboxComment', (input: Parameters<StudioAPI['acknowledgeReviewInboxComment']>[0]) => acknowledgeReviewInboxComment(db, input));
   bind('acknowledgeQaInboxReport', (input: Parameters<StudioAPI['acknowledgeQaInboxReport']>[0]) => acknowledgeQaInboxReport(db, input));
+  bind('acknowledgeGuestInboxComment', (input: Parameters<StudioAPI['acknowledgeGuestInboxComment']>[0]) => acknowledgeGuestInboxComment(db, input));
   bind('reviewRules', (projectId: string) => listReviewRules(db, projectId));
   bind('createReviewRuleFromComment', (input: Parameters<StudioAPI['createReviewRuleFromComment']>[0]) => createReviewRuleFromComment(db, input));
   bind('updateReviewRule', (input: Parameters<StudioAPI['updateReviewRule']>[0]) => updateReviewRule(db, input));
@@ -799,6 +800,7 @@ function installIpc(): void {
   });
   bind('teamBoardInvites', (projectId: string) => teamBoardInvites(db, projectId));
   bind('teamBoardComments', (projectId: string) => teamBoardComments(db, projectId));
+  bind('teamBoardCardComments', (input: Parameters<StudioAPI['teamBoardCardComments']>[0]) => teamBoardCardComments(db, input));
   bind('revokeTeamBoardInvite', (input: Parameters<StudioAPI['revokeTeamBoardInvite']>[0]) => revokeTeamBoardInvite(db, input));
   bind('openTeamBoardInvite', async (input: Parameters<StudioAPI['openTeamBoardInvite']>[0]) => {
     resolveTeamBoardInvite(db, input.secret);

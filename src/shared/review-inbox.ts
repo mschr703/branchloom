@@ -1,4 +1,4 @@
-export type ReviewInboxSource = 'plan' | 'diff' | 'qa';
+export type ReviewInboxSource = 'plan' | 'diff' | 'qa' | 'guest';
 
 export interface ReviewInboxItem {
   id: string;
@@ -30,3 +30,4 @@ export interface AcknowledgeReviewInboxComment {
 }
 
 export interface AcknowledgeQaInboxReport { projectId: string; reportId: string }
+export interface AcknowledgeGuestInboxComment { projectId: string; commentId: string }

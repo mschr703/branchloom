@@ -9,6 +9,7 @@ import { CardAttachments } from './CardAttachments';
 import { CardContextPanel } from './CardContextPanel';
 import { CardComponentChoicePanel } from './CardComponentChoicePanel';
 import { CardAcceptancePanel } from './CardAcceptancePanel';
+import { CardGuestFeedback } from './CardGuestFeedback';
 import { CardRequirementStatus } from './CardRequirementStatus';
 import { CardSplitPanel } from './CardSplitPanel';
 import { SessionEvidencePanel } from './SessionEvidencePanel';
@@ -253,6 +254,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     }}><header className="drawer-header"><div><small>KARTE · {snapshot.columns.find((column) => column.id === card.columnId)?.name}{card.archivedAt ? ' · ARCHIVIERT' : ''}</small><h2 id={`card-dialog-title-${card.id}`}>{card.title}</h2><button className="text-button card-replay-jump" type="button" onClick={() => { bugReplayRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }); bugReplayRef.current?.focus({ preventScroll: true }); }}>Fehlerabläufe ansehen</button></div><button ref={closeButtonRef} className="icon-button" type="button" aria-label="Karte schließen" onClick={onClose}><X size={19} /></button></header>
       <div className="drawer-content">
+        <CardGuestFeedback projectId={card.projectId} cardId={card.id} />
         <form className="stacked-form" onSubmit={(event) => void saveCard(event)}><fieldset className="archive-fieldset" disabled={Boolean(card.archivedAt)}>
           <label>Titel<input value={title} required maxLength={160} onChange={(event) => setTitle(event.target.value)} /></label>
           <label>Beschreibung<textarea rows={5} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Ziel, Kontext und gewünschtes Ergebnis…" /></label>

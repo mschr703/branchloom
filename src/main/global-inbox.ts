@@ -81,6 +81,15 @@ export function globalInboxItems(store: StudioStore, input: GlobalInboxQuery = {
       JOIN projects p ON p.id = q.project_id
     LEFT JOIN qa_inbox_acknowledgements ack ON ack.project_id = p.id AND ack.report_id = q.id
     WHERE q.status IN ('failed','error') AND c.archived_at IS NULL AND ack.report_id IS NULL
+    UNION ALL
+    SELECT 'guest:' || tc.id, 'guest', 'review',
+      p.id, p.name, c.id, substr(c.title, 1, 160),
+      'Gastfeedback von ' || substr(tc.display_name, 1, 80) || ': ' || tc.body,
+      tc.created_at
+    FROM team_board_comments tc JOIN cards c ON c.id = tc.card_id AND c.project_id = tc.project_id
+      JOIN projects p ON p.id = tc.project_id
+    LEFT JOIN guest_inbox_acknowledgements ack ON ack.project_id = tc.project_id AND ack.comment_id = tc.id
+    WHERE c.archived_at IS NULL AND ack.comment_id IS NULL
   )
   SELECT * FROM all_items
   WHERE (? = '' OR instr(review_search_fold(project_name), ?) > 0 OR instr(review_search_fold(title), ?) > 0 OR instr(review_search_fold(detail), ?) > 0)

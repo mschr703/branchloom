@@ -78,7 +78,7 @@ describe('decision inbox', () => {
     const quiet = { ...snapshot, queue: { ...snapshot.queue, state: 'running' as const }, workflows: [{ ...approval, state: 'done' as const }] };
     expect(decisionItems(quiet)).toEqual([]);
     const html = renderToStaticMarkup(createElement(DecisionInbox, { snapshot: quiet, onOpenWorkflow: () => undefined, onOpenQueue: () => undefined }));
-    expect(html).toContain('Reviews und Browser-QA werden geladen');
+    expect(html).toContain('Reviews und Feedback werden geladen');
     expect(html).not.toContain('Freigabe prüfen');
   });
 
@@ -102,7 +102,7 @@ describe('decision inbox', () => {
         { id: 'plan-comment', kind: 'plan', projectId: 'project', sourceId: 'plan', sourceTitle: 'Plan <script>', location: 'Planzeile 1', body: 'Prüfe <img>', createdAt: date },
         { id: 'diff-comment', kind: 'diff', projectId: 'project', sourceId: 'card', sourceTitle: 'Karte prüfen', location: 'Diff src/test.ts:7', body: 'Fehlerfall prüfen', createdAt: date },
       ], hasMore: true, busy: null, loadingMore: false,
-      onOpenPlan: () => undefined, onOpenDiffComment: () => undefined, onOpenQaReport: () => undefined, onAcknowledge: () => undefined, onLoadMore: () => undefined,
+      onOpenPlan: () => undefined, onOpenDiffComment: () => undefined, onOpenQaReport: () => undefined, onOpenCard: () => undefined, onAcknowledge: () => undefined, onLoadMore: () => undefined,
     }));
     expect(html).toContain('Plan öffnen');
     expect(html).toContain('Kommentar öffnen');
@@ -118,7 +118,7 @@ describe('decision inbox', () => {
       items: [{ id: 'qa-report', kind: 'qa', projectId: 'project', sourceId: 'card', sourceTitle: 'Karte',
         location: 'Route: http://127.0.0.1:5173/path', body: 'Fehler gefunden: 1. Synthetic <console>', createdAt: date, qaStatus: 'failed' }],
       hasMore: false, busy: null, loadingMore: false,
-      onOpenPlan: () => undefined, onOpenDiffComment: () => undefined, onOpenQaReport: () => undefined,
+      onOpenPlan: () => undefined, onOpenDiffComment: () => undefined, onOpenQaReport: () => undefined, onOpenCard: () => undefined,
       onAcknowledge: () => undefined, onLoadMore: () => undefined,
     }));
     expect(html).toContain('Browser-QA · Fehler');
@@ -126,6 +126,22 @@ describe('decision inbox', () => {
     expect(html).toContain('Route: http://127.0.0.1:5173/path');
     expect(html).toContain('Synthetic &lt;console&gt;');
     expect(html).not.toContain('<console>');
+    expect(html).not.toContain('Schritt freigeben');
+  });
+
+  it('labels guest feedback and escapes untrusted text without offering workflow approval', () => {
+    const html = renderToStaticMarkup(createElement(ReviewInboxList, {
+      items: [{ id: 'guest-comment', kind: 'guest', projectId: 'project', sourceId: 'card', sourceTitle: 'Settings page',
+        location: 'Gastfeedback von <script>', body: 'Check <img> state', createdAt: date }],
+      hasMore: false, busy: null, loadingMore: false,
+      onOpenPlan: () => undefined, onOpenDiffComment: () => undefined, onOpenQaReport: () => undefined, onOpenCard: () => undefined,
+      onAcknowledge: () => undefined, onLoadMore: () => undefined,
+    }));
+    expect(html).toContain('Gastfeedback');
+    expect(html).toContain('Karte öffnen');
+    expect(html).toContain('Als gelesen markieren');
+    expect(html).toContain('Check &lt;img&gt; state');
+    expect(html).not.toContain('<img>');
     expect(html).not.toContain('Schritt freigeben');
   });
 

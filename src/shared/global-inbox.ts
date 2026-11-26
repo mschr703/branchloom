@@ -1,4 +1,4 @@
-export type GlobalInboxKind = 'workflow' | 'queue' | 'session' | 'plan' | 'diff' | 'qa';
+export type GlobalInboxKind = 'workflow' | 'queue' | 'session' | 'plan' | 'diff' | 'qa' | 'guest';
 export type GlobalInboxCategory = 'all' | 'approval' | 'manual' | 'review' | 'paused';
 
 export interface GlobalInboxItem {

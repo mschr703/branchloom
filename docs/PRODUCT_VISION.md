@@ -132,6 +132,8 @@ Für die Erreichbarkeit sind drei Betriebsarten gewünscht: Der Laptop eines nor
 
 **Erste echte Team-Version laut Nutzerentscheidung:** Gemeinsames Planen steht vor dauerhaft laufenden Server-Agents, muss sich aber bereits wie gleichzeitige Zusammenarbeit anfühlen. Zwei Mitglieder sollen dieselbe Karte oder denselben Whiteboard-Ausschnitt zur gleichen Zeit bearbeiten und Änderungen sowie Präsenz unmittelbar sehen. Das Team-Dashboard ergänzt diese Arbeitsfläche als Überblick; es ersetzt sie nicht. Freie Text- und Diagrammedits brauchen eine geeignete Live-Zusammenführung. Kartenstatus, Rechte, Agentenstarts und Merges bleiben gesonderte, autorisierte und revisionsgeprüfte Transaktionen. AI-Vorschläge im gemeinsamen Projektgespräch erscheinen als sichtbare Entwürfe und werden erst nach berechtigter Übernahme verbindlich. Die genaue UI und der technische Synchronisationsmechanismus werden noch ausgearbeitet.
 
+Der vorläufige Dienstvertrag, die Betriebsarten und überprüfbaren Umsetzungsschritte stehen in [Team synchronization design](TEAM_SYNC.md). Er ist ein Bauplan, keine Behauptung über den aktuellen Funktionsumfang.
+
 ## Open-Source-Referenzen
 
 Gewünschte Projekte zum Untersuchen: `Kangentic/kangentic`, `BloopAI/vibe-kanban`, `backnotprop/plannotator`, `xyflow/xyflow`, `tldraw/tldraw`, `onlook-dev/onlook`, `stagewise-io/stagewise`. Die [Lizenz- und Funktionsübersicht](OPEN_SOURCE_REFERENCES.md) hält den geprüften Stand fest. Vor jeder Codeübernahme konkrete Version, Lizenz, transitive Abhängigkeiten und nötige Attribution erneut prüfen. Bei unpassender Lizenz das Verhalten als Produktreferenz nutzen und unabhängig implementieren. Bestehende Branchloom-Formate und Sicherheitsgrenzen gelten auch für integrierte Komponenten.

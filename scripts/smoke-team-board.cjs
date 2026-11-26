@@ -3,7 +3,9 @@ const { writeFileSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { join, resolve, sep } = require('node:path');
 const { StudioStore } = require('../dist-main/main/store');
-const { createTeamBoardInvite, revokeTeamBoardInvite, teamBoardComments } = require('../dist-main/main/team-board');
+const { createTeamBoardInvite, revokeTeamBoardInvite, teamBoardCardComments, teamBoardComments } = require('../dist-main/main/team-board');
+const { acknowledgeGuestInboxComment, reviewInboxItems } = require('../dist-main/main/review-inbox');
+const { globalInboxItems } = require('../dist-main/main/global-inbox');
 const { TeamBoardHttp } = require('../dist-main/main/team-board-http');
 const { activeTailnetIPv4 } = require('../dist-main/main/team-review-tailnet');
 
@@ -32,7 +34,7 @@ app.whenReady().then(async () => {
     const project = store.createProject({ name: 'Synthetic team project', path: root });
     const columns = store.snapshot(project.id).columns;
     const column = columns[0];
-    store.createCard({ projectId: project.id, columnId: column.id, title: 'Review settings', description: 'Not shared with guests' });
+    const feedbackCard = store.createCard({ projectId: project.id, columnId: column.id, title: 'Review settings', description: 'Not shared with guests' });
     store.createCard({ projectId: project.id, columnId: column.id, title: 'Clarify invite copy', priority: 'medium' });
     store.createCard({ projectId: project.id, columnId: columns[1].id, title: 'Plan team permissions' });
     const active = store.createCard({ projectId: project.id, columnId: columns[2].id, title: 'Build read-only board', priority: 'high' });
@@ -85,6 +87,13 @@ app.whenReady().then(async () => {
     await waitFor(() => taylorWindow.webContents.executeJavaScript("document.getElementById('updated').textContent === 'Kommentar gesendet'"), 'idempotent comment retry');
     if (teamBoardComments(store, project.id).length !== 1) throw new Error('Lost-response retry duplicated the guest comment.');
     if (teamBoardComments(store, project.id)[0].displayName !== 'Taylor') throw new Error('Guest comment was attributed to the wrong invitation.');
+    const comment = teamBoardComments(store, project.id)[0];
+    if (!reviewInboxItems(store, { projectId: project.id }).items.some((item) => item.id === comment.id && item.sourceId === feedbackCard.id)) throw new Error('Guest feedback is missing from the project inbox.');
+    if (!globalInboxItems(store, { category: 'review' }).items.some((item) => item.id === `guest:${comment.id}`)) throw new Error('Guest feedback is missing from the global inbox.');
+    if (teamBoardCardComments(store, { projectId: project.id, cardId: feedbackCard.id })[0]?.body !== comment.body) throw new Error('Guest feedback is missing from its source card.');
+    acknowledgeGuestInboxComment(store, { projectId: project.id, commentId: comment.id });
+    if (reviewInboxItems(store, { projectId: project.id }).items.some((item) => item.id === comment.id) || globalInboxItems(store).items.some((item) => item.id === `guest:${comment.id}`)) throw new Error('Read guest feedback still appears in the inbox.');
+    if (teamBoardCardComments(store, { projectId: project.id, cardId: feedbackCard.id }).length !== 1) throw new Error('Acknowledgement deleted the original guest feedback.');
     if (await samWindow.webContents.executeJavaScript('typeof window.studio !== "undefined"')) throw new Error('Guest has host IPC access.');
     if (await samWindow.webContents.executeJavaScript("document.body.textContent.includes('Not shared with guests')")) throw new Error('Private card description reached the guest.');
     if (process.env.BRANCHLOOM_TEAM_BOARD_SCREENSHOT) {
