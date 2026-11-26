@@ -33,8 +33,9 @@ export function DesignProjectOverview({ cards, index, captures, selections, load
 }) {
   const cardById = new Map(cards.map((card) => [card.id, card]));
   const hasCaptures = captureLoading || Boolean(captureError) || Boolean(captures?.items.length);
+  const draftableCards = cards.filter((card) => !card.archivedAt).slice(0, 4);
   return <div className="design-overview">
-    <header className="design-overview-header"><p>Entwürfe und Aufnahmen aus diesem Projekt.</p><button type="button" className="primary-button" onClick={() => onOpenDraft()}>Entwurf öffnen</button></header>
+    <header className="design-overview-header"><p>Entwürfe und Aufnahmen aus diesem Projekt.</p>{index?.items.length || draftableCards.length === 0 ? <button type="button" className="primary-button" onClick={() => onOpenDraft()}>Entwurf öffnen</button> : null}</header>
     <div className={`design-overview-primary${hasCaptures ? ' has-captures' : ''}`}>
     {loading ? <p role="status">Gespeicherte Entwürfe werden geladen…</p> : error ? <p role="alert">Entwürfe konnten nicht geladen werden: {error} <button type="button" onClick={onRetry}>Erneut laden</button></p> : <section className="design-overview-section" aria-label="Gespeicherte Entwürfe">
       <div className="design-overview-section-heading"><h3>Entwürfe</h3><span>{index?.items.length ?? 0}{index?.moreAvailable ? '+' : ''} gespeichert</span></div>
@@ -44,7 +45,12 @@ export function DesignProjectOverview({ cards, index, captures, selections, load
           <MiniArtboard elements={item.elements} />
           <span className="design-overview-document-text"><strong>{item.title}</strong><small>{card?.title ?? 'Aufgabe nicht mehr im Board'}</small><span>{item.approvedRevision === item.revision ? 'Für Agenten freigegeben' : 'Gespeichert, nicht freigegeben'} · Version {item.revision}</span></span>
         </button>;
-      })}</div> : <p className="design-overview-empty">Noch kein Entwurf gespeichert. Du kannst einen Entwurf selbst beginnen oder in einer Aufgabe einen Agentenvorschlag anfordern.</p>}
+      })}</div> : <div className="design-overview-first-draft">
+        <div className="design-overview-blank-artboard" aria-hidden="true"><span /></div>
+        <div><strong>Der erste Entwurf beginnt hier.</strong><p>Öffne eine Aufgabe und gestalte eine leere Zeichenfläche oder lass dir einen bearbeitbaren Vorschlag machen.</p>
+          {draftableCards.length ? <div className="design-overview-start-cards" aria-label="Aufgabe für einen Entwurf wählen">{draftableCards.map((card) => <button key={card.id} type="button" onClick={() => onOpenDraft(card.id)}>{card.title}<span aria-hidden="true">↗</span></button>)}</div> : <button className="design-overview-open-draft" type="button" onClick={() => onOpenDraft()}>Aufgabe auswählen</button>}
+        </div>
+      </div>}
       {index?.moreAvailable ? <p className="design-overview-note">Die neuesten 24 Entwürfe werden hier gezeigt. Ältere bleiben über ihre Aufgabe im Editor erreichbar.</p> : null}
     </section>}
     {hasCaptures ? <section className="design-overview-section" aria-label="Gespeicherte App-Aufnahmen">
