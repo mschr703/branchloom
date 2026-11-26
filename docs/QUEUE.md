@@ -27,4 +27,6 @@ Ein WLAN-Ausfall wird nicht selbst als Ereignis erkannt. Wenn dadurch der CLI-Pr
 
 Die Queue-Einstellung und die Zuordnung Karte → Workflow liegen in der lokalen SQLite-Datenbank im Electron-`userData`-Ordner, nicht im Repository. Die Queue löscht keine Workflow-Historie und startet eine bereits zugeordnete Karte nicht nochmals automatisch.
 
+Unter **Bisherige Queue-Arbeit** fasst die Workflow-Seite alle bisher von dieser Projekt-Queue beanspruchten Karten aus SQLite zusammen: abgeschlossene Routen, laufende Routen, prüfbedürftige Routen und bewusst zurückgestellte Karten. Die Liste zeigt die 100 neuesten Zuordnungen, verlinkt Karte und Workflow sowie, wenn vorhanden, die letzte zugehörige Sitzung. Die Zähler beziehen sich auf die gesamte Projekthistorie, nicht nur auf den letzten Nachtlauf. Der Status „Abgeschlossen“ bedeutet nur, dass die gespeicherte Workflow-Route ihre Schritte abgeschlossen hat; die Ansicht behauptet weder bestandene Tests noch einen Git-Merge. Ein nach Datum abgegrenzter Laufbericht mit Test-, Diff- und Veröffentlichungsbelegen bleibt offen.
+
 Gezielte Prüfung im Quell-Repository: `npx vitest run tests/main/queue.test.ts`. Die Tests verwenden ausschließlich synthetische Projekte und einen kontrollierten Test-Runner; der vollständige CLI-Pfad wird zusätzlich von den allgemeinen PTY-Tests geprüft.

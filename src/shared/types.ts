@@ -308,6 +308,7 @@ export interface StudioAPI {
   setQueueContinueBlocked(input: { projectId: string; enabled: boolean }): Promise<ProjectQueue>;
   setProjectRunPause(input: { projectId: string; paused: boolean }): Promise<ProjectRunPause>;
   queueCandidates(projectId: string): Promise<Card[]>;
+  queueResults(projectId: string): Promise<import('./queue-results').QueueResults>;
   skipQueuedCard(input: { projectId: string; workflowId: string; reason: string }): Promise<ProjectQueue>;
   workflowAgentSettings(): Promise<WorkflowAgentSettings>;
   saveWorkflowAgentSettings(input: WorkflowAgentSettings): Promise<WorkflowAgentSettings>;

@@ -70,6 +70,7 @@ import { analyzeWhiteboardImpact, createCardFromWhiteboardImpact } from './white
 import { acceptRepoMap, previewRepoMap } from './repo-map-import';
 import { parseProjectPackage, PROJECT_PACKAGE_LIMIT } from './project-package';
 import { ProjectQueueEngine } from './queue';
+import { queueResults } from './queue-results';
 import { SessionRecoveryMonitor } from './session-recovery';
 import { approveCardDependency, cardRunGate, setCardRunDependencies, setProjectRunCapacity } from './parallel-runs';
 import { setProjectRunPause } from './project-pause';
@@ -548,6 +549,7 @@ function installIpc(): void {
   });
   bind('queueCandidates', (projectId: string) => db.projectQueue(projectId).continueBlocked
     ? db.runnableQueueCandidates(projectId, 5) : db.queueCandidates(projectId, 5));
+  bind('queueResults', (projectId: string) => queueResults(db, projectId));
   bind('skipQueuedCard', (input: Parameters<StudioAPI['skipQueuedCard']>[0]) => db.skipQueuedCard(input));
   bind('workflowAgentSettings', () => db.workflowAgentSettings());
   bind('saveWorkflowAgentSettings', (input: WorkflowAgentSettings) => db.saveWorkflowAgentSettings(input));
