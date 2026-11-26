@@ -49,6 +49,7 @@ describe('board filters and archive visibility', () => {
         { id: 'done', projectId: 'p', name: 'Done', position: 1, autoStart: false, agentId: null, model: null, effort: null },
       ],
       cards, agents: [], sessions: [], workflows: [], notes: [],
+      queue: { projectId: 'p', state: 'off', templateWorkflowId: null, activeWorkflowId: null, pauseReason: null, completedCount: 0, updatedAt: null },
     };
     const html = renderToStaticMarkup(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() }));
     expect(html).toContain('Aktive Suche');
