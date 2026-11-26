@@ -14,7 +14,7 @@
   grid-template-columns: minmax(0, 1fr) minmax(230px, 290px);
   row-gap: 0;
 }
-.task-wireframe.is-focused > :not(.task-wireframe-head):not(.task-wireframe-source) { grid-column: 1 / -1; }
+.task-wireframe.is-focused > :where(:not(.task-wireframe-head):not(.task-wireframe-source)) { grid-column: 1 / -1; }
 .task-wireframe.is-focused .task-wireframe-head,
 .task-wireframe.is-focused .task-wireframe-source {
   min-height: 49px;
@@ -297,4 +297,67 @@
   .task-wireframe.is-focused .task-wireframe-overview { overflow-x: auto; }
   .task-wireframe.is-focused .task-wireframe-overview-card { flex: 1 0 auto; min-width: 120px; }
   .task-wireframe.is-focused .task-wireframe-overview-status { display: none; }
+}
+
+/* Keep the artboard in the first viewport. The task, save actions, and tools
+   share a compact header without covering one another. */
+@media (min-width: 1180px) {
+  .task-wireframe.is-focused {
+    grid-template-columns: minmax(300px, 1fr) minmax(230px, 290px) auto;
+    column-gap: 12px;
+  }
+  .task-wireframe.is-focused .task-wireframe-head {
+    grid-column: 1;
+    grid-row: 1;
+    border-bottom: 0;
+  }
+  .task-wireframe.is-focused .task-wireframe-source {
+    grid-column: 2;
+    grid-row: 1;
+    border-bottom: 0;
+  }
+  .task-wireframe.is-focused .task-wireframe-actions {
+    grid-column: 3;
+    grid-row: 1;
+    position: static;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  .task-wireframe.is-focused .task-wireframe-actions > span {
+    flex-basis: 100%;
+    text-align: right;
+    font-size: 11px;
+  }
+  .task-wireframe.is-focused .task-wireframe-overview {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: end;
+    min-width: 0;
+  }
+  .task-wireframe.is-focused .task-wireframe-overview-card {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 9px;
+  }
+  .task-wireframe.is-focused .task-wireframe-overview-status { display: none; }
+  .task-wireframe.is-focused .task-wireframe-toolbar {
+    grid-column: 2 / 4;
+    grid-row: 2;
+    align-self: end;
+    justify-content: flex-end;
+    min-width: 0;
+    padding-block: 2px 5px;
+  }
+  .task-wireframe.is-focused .task-wireframe-layout {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    height: max(440px, calc(100vh - 167px));
+  }
+  .task-wireframe.is-focused .task-wireframe-canvas-viewport {
+    max-height: calc(100vh - 240px);
+  }
 }

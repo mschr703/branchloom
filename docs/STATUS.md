@@ -2,6 +2,10 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Design-Editor: Kopfbereich und Zeichenfläche (lokal geprüft)
+
+- Im vergrößerten Editor stehen Aufgabe, Speicher-/Freigabeaktionen, Zeichenflächenwechsel und Werkzeuge in zwei kompakten Zeilen über der Zeichenfläche. Eine zu spezifische Grid-Regel legte die Aktionen zuvor über andere Bedienelemente; sie ist korrigiert. Im echten Electron-Fenster bei 1268 × 714 waren Titel, Aufgabenwahl, alle drei Aktionen, Werkzeuge, Ebenen, Zeichenfläche und Eigenschaften ohne Überlagerung sichtbar. Drei gezielte Renderer-Dateien (4 Tests), Typprüfung, Build und Produktions-Audit bestanden. Der Editor bleibt derzeit an eine Karte gebunden; freie projektweite Entwürfe und eine umfassende Figma-ähnliche Bearbeitung sind noch offen.
+
 ## Dichtes Board ohne schwebende Kartenleiste (lokal geprüft)
 
 - In einem 1280 × 720-Fenster passen vier Spalten gleichzeitig in den Board-Bereich. Die neutralen Spaltentöne wurden präzisiert, die frühere grüne Standardfolge durch Grau ersetzt und die Karten tragen eine schmale zur Spalte gehörende Kante. Reale Priorität, Labels, Agent, Sitzung und Workflow-Belege bleiben die einzigen Statusdaten. Die große Hover-Leiste über dem Kartentext ist entfernt; Verschieben und Reihenfolge liegen im Drei-Punkte-Menü, die M-Taste und Drag & Drop bleiben. Das Menü und die Zielwahl öffnen als verankerte Popovers außerhalb des scrollenden Spalteninhalts. Im sichtbaren Electron-Fenster bestanden Drei Punkte → Verschieben → Abbrechen bei 1280 × 720, mit sichtbaren beiden Aktionsknöpfen und ohne erneut aufspringende Leiste. 11 gezielte Renderer-Tests, Typprüfung und Build bestanden. Ein Projekt ohne Labels, Teamzuordnung und Agentenläufe bleibt bewusst informationsarm; die Figma-Vorlage mit solchen echten Daten und gemeinsamer Präsenz ist noch nicht vollständig erreicht.
