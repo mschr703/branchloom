@@ -18,6 +18,10 @@ Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollst�
 
 - Im Board trägt der obere Fensterkopf den echten Projektnamen; die Arbeitsfläche darunter ist als „Board“ beschriftet. Dadurch steht der Projektname nicht zweimal als große Überschrift im selben Sichtfeld. Der Board-Titel ist kompakter, die Karten, Filter und Agentensitzungen bleiben unverändert bedienbar. Im Electron-Fenster bei 1268 × 714 geprüft; 11 gezielte Board-Tests, Typprüfung und Build bestanden. Die weiteren Aktionen im Board-Kopf und die Kartenhierarchie brauchen noch gemeinsame visuelle Abnahme mit realistisch befüllten Projekten.
 
+## Ruhigere Spaltenfarben (lokal geprüft)
+
+- Die hellen Standard- und Wahlfarben der Board-Spalten sind näher am hellen Arbeitsflächenhintergrund. Eine schmale, klarere Oberkante zeigt den jeweiligen Spaltenton, während der separate Agenten-Startmodus weiterhin durch seinen eigenen Zustand gekennzeichnet ist. Im Electron-Fenster bei 1268 × 714 geprüft; Build bestanden. Die Farben bezeichnen keine Fortschritte oder Agentenergebnisse.
+
 ## Dichtes Board ohne schwebende Kartenleiste (lokal geprüft)
 
 - In einem 1280 × 720-Fenster passen vier Spalten gleichzeitig in den Board-Bereich. Die neutralen Spaltentöne wurden präzisiert, die frühere grüne Standardfolge durch Grau ersetzt und die Karten tragen eine schmale zur Spalte gehörende Kante. Reale Priorität, Labels, Agent, Sitzung und Workflow-Belege bleiben die einzigen Statusdaten. Die große Hover-Leiste über dem Kartentext ist entfernt; Verschieben und Reihenfolge liegen im Drei-Punkte-Menü, die M-Taste und Drag & Drop bleiben. Das Menü und die Zielwahl öffnen als verankerte Popovers außerhalb des scrollenden Spalteninhalts. Im sichtbaren Electron-Fenster bestanden Drei Punkte → Verschieben → Abbrechen bei 1280 × 720, mit sichtbaren beiden Aktionsknöpfen und ohne erneut aufspringende Leiste. 11 gezielte Renderer-Tests, Typprüfung und Build bestanden. Ein Projekt ohne Labels, Teamzuordnung und Agentenläufe bleibt bewusst informationsarm; die Figma-Vorlage mit solchen echten Daten und gemeinsamer Präsenz ist noch nicht vollständig erreicht.

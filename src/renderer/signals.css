@@ -10,7 +10,7 @@
 :root[data-theme] .board-filters .board-search input { width: 100%; font-size: 13px; }
 :root[data-theme] .board-column { width: 308px; min-width: 308px; max-height: calc(100vh - 197px); overflow: hidden; background: var(--surface-2); border-radius: 7px; box-shadow: none; }
 :root[data-theme] .board-column .column-header { position: relative; min-height: 44px; padding: 7px 9px 7px 14px; background: var(--surface-2); }
-:root[data-theme] .board-column .column-header::before { content: ''; position: absolute; inset: 0 0 auto; height: 2px; background: var(--border); }
+:root[data-theme] .board-column .column-header::before { content: ''; position: absolute; inset: 0 0 auto; height: 2px; background: var(--column-edge, var(--border)); }
 :root[data-theme] .board-column[data-run-mode='manual-agent'] .column-header::before { background: #7c879c; }
 :root[data-theme] .board-column[data-run-mode='automatic'] .column-header::before { background: #667bb5; }
 :root[data-theme] .column-title { gap: 8px; }
@@ -136,15 +136,15 @@
 :root[data-theme] .board-bulk-actions { margin: 3px 29px 9px 0; padding: 7px 9px; border-color: var(--border); border-radius: 6px; background: var(--surface); font-size: 12px; }
 /* Quiet column washes make adjacent work stages easier to scan. The colored
    agent-start line above each heading remains a separate, factual signal. */
-:root[data-theme='light'] .board-columns > .board-column:nth-child(5n + 1) { --column-wash: #f3f1ef; --column-edge: #bab6ae; }
-:root[data-theme='light'] .board-columns > .board-column:nth-child(5n + 2) { --column-wash: #f1edf8; --column-edge: #b9a4d1; }
-:root[data-theme='light'] .board-columns > .board-column:nth-child(5n + 3) { --column-wash: #edf2f8; --column-edge: #9eb6d4; }
-:root[data-theme='light'] .board-columns > .board-column:nth-child(5n + 4) { --column-wash: #f8f2e8; --column-edge: #d3b98e; }
-:root[data-theme='light'] .board-columns > .board-column:nth-child(5n) { --column-wash: #f0f1f2; --column-edge: #aeb5bb; }
-:root[data-theme='light'] .board-columns > .board-column[data-tint='lilac'] { --column-wash: #eee9f7; --column-edge: #aa91cc; }
-:root[data-theme='light'] .board-columns > .board-column[data-tint='blue'] { --column-wash: #e6eef7; --column-edge: #8aaed2; }
-:root[data-theme='light'] .board-columns > .board-column[data-tint='sand'] { --column-wash: #f6eee0; --column-edge: #cbaa72; }
-:root[data-theme='light'] .board-columns > .board-column[data-tint='coral'] { --column-wash: #f5e7e5; --column-edge: #d39a91; }
+:root[data-theme='light'] .board-columns > .board-column:nth-child(5n + 1) { --column-wash: #f7f6f4; --column-edge: #bab6ae; }
+:root[data-theme='light'] .board-columns > .board-column:nth-child(5n + 2) { --column-wash: #f7f5fa; --column-edge: #b9a4d1; }
+:root[data-theme='light'] .board-columns > .board-column:nth-child(5n + 3) { --column-wash: #f4f7fb; --column-edge: #9eb6d4; }
+:root[data-theme='light'] .board-columns > .board-column:nth-child(5n + 4) { --column-wash: #faf7f2; --column-edge: #d3b98e; }
+:root[data-theme='light'] .board-columns > .board-column:nth-child(5n) { --column-wash: #f6f7f8; --column-edge: #aeb5bb; }
+:root[data-theme='light'] .board-columns > .board-column[data-tint='lilac'] { --column-wash: #f5f2fa; --column-edge: #aa91cc; }
+:root[data-theme='light'] .board-columns > .board-column[data-tint='blue'] { --column-wash: #f1f6fb; --column-edge: #8aaed2; }
+:root[data-theme='light'] .board-columns > .board-column[data-tint='sand'] { --column-wash: #faf5eb; --column-edge: #cbaa72; }
+:root[data-theme='light'] .board-columns > .board-column[data-tint='coral'] { --column-wash: #faf2f1; --column-edge: #d39a91; }
 :root[data-theme='dark'] .board-column[data-tint='lilac'] { --column-wash: #302d38; }
 :root[data-theme='dark'] .board-column[data-tint='blue'] { --column-wash: #29313a; }
 :root[data-theme='dark'] .board-column[data-tint='sand'] { --column-wash: #38332b; }
