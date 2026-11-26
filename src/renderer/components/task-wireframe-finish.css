@@ -1,4 +1,13 @@
 /* A neutral workbench keeps the target layout visually separate from editor chrome. */
+.task-wireframe { --design-tool-accent: #62578a; }
+:root[data-theme='dark'] .task-wireframe { --design-tool-accent: #b9ace6; }
+.task-wireframe-toolset { display: inline-flex; align-items: center; gap: 2px; flex: none; padding-right: 8px; margin-right: 2px; border-right: 1px solid var(--border); }
+.task-wireframe-toolbar .task-wireframe-tool { display: grid; place-items: center; flex: none; width: 34px; height: 34px; min-height: 34px; padding: 0; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--muted); cursor: pointer; }
+.task-wireframe-toolbar .task-wireframe-tool:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
+.task-wireframe-toolbar .task-wireframe-tool[aria-pressed='true'] { border-color: color-mix(in srgb, var(--design-tool-accent) 28%, var(--border)); background: color-mix(in srgb, var(--design-tool-accent) 12%, var(--surface)); color: var(--design-tool-accent); }
+.task-wireframe-toolbar .task-wireframe-tool:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.task-wireframe-toolbar .task-wireframe-tool:disabled { opacity: .45; cursor: default; }
+.task-wireframe-history button { display: grid; place-items: center; width: 34px; padding: 0; }
 .task-wireframe.is-focused {
   --workbench-line: color-mix(in srgb, var(--border) 72%, var(--bg));
   --workbench-matte: color-mix(in srgb, var(--bg) 78%, var(--text) 4%);
@@ -15,23 +24,34 @@
   letter-spacing: -.025em;
 }
 .task-wireframe.is-focused .task-wireframe-overview {
-  grid-template-columns: repeat(3, minmax(0, 146px));
-  gap: 6px;
-  padding-block: 2px;
+  display: flex;
+  gap: 0;
+  padding: 0;
+  border-bottom: 1px solid var(--workbench-line);
 }
 .task-wireframe.is-focused .task-wireframe-overview-card {
-  grid-template-rows: auto 36px auto;
-  gap: 2px;
-  padding: 5px 8px;
-  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
   box-shadow: none;
 }
-.task-wireframe.is-focused .task-wireframe-overview-surface { max-height: 36px; }
+.task-wireframe.is-focused .task-wireframe-overview-title { display: grid; gap: 0; }
+.task-wireframe.is-focused .task-wireframe-overview-title strong { font-size: 13px; }
+.task-wireframe.is-focused .task-wireframe-overview-title small { font-size: 11px; }
+.task-wireframe.is-focused .task-wireframe-overview-surface { display: none; }
+.task-wireframe.is-focused .task-wireframe-overview-status { font-size: 11px; white-space: nowrap; }
 .task-wireframe.is-focused .task-wireframe-overview-card.active {
-  border-color: var(--accent);
-  background: var(--surface);
-  box-shadow: inset 0 2px var(--accent);
+  border-bottom-color: var(--design-tool-accent);
+  background: color-mix(in srgb, var(--design-tool-accent) 6%, var(--bg));
+  box-shadow: none;
 }
+.task-wireframe.is-focused .task-wireframe-overview-card:hover { background: var(--surface-2); }
 .task-wireframe.is-focused .task-wireframe-toolbar {
   min-height: 40px;
   gap: 4px;
@@ -54,8 +74,9 @@
 .task-wireframe.is-focused .task-wireframe-layout {
   grid-template-columns: minmax(170px, 188px) minmax(0, 1fr) minmax(258px, 284px);
   gap: 0;
-  border: 1px solid var(--workbench-line);
-  border-radius: 6px;
+  border-top: 1px solid var(--workbench-line);
+  border-bottom: 1px solid var(--workbench-line);
+  border-radius: 0;
   background: var(--surface);
   overflow: clip;
 }
@@ -71,8 +92,10 @@
 }
 .task-wireframe.is-focused .task-wireframe-layers,
 .task-wireframe.is-focused .task-wireframe-properties {
+  align-content: start;
+  align-self: stretch;
   max-height: min(82vh, 1040px);
-  min-height: 420px;
+  min-height: 0;
   border: 0;
   border-radius: 0;
   box-shadow: none;
@@ -85,13 +108,14 @@
 }
 .task-wireframe.is-focused .task-wireframe-layers h3,
 .task-wireframe.is-focused .task-wireframe-properties h3 {
-  margin: -2px 0 14px;
-  padding-bottom: 11px;
+  margin: -2px 0 6px;
+  padding-bottom: 9px;
   border-bottom: 1px solid var(--workbench-line);
   font-size: 13px;
 }
 .task-wireframe.is-focused .task-wireframe-layers .task-wireframe-selection-hint {
-  margin: 0 0 12px;
+  margin: 0 0 5px;
+  font-size: 11px;
   line-height: 1.45;
 }
 .task-wireframe.is-focused .task-wireframe-layers ol { gap: 1px; }
@@ -114,8 +138,9 @@
 .task-wireframe.is-focused .task-wireframe-actions {
   margin-top: -10px;
   padding: 10px 14px;
-  border: 1px solid var(--workbench-line);
-  border-radius: 0 0 6px 6px;
+  border: 0;
+  border-bottom: 1px solid var(--workbench-line);
+  border-radius: 0;
   background: var(--surface);
 }
 .task-wireframe-canvas-wrap[data-artboard="tablet"] {
@@ -235,5 +260,7 @@
     border-bottom: 1px solid var(--workbench-line);
   }
   .task-wireframe.is-focused .task-wireframe-properties { grid-column: auto; }
-  .task-wireframe.is-focused .task-wireframe-overview { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .task-wireframe.is-focused .task-wireframe-overview { overflow-x: auto; }
+  .task-wireframe.is-focused .task-wireframe-overview-card { flex: 1 0 auto; min-width: 120px; }
+  .task-wireframe.is-focused .task-wireframe-overview-status { display: none; }
 }

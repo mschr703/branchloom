@@ -2,6 +2,11 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Sichtbarer Design- und Board-Durchgang (lokal geprüft)
+
+- Der Wireframe-Editor bietet Auswählen, Fläche, Ellipse und Linie direkt in der oberen Werkzeugleiste. Im vergrößerten Editor sind Desktop, Tablet und Mobile schmale Tabs statt drei Vorschaukarten; der Eigenschaftenbereich beginnt oben und das Außenrahmen-Nesting wurde reduziert. Die bisherige Zeichen-, Speicher- und separate Freigabelogik bleibt erhalten. Die Darstellung wurde in einem isolierten synthetischen Electron-Profil bei 1280 × 720 sichtbar geprüft. 14 gezielte Renderer-Tests, Typprüfung und Produktionsbuild bestanden.
+- Das Board unterscheidet benachbarte Spalten im hellen Theme durch sehr leichte Flächentöne und zeigt **Neue Aufgabe** in der Projektleiste. Die Farben sind reine Orientierung nach Spaltenposition, kein Lauf- oder Freigabestatus. Filter und Kartenaktionen bleiben dieselben. Der finale Board-Stand wurde in einem isolierten synthetischen Electron-Profil bei 1280 × 720 visuell erneut geprüft; die Aufgabenerstellung liegt in der Projektleiste und die Filter bleiben darunter in einer Zeile. Eine echte Live-Präsenz von Teammitgliedern pro Ansicht oder Karte, automatisch geladene Agenten-Designartefakte und ein vollwertiges Designwerkzeug auf Figma-Niveau sind weiterhin offen.
+
 ## Kompakter Wireframe-Fokusmodus (lokal geprüft)
 
 - Der vergrößerte Editor zeigt die drei Artboard-Vorschauen flacher und legt Werkzeugleiste und Speicher-/Freigabeaktionen bei ausreichender Fensterbreite auf eine Höhe. In einem synthetischen Projekt begann die eigentliche Zeichenfläche im 1280 × 720-Fenster dadurch etwa 80 px früher. Im auf etwa 640 px eingerasteten Fenster bleiben alle drei Artboards, Aktionen und die Zeichenfläche erreichbar; die Aktionsleiste braucht eine Zeile weniger. Sechs gezielte Renderer-Tests, Typprüfung und Produktionsbuild bestanden. Das ist eine Layoutverbesserung des vorhandenen Karten-Wireframes; frei platzierbare projektweite Entwürfe und automatische Übernahme von Agentenartefakten bleiben offen.

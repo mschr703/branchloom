@@ -67,13 +67,6 @@ body .design-inspection:has(.task-wireframe-start) { align-content: start; }
 .task-wireframe-menu-items button:hover:not(:disabled) { background: var(--surface-2); }
 .task-wireframe-menu-items button:disabled { color: var(--muted); opacity: .5; cursor: default; }
 body .design-workspace-draft .task-wireframe:not(.is-focused) .task-wireframe-toolbar { overflow: visible; }
-.task-wireframe-draw-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 7px 0; border-block: 1px solid var(--border); }
-.task-wireframe-draw-tools > span { margin-right: 8px; color: var(--muted); font-size: 12px; }
-.task-wireframe-draw-tools button { display: inline-flex; align-items: center; gap: 6px; }
-.task-wireframe-draw-tools button[aria-pressed="true"] { border-color: var(--accent); background: var(--surface-2); color: var(--text); }
-.task-wireframe-draw-tools button:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 2px; }
-.task-wireframe-draw-tools small { margin-left: 6px; color: var(--muted); font-size: 12px; }
-.task-wireframe.is-focused .task-wireframe-draw-tools { grid-column: 1 / -1; }
 .task-wireframe-layout { display: grid; grid-template-columns: 150px minmax(0, 1fr) 210px; gap: 12px; align-items: start; }
 .task-wireframe.is-focused { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 14px; padding: 0 0 20px; border-bottom: 0; }
 .task-wireframe.is-focused .task-wireframe-head { grid-column: 1; grid-row: 1; align-items: center; }
@@ -154,7 +147,7 @@ body .design-workspace-draft .task-wireframe:not(.is-focused) .task-wireframe-to
 .task-wireframe-resize:hover { background: var(--surface-2); }
 .task-wireframe-resize:focus-visible, .task-wireframe-element:focus-visible, .task-wireframe-layers button:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 2px; }
 .task-wireframe-resize:disabled { cursor: default; opacity: .5; }
-.task-wireframe-properties { display: grid; gap: 10px; }
+.task-wireframe-properties { display: grid; align-content: start; gap: 10px; }
 .task-wireframe-properties label { display: grid; gap: 4px; min-width: 0; color: var(--muted); font-size: 13px; }
 .task-wireframe-properties input, .task-wireframe-properties select { min-height: 33px; padding: 6px 8px; font-size: 13px; }
 .task-wireframe-properties .task-wireframe-duplicate { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
