@@ -2919,9 +2919,13 @@ function createWindow(): void {
               for (let attempt = 0; attempt < 100 && wireframe.querySelector('.task-wireframe-variant-empty'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (desktopPreview.getAttribute('aria-pressed') !== 'true' || !wireframe.querySelector('.task-wireframe-canvas')) throw new Error('Desktop-Zeichenfläche wurde nach Überblick nicht wieder editierbar.');
               focusToggle.click();
+              for (let attempt = 0; attempt < 100 && document.querySelector('.design-inspection.wireframe-focus'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('.design-inspection.wireframe-focus') || document.querySelector('.design-workspace-draft[hidden]') || !document.querySelector('.design-inspection-tools[hidden]')) throw new Error('Verkleinern sollte den ungespeicherten Entwurf sichtbar lassen.');
+              const previewMode = [...document.querySelectorAll('.design-workspace-modes button')].find((button) => button.textContent?.includes('Laufende App prüfen'));
+              if (!(previewMode instanceof HTMLButtonElement)) throw new Error('Live-Vorschau-Tab fehlt nach dem Fokusmodus.');
+              previewMode.click();
               for (let attempt = 0; attempt < 100 && document.querySelector('.design-inspection-tools[hidden]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              if (document.querySelector('.design-inspection.wireframe-focus') || !document.querySelector('.design-inspection-toolbar')) throw new Error('Rückweg zur Design-Inspektion fehlt.');
-              if (!document.querySelector('.design-workspace-draft[hidden]')) throw new Error('Die Entwurfsfläche sollte nach Rückkehr zur Live-Inspektion verborgen sein.');
+              if (!document.querySelector('.design-workspace-draft[hidden]') || document.querySelector('.design-inspection-tools[hidden]')) throw new Error('Wechsel zur Live-Inspektion verbarg den Entwurf nicht.');
               const draftMode = [...document.querySelectorAll('.design-workspace-modes button')].find((button) => button.textContent?.trim() === 'Entwurf');
               if (!(draftMode instanceof HTMLButtonElement)) throw new Error('Entwurfs-Tab fehlt nach dem Fokusmodus.');
               draftMode.click();
@@ -2959,7 +2963,7 @@ function createWindow(): void {
               reopenedInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
               for (let attempt = 0; attempt < 100 && wireframe.querySelector('[data-wireframe-inline-editor]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (wireframe.querySelector('[data-wireframe-inline-editor]') || !inlineTitle.textContent?.includes('Direkt geändert')) throw new Error('Schnelles erneutes Öffnen und Verwerfen änderte den Text.');
-              const inlineUndo = [...wireframe.querySelectorAll('.task-wireframe-history button')].find((button) => button.textContent?.includes('Rückgängig'));
+              const inlineUndo = wireframe.querySelector('.task-wireframe-history button[aria-label="Rückgängig"]');
               if (!(inlineUndo instanceof HTMLButtonElement)) throw new Error('Rückgängig für direkte Textänderung fehlt.');
               inlineUndo.click();
               for (let attempt = 0; attempt < 100 && !inlineTitle.textContent?.includes('Smoke-Karte'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
@@ -3043,7 +3047,7 @@ function createWindow(): void {
                 stagePointer('pointerup', drawEndX, drawEndY);
                 for (let attempt = 0; attempt < 100 && wireframe.querySelectorAll('.task-wireframe-element').length !== countBeforeDrawing + 1; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
                 if (wireframe.querySelectorAll('.task-wireframe-element').length !== countBeforeDrawing + 1 || !wireframe.querySelector('.task-wireframe-element.kind-ellipse[aria-pressed="true"]') || wireframe.querySelector('.task-wireframe-drawing-preview') || (await window.studio.cardWireframe({ projectId: ${JSON.stringify(smokeProject.id)}, cardId: ${JSON.stringify(smokeCard.id)} })) !== null) throw new Error('Direktes Zeichnen erzeugte keine ungespeicherte ausgewählte Ellipse.');
-                const drawingUndo = [...wireframe.querySelectorAll('.task-wireframe-history button')].find((button) => button.textContent?.includes('Rückgängig'));
+                const drawingUndo = wireframe.querySelector('.task-wireframe-history button[aria-label="Rückgängig"]');
                 if (!(drawingUndo instanceof HTMLButtonElement) || drawingUndo.disabled) throw new Error('Direktes Zeichnen lieferte keinen Rückgängig-Schritt.');
                 drawingUndo.click();
                 for (let attempt = 0; attempt < 100 && wireframe.querySelectorAll('.task-wireframe-element').length !== countBeforeDrawing; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
@@ -3072,7 +3076,7 @@ function createWindow(): void {
               const titleElement = [...wireframe.querySelectorAll('.task-wireframe-element')].find((item) => item.textContent?.includes('Smoke-Karte'));
               for (let attempt = 0; attempt < 100 && titleElement?.style.left === '4.375%'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!(titleElement instanceof HTMLElement) || titleElement.style.left === '4.375%') throw new Error('Mehrfachauswahl wurde nicht ausgerichtet.');
-              const alignmentUndo = [...wireframe.querySelectorAll('.task-wireframe-history button')].find((button) => button.textContent?.includes('Rückgängig'));
+              const alignmentUndo = wireframe.querySelector('.task-wireframe-history button[aria-label="Rückgängig"]');
               if (!(alignmentUndo instanceof HTMLButtonElement)) throw new Error('Ausrichtung wurde nicht als Bearbeitungsschritt gespeichert.');
               alignmentUndo.click();
               for (let attempt = 0; attempt < 100 && titleElement.style.left !== '4.375%'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
@@ -3186,8 +3190,8 @@ function createWindow(): void {
               resizeHandle.focus(); resizeHandle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', shiftKey: true, bubbles: true }));
               for (let attempt = 0; attempt < 100 && wireframe.querySelectorAll('.task-wireframe-geometry input')[2]?.value !== '630'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (wireframe.querySelectorAll('.task-wireframe-geometry input')[2]?.value !== '630') throw new Error('Tastatur-Größenänderung wurde nicht übernommen.');
-              const undo = [...wireframe.querySelectorAll('.task-wireframe-history button')].find((button) => button.textContent?.includes('Rückgängig'));
-              const redo = [...wireframe.querySelectorAll('.task-wireframe-history button')].find((button) => button.textContent?.includes('Wiederholen'));
+              const undo = wireframe.querySelector('.task-wireframe-history button[aria-label="Rückgängig"]');
+              const redo = wireframe.querySelector('.task-wireframe-history button[aria-label="Wiederholen"]');
               if (!(undo instanceof HTMLButtonElement) || !(redo instanceof HTMLButtonElement)) throw new Error('Wireframe-Verlauf fehlt.');
               undo.click();
               for (let attempt = 0; attempt < 100 && wireframe.querySelectorAll('.task-wireframe-geometry input')[2]?.value !== '620'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
@@ -3490,6 +3494,11 @@ function createWindow(): void {
               const liveFocus = document.querySelector('.task-wireframe-focus-toggle');
               if (!(liveFocus instanceof HTMLButtonElement)) throw new Error('Arbeitsmodus-Rückweg fehlt.');
               liveFocus.click();
+              for (let attempt = 0; attempt < 100 && document.querySelector('.design-inspection.wireframe-focus'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('.design-workspace-draft[hidden]')) throw new Error('Entwurf wurde beim Verkleinern verborgen.');
+              const previewMode = [...document.querySelectorAll('.design-workspace-modes button')].find((button) => button.textContent?.includes('Laufende App prüfen'));
+              if (!(previewMode instanceof HTMLButtonElement)) throw new Error('Live-Vorschau-Tab fehlt nach dem Fokusmodus.');
+              previewMode.click();
               for (let attempt = 0; attempt < 100 && document.querySelector('.design-inspection-tools[hidden]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!(await window.studio.designInspectionState()).ready || !document.querySelector('.design-inspection-toolbar')) throw new Error('Live-Vorschau wurde beim Rückweg nicht erhalten.');
               document.querySelector('.design-inspection-viewport')?.scrollIntoView({ block: 'center' });

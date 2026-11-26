@@ -5,6 +5,7 @@ Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollst�
 ## Gespeicherte QA-Aufnahme als Designreferenz (lokal geprüft)
 
 - In der Design-Übersicht kann eine tatsächlich gespeicherte QA-Aufnahme der zugehörigen Karte als visuelle Referenz geöffnet werden. Der Editor öffnet im großen Modus und legt das Bild auf die Zeichenfläche; Ein-/Ausblenden und Deckkraft sind reine Ansichtsänderungen. Eine Karte ohne Wireframe zeigt die Aufnahme vor der Wahl einer leeren Fläche oder Fenstergrundlage. Die Aufnahme wird nicht in die Wireframe-Revision, den PNG-Export oder den Agentenauftrag geschrieben. Der synthetische Electron-Pfad prüfte Galerie → Editor und das Ausblenden; gezielte Renderer-Tests prüfen Bildquelle, Umschalten und ausbleibendes Speichern. Die Aufnahme kann veraltet sein und ist kein editierbares Agentenartefakt. Eine automatische Übergabe nach einem Agentenlauf bleibt offen.
+- Der breite Quell-App-Smoke war nach der kompakten Werkzeugleiste zunächst rot, weil er den sichtbaren Text „Rückgängig“ auf einem Icon-Button suchte, und danach, weil er beim Verkleinern des Editors noch den alten direkten Wechsel zur Live-Vorschau erwartete. Die Selektoren prüfen jetzt den zugänglichen Button-Namen; der Ablauf prüft Entwurf → Live-Vorschau über den eigenen Tab. Der komplette Quell-App-Smoke bestand danach. Die Paket- und Installer-CI für diesen Korrekturcommit ist noch nicht abgeschlossen.
 
 ## Text direkt auf dem Artboard platzieren (lokal geprüft)
 
