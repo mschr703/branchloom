@@ -1,6 +1,6 @@
 import type { WireframePoint } from './wireframe-selection';
 
-export type WireframeDrawKind = 'panel' | 'ellipse' | 'line';
+export type WireframeDrawKind = 'panel' | 'text' | 'ellipse' | 'line';
 
 export interface WireframeDrawBounds {
   x: number;
@@ -33,5 +33,23 @@ export function wireframeDrawBounds(
   return {
     x: Math.min(x1, x2), y: Math.min(y1, y2), width, height,
     lineDirection: (end.x - start.x) * (end.y - start.y) < 0 ? 'rising' : 'falling',
+  };
+}
+
+/** A click with the text tool creates an editable box inside the artboard. */
+export function wireframeTextBounds(
+  point: WireframePoint,
+  canvasWidth: number,
+  canvasHeight: number,
+  snapToGrid: boolean,
+): WireframeDrawBounds | null {
+  if (![point.x, point.y, canvasWidth, canvasHeight].every(Number.isFinite) || canvasWidth < 24 || canvasHeight < 24) return null;
+  const step = snapToGrid ? 8 : 1;
+  const width = Math.min(240, canvasWidth);
+  const height = Math.min(42, canvasHeight);
+  return {
+    x: clamp(Math.round(point.x / step) * step, canvasWidth - width),
+    y: clamp(Math.round(point.y / step) * step, canvasHeight - height),
+    width, height, lineDirection: 'falling',
   };
 }

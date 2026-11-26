@@ -30,6 +30,7 @@ it('offers all six element kinds in a compact keyboard-accessible add menu', asy
     const tools = mount.querySelector<HTMLElement>('.task-wireframe-toolset')!;
     const selectTool = tools.querySelector<HTMLButtonElement>('button[aria-label="Auswählen"]')!;
     const rectangleTool = tools.querySelector<HTMLButtonElement>('button[data-wireframe-draw-kind="panel"]')!;
+    const textTool = tools.querySelector<HTMLButtonElement>('button[data-wireframe-draw-kind="text"]')!;
     expect(selectTool.getAttribute('aria-pressed')).toBe('true');
     await act(async () => { rectangleTool.click(); });
     expect(rectangleTool.getAttribute('aria-pressed')).toBe('true');
@@ -37,6 +38,10 @@ it('offers all six element kinds in a compact keyboard-accessible add menu', asy
     await act(async () => { selectTool.click(); });
     expect(selectTool.getAttribute('aria-pressed')).toBe('true');
     expect(rectangleTool.getAttribute('aria-pressed')).toBe('false');
+    await act(async () => { textTool.click(); });
+    expect(textTool.getAttribute('aria-pressed')).toBe('true');
+    expect(textTool.getAttribute('aria-label')).toBe('Text platzieren');
+    await act(async () => { selectTool.click(); });
     for (const [index, kind] of ['panel', 'text', 'button', 'field', 'ellipse', 'line'].entries()) {
       await act(async () => { addSummary.click(); });
       expect(addMenu.open).toBe(true);

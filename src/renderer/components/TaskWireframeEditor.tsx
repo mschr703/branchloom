@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent, type FocusEvent as ReactFocusEvent } from 'react';
-import { Check, Circle, Copy, CornerDownRight, Download, Minus, MousePointer2, Plus, Redo2, RotateCcw, Square, Undo2 } from 'lucide-react';
+import { Check, Circle, Copy, CornerDownRight, Download, Minus, MousePointer2, Plus, Redo2, RotateCcw, Square, Type, Undo2 } from 'lucide-react';
 import type { Card } from '../../shared/types';
 import type { CardWireframe, WireframeArtboard, WireframeElement, WireframeElementKind, WireframeElementStyle, WireframeElementTone, WireframeInteraction, WireframeVariant } from '../../shared/card-wireframe';
 import { WIREFRAME_ARTBOARDS, WIREFRAME_HEIGHT, WIREFRAME_THEME_COLORS, WIREFRAME_WIDTH, wireframeColorCss } from '../../shared/card-wireframe';
@@ -11,7 +11,7 @@ import { WireframeComponentLibrary } from './WireframeComponentLibrary';
 import { WireframeInteractionEditor } from './WireframeInteractionEditor';
 import { appendWireframeComponent, type WireframeComponent } from '../../shared/wireframe-components';
 import { wireframePngDataUrl } from './wireframe-export';
-import { wireframeDrawBounds, type WireframeDrawKind } from './wireframe-drawing';
+import { wireframeDrawBounds, wireframeTextBounds, type WireframeDrawKind } from './wireframe-drawing';
 import './task-wireframe.css';
 import './task-wireframe-finish.css';
 
@@ -237,18 +237,20 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
     if (!current || current.pointerId !== event.pointerId) return;
     const end = pointOnStage(event) ?? current.end;
     const moved = Math.hypot(event.clientX - current.clientX, event.clientY - current.clientY) >= 8;
-    const geometry = moved ? wireframeDrawBounds(current.start, end, canvas.width, canvas.height, snapToGrid) : null;
+    const geometry = moved ? wireframeDrawBounds(current.start, end, canvas.width, canvas.height, snapToGrid)
+      : current.kind === 'text' ? wireframeTextBounds(current.start, canvas.width, canvas.height, snapToGrid) : null;
     cancelDrawing();
     if (!geometry || !draft || !elements || current.artboard !== artboard || interactionLocked.current || elements.length >= 40) return;
     const item: WireframeElement = {
       id: `item-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`,
       kind: current.kind, x: geometry.x, y: geometry.y, width: geometry.width, height: geometry.height,
-      text: current.kind === 'panel' ? 'Bereich' : '', tone: 'plain',
+      text: current.kind === 'panel' ? 'Bereich' : current.kind === 'text' ? 'Text' : '', tone: 'plain',
       ...(current.kind === 'line' ? { lineDirection: geometry.lineDirection } : {}),
       ...(enteredGroupId ? { groupId: enteredGroupId } : {}),
     };
     editElements([...elements, item]);
     setSelectedIds([item.id]);
+    if (item.kind === 'text') updateInlineTextEdit({ id: item.id, artboard, text: item.text });
   }
   function startMarquee(event: ReactPointerEvent<HTMLDivElement>) {
     if (event.target !== event.currentTarget || event.button !== 0 || interactionLocked.current || inlineEditRef.current || spaceHeld.current || pan.current) return;
@@ -596,7 +598,7 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, focu
       <div className="task-wireframe-toolbar">
         <div className="task-wireframe-toolset" role="group" aria-label="Zeichenwerkzeuge">
           <button type="button" className="task-wireframe-tool" aria-label="Auswählen" aria-pressed={!drawTool} title="Auswählen · Esc" onClick={() => { cancelMarquee(); cancelDrawing(); setDrawTool(null); }}><MousePointer2 size={16} aria-hidden="true" /></button>
-          {(['panel', 'ellipse', 'line'] as const).map((kind) => <button key={kind} type="button" className="task-wireframe-tool" data-wireframe-draw-kind={kind} aria-label={`${labelForKind[kind]} zeichnen`} aria-pressed={drawTool === kind} disabled={busy || !elements || elements.length >= 40 || Boolean(inlineItem)} onClick={() => { cancelMarquee(); cancelDrawing(); setDrawTool((current) => current === kind ? null : kind); }} title={`${labelForKind[kind]} auf freiem Grund ziehen · Esc beendet`}>{kind === 'panel' ? <Square size={16} aria-hidden="true" /> : kind === 'ellipse' ? <Circle size={16} aria-hidden="true" /> : <Minus size={16} aria-hidden="true" />}</button>)}
+          {(['panel', 'text', 'ellipse', 'line'] as const).map((kind) => <button key={kind} type="button" className="task-wireframe-tool" data-wireframe-draw-kind={kind} aria-label={`${labelForKind[kind]} ${kind === 'text' ? 'platzieren' : 'zeichnen'}`} aria-pressed={drawTool === kind} disabled={busy || !elements || elements.length >= 40 || Boolean(inlineItem)} onClick={() => { cancelMarquee(); cancelDrawing(); setDrawTool((current) => current === kind ? null : kind); }} title={kind === 'text' ? 'Text durch Klicken oder Ziehen platzieren · Esc beendet' : `${labelForKind[kind]} auf freiem Grund ziehen · Esc beendet`}>{kind === 'panel' ? <Square size={16} aria-hidden="true" /> : kind === 'text' ? <Type size={17} aria-hidden="true" /> : kind === 'ellipse' ? <Circle size={16} aria-hidden="true" /> : <Minus size={16} aria-hidden="true" />}</button>)}
         </div>
         <details name="wireframe-toolbar" className="task-wireframe-menu task-wireframe-add-menu" onBlur={(event) => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false; }} onKeyDown={(event) => { if (event.key === 'Escape') { event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus(); event.preventDefault(); event.stopPropagation(); } }}>
           <summary aria-label="Element hinzufügen" aria-disabled={busy || !elements || elements.length >= 40} onClick={(event) => { if (busy || !elements || elements.length >= 40) event.preventDefault(); }}><Plus size={15} aria-hidden="true" /> Einfügen</summary>

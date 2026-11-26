@@ -2,6 +2,10 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Text direkt auf dem Artboard platzieren (lokal geprüft)
+
+- Das obere Textwerkzeug setzt per Klick ein Textfeld innerhalb der aktiven Zeichenfläche und öffnet direkt dessen Texteingabe. Ziehen legt stattdessen Breite und Höhe fest. Die Position bleibt auch nahe dem rechten oder unteren Rand innerhalb des Artboards. Im synthetischen Electron-Profil wurde auf einer leeren Mobile-Fläche ein Textfeld angelegt, in „Mobile heading“ geändert und mit Enter übernommen; der Entwurf wurde dabei nicht gespeichert. Fünf gezielte Renderer-/Geometrietests, Typprüfung und Produktionsbuild bestanden. Die Kartenbindung und die separate Freigabe bleiben unverändert; reichhaltige Seitenentwürfe aus echten Agentenartefakten sind weiterhin offen.
+
 ## Sichtbarer Design- und Board-Durchgang (lokal geprüft)
 
 - Der Wireframe-Editor bietet Auswählen, Fläche, Ellipse und Linie direkt in der oberen Werkzeugleiste. Im vergrößerten Editor sind Desktop, Tablet und Mobile schmale Tabs statt drei Vorschaukarten; der Eigenschaftenbereich beginnt oben und das Außenrahmen-Nesting wurde reduziert. Beim Scrollen bleiben die Zeichenwerkzeuge am oberen Fensterrand; die Sichtprüfung im synthetischen 1280 × 720-Fenster bestätigte das Scrollverhalten. Die bisherige Zeichen-, Speicher- und separate Freigabelogik bleibt erhalten. Die Darstellung wurde in einem isolierten synthetischen Electron-Profil bei 1280 × 720 sichtbar geprüft. 14 gezielte Renderer-Tests, Typprüfung und Produktionsbuild bestanden.
