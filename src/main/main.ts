@@ -82,6 +82,7 @@ import { agentCardMetadataAudit, agentCardMetadataEnabled, setAgentCardMetadataE
 import { AgentCardMetadataBridge } from './agent-card-metadata-bridge';
 import { agentBrowserPolicy, setAgentBrowserPolicy } from './agent-browser-policy';
 import { projectCodexWorkflowAccess, setProjectCodexWorkflowAccess } from './project-agent-rights';
+import { queueStartPreview, startReviewedProjectQueue } from './queue-start-review';
 import { AgentBrowserBridge } from './agent-browser-bridge';
 import { inspectAgentBrowserPage } from './agent-browser-inspector';
 import { DevEnvironmentRunner, devEnvironmentAudit, devEnvironmentProfile, saveDevEnvironmentProfile, startApprovedDevEnvironment } from './dev-environment';
@@ -541,7 +542,8 @@ function installIpc(): void {
   });
   bind('setWorkflowStepHaltpoint', (input: Parameters<StudioAPI['setWorkflowStepHaltpoint']>[0]) => workflowEngine.setStepHaltpoint(input));
   bind('workflowRunEvidence', (input: Parameters<StudioAPI['workflowRunEvidence']>[0]) => workflowRunEvidence(db, input));
-  bind('setProjectQueue', (input: Parameters<StudioAPI['setProjectQueue']>[0]) => queueEngine.setState(input));
+  bind('queueStartPreview', (input: Parameters<StudioAPI['queueStartPreview']>[0]) => queueStartPreview(db, input));
+  bind('setProjectQueue', (input: Parameters<StudioAPI['setProjectQueue']>[0]) => startReviewedProjectQueue(db, queueEngine, input));
   bind('setQueueContinueBlocked', (input: Parameters<StudioAPI['setQueueContinueBlocked']>[0]) => db.setQueueContinueBlocked(input));
   bind('setQueueAutoResumeIdle', (input: Parameters<StudioAPI['setQueueAutoResumeIdle']>[0]) => db.setQueueAutoResumeIdle(input));
   bind('setQueueAutoTest', (input: Parameters<StudioAPI['setQueueAutoTest']>[0]) => db.setQueueAutoTest(input));

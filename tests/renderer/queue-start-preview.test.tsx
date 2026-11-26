@@ -2,7 +2,8 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { QueueStartPreview, queueStartReview } from '../../src/renderer/components/QueueStartPreview';
+import { QueueStartPreview } from '../../src/renderer/components/QueueStartPreview';
+import { queueStartReview } from '../../src/shared/queue-start-review';
 import { WorkflowView } from '../../src/renderer/components/WorkflowView';
 import type { ProjectSnapshot, Workflow } from '../../src/shared/types';
 
@@ -38,9 +39,11 @@ function button(text: string): HTMLButtonElement {
 async function mount(mode: () => 'workspace' | 'full', start = vi.fn(async () => snapshot.queue), onClose = vi.fn(),
   currentSnapshot: () => ProjectSnapshot = () => snapshot) {
   const studio = {
-    snapshot: vi.fn(async () => currentSnapshot()), queueCandidates: vi.fn(async () => [candidate]),
-    projectCodexWorkflowAccess: vi.fn(async () => ({ projectId: 'project', mode: mode() })),
-    integrationPolicy: vi.fn(async () => ({ projectId: 'project', mode: 'manual' as const, updatedAt: null })),
+    queueStartPreview: vi.fn(async () => {
+      const currentMode = mode(); const current = currentSnapshot();
+      return queueStartReview(current, route.id, [candidate], { projectId: 'project', mode: currentMode },
+        { projectId: 'project', mode: 'manual', updatedAt: null }, 1, `${currentMode}-${current.queue.autoTest}-${current.queue.state}`);
+    }),
     setProjectQueue: start,
   };
   vi.stubGlobal('studio', studio);
@@ -55,8 +58,15 @@ describe('queue start preview', () => {
   it('does not present Codex rights as active for a route without Codex', () => {
     const manual = { ...route, steps: [{ ...route.steps[0]!, agentId: null }] };
     const review = queueStartReview({ ...snapshot, workflows: [manual] }, route.id, [candidate],
-      { projectId: 'project', mode: 'full' }, { projectId: 'project', mode: 'manual', updatedAt: null });
+      { projectId: 'project', mode: 'full' }, { projectId: 'project', mode: 'manual', updatedAt: null }, 1);
     expect(review.route.usesCodex).toBe(false);
+  });
+
+  it('shows configured model and effort on the reviewed route', () => {
+    const configured = { ...route, steps: [{ ...route.steps[0]!, model: 'review-model', effort: 'high' as const }] };
+    const review = queueStartReview({ ...snapshot, workflows: [configured] }, route.id, [candidate],
+      { projectId: 'project', mode: 'workspace' }, { projectId: 'project', mode: 'manual', updatedAt: null }, 1);
+    expect(review.route.steps[0]).toContain('Codex · review-model · high');
   });
 
   it('shows current rights and planned scope before starting the queue', async () => {
@@ -146,8 +156,8 @@ describe('queue start preview', () => {
     const start = vi.fn(async () => snapshot.queue);
     vi.stubGlobal('studio', {
       snapshot: vi.fn(async () => board), queueCandidates: vi.fn(async () => [{ ...candidate, columnId: 'todo' }]),
-      projectCodexWorkflowAccess: vi.fn(async () => ({ projectId: 'project', mode: 'workspace' })),
-      integrationPolicy: vi.fn(async () => ({ projectId: 'project', mode: 'manual', updatedAt: null })),
+      queueStartPreview: vi.fn(async () => queueStartReview(board, route.id, [{ ...candidate, columnId: 'todo' }],
+        { projectId: 'project', mode: 'workspace' }, { projectId: 'project', mode: 'manual', updatedAt: null }, 0, 'synthetic-token')),
       setProjectQueue: start, queueResults: vi.fn(async () => ({ projectId: 'project', total: 0, truncated: false,
         counts: { done: 0, 'needs-attention': 0, running: 0, skipped: 0, pending: 0 }, items: [], latestActivation: null,
         latestItems: [], latestTruncated: false })),

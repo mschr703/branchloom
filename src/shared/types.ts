@@ -304,7 +304,9 @@ export interface StudioAPI {
   setWorkflowState(input: { id: string; state: 'running' | 'paused' }): Promise<Workflow>;
   setWorkflowStepHaltpoint(input: { id: string; afterStepIndex: number | null }): Promise<Workflow>;
   workflowRunEvidence(input: { projectId: string; workflowId: string }): Promise<import('./workflow-evidence').WorkflowRunEvidence>;
-  setProjectQueue(input: { projectId: string; state: QueueState; templateWorkflowId?: string; runUntil?: string | null }): Promise<ProjectQueue>;
+  queueStartPreview(input: { projectId: string; templateWorkflowId: string; durationHours: 0 | 1 | 4 | 8 }): Promise<import('./queue-start-review').QueueStartReview>;
+  setProjectQueue(input: { projectId: string; state: QueueState; templateWorkflowId?: string; runUntil?: string | null;
+    durationHours?: 0 | 1 | 4 | 8; reviewToken?: string }): Promise<ProjectQueue>;
   setQueueContinueBlocked(input: { projectId: string; enabled: boolean }): Promise<ProjectQueue>;
   setQueueAutoResumeIdle(input: { projectId: string; enabled: boolean }): Promise<ProjectQueue>;
   setQueueAutoTest(input: { projectId: string; enabled: boolean; confirm: boolean }): Promise<ProjectQueue>;
