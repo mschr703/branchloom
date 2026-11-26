@@ -106,4 +106,32 @@ describe('project queue result sources', () => {
     expect(reopened.projectQueue(project.id).state).toBe('paused');
     reopened.close();
   });
+
+  it('separates the latest start from earlier claims without hiding the project history', () => {
+    const root = mkdtempSync(join(tmpdir(), 'branchloom-queue-start-report-'));
+    roots.push(root);
+    const store = new StudioStore(join(root, 'studio.sqlite'));
+    stores.push(store);
+    const project = store.createProject({ name: 'Synthetic', path: root });
+    const columns = store.snapshot(project.id).columns;
+    const agent = store.agents().find((item) => item.kind === 'codex')!;
+    const templateCard = store.createCard({ projectId: project.id, columnId: columns[0]!.id, title: 'Template' });
+    const firstCard = store.createCard({ projectId: project.id, columnId: columns[0]!.id, title: 'Earlier card' });
+    const secondCard = store.createCard({ projectId: project.id, columnId: columns[0]!.id, title: 'Current card' });
+    const template = store.createWorkflow({ projectId: project.id, name: 'Route', cardIds: [templateCard.id],
+      steps: [{ id: 'execute', columnId: columns[2]!.id, agentId: agent.id, requireApproval: false }] });
+    const start = () => store.saveProjectQueue({ projectId: project.id, state: 'running', templateWorkflowId: template.id,
+      activeWorkflowId: null, pauseReason: null });
+    start();
+    const first = store.claimQueueCard(project.id, firstCard.id, template.id);
+    store.saveProjectQueue({ projectId: project.id, state: 'paused', templateWorkflowId: template.id,
+      activeWorkflowId: first.id, pauseReason: 'First stopped' });
+    start();
+    const second = store.claimQueueCard(project.id, secondCard.id, template.id);
+    const report = queueResults(store, project.id);
+    expect(report).toMatchObject({ total: 2, latestActivation: { total: 1 }, latestTruncated: false,
+      latestItems: [{ cardId: secondCard.id, workflowId: second.id }] });
+    expect(report.items.map((item) => item.cardId).sort()).toEqual([firstCard.id, secondCard.id].sort());
+    expect(report.latestItems.some((item) => item.cardId === firstCard.id)).toBe(false);
+  });
 });

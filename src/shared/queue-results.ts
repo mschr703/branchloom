@@ -32,4 +32,6 @@ export interface QueueResults {
   counts: Record<QueueResultStatus, number>;
   items: QueueResultItem[];
   latestActivation: QueueActivationSummary | null;
+  latestItems: QueueResultItem[];
+  latestTruncated: boolean;
 }

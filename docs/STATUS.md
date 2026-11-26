@@ -2,9 +2,13 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
-## Ruhende Queue nach Netzrückkehr (Folgezweig, in Arbeit)
+## Ergebnisansicht je Queue-Start (Folgezweig, in Arbeit)
 
-- Eine standardmäßig ausgeschaltete Projekteinstellung kann eine ausschließlich wegen Electrons Geräte-Offline-Signal pausierte, vorher ruhende Queue bei beobachtetem Offline→Online wieder aktivieren. Es darf dann kein aktiver Workflow und kein laufender Agent bestehen, keine sichere Projektpause vorliegen und die gewählte Frist muss gültig sein. Ein gestarteter Agent oder Workflow wird nicht blind erneut ausgeführt; App-Neustart bleibt manuelle Prüfung. Nach dem Rebase bestanden 49 gezielte Queue-/Recovery-/Migrations-/Projektpause- und Renderer-Tests, Typprüfung und Build. Audit ohne hohe Funde, Public-Scan und breiter Quell-Electron-Smoke bestanden vor dem Rebase. Der zusätzliche lokale Gesamtlauf wurde wegen seiner Dauer vor Abschluss beendet; Windows-CI steht aus. Das Signal beweist keine Modellanbieter-Verbindung. [Details](SESSION_RECOVERY.md).
+- Die Workflow-Seite zeigt die Zuordnungen des jüngsten Queue-Starts mit eigenen Statuszählern; ältere Karten stehen getrennt unter der gesamten Historie. Eine Karte wird nur dann diesem Start zugerechnet, wenn ihre gespeicherte Startkennung passt. Beide Ansichten nennen ihre Begrenzung auf 100 Einträge. Sie verlinken Karte, Workflow und letzte Sitzung, behaupten jedoch keine Tests, Git-Integration oder Veröffentlichung. Sieben gezielte Backend-/Renderer-Tests, Typprüfung, Build, Audit ohne hohe Funde, Public-Scan und der breite Quell-Electron-Smoke mit normaler Zeitgrenze bestanden. Ein vorheriger, auf 180 Sekunden verkürzter Smoke hatte unter paralleler Vollsuite das Limit nach der Memory-Karte getroffen; die unveränderte Wiederholung bestand. Zwei Windows-Verify-Läufe bestanden vor dem Rebase. [Ablauf und Grenzen](QUEUE.md).
+
+## Ruhende Queue nach Netzrückkehr (in main)
+
+- Eine standardmäßig ausgeschaltete Projekteinstellung kann eine ausschließlich wegen Electrons Geräte-Offline-Signal pausierte, vorher ruhende Queue bei beobachtetem Offline→Online wieder aktivieren. Es darf dann kein aktiver Workflow und kein laufender Agent bestehen, keine sichere Projektpause vorliegen und die gewählte Frist muss gültig sein. Ein gestarteter Agent oder Workflow wird nicht blind erneut ausgeführt; App-Neustart bleibt manuelle Prüfung. Nach dem Rebase bestanden 49 gezielte Queue-/Recovery-/Migrations-/Projektpause- und Renderer-Tests, Typprüfung und Build. Audit ohne hohe Funde, Public-Scan, breiter Quell-Electron-Smoke vor dem Rebase und zwei Windows-Verify-Läufe bestanden. Der zusätzliche lokale Gesamtlauf wurde wegen seiner Dauer vor Abschluss beendet. Das Signal beweist keine Modellanbieter-Verbindung. [Details](SESSION_RECOVERY.md).
 
 ## Queue-Startprotokoll (Folgezweig, in Arbeit)
 

@@ -13,7 +13,27 @@ function emptyCounts(): QueueResults['counts'] {
   return { done: 0, 'needs-attention': 0, running: 0, skipped: 0, pending: 0 };
 }
 
-/** Read-only, source-linked history. This is not an inferred agent summary or a single-run report. */
+function resultItems(store: StudioStore, projectId: string, activationId: string | null): QueueResultItem[] {
+  const rows = store.db.prepare(`SELECT q.card_id AS card_id, q.workflow_id AS workflow_id, q.activation_id AS activation_id, c.title AS card_title,
+    w.name AS workflow_name, w.updated_at AS updated_at, ${STATUS_SQL} AS status
+    FROM queue_runs q JOIN workflows w ON w.id = q.workflow_id JOIN cards c ON c.id = q.card_id
+    LEFT JOIN queue_run_skips skip ON skip.workflow_id = w.id
+    WHERE q.project_id = ? ${activationId === null ? '' : 'AND q.activation_id = ?'}
+    ORDER BY w.created_at DESC, w.id DESC LIMIT 100`).all(...(activationId === null ? [projectId] : [projectId, activationId])) as Array<{
+      card_id: string; workflow_id: string; activation_id: string | null; card_title: string; workflow_name: string; updated_at: string; status: QueueResultStatus;
+    }>;
+  const latestSession = store.db.prepare(`SELECT s.id, s.state, s.exit_code FROM session_usage_origins o
+    JOIN sessions s ON s.id = o.session_id WHERE o.workflow_id = ? AND s.card_id = ?
+    ORDER BY s.started_at DESC, s.id DESC LIMIT 1`);
+  return rows.map((row) => {
+    const session = latestSession.get(row.workflow_id, row.card_id) as { id: string; state: SessionState; exit_code: number | null } | undefined;
+    return { cardId: row.card_id, cardTitle: row.card_title, workflowId: row.workflow_id, workflowName: row.workflow_name,
+      activationId: row.activation_id, status: row.status, updatedAt: row.updated_at,
+      lastSession: session ? { id: session.id, state: session.state, exitCode: session.exit_code } : null };
+  });
+}
+
+/** Read-only history and latest activation slice; neither infers test nor Git outcomes. */
 export function queueResults(store: StudioStore, projectId: string): QueueResults {
   store.project(projectId);
   const counts = emptyCounts();
@@ -23,23 +43,7 @@ export function queueResults(store: StudioStore, projectId: string): QueueResult
     WHERE q.project_id = ? GROUP BY status`).all(projectId) as Array<{ status: QueueResultStatus; count: number }>;
   for (const row of grouped) counts[row.status] = row.count;
   const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
-  const rows = store.db.prepare(`SELECT q.card_id AS card_id, q.workflow_id AS workflow_id, q.activation_id AS activation_id, c.title AS card_title,
-    w.name AS workflow_name, w.updated_at AS updated_at, ${STATUS_SQL} AS status
-    FROM queue_runs q JOIN workflows w ON w.id = q.workflow_id JOIN cards c ON c.id = q.card_id
-    LEFT JOIN queue_run_skips skip ON skip.workflow_id = w.id
-    WHERE q.project_id = ? ORDER BY w.created_at DESC, w.id DESC LIMIT 100`).all(projectId) as Array<{
-      card_id: string; workflow_id: string; activation_id: string | null; card_title: string; workflow_name: string; updated_at: string; status: QueueResultStatus;
-    }>;
-  const latestSession = store.db.prepare(`SELECT s.id, s.state, s.exit_code FROM session_usage_origins o
-    JOIN sessions s ON s.id = o.session_id WHERE o.workflow_id = ? AND s.card_id = ?
-    ORDER BY s.started_at DESC, s.id DESC LIMIT 1`);
-  const items: QueueResultItem[] = rows.map((row) => {
-    const session = latestSession.get(row.workflow_id, row.card_id) as { id: string; state: SessionState; exit_code: number | null } | undefined;
-    return { cardId: row.card_id, cardTitle: row.card_title, workflowId: row.workflow_id, workflowName: row.workflow_name,
-      activationId: row.activation_id,
-      status: row.status, updatedAt: row.updated_at,
-      lastSession: session ? { id: session.id, state: session.state, exitCode: session.exit_code } : null };
-  });
+  const items = resultItems(store, projectId, null);
 
   const activation = store.db.prepare(`SELECT id, started_at, ended_at, end_state, end_reason,
     run_until, continue_blocked FROM queue_activations WHERE project_id = ? ORDER BY rowid DESC LIMIT 1`)
@@ -48,6 +52,7 @@ export function queueResults(store: StudioStore, projectId: string): QueueResult
       end_reason: string | null; run_until: string | null; continue_blocked: number;
     } | undefined;
   let latestActivation: QueueActivationSummary | null = null;
+  let latestItems: QueueResultItem[] = [];
   if (activation) {
     const activationCounts = emptyCounts();
     const activationGroups = store.db.prepare(`SELECT ${STATUS_SQL} AS status, COUNT(*) AS count
@@ -63,6 +68,8 @@ export function queueResults(store: StudioStore, projectId: string): QueueResult
       counts: activationCounts,
       total: Object.values(activationCounts).reduce((sum, count) => sum + count, 0),
     };
+    latestItems = resultItems(store, projectId, activation.id);
   }
-  return { projectId, total, truncated: total > items.length, counts, items, latestActivation };
+  return { projectId, total, truncated: total > items.length, counts, items, latestActivation,
+    latestItems, latestTruncated: (latestActivation?.total ?? 0) > latestItems.length };
 }
