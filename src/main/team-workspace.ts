@@ -4,9 +4,9 @@ import type { CardPriority } from '../shared/types';
 import type { StudioStore } from './store';
 
 export type TeamRole = 'owner' | 'admin' | 'editor' | 'developer' | 'viewer';
-export type TeamCapability = 'read' | 'edit' | 'edit_draft' | 'propose_plan' | 'accept_plan' |
+export type TeamCapability = 'read' | 'edit' | 'edit_draft' | 'propose_plan' | 'accept_plan' | 'manage_task' |
   'start_agent' | 'integrate' | 'manage_members';
-const CAPABILITIES: readonly TeamCapability[] = ['read', 'edit', 'edit_draft', 'propose_plan', 'accept_plan',
+const CAPABILITIES: readonly TeamCapability[] = ['read', 'edit', 'edit_draft', 'propose_plan', 'accept_plan', 'manage_task',
   'start_agent', 'integrate', 'manage_members'];
 
 export interface TeamMember {
@@ -85,7 +85,7 @@ export function setTeamCardPriority(store: StudioStore, input: {
   if (!input || typeof input.mutationId !== 'string' || !/^[0-9a-f-]{36}$/i.test(input.mutationId) ||
     !Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 0) throw new Error('Invalid team card command.');
   return store.db.transaction(() => {
-    const actor = requireTeamProjectCapability(store.db, input.credential, input.projectId, 'edit');
+    const actor = requireTeamProjectCapability(store.db, input.credential, input.projectId, 'manage_task');
     const payload = JSON.stringify({ priority: input.priority });
     const previous = store.db.prepare(`SELECT actor_id, project_id, card_id, command, payload_json, committed_revision
       FROM team_card_commands WHERE workspace_id = ? AND mutation_id = ?`)
@@ -142,7 +142,7 @@ export function authenticateTeamMember(db: Database.Database, credential: string
 
 function allowed(role: TeamRole, capability: TeamCapability): boolean {
   if (role === 'owner') return true;
-  if (role === 'admin') return ['read', 'edit', 'edit_draft', 'propose_plan', 'accept_plan', 'start_agent'].includes(capability);
+  if (role === 'admin') return ['read', 'edit', 'edit_draft', 'propose_plan', 'accept_plan', 'manage_task', 'start_agent'].includes(capability);
   if (role === 'editor') return ['read', 'edit', 'edit_draft', 'propose_plan'].includes(capability);
   if (role === 'developer') return ['read', 'edit_draft'].includes(capability);
   return capability === 'read';

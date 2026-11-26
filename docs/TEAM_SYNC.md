@@ -25,6 +25,18 @@ Team role, project access, and project approval mode are separate. A developer m
 
 The first implementation should represent these as named capabilities rather than assuming every `editor` can do every project action: read, edit draft, propose plan, accept plan, manage task, start agent, review, integrate, and manage members. Some capabilities can be granted per project, subject to the owner’s policy. A permission change is itself a revisioned owner action and must take effect for existing sessions and reconnecting clients.
 
+The isolated S03e backend draft currently uses these conservative role presets; this is not a shipped UI or final permission policy:
+
+| Role | Inherited project abilities | Additional rights |
+| --- | --- | --- |
+| Owner | All current capabilities | Controls workspace and explicit grants. |
+| Admin | Read, manage task metadata, edit drafts, propose and accept plans, start an agent | Integration and member management are not inherited. |
+| Member (`editor` in the draft schema) | Read, edit drafts, propose a plan | Must submit a plan for admin acceptance. |
+| Developer | Read and edit drafts | Owner can grant a project capability, such as agent start, explicitly. |
+| Viewer | Read | Owner may grant a specific extra capability; the UI must make this visible. |
+
+The draft's new card-priority command requires `manage_task`; the older local-only `edit` capability still exists for compatibility and must be audited before any generic write endpoint is exposed to teammates. The current capability grant function has no UI and is not a substitute for a reviewed approval request.
+
 ## Proposed service boundary
 
 - A coordinator owns workspace membership, project ACLs, canonical task IDs, business revisions, the event feed, and persistent collaboration documents. Its protocol is the same whether it runs on a laptop, a user-provided VPS/homelab server, or a later managed service.

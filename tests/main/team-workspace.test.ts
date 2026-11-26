@@ -89,6 +89,7 @@ it('serializes card metadata commands from two clients and keeps retries idempot
   const owner = createTeamWorkspace(f.store.db, { workspaceName: 'Sample team', projectId: f.project.id, ownerName: 'Owner' });
   const invite = createTeamMemberInvite(f.store.db, owner.credential, owner.workspaceId, 'editor');
   const colleague = acceptTeamMemberInvite(f.store.db, invite.secret, 'Colleague');
+  setTeamCapabilityGrant(f.store.db, owner.credential, f.project.id, colleague.member.id, 'manage_task', true);
   const secondClient = new StudioStore(f.file);
   const firstMutation = randomUUID();
   const secondMutation = randomUUID();
@@ -158,8 +159,10 @@ it('separates admin plan acceptance from member proposals and explicit developer
     const member = join('editor');
     const developer = join('developer');
     expect(requireTeamProjectCapability(f.store.db, admin.credential, f.project.id, 'accept_plan').id).toBe(admin.member.id);
+    expect(requireTeamProjectCapability(f.store.db, admin.credential, f.project.id, 'manage_task').id).toBe(admin.member.id);
     expect(requireTeamProjectCapability(f.store.db, member.credential, f.project.id, 'propose_plan').id).toBe(member.member.id);
     expect(() => requireTeamProjectCapability(f.store.db, member.credential, f.project.id, 'accept_plan')).toThrow('not permitted');
+    expect(() => requireTeamProjectCapability(f.store.db, member.credential, f.project.id, 'manage_task')).toThrow('not permitted');
     expect(() => requireTeamProjectCapability(f.store.db, developer.credential, f.project.id, 'accept_plan')).toThrow('not permitted');
     setTeamCapabilityGrant(f.store.db, owner.credential, f.project.id, developer.member.id, 'start_agent', true);
     expect(requireTeamProjectCapability(f.store.db, developer.credential, f.project.id, 'start_agent').id).toBe(developer.member.id);

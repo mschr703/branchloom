@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { TeamCoordinatorHttp } from '../../src/main/team-coordinator-http';
-import { acceptTeamMemberInvite, createTeamMemberInvite, createTeamWorkspace, revokeTeamMember } from '../../src/main/team-workspace';
+import { acceptTeamMemberInvite, createTeamMemberInvite, createTeamWorkspace, revokeTeamMember,
+  setTeamCapabilityGrant } from '../../src/main/team-workspace';
 import { StudioStore } from '../../src/main/store';
 
 it('authenticates two separate HTTP clients, rejects stale writes, and survives coordinator restart', async () => {
@@ -48,6 +49,8 @@ it('authenticates two separate HTTP clients, rejects stale writes, and survives 
       body: '{invalid' })).status).toBe(400);
     const ownerMutation = randomUUID();
     expect((await setPriority(owner.credential, 'high', 0, ownerMutation)).status).toBe(200);
+    expect((await setPriority(editor.credential, 'urgent', 0, randomUUID())).status).toBe(403);
+    setTeamCapabilityGrant(store.db, owner.credential, project.id, editor.member.id, 'manage_task', true);
     expect((await setPriority(editor.credential, 'urgent', 0, randomUUID())).status).toBe(409);
     expect((await setPriority(viewer.credential, 'urgent', 1, randomUUID())).status).toBe(403);
     const retry = await setPriority(owner.credential, 'high', 0, ownerMutation);
