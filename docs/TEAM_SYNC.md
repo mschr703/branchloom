@@ -17,6 +17,14 @@ The card has one stable project identity. Kanban, Whiteboard, Decision Inbox, an
 
 The board column and card status are authoritative business state. A visual edit to a diagram or free text cannot silently move a card, start an agent, approve a plan, or merge code.
 
+## Drafts, team roles, and approvals
+
+Several members may edit the same draft. AI feedback can revise that draft and point out ambiguity; agreeing with the AI does not make the draft an accepted team plan. Promotion creates or changes authoritative cards, dependencies, or approved diagram elements only through a separate, revisioned command. The proposal shows exactly what will change, who requested it, and any conflicting edits made since it was prepared. Members who are viewing the same area see a pending proposal, not a silent board mutation.
+
+Team role, project access, and project approval mode are separate. A developer may edit assigned work and participate in drafts without gaining the right to accept a plan, start a broadly privileged agent, or integrate code. A project can grant selected members more authority explicitly. A `full access` mode is an owner-controlled project policy with a visible scope and audit trail, not a property inferred from a chat reply or a model decision. The user chose that project admins may accept a discussed draft directly; normal members submit it for confirmation by a project admin. The pending request remains visible with its source and proposed effects. Approval must recheck the current revision so a stale preview cannot overwrite later team work. Until this separate approval command exists, the coordinator must not treat draft editing or AI agreement as approval.
+
+The first implementation should represent these as named capabilities rather than assuming every `editor` can do every project action: read, edit draft, propose plan, accept plan, manage task, start agent, review, integrate, and manage members. Some capabilities can be granted per project, subject to the owner’s policy. A permission change is itself a revisioned owner action and must take effect for existing sessions and reconnecting clients.
+
 ## Proposed service boundary
 
 - A coordinator owns workspace membership, project ACLs, canonical task IDs, business revisions, the event feed, and persistent collaboration documents. Its protocol is the same whether it runs on a laptop, a user-provided VPS/homelab server, or a later managed service.

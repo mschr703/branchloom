@@ -28,14 +28,14 @@ describe('compact workspace navigation', () => {
 
   it('shows an honest lower bound when older review pages exist and no stale count on project changes', () => {
     const snapshot = { project: { id: 'p' }, columns: [], cards: [], agents: [], workflows: [], queue: { state: 'off' } } as ProjectSnapshot;
-    expect(decisionNavigationStatus(snapshot, 'p', { projectId: 'other', count: 7, hasMore: false })).toBeNull();
-    expect(decisionNavigationStatus(snapshot, 'p', { projectId: 'p', count: 100, hasMore: true })).toEqual({ count: 100, hasMore: true });
-    const html = renderToStaticMarkup(createElement(WorkspaceNavigation, { activeView: 'board', decisionCount: 100, decisionHasMore: true, onView: () => undefined }));
-    expect(html).toContain('aria-label="Entscheidungen: mindestens 100 offen"');
-    expect(html).toContain('class="nav-count" aria-hidden="true">100+</span>');
+    expect(decisionNavigationStatus(snapshot, 'p', { projectId: 'other', reviewCount: 7, questionCount: 0, hasMore: false })).toBeNull();
+    expect(decisionNavigationStatus(snapshot, 'p', { projectId: 'p', reviewCount: 100, questionCount: 2, hasMore: true })).toEqual({ count: 102, hasMore: true });
+    const html = renderToStaticMarkup(createElement(WorkspaceNavigation, { activeView: 'board', decisionCount: 102, decisionHasMore: true, onView: () => undefined }));
+    expect(html).toContain('aria-label="Entscheidungen: mindestens 102 offen"');
+    expect(html).toContain('class="nav-count" aria-hidden="true">102+</span>');
     const loading = renderToStaticMarkup(createElement(WorkspaceNavigation, { activeView: 'board', decisionCount: null, onView: () => undefined }));
     expect(loading).toContain('aria-label="Entscheidungen: offene Einträge werden geprüft"');
-    expect(loading).not.toContain('100+');
+    expect(loading).not.toContain('102+');
   });
 
   it('uses only the current project snapshot for real sidebar counts', () => {

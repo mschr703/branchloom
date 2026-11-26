@@ -4,9 +4,10 @@ import { decisionItems } from './decision-inbox';
 import { scheduleVisibleInboxRefresh } from './inbox-refresh';
 
 export const INBOX_CHANGED_EVENT = 'branchloom:inbox-changed';
-export interface ReviewIndicator {
+export interface DecisionIndicator {
   projectId: string;
-  count: number;
+  reviewCount: number;
+  questionCount: number;
   hasMore: boolean;
 }
 
@@ -18,15 +19,15 @@ export interface DecisionNavigationStatus {
 export function decisionNavigationStatus(
   snapshot: ProjectSnapshot | null,
   projectId: string | null,
-  indicator: ReviewIndicator | null,
+  indicator: DecisionIndicator | null,
 ): DecisionNavigationStatus | null {
   if (!projectId || snapshot?.project.id !== projectId || indicator?.projectId !== projectId) return null;
-  return { count: decisionItems(snapshot).length + indicator.count, hasMore: indicator.hasMore };
+  return { count: decisionItems(snapshot).length + indicator.reviewCount + indicator.questionCount, hasMore: indicator.hasMore };
 }
 
-/** Read the first review page even when the inbox is closed; a full page is shown as a lower bound. */
-export function useReviewInboxIndicator(projectId: string | null): ReviewIndicator | null {
-  const [indicator, setIndicator] = useState<ReviewIndicator | null>(null);
+/** Read persisted review sources and answerable agent questions even when the inbox is closed. */
+export function useDecisionInboxIndicator(projectId: string | null): DecisionIndicator | null {
+  const [indicator, setIndicator] = useState<DecisionIndicator | null>(null);
   useEffect(() => {
     setIndicator(null);
     if (!projectId) return;
@@ -36,9 +37,9 @@ export function useReviewInboxIndicator(projectId: string | null): ReviewIndicat
     const refresh = () => {
       if (!active || inFlight) return;
       inFlight = true;
-      void window.studio.reviewInboxItems({ projectId })
-        .then((page) => {
-          if (active) setIndicator({ projectId, count: page.items.length, hasMore: page.hasMore });
+      void Promise.all([window.studio.reviewInboxItems({ projectId }), window.studio.agentQuestionDecisionCount(projectId)])
+        .then(([page, questionCount]) => {
+          if (active) setIndicator({ projectId, reviewCount: page.items.length, questionCount, hasMore: page.hasMore });
         })
         .catch(() => { if (active) setIndicator(null); })
         .finally(() => {

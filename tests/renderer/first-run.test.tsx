@@ -57,6 +57,7 @@ it('restores project actions after a saved project loads', async () => {
     projectOrganization: async () => ({ groups: [], assignments: {}, sort: 'name' }),
     snapshot: async () => new Promise<never>(() => undefined),
     reviewInboxItems: async () => ({ items: [], hasMore: false }),
+    agentQuestionDecisionCount: async () => 0,
     onSessionEvent: () => () => undefined,
     onBrowserSearchShortcut: () => () => undefined,
   } });

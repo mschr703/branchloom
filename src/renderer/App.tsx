@@ -17,7 +17,7 @@ import { BranchloomMark } from './components/BranchloomMark';
 import { sessionMemoryDraft } from './activity-transcript';
 import { viewForSearchKind, type ProjectSearchResult, type SearchKind } from './project-search';
 import { currentTheme, persistTheme, themeToggleLabel, type ThemePreference } from './theme';
-import { decisionNavigationStatus, useReviewInboxIndicator } from './decision-navigation';
+import { decisionNavigationStatus, useDecisionInboxIndicator } from './decision-navigation';
 import type { ProjectConflictRadarResult } from '../shared/conflict-radar';
 import type { GlobalInboxItem } from '../shared/global-inbox';
 import { ProjectConflictBanner } from './components/ProjectConflictBanner';
@@ -64,7 +64,7 @@ export function App() {
   const [navigationTarget, setNavigationTarget] = useState<NavigationTarget | null>(null);
   const [openPlan, setOpenPlan] = useState<{ id: string; token: number } | null>(null);
   const [pendingGlobalItem, setPendingGlobalItem] = useState<GlobalInboxItem | null>(null);
-  const reviewIndicator = useReviewInboxIndicator(projectId);
+  const decisionIndicator = useDecisionInboxIndicator(projectId);
   const [queueNavigationToken, setQueueNavigationToken] = useState(0);
   const [theme, setTheme] = useState<ThemePreference>(currentTheme);
   const [projectRadar, setProjectRadar] = useState<ProjectConflictRadarResult | null>(null);
@@ -337,7 +337,7 @@ export function App() {
   }
 
   const activeView = views.find((item) => item.id === view)!;
-  const decisionStatus = decisionNavigationStatus(snapshot, projectId, reviewIndicator);
+  const decisionStatus = decisionNavigationStatus(snapshot, projectId, decisionIndicator);
 
   return <div className="app-shell">
     <aside className="sidebar">

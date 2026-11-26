@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
-import { notifyInboxChanged, useReviewInboxIndicator } from '../../src/renderer/decision-navigation';
+import { notifyInboxChanged, useDecisionInboxIndicator } from '../../src/renderer/decision-navigation';
 import { WorkspaceNavigation } from '../../src/renderer/components/WorkspaceNavigation';
 
 const originalApi = Object.getOwnPropertyDescriptor(window, 'studio');
@@ -14,18 +14,19 @@ afterEach(() => {
 });
 
 function Indicator({ projectId }: { projectId: string }) {
-  const value = useReviewInboxIndicator(projectId);
-  return <span>{value ? `${value.projectId}:${value.count}:${value.hasMore}` : 'loading'}</span>;
+  const value = useDecisionInboxIndicator(projectId);
+  return <span>{value ? `${value.projectId}:${value.reviewCount + value.questionCount}:${value.hasMore}` : 'loading'}</span>;
 }
 
 function IndicatorNavigation({ projectId, onView }: { projectId: string; onView: (view: string) => void }) {
-  const value = useReviewInboxIndicator(projectId);
-  return <WorkspaceNavigation activeView="board" decisionCount={value?.count ?? null} decisionHasMore={value?.hasMore} onView={onView} />;
+  const value = useDecisionInboxIndicator(projectId);
+  return <WorkspaceNavigation activeView="board" decisionCount={value ? value.reviewCount + value.questionCount : null} decisionHasMore={value?.hasMore} onView={onView} />;
 }
 
 it('refreshes the closed-inbox indicator and discards an old project response', async () => {
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   let firstCount = 1;
+  let questionCount = 0;
   let holdFirst = false;
   let resolveFirst: ((value: unknown) => void) | undefined;
   let resolveOther: ((value: unknown) => void) | undefined;
@@ -33,15 +34,18 @@ it('refreshes the closed-inbox indicator and discards an old project response', 
     ? new Promise((resolve) => { resolveOther = resolve; })
     : holdFirst ? new Promise((resolve) => { resolveFirst = resolve; })
     : Promise.resolve({ items: Array.from({ length: firstCount }, (_, index) => ({ id: `item-${index}` })), hasMore: false }));
-  Object.defineProperty(window, 'studio', { configurable: true, value: { reviewInboxItems: read } });
+  Object.defineProperty(window, 'studio', { configurable: true, value: {
+    reviewInboxItems: read, agentQuestionDecisionCount: vi.fn().mockImplementation(async (projectId: string) => projectId === 'other' ? 0 : questionCount),
+  } });
   const host = document.createElement('div'); document.body.append(host);
   const root = createRoot(host);
   try {
     await act(async () => { root.render(<Indicator projectId="first" />); });
     expect(host.textContent).toBe('first:1:false');
     firstCount = 2;
+    questionCount = 1;
     await act(async () => { notifyInboxChanged(); });
-    expect(host.textContent).toBe('first:2:false');
+    expect(host.textContent).toBe('first:3:false');
     holdFirst = true;
     await act(async () => { notifyInboxChanged(); });
     await act(async () => { root.render(<Indicator projectId="other" />); });
@@ -59,7 +63,9 @@ it('rechecks the inbox when feedback arrives during a pending read', async () =>
   let resolveFirst: ((value: unknown) => void) | undefined;
   const read = vi.fn().mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
     .mockResolvedValue({ items: [{ id: 'new-feedback' }], hasMore: false });
-  Object.defineProperty(window, 'studio', { configurable: true, value: { reviewInboxItems: read } });
+  Object.defineProperty(window, 'studio', { configurable: true, value: {
+    reviewInboxItems: read, agentQuestionDecisionCount: vi.fn().mockResolvedValue(0),
+  } });
   const host = document.createElement('div'); document.body.append(host);
   const root = createRoot(host);
   try {
@@ -76,13 +82,14 @@ it('opens the decision view from a live review count in the sidebar', async () =
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   Object.defineProperty(window, 'studio', { configurable: true, value: {
     reviewInboxItems: vi.fn().mockResolvedValue({ items: [{ id: 'guest-feedback' }], hasMore: false }),
+    agentQuestionDecisionCount: vi.fn().mockResolvedValue(2),
   } });
   const onView = vi.fn();
   const host = document.createElement('div'); document.body.append(host);
   const root = createRoot(host);
   try {
     await act(async () => { root.render(<IndicatorNavigation projectId="project" onView={onView} />); });
-    const button = host.querySelector('button[aria-label="Entscheidungen: 1 offen"]');
+    const button = host.querySelector('button[aria-label="Entscheidungen: 3 offen"]');
     expect(button).not.toBeNull();
     await act(async () => { button?.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
     expect(onView).toHaveBeenCalledWith('decisions');

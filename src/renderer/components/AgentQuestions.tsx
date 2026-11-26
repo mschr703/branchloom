@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AgentQuestion, AgentQuestionSuggestion } from '../../shared/agent-questions';
 import { suggestAgentQuestionGroups } from '../../shared/agent-question-suggestions';
 import { useVisibleInboxRefresh } from '../inbox-refresh';
+import { notifyInboxChanged } from '../decision-navigation';
 
 function status(question: AgentQuestion): string {
   if (question.delivery === 'delivered') return 'An diese Sitzung zugestellt · Übernahme nicht belegt';
@@ -75,6 +76,7 @@ export function AgentQuestions({ projectId, onOpenCard, onOpenSession }: {
       setAnswer(''); setSelected([]);
       const items = await window.studio.agentQuestions(projectId);
       setQuestions(items);
+      notifyInboxChanged();
       setNotice('Eine Antwort gespeichert. Prüfe den Zustellstatus pro Frage; die inhaltliche Übernahme ist dadurch noch nicht belegt.');
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBusy(false); }
