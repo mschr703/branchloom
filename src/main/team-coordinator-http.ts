@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net';
 import type { StudioStore } from './store';
 import type { CardPriority } from '../shared/types';
-import { requireTeamProjectCapability, setTeamCardPriority } from './team-workspace';
+import { authenticateTeamMember, requireTeamProjectCapability, setTeamCardPriority } from './team-workspace';
 import { teamBoardSnapshot } from './team-board';
 
 const LOOPBACK = '127.0.0.1';
@@ -68,6 +68,17 @@ export class TeamCoordinatorHttp {
       if (request.headers.origin) return reply(response, 403, { error: 'Origin is not permitted' });
       const path = new URL(request.url ?? '/', `http://${LOOPBACK}`).pathname;
       const actorCredential = credential(request);
+      if (request.method === 'GET' && path === '/v1/workspace') {
+        const actor = authenticateTeamMember(this.store.db, actorCredential);
+        const projects = this.store.db.prepare(`SELECT project.id, project.name FROM team_projects linked
+          JOIN projects project ON project.id = linked.project_id WHERE linked.workspace_id = ? ORDER BY project.name, project.id`)
+          .all(actor.workspaceId) as Array<{ id: string; name: string }>;
+        const visible = projects.filter((project) => {
+          try { requireTeamProjectCapability(this.store.db, actorCredential, project.id, 'read'); return true; }
+          catch { return false; }
+        });
+        return reply(response, 200, { member: actor, projects: visible });
+      }
       const board = /^\/v1\/projects\/([0-9a-f-]{36})\/board$/.exec(path);
       if (request.method === 'GET' && board) {
         requireTeamProjectCapability(this.store.db, actorCredential, board[1]!, 'read');
