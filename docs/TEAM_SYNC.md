@@ -39,7 +39,7 @@ The current local team preview uses these conservative role presets; this is not
 | Developer | Read and edit drafts | Owner can grant a project capability, such as agent start, explicitly. |
 | Viewer | Read | Owner may grant a specific extra capability; the UI must make this visible. |
 
-The card-priority and column-move commands require `manage_task`; the older local-only `edit` capability still exists for compatibility and must be audited before any generic write endpoint is exposed to teammates. The current capability grant function has no UI and is not a substitute for a reviewed approval request.
+The card-priority and column-move commands require `manage_task`; the older local-only `edit` capability still exists for compatibility and must be audited before any generic write endpoint is exposed to teammates. The local Team setup now exposes an owner-controlled project access override and a two-click `manage_task` grant. It is not a substitute for a reviewed approval request.
 
 ## Proposed service boundary
 

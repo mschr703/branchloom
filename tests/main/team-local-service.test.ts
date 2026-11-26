@@ -38,6 +38,19 @@ it('hosts a project, refreshes the loopback port after restart, and revokes a jo
       inviteSecret: invite.inviteSecret, displayName: 'Colleague' });
     expect((await guest.workspace(member.workspaceId)).projects.map((item) => item.id)).toEqual([project.id]);
     expect((await host.hostedProject(project.id))?.members).toHaveLength(2);
+    const narrowed = await host.setProjectAccess(project.id, member.memberId, 'read');
+    expect(narrowed.members.find((item) => item.id === member.memberId)?.projectAccess).toBe('read');
+    expect((await guest.workspace(member.workspaceId)).projects[0]?.canManageTask).toBe(false);
+    await host.setProjectAccess(project.id, member.memberId, null);
+    const granted = await host.setCapabilityGrant(project.id, member.memberId, 'manage_task', true);
+    expect(granted.members.find((item) => item.id === member.memberId)?.extraCapabilities).toContain('manage_task');
+    expect((await guest.workspace(member.workspaceId)).projects[0]?.canManageTask).toBe(true);
+    await host.close();
+    host = new TeamLocalService(store, connections);
+    expect((await host.hostedProject(project.id))?.members.find((item) => item.id === member.memberId)?.extraCapabilities)
+      .toContain('manage_task');
+    await host.setCapabilityGrant(project.id, member.memberId, 'manage_task', false);
+    expect((await guest.workspace(member.workspaceId)).projects[0]?.canManageTask).toBe(false);
     const afterRevoke = await host.revoke(project.id, member.memberId);
     expect(afterRevoke.members.find((item) => item.id === member.memberId)?.revokedAt).toBeTruthy();
     await expect(guest.workspace(member.workspaceId)).rejects.toThrow('revoked');

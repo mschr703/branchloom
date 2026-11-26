@@ -251,6 +251,8 @@ function installIpc(): void {
   bind('createLocalTeamWorkspace', (input: Parameters<StudioAPI['createLocalTeamWorkspace']>[0]) => teamLocalService!.create(input));
   bind('inviteTeamMember', (input: Parameters<StudioAPI['inviteTeamMember']>[0]) => teamLocalService!.invite(input.projectId, input.role));
   bind('revokeTeamMember', (input: Parameters<StudioAPI['revokeTeamMember']>[0]) => teamLocalService!.revoke(input.projectId, input.memberId));
+  bind('setTeamProjectAccess', (input: Parameters<StudioAPI['setTeamProjectAccess']>[0]) => teamLocalService!.setProjectAccess(input.projectId, input.memberId, input.access));
+  bind('setTeamCapabilityGrant', (input: Parameters<StudioAPI['setTeamCapabilityGrant']>[0]) => teamLocalService!.setCapabilityGrant(input.projectId, input.memberId, input.capability, input.grant));
   bind('teamConnections', () => teamConnections.list());
   bind('pendingTeamJoin', () => teamRemoteClient.pendingJoin());
   bind('joinTeam', (input: Parameters<StudioAPI['joinTeam']>[0]) => teamRemoteClient.beginJoin(input));

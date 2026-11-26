@@ -6,7 +6,6 @@ import type { StudioStore } from './store';
 import { TeamConnectionStore } from './team-connection-store';
 import { TeamJoinAttemptStore } from './team-join-attempt';
 import { TeamRemoteClient } from './team-remote-client';
-import { setTeamCapabilityGrant } from './team-workspace';
 import type { TeamLocalService } from './team-local-service';
 
 const Y = require('yjs') as typeof import('yjs', { with: { 'resolution-mode': 'require' } });
@@ -167,7 +166,37 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
   }
   const ownerConnection = await new TeamConnectionStore(app.getPath('userData'), safeStorage).get(result.workspaceId);
   if (!ownerConnection) throw new Error('Synthetic owner connection is unavailable.');
-  setTeamCapabilityGrant(store.db, ownerConnection.credential, project.id, joined.memberId, 'manage_task', true);
+  await window.webContents.executeJavaScript(`(async () => {
+    const wait = async (predicate, label) => {
+      for (let attempt = 0; attempt < 120; attempt += 1) {
+        const value = await predicate(); if (value) return value;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      throw new Error('Team rights smoke timed out: ' + label);
+    };
+    const setup = document.querySelector('.team-workspace-setup');
+    if (!(setup instanceof HTMLDetailsElement)) throw new Error('Team settings are unavailable.');
+    setup.open = true;
+    const refresh = [...setup.querySelectorAll('button')]
+      .find((button) => button.textContent === 'Mitglieder aktualisieren');
+    if (!refresh) throw new Error('Member refresh is unavailable.');
+    refresh.click();
+    const member = await wait(() => [...setup.querySelectorAll('.team-workspace-members li')]
+      .find((item) => item.textContent?.includes('Guest')), 'joined member');
+    const rights = member.querySelector('.team-workspace-member-rights');
+    if (!(rights instanceof HTMLDetailsElement)) throw new Error('Project rights are unavailable.');
+    rights.open = true;
+    const allow = await wait(() => [...rights.querySelectorAll('button')]
+      .find((button) => button.textContent === 'Aufgabensteuerung erlauben'), 'task grant action');
+    allow.click();
+    const confirm = await wait(() => [...rights.querySelectorAll('button')]
+      .find((button) => button.textContent === 'Aufgabensteuerung bestätigen'), 'task grant confirmation');
+    confirm.click();
+    await wait(async () => (await window.studio.hostedTeamProject(${JSON.stringify(project.id)}))?.members
+      .some((item) => item.id === ${JSON.stringify(joined.memberId)} && item.extraCapabilities.includes('manage_task')),
+      'persisted task grant');
+    return true;
+  })()`);
   await window.webContents.executeJavaScript(`(() => {
     window.__teamCardEventSeen = false;
     window.__stopTeamCardEventCheck = window.studio.onTeamDraftEvent((event) => {

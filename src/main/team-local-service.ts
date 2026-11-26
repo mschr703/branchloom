@@ -2,14 +2,19 @@ import type { StudioStore } from './store';
 import { TeamConnectionStore, type SavedTeamConnection } from './team-connection-store';
 import { TeamCoordinatorHttp } from './team-coordinator-http';
 import { authenticateTeamMember, createTeamMemberInvite, createTeamWorkspace, revokeTeamMember,
-  type TeamMember, type TeamRole } from './team-workspace';
+  setTeamCapabilityGrant, setTeamProjectAccess, type TeamCapability, type TeamMember, type TeamRole } from './team-workspace';
+
+export interface HostedTeamMember extends TeamMember {
+  projectAccess: 'none' | 'read' | 'edit' | null;
+  extraCapabilities: TeamCapability[];
+}
 
 export interface HostedTeamWorkspace {
   workspaceId: string;
   name: string;
   projectId: string;
   coordinatorUrl: string;
-  members: TeamMember[];
+  members: HostedTeamMember[];
 }
 
 /** The first host transport stays on loopback and reuses its saved port after restart. */
@@ -44,9 +49,18 @@ export class TeamLocalService {
     }
     const coordinatorUrl = await this.start();
     if (connection.coordinatorUrl !== coordinatorUrl) await this.connections.save({ ...connection, coordinatorUrl });
-    const members = this.store.db.prepare(`SELECT id, workspace_id AS workspaceId, display_name AS displayName,
+    const baseMembers = this.store.db.prepare(`SELECT id, workspace_id AS workspaceId, display_name AS displayName,
       role, revoked_at AS revokedAt FROM team_members WHERE workspace_id = ? ORDER BY created_at, id`)
       .all(row.id) as TeamMember[];
+    const access = new Map((this.store.db.prepare('SELECT member_id, access FROM team_project_permissions WHERE project_id = ?')
+      .all(projectId) as Array<{ member_id: string; access: 'none' | 'read' | 'edit' }>).map((item) => [item.member_id, item.access]));
+    const grants = new Map<string, TeamCapability[]>();
+    for (const item of this.store.db.prepare('SELECT member_id, capability FROM team_project_capability_grants WHERE project_id = ?')
+      .all(projectId) as Array<{ member_id: string; capability: TeamCapability }>) {
+      grants.set(item.member_id, [...(grants.get(item.member_id) ?? []), item.capability]);
+    }
+    const members: HostedTeamMember[] = baseMembers.map((member) => ({ ...member,
+      projectAccess: access.get(member.id) ?? null, extraCapabilities: grants.get(member.id) ?? [] }));
     return { workspaceId: row.id, name: row.name, projectId, coordinatorUrl, members };
   }
 
@@ -79,6 +93,24 @@ export class TeamLocalService {
     if (!hosted) throw new Error('This project has no team workspace.');
     const owner = await this.ownerConnection(hosted.workspaceId);
     revokeTeamMember(this.store.db, owner.credential, memberId);
+    return (await this.hostedProject(projectId))!;
+  }
+
+  async setProjectAccess(projectId: string, memberId: string,
+    access: 'none' | 'read' | 'edit' | null): Promise<HostedTeamWorkspace> {
+    const hosted = await this.hostedProject(projectId);
+    if (!hosted) throw new Error('This project has no team workspace.');
+    const owner = await this.ownerConnection(hosted.workspaceId);
+    setTeamProjectAccess(this.store.db, owner.credential, projectId, memberId, access);
+    return (await this.hostedProject(projectId))!;
+  }
+
+  async setCapabilityGrant(projectId: string, memberId: string,
+    capability: TeamCapability, grant: boolean): Promise<HostedTeamWorkspace> {
+    const hosted = await this.hostedProject(projectId);
+    if (!hosted) throw new Error('This project has no team workspace.');
+    const owner = await this.ownerConnection(hosted.workspaceId);
+    setTeamCapabilityGrant(this.store.db, owner.credential, projectId, memberId, capability, grant);
     return (await this.hostedProject(projectId))!;
   }
 

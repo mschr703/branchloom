@@ -5,8 +5,10 @@ import { expect, it, vi } from 'vitest';
 import { TeamWorkspaceSettings } from '../../src/renderer/components/TeamWorkspaceSettings';
 import type { HostedTeamWorkspace } from '../../src/main/team-local-service';
 
-const owner = { id: 'owner', workspaceId: 'workspace', displayName: 'Owner', role: 'owner' as const, revokedAt: null };
-const colleague = { id: 'colleague', workspaceId: 'workspace', displayName: 'Colleague', role: 'editor' as const, revokedAt: null };
+const owner = { id: 'owner', workspaceId: 'workspace', displayName: 'Owner', role: 'owner' as const, revokedAt: null,
+  projectAccess: null, extraCapabilities: [] };
+const colleague = { id: 'colleague', workspaceId: 'workspace', displayName: 'Colleague', role: 'editor' as const, revokedAt: null,
+  projectAccess: null, extraCapabilities: [] };
 const workspace: HostedTeamWorkspace = { workspaceId: 'workspace', projectId: 'project', name: 'Sample team',
   coordinatorUrl: 'http://127.0.0.1:4567', members: [owner] };
 
@@ -25,11 +27,15 @@ it('creates a local workspace, exposes an invitation once, and requires a second
   const invite = vi.fn().mockResolvedValue({ coordinatorUrl: workspace.coordinatorUrl, inviteSecret: 'synthetic-invite',
     expiresAt: '2026-11-27T12:00:00.000Z' });
   const revoke = vi.fn().mockResolvedValue({ ...workspace, members: [owner, { ...colleague, revokedAt: '2026-11-26T12:00:00.000Z' }] });
+  const setProjectAccess = vi.fn().mockResolvedValue({ ...workspace, members: [owner, { ...colleague, projectAccess: 'read' }] });
+  const setCapabilityGrant = vi.fn().mockResolvedValue({ ...workspace, members: [owner,
+    { ...colleague, projectAccess: 'read', extraCapabilities: ['manage_task'] }] });
   let hosted: HostedTeamWorkspace | null = null;
   Object.defineProperty(window, 'studio', { configurable: true, value: {
     hostedTeamProject: vi.fn().mockImplementation(async () => hosted), teamConnections: vi.fn().mockResolvedValue([]),
     pendingTeamJoin: vi.fn().mockResolvedValue(null), createLocalTeamWorkspace: create,
     inviteTeamMember: invite, revokeTeamMember: revoke,
+    setTeamProjectAccess: setProjectAccess, setTeamCapabilityGrant: setCapabilityGrant,
   } });
   try {
     await act(async () => { root.render(<TeamWorkspaceSettings key="first" projectId="project" />); });
@@ -47,6 +53,22 @@ it('creates a local workspace, exposes an invitation once, and requires a second
     hosted = { ...workspace, members: [owner, colleague] };
     await act(async () => { root.render(<TeamWorkspaceSettings key="second" projectId="project" />); });
     expect(host.textContent).not.toContain('synthetic-invite');
+    const rights = host.querySelector<HTMLDetailsElement>('.team-workspace-member-rights')!;
+    await act(async () => { rights.open = true; });
+    await act(async () => {
+      const access = rights.querySelector<HTMLSelectElement>('select')!;
+      access.value = 'read';
+      access.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(setProjectAccess).toHaveBeenCalledWith({ projectId: 'project', memberId: 'colleague', access: 'read' });
+    expect(rights.textContent).toContain('erst bei vollem Projektzugang');
+    await act(async () => { [...rights.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent === 'Aufgabensteuerung erlauben')!.click(); });
+    expect(setCapabilityGrant).not.toHaveBeenCalled();
+    await act(async () => { [...rights.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent === 'Aufgabensteuerung bestätigen')!.click(); });
+    expect(setCapabilityGrant).toHaveBeenCalledWith({ projectId: 'project', memberId: 'colleague',
+      capability: 'manage_task', grant: true });
     await act(async () => { [...host.querySelectorAll<HTMLButtonElement>('button')]
       .find((button) => button.textContent === 'Zugriff widerrufen')!.click(); });
     expect(revoke).not.toHaveBeenCalled();

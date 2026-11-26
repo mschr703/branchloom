@@ -2,9 +2,13 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Sichtbare Projektrechte für lokale Teammitglieder (lokaler Arbeitsstand)
+
+- Der Owner kann im Team-Bereich pro Mitglied den Projektzugang auf Lesen, keinen Zugang oder die Teamrolle setzen. Nach einem Beitritt lädt **Mitglieder aktualisieren** die Liste ohne Seitenwechsel neu. Die zusätzliche Aufgabensteuerung (`manage_task`) erfordert einen zweiten Klick und wirkt nur bei vollem Projektzugang; Admins haben sie bereits über ihre Rolle. Der Host zeigt gespeicherte Rechte nach Neustart wieder an. Der Koordinator prüft die Rechte weiterhin bei jeder Kartenaktion; Agentenstart, Planfreigabe und Merge sind davon getrennt. Zehn gezielte Service-, Koordinator- und UI-Tests, Typprüfung und Build bestanden lokal. Der sichtbare Electron-Test vergab das Recht über die Oberfläche und prüfte anschließend den Gast-Spaltenwechsel sowie Offline-Entwurf und Wiederverbindung. Ein früherer Versuch mit dauernder Mitglieder-Aktualisierung startete den absichtlich gestoppten Koordinator wieder; diese Aktualisierung wurde durch einen bewussten Knopf ersetzt und der vollständige sichtbare Ablauf bestand danach. Das Audit meldete sechs moderate transitive Funde und keine hohen oder kritischen. [Lokaler Ablauf](TEAM_LOCAL_PREVIEW.md).
+
 ## Queue bis zu einer Uhrzeit (lokaler Arbeitsstand)
 
-- Im Workflow-Bereich kann eine konkrete lokale Endzeit bis 24 Stunden gewählt werden. `arbeite bis 20 Uhr` im Projektgespräch öffnet bei vorhandener Route die gleiche Startprüfung. Der Hauptprozess bindet die genaue Endzeit an den geprüften Fingerabdruck und lehnt geänderte oder abgelaufene Fristen ab. Die bestehende Queue stoppt dann weitere Karten und Schritte, ohne einen laufenden Agentenprozess abzubrechen. Der Befehl startet nichts ohne den zweiten sichtbaren Klick. Gezielte Parser-, Hauptprozess- und Renderer-Tests bestanden lokal; vollständige Suite, Electron-Klickpfad und CI stehen noch aus.
+- Im Workflow-Bereich kann eine konkrete lokale Endzeit bis 24 Stunden gewählt werden. `arbeite bis 20 Uhr` im Projektgespräch öffnet bei vorhandener Route die gleiche Startprüfung. Der Hauptprozess bindet die genaue Endzeit an den geprüften Fingerabdruck und lehnt geänderte oder abgelaufene Fristen ab. Die bestehende Queue stoppt dann weitere Karten und Schritte, ohne einen laufenden Agentenprozess abzubrechen. Der Befehl startet nichts ohne den zweiten sichtbaren Klick. Gezielte Parser-, Hauptprozess- und Renderer-Tests, Typprüfung, Build und ein breiter Electron-Smoke bestanden. Die vollständige lokale Suite bestand mit 1.073 Tests und acht übersprungenen Tests; sie begann vor den nachfolgenden Team-UI-Änderungen. [Windows-CI 45848816160](https://github.com/mschr703/branchloom/actions/runs/45848816160) läuft für den Queue-Commit noch.
 
 ## Öffentliche Projektvorstellung
 

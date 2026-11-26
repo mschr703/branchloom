@@ -120,6 +120,8 @@ export interface StudioAPI {
   createLocalTeamWorkspace(input: { projectId: string; workspaceName: string; ownerName: string }): Promise<import('../main/team-local-service').HostedTeamWorkspace>;
   inviteTeamMember(input: { projectId: string; role: 'admin' | 'editor' | 'developer' | 'viewer' }): Promise<{ inviteSecret: string; coordinatorUrl: string; expiresAt: string }>;
   revokeTeamMember(input: { projectId: string; memberId: string }): Promise<import('../main/team-local-service').HostedTeamWorkspace>;
+  setTeamProjectAccess(input: { projectId: string; memberId: string; access: 'none' | 'read' | 'edit' | null }): Promise<import('../main/team-local-service').HostedTeamWorkspace>;
+  setTeamCapabilityGrant(input: { projectId: string; memberId: string; capability: import('../main/team-workspace').TeamCapability; grant: boolean }): Promise<import('../main/team-local-service').HostedTeamWorkspace>;
   teamConnections(): Promise<import('../main/team-connection-store').SavedTeamConnection[]>;
   pendingTeamJoin(): Promise<{ coordinatorUrl: string; displayName: string } | null>;
   joinTeam(input: { coordinatorUrl: string; inviteSecret: string; displayName: string }): Promise<import('../main/team-connection-store').SavedTeamConnection>;

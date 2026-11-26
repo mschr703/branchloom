@@ -19,6 +19,7 @@ export function TeamWorkspaceSettings({ projectId, onConnectionChange }: { proje
   const [inviteSecret, setInviteSecret] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [revokeCandidate, setRevokeCandidate] = useState<string | null>(null);
+  const [grantCandidate, setGrantCandidate] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -61,6 +62,14 @@ export function TeamWorkspaceSettings({ projectId, onConnectionChange }: { proje
     finally { setBusy(false); }
   }
 
+  async function refreshMembers() {
+    if (busy || !projectId) return;
+    setBusy(true); setError('');
+    try { setHosted(await window.studio.hostedTeamProject(projectId)); }
+    catch (reason) { setError(messageOf(reason)); }
+    finally { setBusy(false); }
+  }
+
   async function revoke(memberId: string) {
     if (busy || !projectId) return;
     setBusy(true); setError(''); setNotice('');
@@ -68,6 +77,27 @@ export function TeamWorkspaceSettings({ projectId, onConnectionChange }: { proje
       setHosted(await window.studio.revokeTeamMember({ projectId, memberId }));
       setNotice('Zugriff widerrufen. Neue Anfragen dieses Mitglieds werden abgewiesen.');
       setRevokeCandidate(null);
+    } catch (reason) { setError(messageOf(reason)); }
+    finally { setBusy(false); }
+  }
+
+  async function setProjectAccess(memberId: string, access: 'none' | 'read' | 'edit' | null) {
+    if (busy || !projectId) return;
+    setBusy(true); setError(''); setNotice('');
+    try {
+      setHosted(await window.studio.setTeamProjectAccess({ projectId, memberId, access }));
+      setNotice('Projektzugang aktualisiert. Neue Team-Anfragen verwenden die aktuellen Rechte.');
+    } catch (reason) { setError(messageOf(reason)); }
+    finally { setBusy(false); }
+  }
+
+  async function setTaskGrant(memberId: string, grant: boolean) {
+    if (busy || !projectId) return;
+    setBusy(true); setError(''); setNotice('');
+    try {
+      setHosted(await window.studio.setTeamCapabilityGrant({ projectId, memberId, capability: 'manage_task', grant }));
+      setGrantCandidate(null);
+      setNotice(grant ? 'Aufgabensteuerung für dieses Mitglied freigegeben.' : 'Zusätzliche Aufgabensteuerung entfernt.');
     } catch (reason) { setError(messageOf(reason)); }
     finally { setBusy(false); }
   }
@@ -117,13 +147,33 @@ export function TeamWorkspaceSettings({ projectId, onConnectionChange }: { proje
       <button type="submit" className="secondary-button" disabled={busy}>Auf diesem Gerät erstellen</button>
     </form> : null}
     {hosted ? <div className="team-workspace-hosted">
-      <div className="team-workspace-title"><strong>{hosted.name}</strong><span>{hosted.members.filter((member) => !member.revokedAt).length} Mitglieder · lokal erreichbar</span></div>
+      <div className="team-workspace-title"><strong>{hosted.name}</strong><span>{hosted.members.filter((member) => !member.revokedAt).length} Mitglieder · lokal erreichbar</span>
+        <button type="button" className="text-button" disabled={busy} onClick={() => void refreshMembers()}>Mitglieder aktualisieren</button></div>
       <ul className="team-workspace-members">{hosted.members.filter((member) => !member.revokedAt).map((member) => <li key={member.id}>
-        <span><strong>{member.displayName}</strong><small>{member.role}</small></span>
+        <div className="team-workspace-member-line"><span><strong>{member.displayName}</strong><small>{member.role}</small></span>
         {member.role !== 'owner' ? revokeCandidate === member.id ? <span className="team-workspace-confirm">
           <button type="button" disabled={busy} onClick={() => void revoke(member.id)}>Widerruf bestätigen</button>
           <button type="button" disabled={busy} onClick={() => setRevokeCandidate(null)}>Abbrechen</button>
-        </span> : <button type="button" className="text-button" disabled={busy} onClick={() => setRevokeCandidate(member.id)}>Zugriff widerrufen</button> : null}
+        </span> : <button type="button" className="text-button" disabled={busy} onClick={() => setRevokeCandidate(member.id)}>Zugriff widerrufen</button> : null}</div>
+        {member.role !== 'owner' ? <details className="team-workspace-member-rights"><summary>Projektrechte</summary>
+          <label>Projektzugang<select value={member.projectAccess ?? 'inherit'} disabled={busy} onChange={(event) => void setProjectAccess(member.id,
+            event.currentTarget.value === 'inherit' ? null : event.currentTarget.value as 'none' | 'read' | 'edit')}>
+            <option value="inherit">Teamrolle übernehmen</option><option value="read">Nur lesen</option>
+            {member.role !== 'viewer' ? <option value="edit">Teamrolle im Projekt nutzen</option> : null}
+            <option value="none">Kein Zugang</option>
+          </select></label>
+          <div className="team-workspace-extra-right"><strong>Aufgabensteuerung</strong>
+            <p>Erlaubt Priorität und Spaltenwechsel auf dem gemeinsamen Board. Agentenstart, Planfreigabe und Merge sind getrennte Rechte.</p>
+            {member.role === 'admin' ? <small>Bereits durch die Admin-Rolle erlaubt.</small>
+              : member.extraCapabilities.includes('manage_task')
+                ? <button type="button" className="text-button" disabled={busy} onClick={() => void setTaskGrant(member.id, false)}>Zusatzrecht entfernen</button>
+                : grantCandidate === member.id ? <span className="team-workspace-confirm">
+                  <button type="button" disabled={busy} onClick={() => void setTaskGrant(member.id, true)}>Aufgabensteuerung bestätigen</button>
+                  <button type="button" disabled={busy} onClick={() => setGrantCandidate(null)}>Abbrechen</button>
+                </span> : <button type="button" className="text-button" disabled={busy} onClick={() => setGrantCandidate(member.id)}>Aufgabensteuerung erlauben</button>}
+            {member.projectAccess === 'none' || member.projectAccess === 'read' ? <small>Dieses Zusatzrecht wirkt erst bei vollem Projektzugang.</small> : null}
+          </div>
+        </details> : null}
       </li>)}</ul>
       <div className="team-workspace-invite"><label>Rolle<select value={role} disabled={busy} onChange={(event) => setRole(event.currentTarget.value as InviteRole)}>
         <option value="editor">Mitglied · Entwürfe und Vorschläge</option><option value="developer">Entwicklung · Entwürfe</option>
