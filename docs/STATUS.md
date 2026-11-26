@@ -2,9 +2,9 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
-## Spalten-Startwerte während Queue-Lauf fixiert (Folgezweig, in Arbeit)
+## Spalten-Startwerte während Queue-Lauf fixiert (in main)
 
-- Verwendete Workflow-Spalten lassen während eines laufenden Queue-Starts keine Änderung von Agent, Modell, Effort oder Auto-Start zu. Das Einschalten eines neuen Auto-Starts in anderen oder neuen Spalten wird ebenfalls abgewiesen; Umbenennen und Änderungen an unbeteiligten Modellwerten bleiben möglich. Nach Pause können die Werte geändert und vor dem nächsten Start neu geprüft werden. 40 gezielte Backend-Tests, Typprüfung, Build und Public-Scan bestanden; das Audit meldete keine hohen Funde (sechs moderate). Windows-CI steht aus. [Ablauf](QUEUE.md).
+- Verwendete Workflow-Spalten lassen während eines laufenden Queue-Starts keine Änderung von Agent, Modell, Effort oder Auto-Start zu. Das Einschalten eines neuen Auto-Starts in anderen oder neuen Spalten wird ebenfalls abgewiesen; Umbenennen und Änderungen an unbeteiligten Modellwerten bleiben möglich. Nach Pause können die Werte geändert und vor dem nächsten Start neu geprüft werden. 40 gezielte Backend-Tests, 12 gezielte Spalten-/QA-Fix-Tests und die lokale Gesamtsuite mit 1.023 bestandenen und 8 übersprungenen Tests, Typprüfung, Build, Paketprüfung, Paket-Smoke und Public-Scan bestanden; das Audit meldete keine hohen Funde (sechs moderate). Die ersten Windows-Verify-Läufe scheiterten an einem veralteten Testaufbau, der Auto-Start erst nach Queue-Beginn aktivierte. Dieser Test wurde korrigiert und gezielt sowie in der Gesamtsuite erneut geprüft; die Windows-CI des korrigierten Stands steht noch aus. [Ablauf](QUEUE.md).
 
 ## Gespeicherter Diff-Review im Queue-Bericht (in main)
 
