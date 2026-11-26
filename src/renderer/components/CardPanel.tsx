@@ -336,7 +336,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
           <button className="text-button" type="button" disabled={worktreeBusy} onClick={() => void checkCleanup()}>Aufräumbarkeit prüfen</button>
         </div> : null}
         <ManualRevisionPanel key={`manual-${card.id}`} cardId={card.id} />
-        <IntegrationQueuePanel card={card} cards={snapshot.cards} onIntegrated={() => void reviewWorktree()} onOpenDiff={() => {
+        <IntegrationQueuePanel card={card} cards={snapshot.cards} queueState={snapshot.queue.state} onIntegrated={() => void reviewWorktree()} onOpenDiff={() => {
           setShowDiffReview(true);
           let attempts = 0;
           const scrollToDiff = () => {

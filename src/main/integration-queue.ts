@@ -72,6 +72,9 @@ export function setIntegrationPolicy(store: StudioStore, input: { projectId: str
   if (!input || typeof input.projectId !== 'string' || !['manual', 'automatic'].includes(input.mode))
     throw new Error('Invalid integration policy.');
   store.project(input.projectId);
+  if (input.mode === 'automatic' && integrationPolicy(store, input.projectId).mode !== 'automatic'
+    && store.projectQueue(input.projectId).state === 'running')
+    throw new Error('Pause the project queue before enabling automatic integration.');
   if (input.mode === 'automatic') {
     if (input.confirm !== true) throw new Error('Explicit automatic integration consent is required.');
     const script = store.db.prepare('SELECT script_name FROM integration_test_config WHERE project_id = ?')
