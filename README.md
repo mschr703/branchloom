@@ -25,13 +25,23 @@ Branchloom is an early Windows preview. The interface and detailed feature docs 
 | **Shape the UI** | Edit a card wireframe across desktop, tablet, and mobile artboards, with layers, properties, and explicit save and approval. A separate view inspects an explicitly opened local dev page and collects element, CSS, component, and token references. A saved wireframe reaches an agent only after separate approval. |
 | **Review and verify** | Inspect diffs, attach acceptance and QA evidence, run bounded browser checks against a local route, compare saved screenshots, and use the manual integration queue. A [screenshot review](docs/TEAM_REVIEW.md) can show the same saved image and point comments in two browser views, with an optional, explicitly started Tailscale link for a peer. Its Git checkout comparison flags a changed HEAD or dirty checkout; it does not identify the files served by the dev server. Evidence is shown with its source and limits. |
 | **Replay a UI bug** | Record a few clicks and viewport changes in a local card preview, set a visible or hidden element as the expected result, then explicitly replay the saved steps in an isolated check. [Scope and limits](docs/BUG_REPLAY.md). |
+| **Share a board view** | Create a separate, revocable read-only link for each guest in project settings. A local link opens on this computer; an optional Tailscale link lets a reachable peer see current columns, card titles and running-session signals in a browser. [Setup and limits](docs/TEAM_BOARD.md). |
 | **Control the run** | Review the queue's route, next tasks and rights before starting; a change to that review blocks the start until checked again. Pause a project or workflow at a checked boundary, review agent questions in the Decision Inbox, and inspect local activity and usage counts. An optional project queue setting defers blocked cards and continues with independent To-Do work. A selected 1, 4, or 8 hour window stops new queue work at its deadline without killing an active agent. Another opt-in setting checks each completed card's committed worktree with an approved npm script before claiming the next card. This setting alone does not merge or push; a separately enabled automatic integration policy can act when its own review and test checks pass. A local queue history links claimed cards to their workflows, last recorded sessions, saved diff reviews, and the start that ran an automatic npm test when that provenance was saved. Separate per-project settings can explicitly grant full access to new Codex workflow steps; this affects the CLI process, not Branchloom's review, integration, or push gates. The installed app offers a GitHub release update only after you choose **Update**. |
 
 During an active queue, the launch settings of agents and columns used by its route remain fixed until you pause the queue. New automatic column starts cannot be enabled mid-run.
 
-**Where it is going:** Branchloom is being built for small teams as well as solo work. Verified team identity and roles, synchronized boards, and coordinated parallel work are planned. Today's parallel agents and worktrees still run locally on one machine; the first screenshot review can be shared with a Tailscale peer, but shared team mode has not shipped.
+**Where it is going:** Branchloom is being built for small teams as well as solo work. Guests can now see a read-only board view and discuss a saved screenshot through separate links. Verified team identity and roles, synchronized editing, guest agents, and coordinated parallel work remain planned. Today's agents and worktrees still run locally on the host machine.
 
 ### A look inside
+
+<details>
+<summary>A guest board view</summary>
+
+![Read-only Branchloom board in a browser with synthetic cards](docs/assets/branchloom-team-board.png)
+
+This is an actual Electron browser view generated from synthetic project data. Each guest has an individual link that the host can revoke. [How sharing works](docs/TEAM_BOARD.md).
+
+</details>
 
 <details>
 <summary>Project Chat and an editable Canvas draft</summary>
@@ -97,7 +107,7 @@ The local **safe pause** blocks new project work and waits for active runs to fi
 
 Usage shows recorded runs and known duration, **not** estimated tokens or provider cost. A QA screenshot or Git HEAD is evidence of a bounded check, not proof that every interaction passed. [Activity and usage](docs/ACTIVITY.md) · [QA scope](docs/CARD_QA.md).
 
-Account-based team invitations, shared synchronization, and semantic Memory links are still open. The installed update path has been verified for 0.1.0 → 0.1.2 on a fresh Windows runner; other version pairs and code signing remain open. The [parity list](docs/PARITY.md) tracks these and other gaps.
+Account-based team invitations, shared editing and synchronization, and semantic Memory links are still open. The installed update path has been verified for 0.1.0 → 0.1.2 on a fresh Windows runner; other version pairs and code signing remain open. The [parity list](docs/PARITY.md) tracks these and other gaps.
 
 ## Documentation and contribution
 

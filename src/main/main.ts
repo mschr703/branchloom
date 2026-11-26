@@ -13,6 +13,8 @@ import { createDiagnosticCard } from './error-catcher';
 import { cardQaReports, cardQaScreenshot, runCardQa, runCardQaBatch } from './card-qa';
 import { closeTeamReviewRoom, createTeamReviewInvite, createTeamReviewRoom, resolveTeamReviewInvite, revokeTeamReviewInvite, teamReviewComments, teamReviewImage, teamReviewInvites, teamReviewRevision, teamReviewRooms } from './team-review';
 import { TeamReviewHttp } from './team-review-http';
+import { createTeamBoardInvite, resolveTeamBoardInvite, revokeTeamBoardInvite, teamBoardInvites } from './team-board';
+import { TeamBoardHttp } from './team-board-http';
 import { activeTailnetIPv4 } from './team-review-tailnet';
 import { bugScenarios, bugScenarioRuns, runBugScenario, saveBugScenario } from './bug-replay';
 import { qaCoverageRoutes, saveQaCoverageRoute, removeQaCoverageRoute, runQaCoverageCell } from './qa-coverage';
@@ -109,6 +111,9 @@ let store: StudioStore | null = null;
 let teamReviewHttp: TeamReviewHttp | null = null;
 let tailnetReviewHttp: TeamReviewHttp | null = null;
 let tailnetReviewIp: string | null = null;
+let teamBoardHttp: TeamBoardHttp | null = null;
+let tailnetBoardHttp: TeamBoardHttp | null = null;
+let tailnetBoardIp: string | null = null;
 let runner: SessionRunner | null = null;
 let commandRunner: CommandTerminalRunner | null = null;
 let devEnvironmentRunner: DevEnvironmentRunner | null = null;
@@ -773,6 +778,38 @@ function installIpc(): void {
     const listener = input.transport === 'local' ? teamReviewHttp : input.transport === 'tailnet' ? tailnetReviewHttp : null;
     if (!listener) throw new Error('Review listener is not running.');
     clipboard.writeText(listener.reviewUrl(input.secret));
+  });
+  bind('createTeamBoardInvite', async (input: Parameters<StudioAPI['createTeamBoardInvite']>[0]) => {
+    db.project(input.projectId);
+    let listener: TeamBoardHttp;
+    if (input.transport === 'local') {
+      teamBoardHttp ??= new TeamBoardHttp(db);
+      listener = teamBoardHttp;
+    } else if (input.transport === 'tailnet') {
+      const ip = await activeTailnetIPv4();
+      if (tailnetBoardIp && tailnetBoardIp !== ip) { tailnetBoardHttp?.close(); tailnetBoardHttp = null; }
+      tailnetBoardHttp ??= new TeamBoardHttp(db, ip);
+      tailnetBoardIp = ip;
+      listener = tailnetBoardHttp;
+    } else throw new Error('Choose a local or Tailscale board link.');
+    await listener.start();
+    const created = createTeamBoardInvite(db, input);
+    listener.allowSecret(created.secret);
+    return { ...created, url: listener.url(created.secret) };
+  });
+  bind('teamBoardInvites', (projectId: string) => teamBoardInvites(db, projectId));
+  bind('revokeTeamBoardInvite', (input: Parameters<StudioAPI['revokeTeamBoardInvite']>[0]) => revokeTeamBoardInvite(db, input));
+  bind('openTeamBoardInvite', async (input: Parameters<StudioAPI['openTeamBoardInvite']>[0]) => {
+    resolveTeamBoardInvite(db, input.secret);
+    const listener = input.transport === 'local' ? teamBoardHttp : input.transport === 'tailnet' ? tailnetBoardHttp : null;
+    if (!listener) throw new Error('Board listener is not running.');
+    await shell.openExternal(listener.url(input.secret));
+  });
+  bind('copyTeamBoardInvite', (input: Parameters<StudioAPI['copyTeamBoardInvite']>[0]) => {
+    resolveTeamBoardInvite(db, input.secret);
+    const listener = input.transport === 'local' ? teamBoardHttp : input.transport === 'tailnet' ? tailnetBoardHttp : null;
+    if (!listener) throw new Error('Board listener is not running.');
+    clipboard.writeText(listener.url(input.secret));
   });
   bind('qaCoverageRoutes', (projectId: string) => qaCoverageRoutes(db, projectId));
   bind('saveQaCoverageRoute', (input: Parameters<StudioAPI['saveQaCoverageRoute']>[0]) => saveQaCoverageRoute(db, input));
@@ -4182,7 +4219,7 @@ http.createServer((_request,response)=>{response.writeHead(200,{'Content-Type':'
               const check = button('Zielkonto prüfen');
               if (!check || check.disabled) throw new Error('F08 visible seed lookup is unavailable.');
               check.click();
-              for (let attempt = 0; attempt < 100 && !panel.textContent?.includes('Zielkonto fehlt'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              for (let attempt = 0; attempt < 100 && (!panel.textContent?.includes('Zielkonto fehlt') || !button('Jetzt anlegen') || button('Jetzt anlegen')?.disabled); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!panel.textContent?.includes('Zielkonto fehlt')) throw new Error('F08 visible seed lookup did not see the missing target.');
               const create = button('Jetzt anlegen');
               if (!create || create.disabled) throw new Error('F08 separate creation confirmation is missing.');
@@ -4598,6 +4635,11 @@ app.on('before-quit', () => {
   tailnetReviewHttp?.close();
   tailnetReviewHttp = null;
   tailnetReviewIp = null;
+  teamBoardHttp?.close();
+  teamBoardHttp = null;
+  tailnetBoardHttp?.close();
+  tailnetBoardHttp = null;
+  tailnetBoardIp = null;
   if (releaseStartTimer) clearTimeout(releaseStartTimer);
   if (releaseCheckTimer) clearInterval(releaseCheckTimer);
   if (integrationAutoTimer) clearInterval(integrationAutoTimer);

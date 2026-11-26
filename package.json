@@ -24,6 +24,7 @@
     "smoke:dev-accounts": "node scripts/smoke-dev-account-restart.mjs",
     "smoke:f17": "npm run build:main && electron scripts/smoke-bug-replay.cjs",
     "smoke:team-review": "npm run build:main && node scripts/run-team-review-smoke.cjs",
+    "smoke:team-board": "npm run build:main && node scripts/run-team-board-smoke.cjs",
     "smoke:team-review-tailnet": "npm run build:main && node scripts/run-team-review-smoke.cjs --tailnet",
     "smoke:package": "node scripts/smoke-electron.mjs --package",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",

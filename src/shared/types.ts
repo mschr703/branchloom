@@ -429,6 +429,11 @@ export interface StudioAPI {
   closeTeamReviewRoom(roomId: string): Promise<import('./team-review').TeamReviewRoom>;
   openTeamReviewInvite(input: { secret: string; transport: 'local' | 'tailnet' }): Promise<void>;
   copyTeamReviewInvite(input: { secret: string; transport: 'local' | 'tailnet' }): Promise<void>;
+  createTeamBoardInvite(input: { projectId: string; displayName: string; transport: 'local' | 'tailnet' }): Promise<{ invite: import('./team-board').TeamBoardInvite; secret: string; url: string }>;
+  teamBoardInvites(projectId: string): Promise<import('./team-board').TeamBoardInvite[]>;
+  revokeTeamBoardInvite(input: { projectId: string; inviteId: string }): Promise<import('./team-board').TeamBoardInvite>;
+  openTeamBoardInvite(input: { secret: string; transport: 'local' | 'tailnet' }): Promise<void>;
+  copyTeamBoardInvite(input: { secret: string; transport: 'local' | 'tailnet' }): Promise<void>;
   qaCoverageRoutes(projectId: string): Promise<import('./qa-coverage').QaCoverageRoute[]>;
   saveQaCoverageRoute(input: import('./qa-coverage').SaveQaCoverageRoute): Promise<import('./qa-coverage').QaCoverageRoute>;
   removeQaCoverageRoute(input: { projectId: string; routeId: string }): Promise<void>;

@@ -1,0 +1,15 @@
+.team-board-share{margin:0 0 26px;padding:18px 0 0;border-top:1px solid var(--border)}
+.team-board-share-heading{display:flex;justify-content:space-between;gap:18px;align-items:start}
+.team-board-share h3{margin:0 0 4px;color:var(--text);font-size:17px;font-weight:620}
+.team-board-share-heading p{margin:0;max-width:70ch;color:var(--muted);font-size:13px;line-height:1.5}
+.team-board-share-heading>span{flex:none;color:var(--muted);font-size:12px}
+.team-board-share-create{margin-top:18px}.team-board-share-create>label,.team-board-share-link>label{display:block;margin-bottom:7px;color:var(--text);font-size:13px;font-weight:590}
+.team-board-share-controls{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.team-board-share-controls input{width:min(240px,100%);min-height:36px}
+.team-board-share-link{margin-top:17px;padding:14px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.team-board-share-link input{display:block;width:min(700px,100%);font-size:12px;font-variant-numeric:tabular-nums}.team-board-share-link>div{display:flex;gap:8px;margin-top:9px}
+.team-board-share-invites{margin-top:19px}.team-board-share-invites h4{font-size:13px;color:var(--text);font-weight:600;margin:0 0 6px}
+.team-board-share-invites ul{list-style:none;padding:0;margin:0;max-width:700px}.team-board-share-invites li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)}
+.team-board-share-invites li>div{display:grid;gap:2px}.team-board-share-invites strong{font-size:13px;font-weight:590;color:var(--text)}.team-board-share-invites small{font-size:12px;color:var(--muted)}
+.team-board-share-footnote{margin:14px 0 0;color:var(--muted);font-size:12px;line-height:1.5;max-width:70ch}
+.team-board-share :is(input,button):focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+@media(max-width:620px){.team-board-share-heading{display:block}.team-board-share-heading>span{display:block;margin-top:8px}.team-board-share-controls{align-items:stretch}.team-board-share-controls input{width:100%}}
