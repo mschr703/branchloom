@@ -46,6 +46,7 @@ import { installAgentQuestions } from './agent-questions';
 import { installCardQa } from './card-qa';
 import { installTeamReview } from './team-review';
 import { installTeamBoard } from './team-board';
+import { installTeamWorkspaces } from './team-workspace';
 import { installBugReplay } from './bug-replay';
 import { installQaCoverage } from './qa-coverage';
 import { installQaFixCards } from './qa-fix-card';
@@ -189,6 +190,7 @@ export class StudioStore {
     installCardQa(this.db);
     installTeamReview(this.db);
     installTeamBoard(this.db);
+    installTeamWorkspaces(this.db);
     installBugReplay(this.db);
     installQaCoverage(this.db);
     installCardAcceptance(this.db);
