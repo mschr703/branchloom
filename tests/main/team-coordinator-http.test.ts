@@ -4,8 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { TeamCoordinatorHttp } from '../../src/main/team-coordinator-http';
-import { acceptTeamMemberInvite, createTeamMemberInvite, createTeamWorkspace, revokeTeamMember,
-  setTeamCapabilityGrant } from '../../src/main/team-workspace';
+import { createTeamWorkspace, revokeTeamMember, setTeamCapabilityGrant, type TeamMember } from '../../src/main/team-workspace';
 import { StudioStore } from '../../src/main/store';
 
 it('authenticates two separate HTTP clients, rejects stale writes, and survives coordinator restart', async () => {
@@ -18,12 +17,24 @@ it('authenticates two separate HTTP clients, rejects stale writes, and survives 
     const column = store.snapshot(project.id).columns[0]!;
     const card = store.createCard({ projectId: project.id, columnId: column.id, title: 'Synthetic task' });
     const owner = createTeamWorkspace(store.db, { workspaceName: 'Sample team', projectId: project.id, ownerName: 'Owner' });
-    const editor = acceptTeamMemberInvite(store.db,
-      createTeamMemberInvite(store.db, owner.credential, owner.workspaceId, 'editor').secret, 'Colleague');
-    const viewer = acceptTeamMemberInvite(store.db,
-      createTeamMemberInvite(store.db, owner.credential, owner.workspaceId, 'viewer').secret, 'Observer');
     coordinator = new TeamCoordinatorHttp(store);
     let base = await coordinator.start();
+    const invite = async (role: 'editor' | 'viewer', credential = owner.credential) => fetch(`${base}/v1/workspace/invitations`,
+      { method: 'POST', headers: { Authorization: `Bearer ${credential}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }) });
+    const accept = async (secret: string, displayName: string) => fetch(`${base}/v1/invitations/accept`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ secret, displayName }) });
+    const editorInvite = await invite('editor');
+    expect(editorInvite.status).toBe(201);
+    const editorSecret = (await editorInvite.json() as { secret: string }).secret;
+    const editorResponse = await accept(editorSecret, 'Colleague');
+    expect(editorResponse.status).toBe(201);
+    const editor = await editorResponse.json() as { member: TeamMember; credential: string };
+    expect((await accept(editorSecret, 'Duplicate')).status).toBe(400);
+    const viewerInvite = await invite('viewer');
+    const viewerResponse = await accept((await viewerInvite.json() as { secret: string }).secret, 'Observer');
+    const viewer = await viewerResponse.json() as { member: TeamMember; credential: string };
+    expect((await invite('editor', viewer.credential)).status).toBe(403);
     const getBoard = (key: string, projectId = project.id) => fetch(`${base}/v1/projects/${projectId}/board`,
       { headers: { Authorization: `Bearer ${key}` } });
     const getWorkspace = (key: string) => fetch(`${base}/v1/workspace`,

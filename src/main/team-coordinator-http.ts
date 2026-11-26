@@ -2,7 +2,8 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net';
 import type { StudioStore } from './store';
 import type { CardPriority } from '../shared/types';
-import { authenticateTeamMember, requireTeamProjectCapability, setTeamCardPriority } from './team-workspace';
+import { acceptTeamMemberInvite, authenticateTeamMember, createTeamMemberInvite,
+  requireTeamProjectCapability, setTeamCardPriority, type TeamRole } from './team-workspace';
 import { teamBoardSnapshot } from './team-board';
 
 const LOOPBACK = '127.0.0.1';
@@ -67,7 +68,19 @@ export class TeamCoordinatorHttp {
       // Native clients call the coordinator from their main process. No browser origin is authorized here.
       if (request.headers.origin) return reply(response, 403, { error: 'Origin is not permitted' });
       const path = new URL(request.url ?? '/', `http://${LOOPBACK}`).pathname;
+      if (request.method === 'POST' && path === '/v1/invitations/accept') {
+        const value = await body(request);
+        const accepted = acceptTeamMemberInvite(this.store.db, value.secret as string, value.displayName as string);
+        return reply(response, 201, accepted);
+      }
       const actorCredential = credential(request);
+      if (request.method === 'POST' && path === '/v1/workspace/invitations') {
+        const actor = authenticateTeamMember(this.store.db, actorCredential);
+        const value = await body(request);
+        const invite = createTeamMemberInvite(this.store.db, actorCredential, actor.workspaceId,
+          value.role as Exclude<TeamRole, 'owner'>);
+        return reply(response, 201, invite);
+      }
       if (request.method === 'GET' && path === '/v1/workspace') {
         const actor = authenticateTeamMember(this.store.db, actorCredential);
         const projects = this.store.db.prepare(`SELECT project.id, project.name FROM team_projects linked
@@ -99,7 +112,7 @@ export class TeamCoordinatorHttp {
         reply(response, 409, { error: 'Card changed. Reload before applying this team action.' });
       } else if (message === 'Unauthorized' || message === 'Team credential is unavailable.') {
         reply(response, 401, { error: 'Team credential is unavailable' });
-      } else if (message.includes('not permitted')) {
+      } else if (message.includes('not permitted') || message.includes('cannot invite')) {
         reply(response, 403, { error: 'Team action is not permitted' });
       } else if (message === 'Invalid request body' || error instanceof SyntaxError || message.startsWith('Invalid team card')) {
         reply(response, 400, { error: 'Invalid team command' });
