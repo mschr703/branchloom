@@ -17,7 +17,7 @@ const now = () => new Date().toISOString();
 interface TestRow {
   id: number; item_id: number; card_id: string; source_head: string; target_head: string; card_fingerprint: string;
   script_name: string; script_hash: string; state: IntegrationTestState; exit_code: number | null;
-  output_tail: string; started_at: string; ended_at: string | null; owner_pid: number | null;
+  output_tail: string; started_at: string; ended_at: string | null; owner_pid: number | null; queue_activation_id: string | null;
 }
 interface ReviewRow { card_id: string; source_head: string; target_head: string; card_fingerprint: string; reviewed_at: string }
 
@@ -115,7 +115,7 @@ export function integrationEvidence(store: StudioStore, cardId: string): Integra
     id: row.id, cardId, sourceHead: row.source_head, targetHead: row.target_head,
     cardFingerprint: row.card_fingerprint, scriptName: row.script_name, scriptHash: row.script_hash,
     state: row.state, exitCode: row.exit_code, outputTail: row.output_tail,
-    startedAt: row.started_at, endedAt: row.ended_at,
+    startedAt: row.started_at, endedAt: row.ended_at, queueActivationId: row.queue_activation_id,
     current: evidenceCurrent(store, row, cardId, config ?? undefined),
   };
   return { configuredScript: config, test,

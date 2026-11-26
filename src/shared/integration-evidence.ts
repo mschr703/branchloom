@@ -14,6 +14,7 @@ export interface IntegrationTestEvidence {
   startedAt: string;
   endedAt: string | null;
   current: boolean;
+  queueActivationId: string | null;
 }
 
 export interface IntegrationReviewEvidence {

@@ -2,6 +2,10 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Automatischen Queue-Test an Start binden (Folgezweig, in Arbeit)
+
+- Eine neue Queue-Aktivierung akzeptiert keinen automatischen npm-Testbeleg aus einem vorherigen Start als Freigabe der nächsten Karte. Ein bewusst nach der letzten Pause manuell neu ausgeführter Beleg bleibt bei aktuellem Git- und Skriptstand nutzbar. Der bestehende Testbeleg enthält die Startkennung; die Integrations-API gibt sie nun ebenfalls aus. Zwölf gezielte Queue-/Wiederaufnahme-Tests und der vollständige Pause→Test→Fortsetzen-Fall, Typprüfung, Build und Public-Scan bestanden. Audit ohne hohe Funde (sechs moderate); Windows-CI für den endgültigen Stand steht noch aus. [Ablauf](QUEUE.md).
+
 ## Agentenprofil während Queue-Lauf gebunden (Folgezweig, in Arbeit)
 
 - Eine laufende Queue sperrt Änderungen an Startbefehl, Argumenten, Modell und Aktivierungsstatus der Agentenprofile, die ihre Vorlage oder den aktiven Workflow ausführen. Das gilt auch zwischen Karten ohne laufende Sitzung und projektübergreifend für ein gemeinsam verwendetes Profil; eine reine Umbenennung ist erlaubt. Nach Pause kann das Profil geändert werden und der nächste bewusste Queue-Start prüft den neuen Stand. Zwölf gezielte Backend-Tests, Typprüfung, Build und Public-Scan bestanden; das Audit meldete keine hohen Funde (sechs moderate). Windows-CI steht noch aus. [Ablauf](QUEUE.md).

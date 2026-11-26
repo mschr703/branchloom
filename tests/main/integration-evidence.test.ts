@@ -74,6 +74,7 @@ describe('commit-bound integration evidence', () => {
       const receipt = integrationEvidence(store, card.id).test;
       expect(receipt).toMatchObject({ state: 'passed', current: true, sourceHead });
       const activation = queueResults(store, project.id).latestActivation;
+      expect(receipt?.queueActivationId).toBe(activation?.id);
       expect(store.db.prepare('SELECT queue_activation_id FROM integration_test_runs WHERE id = ?').get(receipt?.id))
         .toEqual({ queue_activation_id: activation?.id });
       expect(receipt?.scriptHash).toBe(npmScriptApprovalHash(repo, 'verify'));
@@ -89,6 +90,11 @@ describe('commit-bound integration evidence', () => {
       expect(store.activeSessionForProject(project.id)).toBeNull();
       store.db.prepare('UPDATE project_queues SET auto_test_script_hash = ? WHERE project_id = ?')
         .run(receipt?.scriptHash, project.id);
+      queue.setState({ projectId: project.id, state: 'running' });
+      expect(store.projectQueue(project.id).state).toBe('paused');
+      expect(store.activeSessionForProject(project.id)).toBeNull();
+      const manual = await runIntegrationTest(store, card.id);
+      expect(manual).toMatchObject({ state: 'passed', current: true, queueActivationId: null });
       queue.setState({ projectId: project.id, state: 'running' });
       expect(store.projectQueue(project.id).state).toBe('running');
       expect(store.activeSessionForProject(project.id)?.cardId).toBe(second.id);
@@ -133,6 +139,7 @@ describe('commit-bound integration evidence', () => {
       expect(test).toMatchObject({ state: 'passed', current: true, sourceHead, scriptName: 'verify', exitCode: 0 });
       expect(store.db.prepare('SELECT queue_activation_id FROM integration_test_runs WHERE id = ?').get(test.id))
         .toEqual({ queue_activation_id: null });
+      expect(test.queueActivationId).toBeNull();
       expect(test.outputTail).toContain('verified');
       expect(git(tree.path, ['status', '--porcelain'])).toBe('');
       expect(approveIntegration(store, { cardId: card.id, confirm: true }).state).toBe('integrated');
