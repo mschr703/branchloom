@@ -5,6 +5,7 @@ import type { DraftTurn } from '../../shared/task-draft';
 import type { ProjectChatReply, ProjectChatSuggestion } from '../../shared/project-chat';
 import type { ProjectMemoryHit } from '../../shared/project-memory-index';
 import { prepareChatCanvasNode } from '../project-chat-canvas';
+import { parseQueueDeadline } from '../../shared/queue-deadline';
 import './project-chat.css';
 
 interface Props {
@@ -13,11 +14,12 @@ interface Props {
   onOpenSession?: (sessionId: string) => void;
   onSaveTask?: (title: string, description: string) => Promise<void>;
   onSaveCanvas?: (title: string, description: string) => Promise<void>;
+  onQueueCommand?: (text: string) => void;
 }
 
 const kindName = { task: 'Aufgabe', conversation: 'Agentenlauf', commit: 'Commit', code: 'Code' } as const;
 
-export function ProjectChat({ snapshot, onOpenCard, onOpenSession, onSaveTask, onSaveCanvas }: Props) {
+export function ProjectChat({ snapshot, onOpenCard, onOpenSession, onSaveTask, onSaveCanvas, onQueueCommand }: Props) {
   const projectId = snapshot.project.id;
   const [turns, setTurns] = useState<DraftTurn[]>([]);
   const [message, setMessage] = useState('');
@@ -38,6 +40,14 @@ export function ProjectChat({ snapshot, onOpenCard, onOpenSession, onSaveTask, o
   async function ask(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy || !message.trim()) return;
+    if (onQueueCommand && /^(?:(?:hey[, ]*)?arbeite)\s+bis\b/i.test(message.trim())) {
+      try {
+        parseQueueDeadline(message.trim());
+        onQueueCommand(message.trim());
+        setMessage(''); setError('');
+      } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+      return;
+    }
     const next = [...turns.slice(-10), { role: 'user' as const, text: message.trim() }];
     while (next.length > 1 && next.reduce((size, turn) => size + turn.text.length, 0) > 16_000) next.shift();
     setBusy(true); setError(''); setSaved(false);
@@ -85,7 +95,7 @@ export function ProjectChat({ snapshot, onOpenCard, onOpenSession, onSaveTask, o
         <form className="project-chat-compose" onSubmit={(event) => void ask(event)}>
           <label htmlFor="project-chat-message">Deine Frage</label>
           <textarea id="project-chat-message" rows={3} maxLength={4_000} disabled={busy} value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Frag nach einem Arbeitsstand oder besprich den nächsten Schritt …" />
-          <div><small>Gespeicherte Karten, Agentenläufe, Commits und Codeauszüge · lesender Codex-Aufruf</small><button type="submit" className="primary-button" disabled={busy || !message.trim()}><Send size={15} aria-hidden="true" /> {busy ? 'Prüfe Quellen…' : 'Fragen'}</button></div>
+          <div><small>Projektfragen lesen Quellen. „Arbeite bis 20 Uhr“ öffnet die Queue-Freigabe.</small><button type="submit" className="primary-button" disabled={busy || !message.trim()}><Send size={15} aria-hidden="true" /> {busy ? 'Prüfe Quellen…' : 'Fragen'}</button></div>
         </form>
         {error ? <p className="inline-error" role="alert">{error}</p> : null}
       </div>

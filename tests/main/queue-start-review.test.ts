@@ -111,4 +111,21 @@ describe('reviewed project queue start', () => {
     expect(setState).not.toHaveBeenCalled();
     store.close();
   });
+
+  it('binds an exact deadline to the reviewed start and rejects a changed or expired one', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-26T15:00:00.000Z'));
+    const { store, project, template, engine, setState } = fixture();
+    const endAt = '2026-11-26T20:00:00.000Z';
+    const input = { projectId: project.id, state: 'running' as const, templateWorkflowId: template.id,
+      durationHours: 0 as const, endAt };
+    const preview = queueStartPreview(store, input);
+    expect(preview.endAt).toBe(endAt);
+    expect(() => startReviewedProjectQueue(store, engine, { ...input, endAt: '2026-11-26T21:00:00.000Z', reviewToken: preview.token })).toThrow('changed');
+    startReviewedProjectQueue(store, engine, { ...input, reviewToken: preview.token });
+    expect(setState.mock.calls[0]?.[0]).toMatchObject({ runUntil: endAt });
+    vi.setSystemTime(new Date('2026-11-26T20:00:00.000Z'));
+    expect(() => queueStartPreview(store, input)).toThrow('deadline');
+    store.close();
+  });
 });

@@ -14,11 +14,12 @@ export interface QueueStartReview {
   queueState: ProjectQueue['state'];
   pauseReason: string | null;
   durationHours: 0 | 1 | 4 | 8;
+  endAt: string | null;
   token: string;
 }
 
 export function queueStartReview(snapshot: ProjectSnapshot, templateId: string, candidates: Card[],
-  codex: ProjectCodexWorkflowAccess, integration: IntegrationPolicy, durationHours: 0 | 1 | 4 | 8, token = ''): QueueStartReview {
+  codex: ProjectCodexWorkflowAccess, integration: IntegrationPolicy, durationHours: 0 | 1 | 4 | 8, token = '', endAt: string | null = null): QueueStartReview {
   const route = snapshot.workflows.find((item) => item.id === templateId);
   if (!route) throw new Error('Die gewählte Route existiert nicht mehr. Wähle eine aktuelle Vorlage.');
   return {
@@ -39,6 +40,7 @@ export function queueStartReview(snapshot: ProjectSnapshot, templateId: string, 
     queueState: snapshot.queue.state,
     pauseReason: snapshot.queue.pauseReason,
     durationHours,
+    endAt,
     token,
   };
 }

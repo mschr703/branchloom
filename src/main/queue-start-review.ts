@@ -2,21 +2,26 @@ import { createHash } from 'node:crypto';
 import type { ProjectQueue } from '../shared/types';
 import { queueStartReview, type QueueStartReview } from '../shared/queue-start-review';
 import { integrationPolicy } from './integration-queue';
+import { validateQueueDeadline } from '../shared/queue-deadline';
 import { projectCodexWorkflowAccess } from './project-agent-rights';
 import type { ProjectQueueEngine } from './queue';
 import type { StudioStore } from './store';
 
-export function queueStartPreview(store: StudioStore, input: { projectId: string; templateWorkflowId: string; durationHours: 0 | 1 | 4 | 8 }): QueueStartReview {
+export function queueStartPreview(store: StudioStore, input: { projectId: string; templateWorkflowId: string; durationHours: 0 | 1 | 4 | 8; endAt?: string }): QueueStartReview {
   if (!input || typeof input.projectId !== 'string' || typeof input.templateWorkflowId !== 'string')
     throw new Error('Choose a project and workflow route before starting the queue.');
   if (![0, 1, 4, 8].includes(input.durationHours)) throw new Error('Choose a valid queue duration.');
+  if (input.endAt !== undefined) {
+    if (input.durationHours !== 0) throw new Error('Choose either a duration or an exact deadline.');
+    validateQueueDeadline(input.endAt);
+  }
   const snapshot = store.snapshot(input.projectId);
   const candidates = snapshot.queue.continueBlocked
     ? store.runnableQueueCandidates(input.projectId, 5)
     : store.queueCandidates(input.projectId, 5);
   const codex = projectCodexWorkflowAccess(store, input.projectId);
   const integration = integrationPolicy(store, input.projectId);
-  const review = queueStartReview(snapshot, input.templateWorkflowId, candidates, codex, integration, input.durationHours);
+  const review = queueStartReview(snapshot, input.templateWorkflowId, candidates, codex, integration, input.durationHours, '', input.endAt ?? null);
   const dependencies = store.db.prepare(`SELECT d.child_card_id, d.prerequisite_card_id, d.created_at
     FROM card_run_dependencies d JOIN cards c ON c.id = d.child_card_id
     WHERE c.project_id = ? ORDER BY d.child_card_id, d.prerequisite_card_id`).all(input.projectId);
@@ -37,18 +42,22 @@ export function queueStartPreview(store: StudioStore, input: { projectId: string
 /** Compare and start synchronously in one main-process event turn; a changed review never claims a card. */
 export function startReviewedProjectQueue(store: StudioStore, engine: ProjectQueueEngine,
   input: { projectId: string; state: ProjectQueue['state']; templateWorkflowId?: string; runUntil?: string | null;
-    durationHours?: 0 | 1 | 4 | 8; reviewToken?: string }): ProjectQueue {
+    durationHours?: 0 | 1 | 4 | 8; endAt?: string; reviewToken?: string }): ProjectQueue {
   if (!input || typeof input.projectId !== 'string') throw new Error('Choose a project before changing its queue.');
   if (input.state !== 'running') return engine.setState(input);
   if (typeof input.reviewToken !== 'string' || !/^[0-9a-f]{64}$/.test(input.reviewToken) || !input.templateWorkflowId)
     throw new Error('Open the current queue start review before starting.');
   if (input.runUntil !== undefined) throw new Error('Queue duration must come from the reviewed start options.');
   if (![0, 1, 4, 8].includes(input.durationHours as number)) throw new Error('Choose a valid queue duration.');
+  if (input.endAt !== undefined) {
+    if (input.durationHours !== 0) throw new Error('Choose either a duration or an exact deadline.');
+    validateQueueDeadline(input.endAt);
+  }
   const current = queueStartPreview(store, { projectId: input.projectId, templateWorkflowId: input.templateWorkflowId,
-    durationHours: input.durationHours! });
+    durationHours: input.durationHours!, endAt: input.endAt });
   if (current.token !== input.reviewToken)
     throw new Error('Project, route or queue settings changed. Reload the start review before starting.');
   if (current.queueState === 'running') throw new Error('The queue is already running. Pause it before reviewing a new start.');
-  const runUntil = input.durationHours ? new Date(Date.now() + input.durationHours * 60 * 60 * 1_000).toISOString() : null;
+  const runUntil = input.endAt ?? (input.durationHours ? new Date(Date.now() + input.durationHours * 60 * 60 * 1_000).toISOString() : null);
   return engine.setState({ projectId: input.projectId, state: 'running', templateWorkflowId: input.templateWorkflowId, runUntil });
 }

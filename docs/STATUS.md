@@ -2,6 +2,10 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Queue bis zu einer Uhrzeit (lokaler Arbeitsstand)
+
+- Im Workflow-Bereich kann eine konkrete lokale Endzeit bis 24 Stunden gewählt werden. `arbeite bis 20 Uhr` im Projektgespräch öffnet bei vorhandener Route die gleiche Startprüfung. Der Hauptprozess bindet die genaue Endzeit an den geprüften Fingerabdruck und lehnt geänderte oder abgelaufene Fristen ab. Die bestehende Queue stoppt dann weitere Karten und Schritte, ohne einen laufenden Agentenprozess abzubrechen. Der Befehl startet nichts ohne den zweiten sichtbaren Klick. Gezielte Parser-, Hauptprozess- und Renderer-Tests bestanden lokal; vollständige Suite, Electron-Klickpfad und CI stehen noch aus.
+
 ## Öffentliche Projektvorstellung
 
 - Die README beschreibt jetzt den Nutzerweg von Idee über lokale Agentenarbeit bis zur Prüfung und nennt die lokale Team-Vorschau ausdrücklich als Vorschau. Neue Bilder von Board, Team-Workspace und Whiteboard stammen aus synthetischen Electron-Profilen mit aktuellem hellem Standarddesign; alte dunkle Aufnahmen werden in der README nicht mehr gezeigt. Der Team-Bildpfad und der Whiteboard-Bildpfad wurden mit ihren sichtbaren Smoke-Abläufen geprüft. Das Bild des Team-Workspaces zeigt einen Owner und einen zweiten authentifizierten lokalen Client, keine Geräteverbindung über das Netzwerk.

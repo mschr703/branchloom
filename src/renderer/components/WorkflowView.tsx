@@ -9,10 +9,11 @@ import { WorkflowRunEvidencePanel } from './WorkflowRunEvidencePanel';
 import { WorkflowStepHaltpointControl } from './WorkflowStepHaltpointControl';
 import { QueueResultsPanel } from './QueueResultsPanel';
 import { QueueStartPreview } from './QueueStartPreview';
+import { parseQueueDeadline } from '../../shared/queue-deadline';
 import '../queue-preview.css';
 import './workflow-workbench.css';
 
-interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openWorkflow?: { id: string; token: number } | null; openPlan?: { id: string; token: number } | null; onOpenCard?: (cardId: string) => void; onOpenSession?: (sessionId: string) => void }
+interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openWorkflow?: { id: string; token: number } | null; openPlan?: { id: string; token: number } | null; queueCommand?: { text: string; token: number } | null; onQueueCommandHandled?: () => void; onOpenCard?: (cardId: string) => void; onOpenSession?: (sessionId: string) => void }
 
 export function workflowPauseCopy(reason: Workflow['pauseReason']): { description: string; action: string } {
   if (reason === 'haltpoint') return { description: 'Der gewählte Haltepunkt wurde nach dem abgeschlossenen Schritt erreicht. Der nächste Schritt wartet auf deine Fortsetzung.', action: 'Nach Haltepunkt fortsetzen' };
@@ -74,7 +75,7 @@ export function stepsFromForm(
   }));
 }
 
-export function WorkflowView({ snapshot, mutate, openWorkflow, openPlan, onOpenCard, onOpenSession }: Props) {
+export function WorkflowView({ snapshot, mutate, openWorkflow, openPlan, queueCommand, onQueueCommandHandled, onOpenCard, onOpenSession }: Props) {
   const columns = useMemo(() => [...snapshot.columns].sort((a, b) => a.position - b.position), [snapshot.columns]);
   const hasTodoColumn = columns.some((column) => column.name.trim().toLocaleLowerCase('de-DE') === 'to do');
   const [showForm, setShowForm] = useState(false);
@@ -90,7 +91,9 @@ export function WorkflowView({ snapshot, mutate, openWorkflow, openPlan, onOpenC
   const [effortByColumn, setEffortByColumn] = useState<Record<string, string>>({});
   const [queueTemplateId, setQueueTemplateId] = useState(snapshot.queue.templateWorkflowId ?? '');
   const [queueHours, setQueueHours] = useState(0);
-  const [queueStartRequest, setQueueStartRequest] = useState<{ projectId: string; templateId: string; hours: number } | null>(null);
+  const [queueUntilText, setQueueUntilText] = useState('');
+  const [queueUntilError, setQueueUntilError] = useState('');
+  const [queueStartRequest, setQueueStartRequest] = useState<{ projectId: string; templateId: string; hours: number; endAt?: string } | null>(null);
   const [skipWorkflowId, setSkipWorkflowId] = useState<string | null>(null);
   const [skipReason, setSkipReason] = useState('');
   const [deleteWorkflowId, setDeleteWorkflowId] = useState<string | null>(null);
@@ -102,8 +105,26 @@ export function WorkflowView({ snapshot, mutate, openWorkflow, openPlan, onOpenC
   const deleteWorkflow = snapshot.workflows.find((item) => item.id === deleteWorkflowId);
 
   useEffect(() => { setQueueTemplateId(snapshot.queue.templateWorkflowId ?? ''); }, [snapshot.project.id, snapshot.queue.templateWorkflowId]);
-  useEffect(() => { setSkipWorkflowId(null); setSkipReason(''); setDeleteWorkflowId(null); setShowForm(false); setEditingWorkflowId(null); setQueueHours(0); setQueueStartRequest(null); }, [snapshot.project.id]);
+  useEffect(() => { setSkipWorkflowId(null); setSkipReason(''); setDeleteWorkflowId(null); setShowForm(false); setEditingWorkflowId(null); setQueueHours(0); setQueueUntilText(''); setQueueUntilError(''); setQueueStartRequest(null); }, [snapshot.project.id]);
   const closeQueueStart = useCallback(() => setQueueStartRequest(null), []);
+  useEffect(() => {
+    if (!queueCommand) return;
+    try {
+      const endAt = parseQueueDeadline(queueCommand.text);
+      setQueueHours(-1); setQueueUntilText(queueCommand.text); setQueueUntilError('');
+      if (queueTemplateId && hasTodoColumn && snapshot.queue.state !== 'running')
+        setQueueStartRequest({ projectId: snapshot.project.id, templateId: queueTemplateId, hours: 0, endAt });
+      else setQueueUntilError(snapshot.queue.state === 'running' ? 'Die Queue läuft bereits.' : 'Wähle zuerst eine Workflow-Route und starte danach den geprüften Lauf.');
+    } catch (reason) { setQueueUntilError(reason instanceof Error ? reason.message : String(reason)); }
+    onQueueCommandHandled?.();
+  }, [queueCommand?.token]);
+  function openQueueStart() {
+    try {
+      const endAt = queueHours === -1 ? parseQueueDeadline(queueUntilText) : undefined;
+      setQueueUntilError('');
+      setQueueStartRequest({ projectId: snapshot.project.id, templateId: queueTemplateId, hours: endAt ? 0 : queueHours, endAt });
+    } catch (reason) { setQueueUntilError(reason instanceof Error ? reason.message : String(reason)); }
+  }
   useEffect(() => {
     let active = true;
     const projectId = snapshot.project.id;
@@ -192,7 +213,9 @@ export function WorkflowView({ snapshot, mutate, openWorkflow, openPlan, onOpenC
     <section className="workflow-card" aria-label="Automatische Warteschlange">
       <div className="workflow-card-top"><div><h3>Automatische Warteschlange</h3><p>Wähle eine gespeicherte Route. Branchloom nimmt dann freie To-Do-Karten nacheinander auf; du kannst jederzeit pausieren.</p></div><span className={`state-badge ${snapshot.queue.state === 'off' ? 'draft' : snapshot.queue.state}`}>{snapshot.queue.state === 'running' ? 'Aktiv' : snapshot.queue.state === 'paused' ? 'Pausiert' : 'Aus'}</span></div>
       <label className="field-label">Workflow-Route<select value={queueTemplateId} disabled={snapshot.queue.state === 'running' || Boolean(snapshot.queue.activeWorkflowId)} onChange={(event) => setQueueTemplateId(event.target.value)}><option value="">Route wählen</option>{snapshot.workflows.filter((workflow) => workflow.id !== snapshot.queue.activeWorkflowId).map((workflow) => <option key={workflow.id} value={workflow.id}>{workflow.name}</option>)}</select></label>
-      <label className="field-label">Automatisch anhalten nach<select value={queueHours} disabled={snapshot.queue.state === 'running'} onChange={(event) => setQueueHours(Number(event.target.value))}><option value={0}>Ohne Zeitlimit</option><option value={1}>1 Stunde</option><option value={4}>4 Stunden</option><option value={8}>8 Stunden</option></select></label>
+      <label className="field-label">Automatisch anhalten nach<select value={queueHours} disabled={snapshot.queue.state === 'running'} onChange={(event) => { setQueueHours(Number(event.target.value)); setQueueUntilError(''); }}><option value={0}>Ohne Zeitlimit</option><option value={1}>1 Stunde</option><option value={4}>4 Stunden</option><option value={8}>8 Stunden</option><option value={-1}>Uhrzeit festlegen</option></select></label>
+      {queueHours === -1 && snapshot.queue.state !== 'running' ? <label className="field-label">Bis wann?<input value={queueUntilText} onChange={(event) => { setQueueUntilText(event.target.value); setQueueUntilError(''); }} placeholder="bis 20 Uhr · bis morgen 08:30 Uhr" aria-describedby="queue-until-help" /><small id="queue-until-help">Die nächste passende Uhrzeit innerhalb von 24 Stunden. Den konkreten Zeitpunkt siehst du vor dem Start.</small></label> : null}
+      {queueUntilError ? <p className="inline-error" role="alert">{queueUntilError}</p> : null}
       {snapshot.queue.state === 'running' ? <p className="section-copy" role="status">{snapshot.queue.runUntil ? `Keine neuen Karten nach ${new Date(snapshot.queue.runUntil).toLocaleString('de-DE')}.` : 'Für diesen Lauf ist keine Endzeit gesetzt.'} Ein bereits gestarteter Agent wird zur Endzeit nicht abgebrochen.</p> : <p className="section-copy">Die gewählte Dauer beginnt mit jedem bewussten Start oder Fortsetzen erneut. Nach Ablauf bleiben Karten und Agentenverlauf erhalten; laufende Schritte werden nicht abgebrochen.</p>}
       <label className="queue-policy"><input type="checkbox" checked={snapshot.queue.continueBlocked === true} disabled={snapshot.queue.state === 'running'} onChange={(event) => { const enabled = event.currentTarget.checked; void mutate(() => window.studio.setQueueContinueBlocked({ projectId: snapshot.project.id, enabled })); }} /><span>Bei blockierten Karten mit anderen Aufgaben weitermachen</span></label>
       <label className="queue-policy"><input type="checkbox" checked={snapshot.queue.autoResumeIdle === true} disabled={snapshot.queue.state === 'running'} onChange={(event) => { const enabled = event.currentTarget.checked; void mutate(() => window.studio.setQueueAutoResumeIdle({ projectId: snapshot.project.id, enabled })); }} /><span>Ruhende Queue nach Netzrückkehr fortsetzen</span></label>
@@ -205,7 +228,7 @@ export function WorkflowView({ snapshot, mutate, openWorkflow, openPlan, onOpenC
       {snapshot.queue.activeWorkflowId ? <p className="section-copy">Aktiver Ablauf: <a href={`#workflow-${snapshot.queue.activeWorkflowId}`}>{snapshot.workflows.find((workflow) => workflow.id === snapshot.queue.activeWorkflowId)?.name ?? 'Workflow öffnen'}</a>. Nach Unterbrechung den Ablauf prüfen und ausdrücklich fortsetzen.</p> : null}
       {snapshot.queue.pauseReason ? <p className="inline-note" role="status">{snapshot.queue.pauseReason}</p> : null}
       <div className="workflow-actions"><span>{snapshot.queue.state === 'running' ? 'Aktiv oder wartet auf neue To-Do-Karten.' : snapshot.queue.state === 'paused' ? 'Neue Karten starten erst nach Fortsetzung.' : 'Neue Karten starten nicht automatisch.'}</span>
-        {snapshot.queue.state !== 'running' ? <button className="primary-button small" type="button" disabled={!queueTemplateId || !hasTodoColumn} onClick={() => setQueueStartRequest({ projectId: snapshot.project.id, templateId: queueTemplateId, hours: queueHours })}><Play size={14} /> {snapshot.queue.state === 'paused' ? 'Queue fortsetzen' : 'Queue aktivieren'}</button> : <button className="secondary-button small" type="button" onClick={() => void mutate(() => window.studio.setProjectQueue({ projectId: snapshot.project.id, state: 'paused' }))}><Pause size={14} /> Queue pausieren</button>}
+        {snapshot.queue.state !== 'running' ? <button className="primary-button small" type="button" disabled={!queueTemplateId || !hasTodoColumn} onClick={openQueueStart}><Play size={14} /> {snapshot.queue.state === 'paused' ? 'Queue fortsetzen' : 'Queue aktivieren'}</button> : <button className="secondary-button small" type="button" onClick={() => void mutate(() => window.studio.setProjectQueue({ projectId: snapshot.project.id, state: 'paused' }))}><Pause size={14} /> Queue pausieren</button>}
         {snapshot.queue.state !== 'off' ? <button className="secondary-button small" type="button" onClick={() => void mutate(() => window.studio.setProjectQueue({ projectId: snapshot.project.id, state: 'off' }))}>Ausschalten</button> : null}
       </div>
       {snapshot.queue.state !== 'running' && snapshot.queue.activeWorkflowId && snapshot.workflows.find((item) => item.id === snapshot.queue.activeWorkflowId)?.state === 'paused' ? <div className="workflow-actions"><span>Wenn diese Karte blockiert bleibt, kannst du sie mit Begründung überspringen. Der Verlauf bleibt erhalten. Die nächste Karte startet erst nach ausdrücklichem Aktivieren der Queue.</span><button className="secondary-button small" type="button" onClick={() => setSkipWorkflowId(snapshot.queue.activeWorkflowId)}>Aktive Karte überspringen</button></div> : null}

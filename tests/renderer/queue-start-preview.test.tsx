@@ -173,4 +173,30 @@ describe('queue start preview', () => {
     await act(async () => button('Queue starten').click());
     expect(start).toHaveBeenCalledOnce();
   });
+
+  it('opens the exact-deadline review from a project-chat command without starting the queue', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 26, 15));
+    const todo = { ...snapshot.columns[0]!, id: 'todo', name: 'To Do', position: -1 };
+    const board = { ...snapshot, columns: [todo, ...snapshot.columns], cards: [{ ...candidate, columnId: 'todo' }] };
+    const start = vi.fn(async () => snapshot.queue);
+    const preview = vi.fn(async (input: { endAt?: string }) => queueStartReview(board, route.id, board.cards,
+      { projectId: 'project', mode: 'workspace' }, { projectId: 'project', mode: 'manual', updatedAt: null }, 0,
+      'synthetic-token', input.endAt));
+    vi.stubGlobal('studio', { queueCandidates: vi.fn(async () => board.cards), queueResults: vi.fn(async () => ({
+      projectId: 'project', total: 0, truncated: false, counts: { done: 0, 'needs-attention': 0, running: 0, skipped: 0, pending: 0 },
+      items: [], latestActivation: null, latestItems: [], latestTruncated: false })), queueStartPreview: preview,
+      setProjectQueue: start, workflowAgentSettings: vi.fn(async () => ({ agentId: null, model: null, effort: null })),
+      detectAgents: vi.fn(async () => []), reviewedPlans: vi.fn(async () => []), reviewRules: vi.fn(async () => []) });
+    host = document.createElement('div'); document.body.append(host);
+    root = createRoot(host);
+    const handled = vi.fn();
+    await act(async () => root?.render(<WorkflowView snapshot={board} mutate={async <T,>(action: () => Promise<T>) => action()}
+      queueCommand={{ text: 'arbeite bis 20 Uhr', token: 1 }} onQueueCommandHandled={handled} />));
+    expect(handled).toHaveBeenCalledOnce();
+    expect(host?.textContent).toContain('Projektlauf prüfen');
+    expect(host?.textContent).toContain('20:00');
+    expect(preview.mock.calls[0]?.[0]?.endAt).toBeTruthy();
+    expect(start).not.toHaveBeenCalled();
+  });
 });

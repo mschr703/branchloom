@@ -67,6 +67,7 @@ export function App() {
   const [pendingGlobalItem, setPendingGlobalItem] = useState<GlobalInboxItem | null>(null);
   const decisionIndicator = useDecisionInboxIndicator(projectId);
   const [queueNavigationToken, setQueueNavigationToken] = useState(0);
+  const [queueCommand, setQueueCommand] = useState<{ text: string; token: number } | null>(null);
   const [theme, setTheme] = useState<ThemePreference>(currentTheme);
   const [projectRadar, setProjectRadar] = useState<ProjectConflictRadarResult | null>(null);
   const [projectRadarBusy, setProjectRadarBusy] = useState(false);
@@ -391,7 +392,7 @@ export function App() {
         {view === 'activity' ? <ActivityView snapshot={snapshot} openSession={navigationTarget?.kind === 'session' ? navigationTarget : null} onSessionClosed={() => setNavigationTarget((old) => old?.kind === 'session' ? null : old)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onSaveSessionAsNote={saveSessionAsNote} /> : null}
         {view === 'changelog' ? <ChangelogView key={snapshot.project.id} projectId={snapshot.project.id}
           onOpenCard={(id) => navigateToEntity('card', id)} onOpenQaReport={navigateToQaReport} /> : null}
-        {view === 'workflows' ? <WorkflowView snapshot={snapshot} mutate={mutate} openWorkflow={navigationTarget?.kind === 'workflow' ? navigationTarget : null} openPlan={openPlan} onOpenCard={(id) => navigateToEntity('card', id)} onOpenSession={(id) => void openSessionFromMemory(id)} /> : null}
+        {view === 'workflows' ? <WorkflowView snapshot={snapshot} mutate={mutate} openWorkflow={navigationTarget?.kind === 'workflow' ? navigationTarget : null} openPlan={openPlan} queueCommand={queueCommand} onQueueCommandHandled={() => setQueueCommand(null)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenSession={(id) => void openSessionFromMemory(id)} /> : null}
         {view === 'decisions' ? <DecisionInbox snapshot={snapshot} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onOpenQueue={navigateToQueue} onOpenSession={(id) => void openSessionFromMemory(id)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenDiffComment={navigateToDiffComment} onOpenQaReport={navigateToQaReport} onOpenPlan={(id) => { setOpenPlan((old) => ({ id, token: (old?.token ?? 0) + 1 })); setView('workflows'); }} onAcknowledgeSession={(id) => void acknowledgeInterruptedSession(id)} onOpenGlobalItem={openGlobalItem} /> : null}
         {view === 'whiteboard' ? <WhiteboardView snapshot={snapshot} mutate={mutate} openNodeId={whiteboardOpenNodeId} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
         {view === 'memory' ? <MemoryView snapshot={snapshot} mutate={mutate} openNote={navigationTarget?.kind === 'note' ? navigationTarget : null} onOpenSession={(id) => void openSessionFromMemory(id)} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
@@ -404,7 +405,7 @@ export function App() {
       </div>}
       {snapshot?.project.id === projectId ? <div className={`project-chat-host ${view === 'chat' ? 'page' : 'dock'}`} hidden={view !== 'chat' && !chatDockOpen}>
         {view !== 'chat' && chatDockOpen ? <button type="button" className="project-chat-close icon-button" aria-label="Projektgespräch schließen" title="Projektgespräch schließen" onClick={() => setChatDockOpen(false)}><X size={17} aria-hidden="true" /></button> : null}
-        <Suspense fallback={<div className="content-message" role="status">Projektgespräch wird geladen…</div>}><ProjectChat key={snapshot.project.id} snapshot={snapshot} onOpenCard={(id) => { setChatDockOpen(false); navigateToEntity('card', id); }} onOpenSession={(id) => { setChatDockOpen(false); void openSessionFromMemory(id); }} onSaveTask={async (title, description) => {
+        <Suspense fallback={<div className="content-message" role="status">Projektgespräch wird geladen…</div>}><ProjectChat key={snapshot.project.id} snapshot={snapshot} onOpenCard={(id) => { setChatDockOpen(false); navigateToEntity('card', id); }} onOpenSession={(id) => { setChatDockOpen(false); void openSessionFromMemory(id); }} onQueueCommand={(text) => { setQueueCommand((old) => ({ text, token: (old?.token ?? 0) + 1 })); setChatDockOpen(false); setView('workflows'); setQueueNavigationToken((value) => value + 1); }} onSaveTask={async (title, description) => {
           const column = snapshot.columns.find((item) => item.name.trim().toLocaleLowerCase() === 'to do') ?? snapshot.columns[0];
           if (!column) throw new Error('Dieses Projekt hat keine Boardspalte.');
           const card = await window.studio.createCard({ projectId: snapshot.project.id, columnId: column.id, title, description });
