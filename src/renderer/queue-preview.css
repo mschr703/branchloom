@@ -1,5 +1,9 @@
-.queue-preview{margin:16px 0;padding:13px 15px;border:1px solid #365466;border-radius:10px;background:#132536}
-.queue-preview>strong{display:block;color:#c7e5df;font-size:12px;margin-bottom:9px}
-.queue-preview ol{margin:0 0 12px;padding-left:23px;color:#b5d5d0;font-size:12px;line-height:1.6}
+.queue-preview{margin:16px 0 8px;padding:13px 0 0;border-top:1px solid var(--border)}
+.queue-preview>strong{display:block;color:var(--text);font-size:13px;margin-bottom:9px}
+.queue-preview ol{margin:0 0 12px;padding-left:23px;color:var(--muted);font-size:13px;line-height:1.6}
 .queue-preview li{padding:2px 0;overflow-wrap:anywhere}
 .queue-preview .section-copy{margin:0}
+.queue-policy{display:flex;align-items:center;gap:9px;margin:12px 0 6px;font-size:13px;color:var(--text);cursor:pointer}
+.queue-policy input{width:16px;height:16px;margin:0;accent-color:var(--accent);flex:none}
+.queue-policy input:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.queue-policy:has(input:disabled){cursor:default;opacity:.65}

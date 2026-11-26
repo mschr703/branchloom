@@ -469,8 +469,16 @@ function installIpc(): void {
   bind('sessionRecovery', (sessionId: string) => recoveryMonitor?.state(sessionId));
   bind('cardRunGate', (cardId: string) => cardRunGate(db, cardId));
   bind('setProjectRunCapacity', (input: Parameters<StudioAPI['setProjectRunCapacity']>[0]) => setProjectRunCapacity(db, input));
-  bind('setCardRunDependencies', (input: Parameters<StudioAPI['setCardRunDependencies']>[0]) => setCardRunDependencies(db, input));
-  bind('approveCardDependency', (input: Parameters<StudioAPI['approveCardDependency']>[0]) => approveCardDependency(db, input));
+  bind('setCardRunDependencies', (input: Parameters<StudioAPI['setCardRunDependencies']>[0]) => {
+    const gate = setCardRunDependencies(db, input);
+    queueEngine.onBoardChanged(gate.projectId);
+    return gate;
+  });
+  bind('approveCardDependency', (input: Parameters<StudioAPI['approveCardDependency']>[0]) => {
+    const gate = approveCardDependency(db, input);
+    queueEngine.onBoardChanged(gate.projectId);
+    return gate;
+  });
   bind('saveAgent', (input: Omit<AgentPreset, 'id'> & { id?: string }) => db.saveAgent(input));
   bind('startSession', (input: { cardId: string; agentId?: string; prompt?: string; useWorktree?: boolean }) => runner?.start(input));
   bind('resumeCodexSession', (input: { sessionId: string; picker?: boolean }) => runner?.resumeCodex(input));
@@ -514,6 +522,14 @@ function installIpc(): void {
     return projectId;
   });
   bind('setWorkflowState', (input: Parameters<StudioAPI['setWorkflowState']>[0]) => {
+    if (input.state === 'paused') {
+      const before = db.workflow(input.id);
+      const queue = db.projectQueue(before.projectId);
+      if (queue.state === 'running' && queue.activeWorkflowId === before.id) {
+        queueEngine.setState({ projectId: before.projectId, state: 'paused' });
+        return db.workflow(before.id);
+      }
+    }
     const workflow = workflowEngine.setState(input);
     queueEngine.onBoardChanged(workflow.projectId);
     return workflow;
@@ -521,12 +537,14 @@ function installIpc(): void {
   bind('setWorkflowStepHaltpoint', (input: Parameters<StudioAPI['setWorkflowStepHaltpoint']>[0]) => workflowEngine.setStepHaltpoint(input));
   bind('workflowRunEvidence', (input: Parameters<StudioAPI['workflowRunEvidence']>[0]) => workflowRunEvidence(db, input));
   bind('setProjectQueue', (input: { projectId: string; state: QueueState; templateWorkflowId?: string }) => queueEngine.setState(input));
+  bind('setQueueContinueBlocked', (input: Parameters<StudioAPI['setQueueContinueBlocked']>[0]) => db.setQueueContinueBlocked(input));
   bind('setProjectRunPause', (input: Parameters<StudioAPI['setProjectRunPause']>[0]) => {
     const state = setProjectRunPause(db, input);
     if (input.paused) queueEngine.cancelProjectRetry(input.projectId);
     return state;
   });
-  bind('queueCandidates', (projectId: string) => db.queueCandidates(projectId, 5));
+  bind('queueCandidates', (projectId: string) => db.projectQueue(projectId).continueBlocked
+    ? db.runnableQueueCandidates(projectId, 5) : db.queueCandidates(projectId, 5));
   bind('skipQueuedCard', (input: Parameters<StudioAPI['skipQueuedCard']>[0]) => db.skipQueuedCard(input));
   bind('workflowAgentSettings', () => db.workflowAgentSettings());
   bind('saveWorkflowAgentSettings', (input: WorkflowAgentSettings) => db.saveWorkflowAgentSettings(input));

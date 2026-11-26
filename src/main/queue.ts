@@ -49,11 +49,13 @@ export class ProjectQueueEngine {
     }
     if (input.state !== 'paused' && input.state !== 'off') throw new Error('Ungültiger Warteschlangen-Status.');
     this.clearLaunchRetry(input.projectId);
+    this.store.saveProjectQueue({ projectId: input.projectId, state: input.state, templateWorkflowId, activeWorkflowId: current.activeWorkflowId,
+      pauseReason: input.state === 'paused' ? 'Vom Nutzer pausiert; aktiven Workflow vor Fortsetzung prüfen.' : null });
     if (current.activeWorkflowId) {
       const active = this.store.workflow(current.activeWorkflowId);
       if (active.state === 'running') this.workflows.setState({ id: active.id, state: 'paused' });
     }
-    return this.store.saveProjectQueue({ projectId: input.projectId, state: input.state, templateWorkflowId, activeWorkflowId: current.activeWorkflowId, pauseReason: input.state === 'paused' ? 'Vom Nutzer pausiert; aktiven Workflow vor Fortsetzung prüfen.' : null });
+    return this.store.projectQueue(input.projectId);
   }
 
   onSessionFinished(session: Session): void {
@@ -118,7 +120,8 @@ export class ProjectQueueEngine {
     if (!this.deviceOnline()) { this.pauseForConnectionLoss(projectId); return; }
     this.pumping.add(projectId);
     try {
-      for (let pass = 0; pass < 2; pass += 1) {
+      for (let pass = 0; pass < 50; pass += 1) {
+        if (!this.deviceOnline()) { this.pauseForConnectionLoss(projectId); return; }
         if (projectPauseRequested(this.store, projectId)) {
           this.pause(projectId, 'Projektweite sichere Pause angefordert. Queue nach Prüfung bewusst fortsetzen.');
           return;
@@ -151,7 +154,15 @@ export class ProjectQueueEngine {
             active = this.store.workflow(active.id);
             if (active.state === 'running') return;
           }
-          if (active.state === 'paused' || active.state === 'draft') { this.pause(projectId, pauseMessage(active)); return; }
+          if (active.state === 'paused' || active.state === 'draft') {
+            if (active.state === 'paused' && queue.continueBlocked === true
+              && ['approval', 'manual', 'review', 'wireframe'].includes(active.pauseReason ?? '')
+              && !this.store.activeSessionForProject(projectId)) {
+              this.store.skipBlockedQueueCard({ projectId, workflowId: active.id });
+              continue;
+            }
+            this.pause(projectId, pauseMessage(active)); return;
+          }
           if (active.currentStep < active.steps.length) { this.pause(projectId, 'Aktiver Workflow wurde vorzeitig als erledigt markiert; bitte prüfen.'); return; }
           this.store.saveProjectQueue({ projectId, state: 'running', templateWorkflowId: queue.templateWorkflowId, activeWorkflowId: null, pauseReason: null });
         }
@@ -166,10 +177,18 @@ export class ProjectQueueEngine {
           return;
         }
         const started = this.store.workflow(flow.id);
-        if (started.state === 'paused') { this.pause(projectId, pauseMessage(started)); return; }
+        if (started.state === 'paused') {
+          if (queue.continueBlocked === true && ['approval', 'manual', 'review', 'wireframe'].includes(started.pauseReason ?? '')
+            && !this.store.activeSessionForProject(projectId)) {
+            this.store.skipBlockedQueueCard({ projectId, workflowId: started.id });
+            continue;
+          }
+          this.pause(projectId, pauseMessage(started)); return;
+        }
         if (started.state === 'running') return;
         // A route can finish synchronously only when it has no agent work.
       }
+      this.pause(projectId, 'Queue hat 50 sofortige Übergänge erreicht. Ergebnisse prüfen und bewusst fortsetzen.');
     } catch (error) {
       this.pause(projectId, `Warteschlange angehalten: ${error instanceof Error ? error.message : String(error)}`);
     } finally {

@@ -26,13 +26,13 @@ export function workflowPauseDescription(workflow: Workflow): string {
     : workflowPauseCopy(workflow.pauseReason).description;
 }
 
-export function QueuePreview({ cards, loading, error }: { cards: Card[]; loading: boolean; error: string | null }) {
+export function QueuePreview({ cards, loading, error, skipBlocked = false }: { cards: Card[]; loading: boolean; error: string | null; skipBlocked?: boolean }) {
   return <div className="queue-preview" aria-label="Nächste freie To-Do-Karten">
-    <strong>Nächste freie To-Do-Karten</strong>
+    <strong>{skipBlocked ? 'Nächste startbare To-Do-Karten' : 'Nächste freie To-Do-Karten'}</strong>
     {loading ? <p className="section-copy" role="status">Reihenfolge wird geladen …</p>
       : error ? <p className="inline-note" role="status">{error}</p>
         : cards.length ? <ol>{cards.map((card) => <li key={card.id}>{card.title}</li>)}</ol>
-          : <p className="section-copy">Keine freie To-Do-Karte vorhanden.</p>}
+          : <p className="section-copy">{skipBlocked ? 'Keine startbare To-Do-Karte vorhanden. Karten mit offenen Vorgängern bleiben im Board.' : 'Keine freie To-Do-Karte vorhanden.'}</p>}
     <p className="section-copy">Diese Vorschau startet nichts. Änderungen im Board gelten für die nächste noch freie Karte.</p>
   </div>;
 }
@@ -174,8 +174,10 @@ export function WorkflowView({ snapshot, mutate, openWorkflow, openPlan, onOpenC
     <section className="workflow-card" aria-label="Automatische Warteschlange">
       <div className="workflow-card-top"><div><h3>Automatische Warteschlange</h3><p>Wähle eine gespeicherte Route. Branchloom nimmt dann freie To-Do-Karten nacheinander auf; du kannst jederzeit pausieren.</p></div><span className={`state-badge ${snapshot.queue.state === 'off' ? 'draft' : snapshot.queue.state}`}>{snapshot.queue.state === 'running' ? 'Aktiv' : snapshot.queue.state === 'paused' ? 'Pausiert' : 'Aus'}</span></div>
       <label className="field-label">Workflow-Route<select value={queueTemplateId} disabled={snapshot.queue.state === 'running' || Boolean(snapshot.queue.activeWorkflowId)} onChange={(event) => setQueueTemplateId(event.target.value)}><option value="">Route wählen</option>{snapshot.workflows.filter((workflow) => workflow.id !== snapshot.queue.activeWorkflowId).map((workflow) => <option key={workflow.id} value={workflow.id}>{workflow.name}</option>)}</select></label>
+      <label className="queue-policy"><input type="checkbox" checked={snapshot.queue.continueBlocked === true} disabled={snapshot.queue.state === 'running'} onChange={(event) => { const enabled = event.currentTarget.checked; void mutate(() => window.studio.setQueueContinueBlocked({ projectId: snapshot.project.id, enabled })); }} /><span>Bei blockierten Karten mit anderen Aufgaben weitermachen</span></label>
+      <p className="section-copy">Blockierte Abläufe bleiben mit Grund im Verlauf. Nutzer-Pause, Offline-Zustand und laufende Agenten stoppen den automatischen Übergang. Diese Einstellung ändert keine CLI- oder Git-Rechte.</p>
       <p className="section-copy">{snapshot.queue.completedCount} Karten abgeschlossen. Die Queue startet nur freie, nicht archivierte To-Do-Karten ohne bestehenden Workflow. Beim Pausieren wird der laufende Agent gestoppt; Arbeit und Protokoll bleiben erhalten. CLI-Agenten laufen mit deinen Benutzerrechten im Projektordner; die App selbst pusht keine Git-Änderungen.</p>
-      <QueuePreview cards={queuePreview?.projectId === snapshot.project.id ? queuePreview.cards : []} loading={queuePreview?.projectId !== snapshot.project.id} error={queuePreview?.projectId === snapshot.project.id ? queuePreview.error : null} />
+      <QueuePreview cards={queuePreview?.projectId === snapshot.project.id ? queuePreview.cards : []} loading={queuePreview?.projectId !== snapshot.project.id} error={queuePreview?.projectId === snapshot.project.id ? queuePreview.error : null} skipBlocked={snapshot.queue.continueBlocked === true} />
       {!hasTodoColumn ? <p className="inline-note" role="status">Zum Aktivieren der Warteschlange braucht dieses Board eine Spalte namens To Do.</p> : null}
       {snapshot.queue.activeWorkflowId ? <p className="section-copy">Aktiver Ablauf: <a href={`#workflow-${snapshot.queue.activeWorkflowId}`}>{snapshot.workflows.find((workflow) => workflow.id === snapshot.queue.activeWorkflowId)?.name ?? 'Workflow öffnen'}</a>. Nach Unterbrechung den Ablauf prüfen und ausdrücklich fortsetzen.</p> : null}
       {snapshot.queue.pauseReason ? <p className="inline-note" role="status">{snapshot.queue.pauseReason}</p> : null}
