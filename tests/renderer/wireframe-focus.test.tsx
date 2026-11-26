@@ -11,14 +11,14 @@ describe('wireframe focus entry', () => {
     const exit = renderToStaticMarkup(<TaskWireframeEditor projectId="project" cards={[card]} startCardId="card" focusMode canEnterFocus={false} onFocusModeChange={() => undefined} />);
     expect(enter).toContain('Arbeitsfläche vergrößern');
     expect(enter).toContain('aria-pressed="false" disabled=""');
-    expect(exit).toContain('Zur Design-Inspektion');
+    expect(exit).toContain('Editor verkleinern');
     expect(exit).toContain('aria-pressed="true"');
     expect(exit).not.toContain('aria-pressed="true" disabled=""');
   });
 
   it('keeps keyboard focus during an asynchronous transition while blocking repeated actions', () => {
     const html = renderToStaticMarkup(<TaskWireframeEditor projectId="project" cards={[card]} startCardId="card" focusMode focusPending canEnterFocus onFocusModeChange={() => undefined} />);
-    expect(html).toContain('Zur Design-Inspektion');
+    expect(html).toContain('Editor verkleinern');
     expect(html).toContain('aria-pressed="true" aria-disabled="true"');
     expect(html).not.toContain('aria-pressed="true" aria-disabled="true" disabled=""');
   });

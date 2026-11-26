@@ -71,6 +71,9 @@
 .design-workspace-draft .task-wireframe-layers { border-right: 1px solid var(--border); }
 .design-workspace-draft .task-wireframe-properties { border-left: 1px solid var(--border); }
 .design-workspace-draft .task-wireframe-actions { position: sticky; top: 0; z-index: 8; margin: 0; padding: 7px 10px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); }
+.design-workspace-draft .task-wireframe.is-focused .task-wireframe-toolbar { justify-content: flex-start; min-height: 42px; border-bottom: 1px solid var(--border); }
+.design-workspace-draft .task-wireframe.is-focused .task-wireframe-more-menu { margin-left: auto; }
+.design-workspace-draft .task-wireframe.is-focused .task-wireframe-actions { border: 0; border-radius: 0; padding: 0 0 6px; min-height: 40px; }
 .design-workspace-draft .task-wireframe.is-focused .task-wireframe-actions { bottom: auto; }
 @media (max-width: 900px) { .design-workspace-draft .task-wireframe:not(.is-focused) { grid-template-columns: minmax(0, 1fr); } .design-workspace-draft .task-wireframe:not(.is-focused) .task-wireframe-head, .design-workspace-draft .task-wireframe:not(.is-focused) .task-wireframe-source { grid-column: 1; } }
 @media (max-width: 1050px) { .design-workspace-draft .task-wireframe-layout { grid-template-columns: minmax(130px, 160px) minmax(0, 1fr); } .design-workspace-draft .task-wireframe-properties { grid-column: 1 / -1; border-top: 1px solid var(--border); border-left: 0; min-height: 0; } }

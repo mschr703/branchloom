@@ -76,8 +76,8 @@ body .design-workspace-draft .task-wireframe:not(.is-focused) .task-wireframe-to
 .task-wireframe.is-focused .task-wireframe-source label { display: flex; align-items: center; gap: 8px; width: min(360px, 100%); }
 .task-wireframe.is-focused .task-wireframe-source select { min-width: 0; flex: 1; }
 .task-wireframe.is-focused > :where(:not(.task-wireframe-head):not(.task-wireframe-source)) { grid-column: 1 / -1; }
-.task-wireframe.is-focused .task-wireframe-toolbar { grid-column: 1; min-width: 0; }
-.task-wireframe.is-focused .task-wireframe-actions { grid-column: 2; margin: 0; }
+.task-wireframe.is-focused .task-wireframe-toolbar { grid-column: 1 / -1; min-width: 0; flex-wrap: nowrap; }
+.task-wireframe.is-focused .task-wireframe-actions { grid-column: 1 / -1; margin: 0; flex-wrap: nowrap; }
 .task-wireframe.is-focused .task-wireframe-actions { position: sticky; bottom: 0; z-index: 8; padding: 8px 0; border-top: 1px solid var(--border); background: var(--bg); }
 .task-wireframe.is-focused .task-wireframe-layout { grid-template-columns: 160px minmax(0, 1fr) 272px; gap: 14px; }
 .task-wireframe.is-focused .task-wireframe-layers, .task-wireframe.is-focused .task-wireframe-properties { max-height: min(72vh, 900px); overflow: auto; }
@@ -116,6 +116,8 @@ body .design-workspace-draft .task-wireframe:not(.is-focused) .task-wireframe-to
 .task-wireframe-canvas { position: relative; container-type: inline-size; width: 100%; aspect-ratio: 960 / 600; overflow: hidden; transform-origin: top left; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); box-shadow: 0 7px 20px color-mix(in srgb, var(--text) 8%, transparent); }
 .task-wireframe-canvas.has-grid { background-image: linear-gradient(to right, color-mix(in srgb, var(--text) 12%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, var(--text) 12%, transparent) 1px, transparent 1px); }
 .task-wireframe-canvas.draw-ready { cursor: crosshair; }
+.task-wireframe-canvas.draw-ready .task-wireframe-element,
+.task-wireframe-canvas.draw-ready .task-wireframe-resize { pointer-events: none; }
 .task-wireframe-marquee { position: absolute; z-index: 8; box-sizing: border-box; pointer-events: none; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 11%, transparent); }
 .task-wireframe-drawing-preview { position: absolute; z-index: 8; box-sizing: border-box; pointer-events: none; border: 1px dashed var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .task-wireframe-drawing-preview.kind-ellipse { border-radius: 50%; }

@@ -7,7 +7,7 @@ import { DesignInspectionView } from '../../src/renderer/components/DesignInspec
 vi.mock('../../src/renderer/components/TaskWireframeEditor', () => ({
   TaskWireframeEditor: ({ focusMode, onFocusModeChange }: { focusMode: boolean; onFocusModeChange: (next: boolean) => void }) => <>
     <input aria-label="Synthetic draft" defaultValue="Unsaved layout" />
-    <button type="button" className="task-wireframe-focus-toggle" onClick={() => onFocusModeChange(!focusMode)}>{focusMode ? 'Zur Design-Inspektion' : 'Arbeitsfläche vergrößern'}</button>
+    <button type="button" className="task-wireframe-focus-toggle" onClick={() => onFocusModeChange(!focusMode)}>{focusMode ? 'Editor verkleinern' : 'Arbeitsfläche vergrößern'}</button>
   </>,
 }));
 vi.mock('../../src/renderer/components/DesignStateRoutes', () => ({ DesignStateRoutes: () => null }));
@@ -37,7 +37,7 @@ it('keeps an unsaved draft mounted while inspecting the running app and hides na
   const setVisible = vi.fn(async () => ({ projectId: null, sourceUrl: null, ready: false, armed: false, themePreview: null }));
   Object.defineProperty(window, 'studio', { configurable: true, value: {
     designSelections: async () => [], onDesignSelection: () => () => undefined,
-    listProjectWireframes: async () => ({ items: [], moreAvailable: false }),
+    listProjectWireframes: async () => ({ items: [{ id: 'draft-1', cardId: 'card-1', title: 'Workspace layout', elements: [], artboards: {}, interactions: [], interaction: null, revision: 1, approvedRevision: null, updatedAt: '2026-11-26T00:00:00.000Z' }], moreAvailable: false }),
     listProjectQaCaptures: async () => ({ items: [], moreAvailable: false }),
     designInspectionSetBounds: setBounds, designInspectionSetVisible: setVisible,
     designInspectionStart: async () => ({ projectId: 'synthetic-project', sourceUrl: 'http://127.0.0.1:5173/', ready: true, armed: false, themePreview: null, elementPreview: null }),
@@ -47,7 +47,7 @@ it('keeps an unsaved draft mounted while inspecting the running app and hides na
     const draft = mount.querySelector<HTMLInputElement>('input[aria-label="Synthetic draft"]')!;
     const buttons = [...mount.querySelectorAll<HTMLButtonElement>('.design-workspace-modes button')];
     expect(buttons.map((button) => button.textContent)).toEqual(['Übersicht', 'Entwurf', 'Laufende App prüfen']);
-    expect(mount.textContent).toContain('Noch kein Entwurf gespeichert');
+    expect(mount.textContent).toContain('Workspace layout');
     expect(mount.querySelector('.design-workspace-draft')?.hasAttribute('hidden')).toBe(true);
     expect(mount.querySelector('.design-inspection-tools')?.hasAttribute('hidden')).toBe(true);
     await act(async () => { buttons[1]!.click(); });
@@ -81,14 +81,17 @@ it('keeps an unsaved draft mounted while inspecting the running app and hides na
     expect(mount.querySelector('.design-workspace-draft')?.hasAttribute('hidden')).toBe(false);
     await act(async () => { focusToggle.click(); });
     expect(mount.querySelector('.design-inspection.wireframe-focus')).toBeNull();
-    expect(mount.querySelector('.design-workspace-draft')?.hasAttribute('hidden')).toBe(true);
-    expect(mount.querySelector('.design-inspection-tools')?.hasAttribute('hidden')).toBe(false);
-    const returnToDraft = [...mount.querySelectorAll<HTMLButtonElement>('.design-workspace-modes button')].find((button) => button.textContent === 'Entwurf')!;
-    await act(async () => { returnToDraft.click(); });
+    expect(mount.querySelector('.design-workspace-draft')?.hasAttribute('hidden')).toBe(false);
+    expect(mount.querySelector('.design-inspection-tools')?.hasAttribute('hidden')).toBe(true);
     expect(mount.querySelector('.design-workspace-draft')?.hasAttribute('hidden')).toBe(false);
     expect(mount.querySelector('input[aria-label="Synthetic draft"]')).toBe(draft);
     draft.focus();
     expect(document.activeElement).toBe(draft);
+    await act(async () => { buttons[0]!.click(); });
+    const storedDraft = mount.querySelector<HTMLButtonElement>('.design-overview-document')!;
+    await act(async () => { storedDraft.click(); });
+    expect(mount.querySelector('.design-inspection.wireframe-focus')).not.toBeNull();
+    expect(mount.querySelector('.design-workspace-draft')?.hasAttribute('hidden')).toBe(false);
   } finally {
     await act(async () => { root.unmount(); });
     mount.remove();
