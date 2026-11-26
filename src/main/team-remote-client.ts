@@ -5,6 +5,7 @@ import type { TeamMember, TeamRole } from './team-workspace';
 import type { TeamCardDraft } from './team-card-draft';
 import { TeamDraftOutboxStore, type PendingTeamDraftUpdate } from './team-draft-outbox';
 import type { TeamBoardSnapshot } from '../shared/team-board';
+import type { CardPriority } from '../shared/types';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ROLES: readonly TeamRole[] = ['owner', 'admin', 'editor', 'developer', 'viewer'];
@@ -140,7 +141,7 @@ export class TeamRemoteClient {
     return pending ? { coordinatorUrl: pending.coordinatorUrl, displayName: pending.displayName } : null;
   }
 
-  async workspace(workspaceId: string): Promise<{ member: TeamMember; projects: Array<{ id: string; name: string; canEditDraft: boolean }> }> {
+  async workspace(workspaceId: string): Promise<{ member: TeamMember; projects: Array<{ id: string; name: string; canEditDraft: boolean; canManageTask: boolean }> }> {
     const connection = await this.connections.get(workspaceId);
     if (!connection) throw new Error('This team workspace is not saved on this device.');
     let response: Response;
@@ -157,10 +158,12 @@ export class TeamRemoteClient {
     const projects = value.projects.map((item) => {
       const project = record(item);
       if (!project || typeof project.id !== 'string' || !UUID.test(project.id) ||
-        typeof project.name !== 'string' || project.name.length > 200 || typeof project.canEditDraft !== 'boolean') {
+        typeof project.name !== 'string' || project.name.length > 200 || typeof project.canEditDraft !== 'boolean' ||
+        typeof project.canManageTask !== 'boolean') {
         throw new Error('Coordinator returned an invalid project.');
       }
-      return { id: project.id, name: project.name, canEditDraft: project.canEditDraft };
+      return { id: project.id, name: project.name, canEditDraft: project.canEditDraft,
+        canManageTask: project.canManageTask };
     });
     return { member, projects };
   }
@@ -174,6 +177,25 @@ export class TeamRemoteClient {
   async board(input: { workspaceId: string; projectId: string }): Promise<CollaborativeTeamBoard> {
     if (!UUID.test(input.projectId)) throw new Error('Invalid team project.');
     return checkedBoard(await this.authenticated(input.workspaceId, `/v1/projects/${input.projectId}/board`));
+  }
+
+  async setCardPriority(input: { workspaceId: string; projectId: string; cardId: string;
+    priority: CardPriority; expectedRevision: number; mutationId: string }): Promise<{
+    cardId: string; revision: number; priority: CardPriority; repeated: boolean;
+  }> {
+    if (!UUID.test(input.projectId) || !UUID.test(input.cardId) || !UUID.test(input.mutationId) ||
+      !PRIORITIES.includes(input.priority) || !Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 0) {
+      throw new Error('Invalid team card priority command.');
+    }
+    const value = record(await this.authenticated(input.workspaceId,
+      `/v1/projects/${input.projectId}/cards/${input.cardId}/priority`, {
+        priority: input.priority, expectedRevision: input.expectedRevision, mutationId: input.mutationId,
+      }));
+    if (!value || value.cardId !== input.cardId || value.priority !== input.priority ||
+      !Number.isSafeInteger(value.revision) || Number(value.revision) < 0 || typeof value.repeated !== 'boolean') {
+      throw new Error('Coordinator returned an invalid card priority result.');
+    }
+    return { cardId: input.cardId, revision: value.revision as number, priority: input.priority, repeated: value.repeated };
   }
 
   async updateCardDraft(input: { workspaceId: string; projectId: string; cardId: string;
@@ -289,7 +311,7 @@ export class TeamRemoteClient {
       });
     } catch { throw new Error('Coordinator is unavailable.'); }
     if (response.status === 401 || response.status === 403) throw new Error('Team access was revoked or is unavailable.');
-    if (response.status === 409) throw new Error('Team draft changed. Reload before retrying.');
+    if (response.status === 409) throw new Error('Team card changed. Reload before retrying.');
     if (!response.ok) throw new Error(`Coordinator request failed (HTTP ${response.status}).`);
     return limitedJson(response);
   }

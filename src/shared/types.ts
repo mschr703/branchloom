@@ -125,8 +125,10 @@ export interface StudioAPI {
   joinTeam(input: { coordinatorUrl: string; inviteSecret: string; displayName: string }): Promise<import('../main/team-connection-store').SavedTeamConnection>;
   resumeTeamJoin(): Promise<import('../main/team-connection-store').SavedTeamConnection>;
   cancelTeamJoin(): Promise<void>;
-  teamWorkspace(workspaceId: string): Promise<{ member: import('../main/team-workspace').TeamMember; projects: Array<{ id: string; name: string; canEditDraft: boolean }> }>;
+  teamWorkspace(workspaceId: string): Promise<{ member: import('../main/team-workspace').TeamMember; projects: Array<{ id: string; name: string; canEditDraft: boolean; canManageTask: boolean }> }>;
   teamBoard(input: { workspaceId: string; projectId: string }): Promise<import('../main/team-remote-client').CollaborativeTeamBoard>;
+  setTeamCardPriority(input: { workspaceId: string; projectId: string; cardId: string; priority: CardPriority;
+    expectedRevision: number; mutationId: string }): Promise<{ cardId: string; revision: number; priority: CardPriority; repeated: boolean }>;
   teamCardDraft(input: { workspaceId: string; projectId: string; cardId: string }): Promise<import('../main/team-card-draft').TeamCardDraft>;
   updateTeamCardDraft(input: { workspaceId: string; projectId: string; cardId: string; mutationId: string; update: string }): Promise<import('../main/team-card-draft').TeamCardDraft & { repeated: boolean }>;
   pendingTeamCardDraftUpdates(input: { workspaceId: string; projectId: string; cardId: string }): Promise<import('../main/team-draft-outbox').PendingTeamDraftUpdate[]>;

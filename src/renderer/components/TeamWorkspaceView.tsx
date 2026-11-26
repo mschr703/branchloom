@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import type { SavedTeamConnection } from '../../main/team-connection-store';
 import type { CollaborativeTeamBoard } from '../../main/team-remote-client';
 import { TeamCardDraftEditor } from './TeamCardDraftEditor';
+import { TeamCardPriorityControl } from './TeamCardPriorityControl';
 import { TeamWorkspaceSettings } from './TeamWorkspaceSettings';
 import './team-workspace-view.css';
 
 const messageOf = (reason: unknown) => reason instanceof Error ? reason.message : String(reason);
-type RemoteWorkspace = { member: { displayName: string; role: string }; projects: Array<{ id: string; name: string; canEditDraft: boolean }> };
+type RemoteWorkspace = { member: { displayName: string; role: string }; projects: Array<{ id: string; name: string; canEditDraft: boolean; canManageTask: boolean }> };
 
 export function TeamWorkspaceView({ projectId }: { projectId?: string }) {
   const [refreshToken, setRefreshToken] = useState(0);
@@ -77,9 +78,15 @@ export function TeamWorkspaceView({ projectId }: { projectId?: string }) {
             className={cardId === card.id ? 'team-workspace-card selected' : 'team-workspace-card'} onClick={() => setCardId(card.id)}
             aria-pressed={cardId === card.id}><strong>{card.title}</strong><small>{card.runningSince ? 'Agent aktiv' : card.priority === 'none' ? 'Ohne Priorität' : card.priority}</small></button>)}
         </section>)}</div></div>
-        <div className="team-workspace-detail">{selectedCard ? <TeamCardDraftEditor key={`${workspaceId}:${remoteProjectId}:${selectedCard.id}`}
-          workspaceId={workspaceId} projectId={remoteProjectId} cardId={selectedCard.id} cardTitle={selectedCard.title}
-          canEdit={workspace?.projects.find((item) => item.id === remoteProjectId)?.canEditDraft === true} />
+        <div className="team-workspace-detail">{selectedCard ? <>
+          {workspace?.projects.find((item) => item.id === remoteProjectId)?.canManageTask ? <TeamCardPriorityControl
+            key={`${selectedCard.id}:${selectedCard.revision}`} workspaceId={workspaceId} projectId={remoteProjectId}
+            card={selectedCard} onReload={async () => {
+              setBoard(await window.studio.teamBoard({ workspaceId, projectId: remoteProjectId }));
+            }} /> : null}
+          <TeamCardDraftEditor key={`${workspaceId}:${remoteProjectId}:${selectedCard.id}`}
+            workspaceId={workspaceId} projectId={remoteProjectId} cardId={selectedCard.id} cardTitle={selectedCard.title}
+            canEdit={workspace?.projects.find((item) => item.id === remoteProjectId)?.canEditDraft === true} /></>
           : <p>Wähle eine Karte, um den gemeinsamen Entwurf zu öffnen.</p>}</div></div> : null}
       {!board && !error ? <p className="team-workspace-muted">Teamboard wird geladen…</p> : null}
     </div> : null}

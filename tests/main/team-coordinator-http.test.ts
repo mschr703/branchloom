@@ -56,15 +56,15 @@ it('authenticates two separate HTTP clients, rejects stale writes, and survives 
     const secondBoard = await getBoard(editor.credential);
     expect(firstBoard.status).toBe(200);
     expect(secondBoard.status).toBe(200);
-    expect((await (await getWorkspace(owner.credential)).json()).projects).toEqual([{ id: project.id, name: project.name, canEditDraft: true }]);
-    expect((await (await getWorkspace(editor.credential)).json()).projects).toEqual([{ id: project.id, name: project.name, canEditDraft: true }]);
+    expect((await (await getWorkspace(owner.credential)).json()).projects).toEqual([{ id: project.id, name: project.name, canEditDraft: true, canManageTask: true }]);
+    expect((await (await getWorkspace(editor.credential)).json()).projects).toEqual([{ id: project.id, name: project.name, canEditDraft: true, canManageTask: false }]);
     const secondPath = join(root, 'other');
     mkdirSync(secondPath);
     const secondProject = store.createProject({ name: 'Private subproject', path: secondPath });
     addTeamProject(store.db, owner.credential, secondProject.id);
     setTeamProjectAccess(store.db, owner.credential, secondProject.id, editor.member.id, 'none');
     expect((await (await getWorkspace(owner.credential)).json()).projects).toHaveLength(2);
-    expect((await (await getWorkspace(editor.credential)).json()).projects).toEqual([{ id: project.id, name: project.name, canEditDraft: true }]);
+    expect((await (await getWorkspace(editor.credential)).json()).projects).toEqual([{ id: project.id, name: project.name, canEditDraft: true, canManageTask: false }]);
     expect((await firstBoard.json()).cards[0]).toMatchObject({ id: card.id, revision: 0 });
     expect((await secondBoard.json()).cards[0]).toMatchObject({ id: card.id, revision: 0 });
     expect((await getBoard(editor.credential, randomUUID())).status).toBe(403);

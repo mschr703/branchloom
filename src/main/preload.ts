@@ -16,6 +16,7 @@ const studio: StudioAPI = {
   cancelTeamJoin: () => invoke('cancelTeamJoin'),
   teamWorkspace: (workspaceId) => invoke('teamWorkspace', workspaceId),
   teamBoard: (input) => invoke('teamBoard', input),
+  setTeamCardPriority: (input) => invoke('setTeamCardPriority', input),
   teamCardDraft: (input) => invoke('teamCardDraft', input),
   updateTeamCardDraft: (input) => invoke('updateTeamCardDraft', input),
   pendingTeamCardDraftUpdates: (input) => invoke('pendingTeamCardDraftUpdates', input),

@@ -112,9 +112,12 @@ export class TeamCoordinatorHttp {
           ORDER BY project.name, project.id`).all(actor.id, actor.workspaceId, actor.role) as Array<{ id: string; name: string }>;
         return reply(response, 200, { member: actor, projects: projects.map((project) => {
           let canEditDraft = true;
+          let canManageTask = true;
           try { requireTeamProjectCapability(this.store.db, actorCredential, project.id, 'edit_draft'); }
           catch { canEditDraft = false; }
-          return { ...project, canEditDraft };
+          try { requireTeamProjectCapability(this.store.db, actorCredential, project.id, 'manage_task'); }
+          catch { canManageTask = false; }
+          return { ...project, canEditDraft, canManageTask };
         }) });
       }
       const board = /^\/v1\/projects\/([0-9a-f-]{36})\/board$/.exec(path);

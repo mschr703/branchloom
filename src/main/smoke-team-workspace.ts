@@ -89,6 +89,13 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
     if (!board.textContent.includes('Shared planning card')) throw new Error('Team card is absent from shared board.');
     board.querySelector('.team-workspace-card').click();
     const editor = await wait(() => document.querySelector('.team-card-draft textarea:not(:disabled)'), 'draft editor');
+    const priority = await wait(() => document.querySelector('select[aria-label="Teamkarten-Priorität"]'), 'priority control');
+    const prioritySetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+    prioritySetter.call(priority, 'high'); priority.dispatchEvent(new Event('change', { bubbles: true }));
+    document.querySelector('.team-card-priority .secondary-button').click();
+    await wait(async () => (await window.studio.teamBoard({ workspaceId: ${JSON.stringify(result.workspaceId)},
+      projectId: ${JSON.stringify(project.id)} })).cards.find((item) => item.id === ${JSON.stringify(card.id)})?.priority === 'high',
+      'revisioned team priority command');
     await wait(() => document.querySelector('.team-card-presence')?.textContent?.includes('Live verbunden') &&
       document.querySelector('.team-card-presence')?.textContent?.includes('Owner') &&
       document.querySelector('.team-card-presence')?.textContent?.includes('Guest'), 'live team presence');
