@@ -4,7 +4,7 @@ import type { ProjectWireframeIndex, WireframeElement } from '../../shared/card-
 import type { DesignSelection } from '../../shared/design-inspection';
 
 function MiniArtboard({ elements }: { elements: WireframeElement[] }) {
-  return <span className="design-overview-artboard" aria-hidden="true">{elements.slice(0, 18).map((item) => <span key={item.id} className={`design-overview-shape kind-${item.kind}`} style={{ left: `${item.x / 9.6}%`, top: `${item.y / 6}%`, width: `${item.width / 9.6}%`, height: `${item.height / 6}%` }} />)}</span>;
+  return <span className="design-overview-artboard" aria-hidden="true"><span className="design-overview-artboard-stage">{elements.slice(0, 18).map((item) => <span key={item.id} className={`design-overview-shape kind-${item.kind}`} style={{ left: `${item.x / 9.6}%`, top: `${item.y / 6}%`, width: `${item.width / 9.6}%`, height: `${item.height / 6}%` }} />)}</span></span>;
 }
 
 function CaptureTile({ capture, card, onOpen }: { capture: ProjectQaCapture; card: Card | undefined; onOpen: () => void | Promise<void> }) {
@@ -32,8 +32,10 @@ export function DesignProjectOverview({ cards, index, captures, selections, load
   onRetry: () => void; onRetryCaptures: () => void; onOpenDraft: (cardId?: string) => void; onOpenQaCard: (cardId: string) => void | Promise<void>; onOpenPreview: () => void;
 }) {
   const cardById = new Map(cards.map((card) => [card.id, card]));
+  const hasCaptures = captureLoading || Boolean(captureError) || Boolean(captures?.items.length);
   return <div className="design-overview">
-    <header className="design-overview-header"><p>Gespeicherte Entwürfe und Belege aus der laufenden App. Eine Zeichnung ändert noch keinen Code.</p><button type="button" className="primary-button" onClick={() => onOpenDraft()}>Entwurf öffnen</button></header>
+    <header className="design-overview-header"><p>Entwürfe und Aufnahmen aus diesem Projekt.</p><button type="button" className="primary-button" onClick={() => onOpenDraft()}>Entwurf öffnen</button></header>
+    <div className={`design-overview-primary${hasCaptures ? ' has-captures' : ''}`}>
     {loading ? <p role="status">Gespeicherte Entwürfe werden geladen…</p> : error ? <p role="alert">Entwürfe konnten nicht geladen werden: {error} <button type="button" onClick={onRetry}>Erneut laden</button></p> : <section className="design-overview-section" aria-label="Gespeicherte Entwürfe">
       <div className="design-overview-section-heading"><h3>Entwürfe</h3><span>{index?.items.length ?? 0}{index?.moreAvailable ? '+' : ''} gespeichert</span></div>
       {index?.items.length ? <div className="design-overview-grid">{index.items.map((item) => {
@@ -45,14 +47,14 @@ export function DesignProjectOverview({ cards, index, captures, selections, load
       })}</div> : <p className="design-overview-empty">Noch kein Entwurf gespeichert. Du kannst einen Entwurf selbst beginnen oder in einer Aufgabe einen Agentenvorschlag anfordern.</p>}
       {index?.moreAvailable ? <p className="design-overview-note">Die neuesten 24 Entwürfe werden hier gezeigt. Ältere bleiben über ihre Aufgabe im Editor erreichbar.</p> : null}
     </section>}
-    {captureLoading || captureError || captures?.items.length ? <section className="design-overview-section" aria-label="Gespeicherte App-Aufnahmen">
+    {hasCaptures ? <section className="design-overview-section" aria-label="Gespeicherte App-Aufnahmen">
       <div className="design-overview-section-heading"><h3>App-Aufnahmen</h3><span>{captures?.items.length ?? 0}{captures?.moreAvailable ? '+' : ''} aus Karten-QA</span></div>
       {captureLoading ? <p role="status">Aufnahmen werden geladen…</p> : captureError ? <p role="alert">Aufnahmen konnten nicht geladen werden: {captureError} <button type="button" onClick={onRetryCaptures}>Erneut laden</button></p> : <div className="design-overview-grid">{captures?.items.map((capture) => <CaptureTile key={capture.id} capture={capture} card={cardById.get(capture.cardId)} onOpen={() => onOpenQaCard(capture.cardId)} />)}</div>}
       <p className="design-overview-note">Diese Bilder stammen aus einem gespeicherten lokalen Browsercheck. Sie sind weder ein bearbeitbarer Entwurf noch ein Beleg für den aktuellen Code-Stand.</p>
     </section> : null}
+    </div>
     <section className="design-overview-section" aria-label="Belege aus laufender App"><div className="design-overview-section-heading"><h3>Laufende App</h3><button type="button" onClick={onOpenPreview}>Vorschau prüfen <span aria-hidden="true">↗</span></button></div>
       {selections.length ? <ul className="design-overview-evidence">{selections.slice(0, 3).map((selection) => <li key={selection.id}><code>{selection.selector}</code><span>{selection.sourceUrl}</span></li>)}</ul> : <p className="design-overview-empty">Noch kein Element aus einer lokalen Vorschau erfasst.</p>}
     </section>
-    <p className="design-overview-note">Ein Agentenlauf erscheint hier erst, wenn ein Designentwurf oder ein Beleg tatsächlich gespeichert wurde. Automatische Übernahme von Agentenentwürfen ist noch in Arbeit.</p>
   </div>;
 }

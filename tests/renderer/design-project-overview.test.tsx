@@ -18,7 +18,7 @@ it('shows only persisted designs and opens the matching task editor', async () =
     await act(async () => { root.render(<DesignProjectOverview cards={[card]} index={{ items: [wireframe], moreAvailable: false }} captures={{ items: [], moreAvailable: false }} selections={[]} loading={false} error="" captureLoading={false} captureError="" onRetry={() => undefined} onRetryCaptures={() => undefined} onOpenDraft={onOpenDraft} onOpenQaCard={() => undefined} onOpenPreview={() => undefined} />); });
     expect(host.textContent).toContain('Account layout');
     expect(host.textContent).toContain('Gespeichert, nicht freigegeben');
-    expect(host.textContent).toContain('Automatische Übernahme von Agentenentwürfen ist noch in Arbeit');
+    expect(host.textContent).toContain('Entwürfe und Aufnahmen aus diesem Projekt.');
     await act(async () => { host.querySelector<HTMLButtonElement>('.design-overview-document')!.click(); });
     expect(onOpenDraft).toHaveBeenCalledWith('card-1');
   } finally {
@@ -45,6 +45,7 @@ it('shows a saved QA image as dated evidence and opens its source card', async (
     expect(host.querySelector<HTMLImageElement>('.design-overview-capture img')?.src).toContain('data:image/png;base64,');
     expect(host.textContent).toContain('/account · 1280 × 800');
     expect(host.textContent).toContain('weder ein bearbeitbarer Entwurf');
+    expect(host.querySelector('.design-overview-primary.has-captures')).not.toBeNull();
     await act(async () => { host.querySelector<HTMLButtonElement>('.design-overview-capture')!.click(); });
     expect(onOpenQaCard).toHaveBeenCalledWith('card-1');
   } finally {
