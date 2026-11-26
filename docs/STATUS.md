@@ -2,6 +2,10 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Gespeicherte Spaltenfarben (lokal geprüft)
+
+- Jede Board-Spalte kann im bestehenden Einstellungsblatt eine von vier zurückhaltenden Farben wählen oder zur automatischen Positionsfarbe zurückkehren. Die Auswahl wird in SQLite gespeichert, beim Projektpaket-Export übernommen und beim Import ohne Agenten-/Autostartdaten wiederhergestellt. Eine alte Datenbank erhält den neutralen Standardwert durch Migration; unbekannte Farbwerte werden abgewiesen. Der Zustand wurde in einem isolierten Electron-Profil gewählt, das Fenster geschlossen und nach Neubau erneut geöffnet; die Korallfarbe war sichtbar erhalten. 25 gezielte Backend-/Renderer-Tests, Typprüfung und Produktionsbuild bestanden. Farben sind rein nutzergewählte Organisation und zeigen weder Fortschritt noch Teampräsenz. Die vollständige lokale Suite wurde nach langem Lauf ohne Ergebnis beendet; der Windows-CI-Lauf für diesen Commit steht noch aus.
+
 ## Board- und Designhierarchie nach Nutzerfeedback (lokal geprüft)
 
 - Das Board nennt einen tatsächlich konfigurierten Spaltenagenten samt Startmodus direkt unter dem Spaltentitel. Eine Karte zeigt bei einem laufenden Prozess den Agenten aus dieser Sitzung; ohne laufenden Prozess zeigt sie den Spaltenagenten, falls vorhanden. Leere Karten verlieren die bedeutungsarme Zeile „Noch kein Lauf“. Es werden keine Teammitglieder oder Sitzungen erfunden. Ein gezielter Renderer-Test prüft konfigurierten und tatsächlich laufenden Agenten; die Oberfläche wurde in einem isolierten synthetischen Electron-Profil bei 1280 × 720 sichtbar geprüft.

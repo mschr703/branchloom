@@ -33,13 +33,25 @@ describe('column agent settings', () => {
     const store = new StudioStore(path);
     const project = store.createProject({ name: 'Existing', path: root });
     const first = store.snapshot(project.id).columns[0]!;
-    expect(first).toMatchObject({ model: null, effort: null });
+    expect(first).toMatchObject({ model: null, effort: null, tint: 'default' });
     const codex = store.agents().find((item) => item.kind === 'codex')!;
     const saved = store.updateColumn({ id: first.id, agentId: codex.id, model: 'gpt-6.1-sol', effort: 'high' });
     expect(saved).toMatchObject({ agentId: codex.id, model: 'gpt-6.1-sol', effort: 'high' });
     store.close();
     const reopened = new StudioStore(path);
     expect(reopened.column(first.id)).toMatchObject({ model: 'gpt-6.1-sol', effort: 'high' });
+    reopened.close();
+  });
+
+  it('persists a chosen board color and rejects unknown colors', () => {
+    const { store, path, project } = fixture();
+    const first = store.snapshot(project.id).columns[0]!;
+    expect(store.updateColumn({ id: first.id, tint: 'coral' }).tint).toBe('coral');
+    expect(() => store.updateColumn({ id: first.id, tint: 'neon' as never })).toThrow('Invalid column color');
+    expect(store.column(first.id).tint).toBe('coral');
+    store.close();
+    const reopened = new StudioStore(path);
+    expect(reopened.snapshot(project.id).columns[0]?.tint).toBe('coral');
     reopened.close();
   });
 

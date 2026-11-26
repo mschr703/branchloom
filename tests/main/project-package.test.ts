@@ -25,7 +25,7 @@ describe('project package', () => {
     const { store, dbPath, project, target } = fixture();
     const columns = store.snapshot(project.id).columns;
     const codex = store.agents().find((item) => item.kind === 'codex')!;
-    store.updateColumn({ id: columns[1]!.id, autoStart: true, agentId: codex.id, model: 'gpt-6.1', effort: 'high' });
+    store.updateColumn({ id: columns[1]!.id, autoStart: true, agentId: codex.id, model: 'gpt-6.1', effort: 'high', tint: 'lilac' });
     const card = store.createCard({ projectId: project.id, columnId: columns[0]!.id, title: 'Synthetic task', description: 'Keep details', priority: 'urgent', labels: ['release'] });
     createCardCriterion(store, { cardId: card.id, text: 'Keyboard path works' });
     createCardCriterion(store, { cardId: card.id, text: 'Error state is visible' });
@@ -51,6 +51,7 @@ describe('project package', () => {
     const restored = store.snapshot(imported.id);
     expect(restored.columns).toHaveLength(columns.length);
     expect(restored.columns.every((item) => !item.autoStart && item.agentId === null && item.model === null && item.effort === null)).toBe(true);
+    expect(restored.columns.find((item) => item.name === columns[1]!.name)?.tint).toBe('lilac');
     expect(restored.cards.map((item) => [item.title, item.description, item.priority, item.labels, Boolean(item.archivedAt)])).toEqual(original.cards.map((item) => [item.title, item.description, item.priority, item.labels, Boolean(item.archivedAt)]));
     expect(restored.cards.every((item) => item.projectId === imported.id && !original.cards.some((old) => old.id === item.id))).toBe(true);
     expect(cardCriteria(store, restored.cards.find((item) => item.title === card.title)!.id).map((item) => [item.text, item.evidence.length]))
@@ -87,6 +88,7 @@ describe('project package', () => {
     expect(() => parseProjectPackage('{')).toThrow('JSON');
     expect(() => parseProjectPackage(JSON.stringify({ ...baseline, version: 3 }))).toThrow('Version');
     expect(() => parseProjectPackage(JSON.stringify({ ...baseline, columns: [...baseline.columns, baseline.columns[0]] }))).toThrow('doppelte');
+    expect(() => parseProjectPackage(JSON.stringify({ ...baseline, columns: [{ ...baseline.columns[0], tint: 'neon' }, ...baseline.columns.slice(1)] }))).toThrow('Spaltenfarbe');
     expect(() => parseProjectPackage(JSON.stringify({ ...baseline, cards: [{ id: 'x', columnId: 'missing', title: 'Bad', description: '', priority: 'none', labels: [], position: 0, archived: false }] }))).toThrow('fehlende Spalte');
     const { criteria: _criteria, ...oldCard } = baseline.cards[0]!;
     expect(parseProjectPackage(JSON.stringify({ ...baseline, version: 1, cards: [oldCard] })).cards[0]?.criteria).toEqual([]);

@@ -331,7 +331,7 @@ function BoardColumn({ column, columns, cards, snapshot, workflowEvidence, empty
   }
   const activeOrder = snapshot.cards.filter((card) => card.columnId === column.id && !card.archivedAt).sort(compareCardOrder);
   const columnAgent = snapshot.agents.find((item) => item.id === column.agentId);
-  return <section className="board-column" data-run-mode={column.agentId ? column.autoStart ? 'automatic' : 'manual-agent' : 'manual'} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onDrop(event, column.id)} aria-label={`Spalte ${column.name}`}>
+  return <section className="board-column" data-tint={column.tint ?? 'default'} data-run-mode={column.agentId ? column.autoStart ? 'automatic' : 'manual-agent' : 'manual'} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onDrop(event, column.id)} aria-label={`Spalte ${column.name}`}>
     <header className="column-header"><div className="column-heading"><div className="column-title"><span className="column-indicator" /><h3>{column.name}</h3><span className="count-pill">{cards.length}</span></div>{columnAgent ? <span className="column-run-summary">{columnAgent.name} · {column.autoStart ? 'Start beim Verschieben' : 'Start auf Anfrage'}</span> : null}</div><button ref={settingsTrigger} className="column-settings-trigger" type="button" aria-label={`Spalte ${column.name} einstellen`} aria-haspopup="dialog" aria-expanded={settingsOpen} title="Spalte einstellen" onClick={() => setSettingsOpen(true)}><Pencil size={16} aria-hidden="true" /></button></header>
     <div className="column-body">
       {cards.map((card) => {

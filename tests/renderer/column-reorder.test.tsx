@@ -35,7 +35,18 @@ describe('board column settings', () => {
     expect(settings).toContain('title="Erste Spalte"');
     expect(settings).toContain('aria-label="Spalte Zuerst nach rechts verschieben"');
     expect(settings).toContain('aria-label="Agent für Zuerst"');
+    expect(settings).toContain('aria-label="Farbe für Spalte Zuerst"');
+    expect(settings).toContain('Koralle für Spalte Zuerst');
     expect(settings).toContain('Agent beim Verschieben in diese Spalte automatisch starten');
+  });
+
+  it('marks the saved board tint in both the column and its settings', () => {
+    const tinted = { ...snapshot.columns[1]!, tint: 'coral' as const };
+    const current = { ...snapshot, columns: [snapshot.columns[0]!, tinted] };
+    const board = renderToStaticMarkup(createElement(BoardView, { snapshot: current, mutate }));
+    expect(board).toContain('data-tint="coral"');
+    const settings = renderSheet(current, tinted);
+    expect(settings).toMatch(/data-tint="coral"[^>]*aria-label="Koralle für Spalte Zuerst"[^>]*aria-pressed="true"/);
   });
 
   it('explains a locked To Do name and a blocked deletion', () => {

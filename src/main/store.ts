@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
 import { realpathSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
-import type { AgentCapability, AgentCapabilityEvidence, AgentPreset, BulkCardAction, Card, CardAttachment, CardPriority, Column, ColumnEffort, CommandShell, CommandTerminal, InterruptedSessionReview, MemoryNote, Project, ProjectOrganization, ProjectQueue, ProjectSnapshot, ProjectSort, QueueState, Session, SessionSearchHit, SessionState, TrelloImportPreview, TrelloImportResult, Workflow, WorkflowAgentSettings, WorkflowProposal, WorkflowState, WorkflowStep } from '../shared/types';
+import type { AgentCapability, AgentCapabilityEvidence, AgentPreset, BulkCardAction, Card, CardAttachment, CardPriority, Column, ColumnEffort, ColumnTint, CommandShell, CommandTerminal, InterruptedSessionReview, MemoryNote, Project, ProjectOrganization, ProjectQueue, ProjectSnapshot, ProjectSort, QueueState, Session, SessionSearchHit, SessionState, TrelloImportPreview, TrelloImportResult, Workflow, WorkflowAgentSettings, WorkflowProposal, WorkflowState, WorkflowStep } from '../shared/types';
 import type { UsageSessionPage } from '../shared/usage';
 import { cardLabels, cardPriority } from '../shared/card-metadata';
 import { columnSettings } from '../shared/column-settings';
@@ -78,7 +78,7 @@ function optionalText(value: string, label: string, max = 30000): string {
 }
 
 interface ProjectRow { id: string; name: string; path: string; created_at: string }
-interface ColumnRow { id: string; project_id: string; name: string; position: number; auto_start: number; agent_id: string | null; model: string | null; effort: ColumnEffort | null }
+interface ColumnRow { id: string; project_id: string; name: string; position: number; auto_start: number; agent_id: string | null; model: string | null; effort: ColumnEffort | null; tint: ColumnTint }
 interface CardRow { id: string; project_id: string; column_id: string; title: string; description: string; priority: CardPriority; labels_json: string; wireframe_required: number; position: number; created_at: string; updated_at: string; archived_at: string | null }
 interface AgentRow { id: string; name: string; kind: AgentPreset['kind']; command: string; args_json: string; model: string | null; enabled: number }
 interface SessionRow { id: string; project_id: string; card_id: string; agent_id: string; state: SessionState; started_at: string; ended_at: string | null; exit_code: number | null; output: string; worktree_path: string | null; codex_thread_id: string | null }
@@ -92,7 +92,11 @@ interface NoteRow { id: string; project_id: string; title: string; body: string;
 interface AttachmentRow { id: string; card_id: string; path: string; name: string; size: number; added_at: string }
 
 const project = (row: ProjectRow): Project => ({ id: row.id, name: row.name, path: row.path, createdAt: row.created_at });
-const column = (row: ColumnRow): Column => ({ id: row.id, projectId: row.project_id, name: row.name, position: row.position, autoStart: asBool(row.auto_start), agentId: row.agent_id, model: row.model, effort: row.effort });
+const column = (row: ColumnRow): Column => ({ id: row.id, projectId: row.project_id, name: row.name, position: row.position, autoStart: asBool(row.auto_start), agentId: row.agent_id, model: row.model, effort: row.effort, tint: row.tint });
+const columnTint = (value: unknown): ColumnTint => {
+  if (value === 'default' || value === 'lilac' || value === 'blue' || value === 'sand' || value === 'coral') return value;
+  throw new Error('Invalid column color.');
+};
 const card = (row: CardRow): Card => ({ id: row.id, projectId: row.project_id, columnId: row.column_id, title: row.title, description: row.description, priority: row.priority, labels: parseArray<string>(row.labels_json), wireframeRequired: asBool(row.wireframe_required), position: row.position, createdAt: row.created_at, updatedAt: row.updated_at, archivedAt: row.archived_at });
 const agent = (row: AgentRow): AgentPreset => ({ id: row.id, name: row.name, kind: row.kind, command: row.command, args: parseArray<string>(row.args_json), model: row.model, enabled: asBool(row.enabled) });
 const session = (row: SessionRow): Session => ({ id: row.id, projectId: row.project_id, cardId: row.card_id, agentId: row.agent_id, state: row.state, startedAt: row.started_at, endedAt: row.ended_at, exitCode: row.exit_code, output: row.output, worktreePath: row.worktree_path, codexThreadId: row.codex_thread_id });
@@ -117,7 +121,7 @@ export class StudioStore {
       CREATE TABLE IF NOT EXISTS project_group_members (project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE, group_id TEXT NOT NULL REFERENCES project_groups(id) ON DELETE CASCADE);
       CREATE TABLE IF NOT EXISTS project_navigation (id INTEGER PRIMARY KEY CHECK (id = 1), sort TEXT NOT NULL CHECK (sort IN ('name', 'newest')));
       CREATE TABLE IF NOT EXISTS agents (id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, command TEXT NOT NULL, args_json TEXT NOT NULL, model TEXT, enabled INTEGER NOT NULL);
-      CREATE TABLE IF NOT EXISTS columns (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, name TEXT NOT NULL, position INTEGER NOT NULL, auto_start INTEGER NOT NULL DEFAULT 0, agent_id TEXT REFERENCES agents(id), model TEXT, effort TEXT);
+      CREATE TABLE IF NOT EXISTS columns (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, name TEXT NOT NULL, position INTEGER NOT NULL, auto_start INTEGER NOT NULL DEFAULT 0, agent_id TEXT REFERENCES agents(id), model TEXT, effort TEXT, tint TEXT NOT NULL DEFAULT 'default');
       CREATE TABLE IF NOT EXISTS cards (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, column_id TEXT NOT NULL REFERENCES columns(id), title TEXT NOT NULL, description TEXT NOT NULL, position INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived_at TEXT, priority TEXT NOT NULL DEFAULT 'none', labels_json TEXT NOT NULL DEFAULT '[]', wireframe_required INTEGER NOT NULL DEFAULT 0 CHECK (wireframe_required IN (0, 1)));
       CREATE TABLE IF NOT EXISTS card_attachments (id TEXT PRIMARY KEY, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, path TEXT NOT NULL, name TEXT NOT NULL, size INTEGER NOT NULL, added_at TEXT NOT NULL, UNIQUE(card_id, path));
       CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, agent_id TEXT NOT NULL REFERENCES agents(id), state TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT, exit_code INTEGER, output TEXT NOT NULL DEFAULT '');
@@ -180,6 +184,7 @@ export class StudioStore {
     const columnColumns = this.db.pragma('table_info(columns)') as Array<{ name: string }>;
     if (!columnColumns.some((item) => item.name === 'model')) this.db.exec('ALTER TABLE columns ADD COLUMN model TEXT');
     if (!columnColumns.some((item) => item.name === 'effort')) this.db.exec('ALTER TABLE columns ADD COLUMN effort TEXT');
+    if (!columnColumns.some((item) => item.name === 'tint')) this.db.exec("ALTER TABLE columns ADD COLUMN tint TEXT NOT NULL DEFAULT 'default'");
     installWhiteboard(this.db);
     installReviewComments(this.db);
     installIdeas(this.db);
@@ -317,7 +322,7 @@ export class StudioStore {
     }
     return {
       format: 'jarvis-studio-project', version: 2, name: snapshot.project.name,
-      columns: snapshot.columns.map((item) => ({ id: item.id, name: item.name, position: item.position })),
+      columns: snapshot.columns.map((item) => ({ id: item.id, name: item.name, position: item.position, tint: item.tint ?? 'default' })),
       cards: snapshot.cards.map((item) => ({ id: item.id, columnId: item.columnId, title: item.title, description: item.description, priority: item.priority, labels: item.labels, position: item.position, archived: item.archivedAt !== null, criteria: criteriaByCard.get(item.id) ?? [] })),
       notes: snapshot.notes.map((item) => ({ title: item.title, body: item.body, tags: item.tags, links: item.links })),
       workflows: snapshot.workflows.map((item) => ({ name: item.name, cardIds: item.cardIds, steps: item.steps.map((step) => ({ columnId: step.columnId, requireApproval: step.requireApproval })) })),
@@ -332,11 +337,11 @@ export class StudioStore {
       const columnIds = new Map<string, string>();
       const cardIds = new Map<string, string>();
       const stamp = now();
-      const insertColumn = this.db.prepare('INSERT INTO columns (id, project_id, name, position, auto_start, agent_id, model, effort) VALUES (?, ?, ?, ?, 0, NULL, NULL, NULL)');
+      const insertColumn = this.db.prepare('INSERT INTO columns (id, project_id, name, position, auto_start, agent_id, model, effort, tint) VALUES (?, ?, ?, ?, 0, NULL, NULL, NULL, ?)');
       for (const item of data.columns) {
         const id = randomUUID();
         columnIds.set(item.id, id);
-        insertColumn.run(id, created.id, item.name, item.position);
+        insertColumn.run(id, created.id, item.name, item.position, item.tint ?? 'default');
       }
       const insertCard = this.db.prepare('INSERT INTO cards (id, project_id, column_id, title, description, position, created_at, updated_at, archived_at, priority, labels_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
       for (const item of data.cards) {
@@ -579,13 +584,13 @@ export class StudioStore {
       if (names.some((item) => item.name.toLocaleLowerCase('de-DE') === name.toLocaleLowerCase('de-DE'))) throw new Error('Spaltenname existiert in diesem Projekt bereits.');
       const selectedAgent = input.agentId ? this.agent(input.agentId) : null;
       const settings = columnSettings(selectedAgent?.kind ?? null, input.model, input.effort);
-      const row: Column = { id: randomUUID(), projectId: input.projectId, name, position: (this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS next FROM columns WHERE project_id = ?').get(input.projectId) as { next: number }).next, autoStart: input.autoStart === true, agentId: input.agentId ?? null, ...settings };
+      const row: Column = { id: randomUUID(), projectId: input.projectId, name, position: (this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS next FROM columns WHERE project_id = ?').get(input.projectId) as { next: number }).next, autoStart: input.autoStart === true, agentId: input.agentId ?? null, tint: 'default', ...settings };
       if (row.autoStart && !row.agentId) throw new Error('Für automatischen Start zuerst einen Spaltenagenten wählen.');
       this.db.prepare('INSERT INTO columns (id, project_id, name, position, auto_start, agent_id, model, effort) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(row.id, row.projectId, row.name, row.position, Number(row.autoStart), row.agentId, row.model, row.effort);
       return row;
     }).immediate();
   }
-  updateColumn(input: { id: string; name?: string; autoStart?: boolean; agentId?: string | null; model?: string | null; effort?: ColumnEffort | null }): Column {
+  updateColumn(input: { id: string; name?: string; autoStart?: boolean; agentId?: string | null; model?: string | null; effort?: ColumnEffort | null; tint?: ColumnTint }): Column {
     return this.db.transaction(() => {
       const old = this.column(input.id);
       const name = input.name === undefined ? old.name : trimmed(input.name, 'Column name');
@@ -597,7 +602,7 @@ export class StudioStore {
       const agentId = input.agentId === undefined ? old.agentId : input.agentId;
       const selectedAgent = agentId ? this.agent(agentId) : null;
       const settings = columnSettings(selectedAgent?.kind ?? null, input.model === undefined ? old.model : input.model, input.effort === undefined ? old.effort : input.effort);
-      const value = { ...old, name, autoStart: input.autoStart ?? old.autoStart, agentId, ...settings };
+      const value = { ...old, name, autoStart: input.autoStart ?? old.autoStart, agentId, tint: input.tint === undefined ? old.tint ?? 'default' : columnTint(input.tint), ...settings };
       if (value.autoStart && !value.agentId) throw new Error('Für automatischen Start zuerst einen Spaltenagenten wählen.');
       const queue = this.projectQueue(old.projectId);
       if (queue.state === 'running') {
@@ -609,7 +614,7 @@ export class StudioStore {
           || value.effort !== old.effort || value.autoStart !== old.autoStart))
           throw new Error('Pause the project queue before changing launch settings of a column in its route.');
       }
-      this.db.prepare('UPDATE columns SET name = ?, auto_start = ?, agent_id = ?, model = ?, effort = ? WHERE id = ?').run(value.name, Number(value.autoStart), value.agentId, value.model, value.effort, input.id);
+      this.db.prepare('UPDATE columns SET name = ?, auto_start = ?, agent_id = ?, model = ?, effort = ?, tint = ? WHERE id = ?').run(value.name, Number(value.autoStart), value.agentId, value.model, value.effort, value.tint, input.id);
       return value;
     }).immediate();
   }

@@ -47,7 +47,8 @@ export type WhiteboardReference = { kind: 'card'; cardId: string } | { kind: 'fo
 export interface WhiteboardNode { id: string; projectId: string; title: string; description: string; x: number; y: number; reference: WhiteboardReference | null; createdAt: string; updatedAt: string }
 export interface WhiteboardEdge { id: string; projectId: string; sourceId: string; targetId: string; label: string; createdAt: string; cardId: string | null }
 export interface WhiteboardSnapshot { nodes: WhiteboardNode[]; edges: WhiteboardEdge[] }
-export interface Column { id: string; projectId: string; name: string; position: number; autoStart: boolean; agentId: string | null; model: string | null; effort: ColumnEffort | null }
+export type ColumnTint = 'default' | 'lilac' | 'blue' | 'sand' | 'coral';
+export interface Column { id: string; projectId: string; name: string; position: number; autoStart: boolean; agentId: string | null; model: string | null; effort: ColumnEffort | null; tint?: ColumnTint }
 export interface Card { id: string; projectId: string; columnId: string; title: string; description: string; priority: CardPriority; labels: string[]; wireframeRequired: boolean; position: number; createdAt: string; updatedAt: string; archivedAt: string | null }
 export type BulkCardAction = { projectId: string; cardIds: string[]; action: 'move'; columnId: string } | { projectId: string; cardIds: string[]; action: 'archive' } | { projectId: string; cardIds: string[]; action: 'priority'; priority: CardPriority };
 export interface CardAttachment { id: string; cardId: string; name: string; size: number; addedAt: string; available: boolean; canOpen: boolean }
@@ -258,7 +259,7 @@ export interface StudioAPI {
   createCardFromWhiteboardEdge(input: { projectId: string; edgeId: string; columnId: string; title: string; description: string }): Promise<Card>;
   deleteWhiteboardEdge(input: { projectId: string; id: string }): Promise<void>;
   createColumn(input: { projectId: string; name: string; autoStart?: boolean; agentId?: string | null; model?: string | null; effort?: ColumnEffort | null }): Promise<Column>;
-  updateColumn(input: { id: string; name?: string; autoStart?: boolean; agentId?: string | null; model?: string | null; effort?: ColumnEffort | null }): Promise<Column>;
+  updateColumn(input: { id: string; name?: string; autoStart?: boolean; agentId?: string | null; model?: string | null; effort?: ColumnEffort | null; tint?: ColumnTint }): Promise<Column>;
   reorderColumn(input: { id: string; direction: 'left' | 'right' }): Promise<Column>;
   deleteColumn(id: string): Promise<void>;
   createCard(input: { projectId: string; columnId: string; title: string; description?: string; priority?: CardPriority; labels?: string[] }): Promise<Card>;

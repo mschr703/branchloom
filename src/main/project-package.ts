@@ -1,4 +1,4 @@
-import type { CardPriority } from '../shared/types';
+import type { CardPriority, ColumnTint } from '../shared/types';
 import { cardLabels, cardPriority } from '../shared/card-metadata';
 
 export const PROJECT_PACKAGE_LIMIT = 8 * 1024 * 1024;
@@ -7,7 +7,7 @@ export interface ProjectPackage {
   format: 'jarvis-studio-project';
   version: 1 | 2;
   name: string;
-  columns: Array<{ id: string; name: string; position: number }>;
+  columns: Array<{ id: string; name: string; position: number; tint?: ColumnTint }>;
   cards: Array<{ id: string; columnId: string; title: string; description: string; priority: CardPriority; labels: string[]; position: number; archived: boolean; criteria?: string[] }>;
   notes: Array<{ title: string; body: string; tags: string[]; links: string[] }>;
   workflows: Array<{ name: string; cardIds: string[]; steps: Array<{ columnId: string; requireApproval: boolean }> }>;
@@ -48,7 +48,8 @@ export function parseProjectPackage(json: string): ProjectPackage {
   const name = string(root.name, 'Projektname', 200).trim();
   const columns = list(root.columns, 'Spalten', 100).map((item) => {
     const row = object(item, 'Spalte');
-    return { id: string(row.id, 'Spalten-ID', 100), name: string(row.name, 'Spaltenname', 200).trim(), position: index(row.position, 'Spaltenposition') };
+    if (row.tint !== undefined && !['default', 'lilac', 'blue', 'sand', 'coral'].includes(String(row.tint))) throw new Error('Spaltenfarbe ist ungültig.');
+    return { id: string(row.id, 'Spalten-ID', 100), name: string(row.name, 'Spaltenname', 200).trim(), position: index(row.position, 'Spaltenposition'), tint: row.tint as ColumnTint | undefined };
   });
   if (!columns.length) throw new Error('Projektpaket enthält keine Spalten.');
   unique(columns.map((item) => item.id), 'Spalten');

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeft, ArrowRight, Trash2, X } from 'lucide-react';
-import type { Column, ProjectSnapshot, Session } from '../../shared/types';
+import type { Column, ColumnTint, ProjectSnapshot, Session } from '../../shared/types';
 import type { Mutate } from './shared';
 import './column-settings-sheet.css';
 
@@ -20,10 +20,18 @@ interface Props {
 const sessionState: Record<Session['state'], string> = {
   running: 'Läuft', exited: 'Beendet', failed: 'Fehlgeschlagen', stopped: 'Gestoppt',
 };
+const columnTints: Array<{ value: ColumnTint; label: string }> = [
+  { value: 'default', label: 'Standard' },
+  { value: 'lilac', label: 'Flieder' },
+  { value: 'blue', label: 'Blau' },
+  { value: 'sand', label: 'Sand' },
+  { value: 'coral', label: 'Koralle' },
+];
 
 export function ColumnSettingsSheet({ column, columns, snapshot, mutate, onClose, onSelectCard, onReorderColumn, renameLocked, deleteReason, children }: Props) {
   const [name, setName] = useState(column.name);
   const [busy, setBusy] = useState(false);
+  const [colorBusy, setColorBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const dialog = useRef<HTMLElement>(null);
   const position = columns.findIndex((item) => item.id === column.id);
@@ -55,6 +63,13 @@ export function ColumnSettingsSheet({ column, columns, snapshot, mutate, onClose
     finally { setBusy(false); }
   }
 
+  async function changeTint(tint: ColumnTint) {
+    if (colorBusy || tint === (column.tint ?? 'default')) return;
+    setColorBusy(true);
+    try { await mutate(() => window.studio.updateColumn({ id: column.id, tint })); }
+    finally { setColorBusy(false); }
+  }
+
   async function deleteColumn() {
     if (busy || deleteReason) return;
     setBusy(true);
@@ -71,6 +86,7 @@ export function ColumnSettingsSheet({ column, columns, snapshot, mutate, onClose
         <section className="column-settings-section" aria-labelledby="column-general-title"><h3 id="column-general-title">Allgemein</h3>
           <form className="column-settings-name" onSubmit={(event) => void saveName(event)}><label>Name<input value={name} maxLength={80} required disabled={busy || renameLocked} aria-label={`Neuer Name für Spalte ${column.name}`} onChange={(event) => setName(event.target.value)} /></label><button className="secondary-button small" type="submit" disabled={busy || renameLocked || !nameChanged}>Namen speichern</button></form>
           {renameLocked ? <p className="column-settings-help">To Do kann erst nach Ausschalten der Warteschlange umbenannt werden.</p> : null}
+          <div className="column-settings-colors" role="group" aria-label={`Farbe für Spalte ${column.name}`}><span>Spaltenfarbe</span><div>{columnTints.map((item) => <button key={item.value} type="button" data-tint={item.value} aria-label={`${item.label} für Spalte ${column.name}`} aria-pressed={(column.tint ?? 'default') === item.value} disabled={busy || colorBusy} onClick={() => void changeTint(item.value)}><span className="column-settings-swatch" aria-hidden="true" />{item.label}</button>)}</div></div>
           <div className="column-settings-order"><span>Reihenfolge</span><div><button className="secondary-button small" type="button" disabled={busy || position <= 0} aria-label={`Spalte ${column.name} nach links verschieben`} title={position <= 0 ? 'Erste Spalte' : `Vor ${columns[position - 1]?.name}`} onClick={() => void onReorderColumn(column, 'left')}><ArrowLeft size={15} /> Links</button><button className="secondary-button small" type="button" disabled={busy || position >= columns.length - 1} aria-label={`Spalte ${column.name} nach rechts verschieben`} title={position >= columns.length - 1 ? 'Letzte Spalte' : `Hinter ${columns[position + 1]?.name}`} onClick={() => void onReorderColumn(column, 'right')}>Rechts <ArrowRight size={15} /></button></div></div>
         </section>
         <section className="column-settings-section" aria-labelledby="column-agent-title"><h3 id="column-agent-title">Agent</h3><p>{agent ? `${agent.name} · ${column.autoStart ? 'Automatisch' : 'Manuell'}` : 'Noch kein Agent zugewiesen.'}</p>{children}</section>
