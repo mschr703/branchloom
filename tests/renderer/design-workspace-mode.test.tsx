@@ -37,6 +37,7 @@ it('keeps an unsaved draft mounted while inspecting the running app and hides na
   const setVisible = vi.fn(async () => ({ projectId: null, sourceUrl: null, ready: false, armed: false, themePreview: null }));
   Object.defineProperty(window, 'studio', { configurable: true, value: {
     designSelections: async () => [], onDesignSelection: () => () => undefined,
+    listProjectWireframes: async () => ({ items: [], moreAvailable: false }),
     designInspectionSetBounds: setBounds, designInspectionSetVisible: setVisible,
     designInspectionStart: async () => ({ projectId: 'synthetic-project', sourceUrl: 'http://127.0.0.1:5173/', ready: true, armed: false, themePreview: null, elementPreview: null }),
   } });
@@ -44,12 +45,15 @@ it('keeps an unsaved draft mounted while inspecting the running app and hides na
     await act(async () => { root.render(<DesignInspectionView projectId="synthetic-project" active cards={[]} columns={[]} queueState="off" onOpenCard={() => undefined} onCreated={() => undefined} />); });
     const draft = mount.querySelector<HTMLInputElement>('input[aria-label="Synthetic draft"]')!;
     const buttons = [...mount.querySelectorAll<HTMLButtonElement>('.design-workspace-modes button')];
-    expect(buttons.map((button) => button.textContent)).toEqual(['Entwurf', 'Laufende App prüfen']);
-    expect(mount.querySelector('.design-workspace-draft')?.hasAttribute('hidden')).toBe(false);
+    expect(buttons.map((button) => button.textContent)).toEqual(['Übersicht', 'Entwurf', 'Laufende App prüfen']);
+    expect(mount.textContent).toContain('Noch kein Entwurf gespeichert');
+    expect(mount.querySelector('.design-workspace-draft')?.hasAttribute('hidden')).toBe(true);
     expect(mount.querySelector('.design-inspection-tools')?.hasAttribute('hidden')).toBe(true);
+    await act(async () => { buttons[1]!.click(); });
+    expect(mount.querySelector('.design-workspace-draft')?.hasAttribute('hidden')).toBe(false);
     draft.value = 'Changed but not saved';
 
-    await act(async () => { buttons[1]!.click(); });
+    await act(async () => { buttons[2]!.click(); });
     expect(mount.querySelector('.design-workspace-draft')?.hasAttribute('hidden')).toBe(true);
     expect(mount.querySelector('.design-inspection-tools')?.hasAttribute('hidden')).toBe(false);
     expect(setVisible).not.toHaveBeenCalledWith(false);
@@ -64,7 +68,7 @@ it('keeps an unsaved draft mounted while inspecting the running app and hides na
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 400)); });
     expect(mount.querySelector<HTMLButtonElement>('.design-inspection-toolbar button')!.textContent).toBe('Vorschau öffnen');
 
-    await act(async () => { buttons[0]!.click(); });
+    await act(async () => { buttons[1]!.click(); });
     expect(mount.querySelector('input[aria-label="Synthetic draft"]')).toBe(draft);
     expect(draft.value).toBe('Changed but not saved');
     expect(mount.querySelector('.design-inspection-tools')?.hasAttribute('hidden')).toBe(true);

@@ -80,6 +80,12 @@ export interface CardWireframe {
   updatedAt: string;
 }
 
+/** Recent saved documents for the project-level Design entry. No unsaved editor state is included. */
+export interface ProjectWireframeIndex {
+  items: CardWireframe[];
+  moreAvailable: boolean;
+}
+
 export interface SaveCardWireframeInput {
   projectId: string;
   cardId: string;

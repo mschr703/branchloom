@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import type { CardWireframe, CardWireframeKey, SaveCardWireframeInput, WireframeElement, WireframeElementKind, WireframeElementStyle, WireframeElementTone, WireframeInteraction, WireframeVariant } from '../shared/card-wireframe';
+import type { CardWireframe, CardWireframeKey, ProjectWireframeIndex, SaveCardWireframeInput, WireframeElement, WireframeElementKind, WireframeElementStyle, WireframeElementTone, WireframeInteraction, WireframeVariant } from '../shared/card-wireframe';
 import { WIREFRAME_ARTBOARDS, WIREFRAME_HEIGHT, WIREFRAME_THEME_COLORS, WIREFRAME_WIDTH } from '../shared/card-wireframe';
 import type { StudioStore } from './store';
 
@@ -175,6 +175,14 @@ export function cardWireframe(store: StudioStore, key: CardWireframeKey): CardWi
   checkedKey(store, key);
   const row = store.db.prepare('SELECT * FROM card_wireframes WHERE project_id = ? AND card_id = ?').get(key.projectId, key.cardId) as WireframeRow | undefined;
   return row ? fromRow(row) : null;
+}
+
+/** A bounded, project-scoped Design index. The editor can still open any older card by ID. */
+export function listProjectWireframes(store: StudioStore, projectId: string): ProjectWireframeIndex {
+  store.project(projectId);
+  const rows = store.db.prepare('SELECT * FROM card_wireframes WHERE project_id = ? ORDER BY updated_at DESC, card_id ASC LIMIT 25')
+    .all(projectId) as WireframeRow[];
+  return { items: rows.slice(0, 24).map(fromRow), moreAvailable: rows.length > 24 };
 }
 
 export function saveCardWireframe(store: StudioStore, input: SaveCardWireframeInput): CardWireframe {

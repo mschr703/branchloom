@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { StudioStore } from '../../src/main/store';
-import { approveCardWireframe, approvedCardWireframeContext, cardWireframe, checkedWireframeElements, saveCardWireframe } from '../../src/main/card-wireframe';
+import { approveCardWireframe, approvedCardWireframeContext, cardWireframe, checkedWireframeElements, listProjectWireframes, saveCardWireframe } from '../../src/main/card-wireframe';
 import type { WireframeElement, WireframeInteraction } from '../../src/shared/card-wireframe';
 
 const roots: string[] = [];
@@ -27,6 +27,20 @@ const panel: WireframeElement = { id: 'drawer', kind: 'panel', x: 400, y: 100, w
 const interaction: WireframeInteraction = { triggerElementId: 'open', panelElementId: 'drawer', trigger: 'click', action: 'toggle-panel', durationMs: 240, enterOffsetPx: 24, closedOpacity: 0, reducedMotionDurationMs: 0, focusOnOpen: 'panel', focusOnClose: 'trigger' };
 
 describe('task-linked wireframes', () => {
+  it('lists only saved documents from the requested project, newest first', () => {
+    const { root, store, project, card, key } = fixture();
+    const otherPath = join(root, 'other'); mkdirSync(otherPath);
+    const otherProject = store.createProject({ name: 'Other', path: otherPath });
+    const otherCard = store.createCard({ projectId: otherProject.id, columnId: store.snapshot(otherProject.id).columns[0]!.id, title: 'Other card' });
+    expect(listProjectWireframes(store, project.id).items).toEqual([]);
+    saveCardWireframe(store, { ...key, expectedRevision: 0, title: 'Saved', elements: [element] });
+    saveCardWireframe(store, { projectId: otherProject.id, cardId: otherCard.id, expectedRevision: 0, title: 'Private to other project', elements: [element] });
+    expect(listProjectWireframes(store, project.id).items.map((item) => item.cardId)).toEqual([card.id]);
+    expect(listProjectWireframes(store, project.id).moreAvailable).toBe(false);
+    expect(listProjectWireframes(store, otherProject.id).items.map((item) => item.cardId)).toEqual([otherCard.id]);
+    expect(() => listProjectWireframes(store, 'missing-project')).toThrow();
+    store.close();
+  });
   it('persists a bounded entrance midpoint as a new approved revision without changing legacy interactions', () => {
     const { dbFile, store, key } = fixture();
     const elements = [button, panel];

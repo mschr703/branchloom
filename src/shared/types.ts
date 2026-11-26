@@ -22,7 +22,7 @@ import type { CardCriterion, CardCriterionEvidenceKind } from './card-acceptance
 import type { IdeaMatchKind, IdeaMatchPreview } from './idea-matches';
 import type { SessionRunEvidence } from './session-evidence';
 import type { AgentHandoffPreview, AgentHandoffReceipt, AgentHandoffSelection } from './agent-handoff';
-import type { CardWireframe, CardWireframeKey, SaveCardWireframeInput, WireframeArtboard, WireframeProposal } from './card-wireframe';
+import type { CardWireframe, CardWireframeKey, ProjectWireframeIndex, SaveCardWireframeInput, WireframeArtboard, WireframeProposal } from './card-wireframe';
 import type { SaveWireframeComponentInput, WireframeComponent } from './wireframe-components';
 import type { SessionRecoveryState } from './session-recovery';
 import type { CardRunGate } from './parallel-runs';
@@ -475,6 +475,7 @@ export interface StudioAPI {
   previewQaFixCard(input: { projectId: string; sourceCardId: string; reportId: string }): Promise<import('./qa-fix-card').QaFixCardPreview>;
   createQaFixCard(input: import('./qa-fix-card').CreateQaFixCard): Promise<Card>;
   designSelections(projectId: string): Promise<DesignSelection[]>;
+  listProjectWireframes(projectId: string): Promise<ProjectWireframeIndex>;
   cardWireframe(input: CardWireframeKey): Promise<CardWireframe | null>;
   exportWireframePng(input: { projectId: string; cardId: string; artboard: WireframeArtboard; dataUrl: string }): Promise<{ file: string } | null>;
   saveCardWireframe(input: SaveCardWireframeInput): Promise<CardWireframe>;

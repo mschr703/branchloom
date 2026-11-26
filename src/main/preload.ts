@@ -374,6 +374,7 @@ const studio: StudioAPI = {
   previewQaFixCard: (input) => invoke('previewQaFixCard', input),
   createQaFixCard: (input) => invoke('createQaFixCard', input),
   designSelections: (projectId) => invoke('designSelections', projectId),
+  listProjectWireframes: (projectId) => invoke('listProjectWireframes', projectId),
   cardWireframe: (input) => invoke('cardWireframe', input),
   exportWireframePng: (input) => invoke('exportWireframePng', input),
   saveCardWireframe: (input) => invoke('saveCardWireframe', input),

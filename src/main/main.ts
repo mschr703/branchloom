@@ -27,7 +27,7 @@ import { cardCriteria, createCardCriterion, updateCardCriterion, deleteCardCrite
 import { cardSplitLinks, createCardSplit, previewCardSplit } from './card-split';
 import { createQaFixCard, previewQaFixCard } from './qa-fix-card';
 import { DesignInspector, designSelections, saveDesignSelection } from './design-inspection';
-import { approveCardWireframe, approvedCardWireframeContext, cardWireframe, saveCardWireframe } from './card-wireframe';
+import { approveCardWireframe, approvedCardWireframeContext, cardWireframe, listProjectWireframes, saveCardWireframe } from './card-wireframe';
 import { listWireframeComponents, removeWireframeComponent, saveWireframeComponent } from './wireframe-components';
 import { checkedWireframePng, wireframeExportFilename, writeWireframePngExclusive } from './wireframe-export';
 import { proposeCardWireframe } from './wireframe-proposal';
@@ -898,6 +898,7 @@ function installIpc(): void {
   bind('previewQaFixCard', (input: Parameters<StudioAPI['previewQaFixCard']>[0]) => previewQaFixCard(db, input));
   bind('createQaFixCard', (input: Parameters<StudioAPI['createQaFixCard']>[0]) => createQaFixCard(db, input));
   bind('designSelections', (projectId: string) => designSelections(db, projectId));
+  bind('listProjectWireframes', (projectId: string) => listProjectWireframes(db, projectId));
   bind('cardWireframe', (input: Parameters<StudioAPI['cardWireframe']>[0]) => cardWireframe(db, input));
   bind('exportWireframePng', async (input: Parameters<StudioAPI['exportWireframePng']>[0]) => {
     if (!window || window.isDestroyed()) throw new Error('Das Exportfenster ist nicht verfügbar.');
@@ -2729,9 +2730,10 @@ function createWindow(): void {
               for (let attempt = 0; attempt < 100 && (await window.studio.apiContractMockState(boardProject.id)).running; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if ((await window.studio.apiContractMockState(boardProject.id)).running) throw new Error('API-Mock wurde nicht gestoppt.');
               return true;
-            })()
+            })().catch((error) => ({ smokeError: error instanceof Error ? error.message : String(error) }))
           `;
-          void smokeWindow.webContents.executeJavaScript(boardScript).then(async () => {
+          void smokeWindow.webContents.executeJavaScript(boardScript).then(async (boardResult) => {
+            if (boardResult !== true) throw new Error(`Board smoke: ${boardResult?.smokeError ?? 'unknown failure'}`);
             if (process.platform === 'win32') {
             const lateSession = smokeStore.snapshot(smokeProject.id).sessions.find((item) => item.cardId === f07Card.id);
             if (!lateSession || lateSession.state !== 'exited') throw new Error('F07: Real CLI completion is missing before the late-event check.');
@@ -2741,7 +2743,7 @@ function createWindow(): void {
               || readFileSync(join(smokeDataDirectory!, 'f07-launches.txt'), 'utf8').trim().split(/\r?\n/).length !== beforeLateCount)
               throw new Error('F07: Late completion launched the next step without explicit resume.');
             }
-            await smokeWindow.webContents.executeJavaScript(`(async () => {
+            const qaSmokeResult = await smokeWindow.webContents.executeJavaScript(`(async () => {
               const projectId = ${JSON.stringify(smokeProject.id)};
               const cardId = ${JSON.stringify(smokeCard.id)};
               const route = ${JSON.stringify(qaUrl)};
@@ -2823,11 +2825,12 @@ function createWindow(): void {
               for (let attempt = 0; attempt < 100 && document.activeElement?.id !== 'card-qa-report-' + tabletReportId; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!tabletReportId || document.activeElement?.id !== 'card-qa-report-' + tabletReportId) throw new Error('QA-Abdeckungszelle öffnete den Quellenbericht nicht.');
               return true;
-            })()`);
+            })().catch((error) => ({ smokeError: error instanceof Error ? error.message : String(error) }))`);
+            if (qaSmokeResult !== true) throw new Error(`QA smoke: ${qaSmokeResult?.smokeError ?? 'unknown failure'}`);
             execFileSync('git', ['init', '-q', smokeDataDirectory!], { windowsHide: true });
             execFileSync('git', ['-C', smokeDataDirectory!, 'add', '--', 'src/theme.css'], { windowsHide: true });
             execFileSync('git', ['-C', smokeDataDirectory!, '-c', 'user.name=Branchloom Smoke', '-c', 'user.email=smoke@example.invalid', 'commit', '-qm', 'Synthetic smoke theme'], { windowsHide: true });
-            await smokeWindow.webContents.executeJavaScript(`(async () => {
+            const changelogSmokeResult = await smokeWindow.webContents.executeJavaScript(`(async () => {
               const project = (await window.studio.projects())[0];
               const report = await window.studio.projectChangelog({ projectId: project.id, period: 'week', scope: 'saved-worktrees' });
               if (report.state !== 'ready' || report.scope !== 'saved-worktrees' || report.checkedWorktrees !== 0 || report.issues.length || !report.commits.some((item) => item.subject === 'Synthetic smoke theme' && item.sources?.[0]?.kind === 'project-head')) throw new Error('Changelog-IPC lieferte den synthetischen Git-Commit nicht.');
@@ -2843,11 +2846,20 @@ function createWindow(): void {
               for (let attempt = 0; attempt < 100 && !document.querySelector('.changelog-worktree-summary'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!document.querySelector('.changelog-worktree-summary')?.textContent?.includes('0 gespeicherte') || !document.querySelector('.changelog-groups')?.textContent?.includes('Synthetic smoke theme') || !document.querySelector('.changelog-timeline')?.textContent?.includes('Synthetic smoke theme')) throw new Error('Changelog-Worktree-Ansicht zeigte den geprüften Commit nicht im zeitlichen Überblick.');
               return true;
-            })()`);
-            await smokeWindow.webContents.executeJavaScript(`(async () => {
+            })().catch((error) => ({ smokeError: error instanceof Error ? error.message : String(error) }))`);
+            if (changelogSmokeResult !== true) throw new Error(`Changelog smoke: ${changelogSmokeResult?.smokeError ?? 'unknown failure'}`);
+            const designSmokeScript = `(async () => {
               const nav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Design');
               if (!nav) throw new Error('Design-Navigation fehlt.');
               nav.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.design-overview')?.textContent?.includes('Noch kein Entwurf gespeichert'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const designOverview = document.querySelector('.design-overview');
+              if (!designOverview || !designOverview.textContent?.includes('Noch kein Entwurf gespeichert')) throw new Error('Design-Projektübersicht zeigt keinen ehrlichen Leerzustand.');
+              const draftTab = [...document.querySelectorAll('.design-workspace-modes button')].find((button) => button.textContent?.trim() === 'Entwurf');
+              if (!(draftTab instanceof HTMLButtonElement)) throw new Error('Design-Entwurf ist nicht erreichbar.');
+              draftTab.click();
+              for (let attempt = 0; attempt < 100 && document.querySelector('.design-workspace-draft')?.hasAttribute('hidden'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('.design-workspace-draft')?.hasAttribute('hidden')) throw new Error('Design-Entwurf blieb versteckt.');
               for (let attempt = 0; attempt < 100 && !document.querySelector('.task-wireframe-source select'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               let wireframe = document.querySelector('.task-wireframe');
               const cardSelect = wireframe?.querySelector('.task-wireframe-source select');
@@ -2909,6 +2921,8 @@ function createWindow(): void {
               draftMode.click();
               for (let attempt = 0; attempt < 100 && document.querySelector('.design-workspace-draft[hidden]'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (document.querySelector('.design-workspace-draft[hidden]') || !document.querySelector('.design-inspection-tools[hidden]')) throw new Error('Entwurf wurde vor der weiteren Bearbeitung nicht sichtbar geöffnet.');
+              wireframe = document.querySelector('.design-workspace-draft .task-wireframe');
+              if (!wireframe?.isConnected || !wireframe.querySelector('.task-wireframe-canvas')) throw new Error('Sichtbarer Entwurf wurde nach dem Ansichtswechsel nicht wiedergefunden.');
               const inlineTitle = [...wireframe.querySelectorAll('.task-wireframe-element')].find((item) => item.textContent?.includes('Smoke-Karte'));
               if (!(inlineTitle instanceof HTMLButtonElement)) throw new Error('Textobjekt für direkte Bearbeitung fehlt.');
               inlineTitle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
@@ -3138,6 +3152,12 @@ function createWindow(): void {
               boardNav.click();
               for (let attempt = 0; attempt < 100 && document.querySelector('.task-wireframe'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               nav.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.design-workspace-modes'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const resumedDraftTab = [...document.querySelectorAll('.design-workspace-modes button')].find((button) => button.textContent?.trim() === 'Entwurf');
+              if (!(resumedDraftTab instanceof HTMLButtonElement)) throw new Error('Gespeicherter Entwurf ist nach der Rückkehr nicht erreichbar.');
+              resumedDraftTab.click();
+              for (let attempt = 0; attempt < 100 && document.querySelector('.design-workspace-draft')?.hasAttribute('hidden'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (document.querySelector('.design-workspace-draft')?.hasAttribute('hidden')) throw new Error('Design-Entwurf blieb nach der Rückkehr verborgen.');
               for (let attempt = 0; attempt < 100 && !document.querySelector('.task-wireframe-canvas'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               wireframe = document.querySelector('.task-wireframe');
               if (!wireframe?.textContent?.includes('Ungespeicherter Entwurf aus dieser App-Sitzung wiederhergestellt') || ![...wireframe.querySelectorAll('.task-wireframe-element')].some((item) => item.textContent?.includes('Geprüfter Entwurf')) || (await window.studio.cardWireframe({ projectId: ${JSON.stringify(smokeProject.id)}, cardId: ${JSON.stringify(smokeCard.id)} })) !== null) throw new Error('Ungespeicherter Wireframe ging beim Ansichtswechsel verloren oder wurde vorzeitig gespeichert.');
@@ -3183,7 +3203,7 @@ function createWindow(): void {
               const activeShrinkView = wireframe.querySelector('button[aria-label="Ansicht verkleinern"]');
               if (!(activeStage instanceof HTMLElement) || !(activeGrowView instanceof HTMLButtonElement) || !(activeShrinkView instanceof HTMLButtonElement)) throw new Error('Aktuelle Wireframe-Zeichenfläche oder Zoomsteuerung fehlt.');
               const scaledFont = (target, stage, artboardWidth) => Math.abs(parseFloat(getComputedStyle(target).fontSize) - 20 * stage.clientWidth / artboardWidth) < 1;
-              if (fontSize.value !== '20' || !element.style.fontSize.endsWith('cqw') || !scaledFont(element, activeStage, 960)) throw new Error('Schriftgröße wurde nicht in Artboard-Pixeln auf die Canvas-Breite skaliert: ' + JSON.stringify({ value: fontSize.value, style: element.style.fontSize, computed: getComputedStyle(element).fontSize, stageWidth: activeStage.clientWidth, containerType: getComputedStyle(activeStage).containerType }));
+              if (fontSize.value !== '20' || !element.style.fontSize.endsWith('cqw') || !scaledFont(element, activeStage, 960)) throw new Error('Schriftgröße wurde nicht in Artboard-Pixeln auf die Canvas-Breite skaliert: ' + JSON.stringify({ value: fontSize.value, style: element.style.fontSize, computed: getComputedStyle(element).fontSize, stageWidth: activeStage.clientWidth, containerType: getComputedStyle(activeStage).containerType, connected: activeStage.isConnected, wireframeConnected: wireframe.isConnected, draftHidden: document.querySelector('.design-workspace-draft')?.hasAttribute('hidden'), sameStage: document.querySelector('.design-workspace-draft .task-wireframe-canvas') === activeStage, rectWidth: activeStage.getBoundingClientRect().width }));
               const wrap = wireframe.querySelector('.task-wireframe-canvas-wrap');
               if (!(wrap instanceof HTMLElement)) throw new Error('Wireframe-Canvas-Container fehlt.');
               const originalStageWidth = activeStage.clientWidth;
@@ -3435,7 +3455,10 @@ function createWindow(): void {
               if (!visibleRect) throw new Error('Sichtbare Design-Vorschau fehlt.');
               await window.studio.designInspectionSetBounds({ x: visibleRect.x, y: visibleRect.y, width: visibleRect.width, height: visibleRect.height });
               return true;
-            })()`);
+            })().catch((error) => ({ smokeError: error instanceof Error ? error.message : String(error) }))`;
+            new Function(designSmokeScript);
+            const designSmokeResult = await smokeWindow.webContents.executeJavaScript(designSmokeScript);
+            if (designSmokeResult !== true) throw new Error(`Design smoke: ${designSmokeResult?.smokeError ?? 'unknown failure'}`);
             if (!designInspector!.smokeLayoutState().attached) {
               const observation = await smokeWindow.webContents.executeJavaScript(`(() => ({ rect: document.querySelector('.design-inspection-viewport')?.getBoundingClientRect().toJSON(), window: [innerWidth, innerHeight], scrollTop: document.querySelector('.view-area')?.scrollTop, hidden: document.querySelector('.design-inspection-tools')?.hasAttribute('hidden') }))()`);
               throw new Error('Geladene native Design-Vorschau wurde vor dem Fokuswechsel nicht eingeblendet: ' + JSON.stringify({ observation, native: designInspector!.smokeLayoutState() }));

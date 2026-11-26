@@ -2,9 +2,13 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Design-Projekteinstieg (lokal geprüft)
+
+- Die Design-Ansicht öffnet mit einer projektbezogenen Übersicht statt einer sofortigen Kartenwahl. Ein neuer lesender SQLite-/IPC-Pfad liefert höchstens 24 neueste gespeicherte Wireframes, nach Projekt isoliert und nach Änderungszeit geordnet; die vorhandenen erfassten Live-Elemente erscheinen als getrennte Belege. Ein Entwurf öffnet den bestehenden Editor der richtigen Karte. Ein leerer Projektstand bleibt ehrlich leer. 22 gezielte Backend-/Renderer-Tests, Typprüfung, Build und der vollständige Quell-Electron-Smoke bestanden. Der Smoke prüft den neuen Weg aus der Übersicht in den Editor und zurück über das Board samt Erhalt ungespeicherter Arbeit. Projektweite Skizzen ohne Karte, automatisch übernommene Agenten-Designartefakte und eine gemeinsame visuelle Bearbeitung mit dem Agenten fehlen noch. [Bedienung](CARD_WIREFRAME.md).
+
 ## Kompakteres Board und belegte Workflow-Laufspur (lokal geprüft)
 
-- Die Board-Kopfzeile zeigt das aktuelle Projekt und die Zahl tatsächlich laufender Agentensitzungen. Eine neue Aufgabe lässt sich direkt über der Spaltenfläche anlegen. Die Sammelauswahl mit ihren Checkboxen ist standardmäßig geschlossen und lässt sich bewusst öffnen. Auf Karten zeigt eine schmale Laufspur nur die für diese Karte gespeicherten Workflow-Schrittbelege; Review-Bedarf, manueller Halt und laufender Agent erhalten zusätzlich ein Textsignal. Vorgemerkte oder nicht belegte Schritte werden nicht als erledigt dargestellt. 15 gezielte Renderer-Tests, Typprüfung, Produktionsbuild und der vollständige Quell-Electron-Smoke bestanden. Eine Sichtprüfung an den vom Nutzer gewünschten Desktop- und schmalen Größen sowie die projektweite Design-Artefaktansicht stehen aus.
+- Die Board-Kopfzeile zeigt das aktuelle Projekt und die Zahl tatsächlich laufender Agentensitzungen. Eine neue Aufgabe lässt sich direkt über der Spaltenfläche anlegen. Die Sammelauswahl mit ihren Checkboxen ist standardmäßig geschlossen und lässt sich bewusst öffnen. Auf Karten zeigt eine schmale Laufspur nur die für diese Karte gespeicherten Workflow-Schrittbelege; Review-Bedarf, manueller Halt und laufender Agent erhalten zusätzlich ein Textsignal. Vorgemerkte oder nicht belegte Schritte werden nicht als erledigt dargestellt. 15 gezielte Renderer-Tests, Typprüfung, Produktionsbuild und der vollständige Quell-Electron-Smoke bestanden. [Windows-CI 45859674419](https://github.com/mschr703/branchloom/actions/runs/45859674419) bestand. Eine Sichtprüfung an den vom Nutzer gewünschten Desktop- und schmalen Größen steht aus; der Design-Projekteinstieg ist im Abschnitt darüber beschrieben.
 
 ## Berechtigter Agentenstart durch Team-Spaltenwechsel (lokal geprüft)
 

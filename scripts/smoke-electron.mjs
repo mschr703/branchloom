@@ -67,8 +67,8 @@ child.on('exit', (code) => {
       : `${packaged ? 'Paket' : 'Quellbuild'}: Renderer, IPC, SQLite, Terminal/Agenten-PTY, Board, Ideenraum, Aufgabenklärung, Whiteboard, Kartenkontext mit bestätigtem Anhang-, Whiteboard-Dateibox- und Design-Beleg-Drop, lokale Karten-QA mit mehreren Routen, DOM-Hinweisen und Screenshots, visueller Vergleich, gespeicherte Prüfgrößenansicht, Design-Aufnahmen in drei Größen, Changelog-Quellwahl und Memory-Übernahme erfolgreich.`);
   } else {
     console.error(timedOut ? `Electron-Smoke nach ${timeoutMs / 1000} Sekunden ohne Abschluss-Signal abgebrochen.` : `Electron-Smoke fehlgeschlagen (Exit ${code ?? 'unbekannt'}).`);
-    if (stdout.trim()) console.error(`Recent app stdout:\n${stdout.slice(-2000)}`);
-    if (stderr.trim()) console.error(`Recent app stderr:\n${stderr.slice(-2000)}`);
+    if (stdout.trim()) console.error(`Recent app stdout:\n${stdout.slice(-8000)}`);
+    if (stderr.trim()) console.error(`Recent app stderr:\n${stderr.slice(-8000)}`);
     process.exitCode = 1;
   }
 });

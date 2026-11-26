@@ -1,4 +1,33 @@
 .design-inspection { display: grid; gap: 14px; padding: 22px; min-height: 100%; max-width: 1280px; margin-inline: auto; }
+.design-overview { display: grid; gap: 24px; padding: 12px 0 30px; }
+.design-overview-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.design-overview-header p { max-width: 65ch; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.design-overview-header > button { flex: none; min-height: 36px; }
+.design-overview-section { display: grid; gap: 12px; }
+.design-overview-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 15px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.design-overview-section-heading h3 { margin: 0; font-size: 14px; font-weight: 650; }
+.design-overview-section-heading > span { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.design-overview-section-heading > button { padding: 0; border: 0; background: none; color: var(--text); font: inherit; font-size: 12px; cursor: pointer; }
+.design-overview-section-heading > button:hover { text-decoration: underline; }
+.design-overview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.design-overview-document { display: grid; min-width: 0; padding: 0; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text); text-align: left; font: inherit; overflow: hidden; cursor: pointer; }
+.design-overview-document:hover { border-color: var(--muted); }
+.design-overview-document:focus-visible, .design-overview-section-heading > button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.design-overview-artboard { position: relative; display: block; width: 100%; height: 130px; background-color: var(--bg); background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px); background-size: 18px 18px; overflow: hidden; }
+.design-overview-shape { position: absolute; display: block; box-sizing: border-box; min-width: 2px; min-height: 2px; border: 1px solid color-mix(in srgb, var(--text) 22%, transparent); border-radius: 2px; background: var(--surface); }
+.design-overview-shape.kind-text, .design-overview-shape.kind-line { height: 2px !important; border: 0; background: color-mix(in srgb, var(--text) 43%, transparent); }
+.design-overview-shape.kind-button { background: var(--accent); }
+.design-overview-shape.kind-ellipse { border-radius: 50%; }
+.design-overview-document-text { display: grid; gap: 3px; padding: 10px 11px 12px; }
+.design-overview-document-text strong, .design-overview-document-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.design-overview-document-text strong { font-size: 13px; font-weight: 650; }
+.design-overview-document-text small, .design-overview-document-text > span { color: var(--muted); font-size: 11px; }
+.design-overview-empty, .design-overview-note { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.design-overview-evidence { display: grid; gap: 0; padding: 0; margin: 0; list-style: none; }
+.design-overview-evidence li { display: flex; gap: 12px; min-width: 0; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+.design-overview-evidence li code { flex: none; max-width: 35%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.design-overview-evidence li span { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 650px) { .design-overview-header { flex-direction: column; } .design-overview-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); } }
 .design-workspace-modes { position: sticky; top: 0; z-index: 9; display: flex; align-items: center; gap: 18px; border-bottom: 1px solid var(--border); background: var(--bg); }
 .design-workspace-modes button { position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 1px 8px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
 .design-workspace-modes button[aria-pressed="true"] { color: var(--text); font-weight: 650; }
