@@ -18,9 +18,10 @@ export async function runWhiteboardVisibleSmoke(window: BrowserWindow, store: St
   git(repo, ['init', '-q']);
   git(repo, ['add', '--', 'README.md', 'src/ui/Button.tsx']);
   git(repo, ['-c', 'user.name=Branchloom Smoke', '-c', 'user.email=smoke@example.invalid', 'commit', '-qm', 'Synthetic source structure']);
-  const project = store.createProject({ name: 'Whiteboard Smoke', path: repo });
-  const saved = createWhiteboardNode(store, { projectId: project.id, title: 'My saved architecture', x: 24, y: 32 });
   const capturePath = process.env.BRANCHLOOM_WHITEBOARD_CAPTURE;
+  const projectName = capturePath ? 'Atlas map' : 'Whiteboard Smoke';
+  const project = store.createProject({ name: projectName, path: repo });
+  const saved = createWhiteboardNode(store, { projectId: project.id, title: 'My saved architecture', x: 24, y: 32 });
   if (capturePath) {
     const service = createWhiteboardNode(store, { projectId: project.id, title: 'Preview service', description: 'Synthetic preview data', x: 350, y: 32 });
     const checks = createWhiteboardNode(store, { projectId: project.id, title: 'UI checks', description: 'Keyboard and responsive layout', x: 350, y: 245 });
@@ -43,7 +44,7 @@ export async function runWhiteboardVisibleSmoke(window: BrowserWindow, store: St
     const picker = await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger:not(.is-compact)'), 'project picker');
     picker.click();
     const choice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project > button:first-child')]
-      .find((item) => item.getAttribute('aria-label') === 'Whiteboard Smoke auswählen'), 'project choice');
+      .find((item) => item.getAttribute('aria-label') === ${JSON.stringify(`${projectName} auswählen`)}), 'project choice');
     choice.click();
     const nav = await wait(() => [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')]
       .find((item) => item.querySelector('.nav-label')?.textContent?.trim() === 'Whiteboard'), 'whiteboard navigation');

@@ -1,17 +1,16 @@
 # Branchloom
 
-**A local Windows workspace for turning project ideas into reviewed code.** Branchloom brings tasks, coding assistants, design drafts, and review into one desktop app. You choose when work starts and when its result becomes part of your project.
+**Plan the work, run local coding assistants, and review what they changed.** Branchloom is a Windows desktop workspace that keeps a project's board, visual plan, agent sessions, design drafts, and review evidence together. A card can be discussed before it becomes work; a finished agent run can be checked before its code is integrated.
 
 ![Branchloom board with synthetic sample tasks](docs/assets/branchloom-board.png)
 
-*The board in a synthetic sample project. All screenshots below use generated tasks and a disposable local Git repository; they contain no user projects or accounts.*
+*A board in the current light appearance. Every screenshot below comes from a disposable project with generated tasks; no user projects or accounts are shown.*
 
 ### From an idea to a checked result
 
-1. **Capture an idea** as a note or a board task. Discuss it in Project Chat if it needs a clearer plan.
-2. **Choose the next step** on the board or in a workflow. Branchloom shows the task, assigned assistant, and required checks together.
-3. **Let a coding assistant work.** Parallel tasks can use separate Git worktrees (Git-managed copies of the project) so they do not edit the same checkout. A CLI agent is an assistant you install and sign in to separately; Branchloom runs that command-line program for the task.
-4. **Inspect the result** in the session, the before/after code changes, the design preview, and the test evidence. You decide when to integrate it.
+1. **Capture and shape the work.** Collect an idea, discuss it in Project Chat, or create a card. The board records its current step; the Whiteboard can show related project parts and saved links.
+2. **Choose how it runs.** Assign an installed CLI assistant to a task or workflow. Independent tasks can run in separate Git worktrees, which are Git-managed copies of the project.
+3. **Stay in control.** See active sessions, answer agent questions, pause new work, and inspect the proposed changes and recorded checks. You decide when code is integrated.
 
 Branchloom is an early Windows preview. The interface and detailed feature docs are currently mostly in German. The [product vision](docs/PRODUCT_VISION.md) describes the destination; [current status](docs/STATUS.md) and the [parity list](docs/PARITY.md) distinguish working paths from planned ones. Jarvis, the personal assistant, is a separate project.
 
@@ -26,11 +25,12 @@ Branchloom is an early Windows preview. The interface and detailed feature docs 
 | **Review and verify** | Inspect diffs, attach acceptance and QA evidence, run bounded browser checks against a local route, compare saved screenshots, and use the manual integration queue. A [screenshot review](docs/TEAM_REVIEW.md) can show the same saved image and point comments in two browser views, with an optional, explicitly started Tailscale link for a peer. Its Git checkout comparison flags a changed HEAD or dirty checkout; it does not identify the files served by the dev server. Evidence is shown with its source and limits. |
 | **Replay a UI bug** | Record a few clicks and viewport changes in a local card preview, set a visible or hidden element as the expected result, then explicitly replay the saved steps in an isolated check. [Scope and limits](docs/BUG_REPLAY.md). |
 | **Share a board view** | Create a separate, revocable link for each guest in project settings. The default link only shows current columns, card titles and running-session signals; an explicit option also lets that guest comment on cards. The host sees feedback in the Decision Inbox and on the relevant card. Local and optional Tailscale links are available. [Setup and limits](docs/TEAM_BOARD.md). |
+| **Try a local team workspace** | On one laptop, an owner can create a workspace, invite another authenticated app profile, show both members the same project board, and collaborate on a separate card draft. Roles and project rights are checked by the loopback coordinator; a draft edit cannot change the accepted card or start an agent. This is a [local preview](docs/TEAM_LOCAL_PREVIEW.md), not cross-device hosting. |
 | **Control the run** | Review the queue's route, next tasks and rights before starting; a change to that review blocks the start until checked again. Pause a project or workflow at a checked boundary, review agent questions in the Decision Inbox, and inspect local activity and usage counts. An optional project queue setting defers blocked cards and continues with independent To-Do work. A selected 1, 4, or 8 hour window stops new queue work at its deadline without killing an active agent. Another opt-in setting checks each completed card's committed worktree with an approved npm script before claiming the next card. This setting alone does not merge or push; a separately enabled automatic integration policy can act when its own review and test checks pass. A local queue history links claimed cards to their workflows, last recorded sessions, saved diff reviews, and the start that ran an automatic npm test when that provenance was saved. Separate per-project settings can explicitly grant full access to new Codex workflow steps; this affects the CLI process, not Branchloom's review, integration, or push gates. The installed app offers a GitHub release update only after you choose **Update**. |
 
 During an active queue, the launch settings of agents and columns used by its route remain fixed until you pause the queue. New automatic column starts cannot be enabled mid-run.
 
-**Where it is going:** Branchloom is being built for small teams as well as solo work. Guests can see a board view and, with a separate permission, comment on cards; a saved screenshot can also be discussed through a separate link. The current source checkout adds a [local team preview](docs/TEAM_LOCAL_PREVIEW.md): two authenticated clients on one laptop can see the same board and contribute to a separate card draft. The [team design](docs/TEAM_SYNC.md) targets cross-device editing, shared Whiteboards, clear approvals, and a decision dashboard. Agent workers and worktrees still run locally on the host machine.
+**Where it is going:** The [team design](docs/TEAM_SYNC.md) targets colleagues on separate devices, shared Whiteboards, explicit plan approvals, and a decision dashboard. Today's team coordinator listens only on `127.0.0.1`; agent workers and worktrees still run on the host machine. Live draft presence and event-driven updates are being developed separately and are not part of the current `main` build.
 
 ### A look inside
 
@@ -44,33 +44,27 @@ This is an actual Electron browser view generated from synthetic project data. E
 </details>
 
 <details>
-<summary>Project Chat and an editable Canvas draft</summary>
+<summary>Local team workspace</summary>
 
-![A source-backed synthetic Project Chat answer and a draft awaiting explicit save](docs/assets/branchloom-project-chat.png)
+![Two authenticated members contributing to a separate card draft in a synthetic local team workspace](docs/assets/branchloom-team-workspace.png)
 
-The pictured answer is generated by the synthetic screenshot harness, not a real model call. The source panel and draft controls are actual app UI. [How Project Chat works](docs/PROJECT_CHAT.md).
+The screenshot shows the owner profile after a second, separately authenticated client contributed text. The draft remains separate from the accepted card description. [Two-profile walkthrough and limits](docs/TEAM_LOCAL_PREVIEW.md).
 
 </details>
 
 <details>
-<summary>Memory and Whiteboard</summary>
-
-![Branchloom Memory focused on a synthetic task and its saved file links](docs/assets/branchloom-memory.png)
+<summary>Whiteboard and project context</summary>
 
 ![A synthetic architecture Whiteboard with linked boxes](docs/assets/branchloom-whiteboard.png)
 
-Memory indexes saved work and Git sources; its focused graph shows stored links and provides a source inspector. On the Whiteboard, you can select a group of saved boxes for a source-backed explanation and sketch nodes or connections before saving them. Saved Whiteboard links provide bounded context to related card agents and workflow planning. [Memory](docs/MEMORY.md) · [Whiteboard](docs/WHITEBOARD.md).
+On the Whiteboard, you can select saved boxes for a source-backed explanation and sketch nodes or connections before saving them. Saved links can provide bounded context to related card agents and workflow planning. Memory separately indexes tasks, runs, commits, and code passages with inspectable source links. [Memory](docs/MEMORY.md) · [Whiteboard](docs/WHITEBOARD.md).
 
 </details>
 
 <details>
-<summary>Design workspace</summary>
+<summary>Project Chat and design workspace</summary>
 
-![Branchloom Design workspace with a blank synthetic artboard](docs/assets/branchloom-design-blank.png)
-
-![Branchloom Design workspace editing a synthetic wireframe with layers and properties](docs/assets/branchloom-design.png)
-
-Start with a blank artboard or a simple window template, then edit elements, layers, and properties. These synthetic drafts are local design sketches, not generated production code. In the separate inspection view, you can select an element of a running local app, test a few visual properties temporarily, and turn the tested change into an editable task. Saving the task and starting an agent remain separate choices. [Wireframes](docs/CARD_WIREFRAME.md) · [Design inspection](docs/DESIGN_INSPECTION.md).
+Project Chat searches indexed project sources and can prepare an editable card or Whiteboard proposal. Its answer depends on the installed and signed-in CLI agent. In Design, you can start with a blank artboard or a simple window template, then edit layers and properties across desktop, tablet, and mobile sizes. A separate inspection view can examine a running local app and prepare a task from a tested visual change. Saving a draft, approving it, and starting an agent are separate actions. [Project Chat](docs/PROJECT_CHAT.md) · [Wireframes](docs/CARD_WIREFRAME.md) · [Design inspection](docs/DESIGN_INSPECTION.md).
 
 </details>
 

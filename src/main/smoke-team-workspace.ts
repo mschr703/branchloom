@@ -12,7 +12,9 @@ const Y = require('yjs') as typeof import('yjs', { with: { 'resolution-mode': 'r
 /** Exercises the actual renderer, preload, IPC, encrypted owner storage, and loopback host. */
 export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store: StudioStore,
   projectPath: string): Promise<void> {
-  const project = store.createProject({ name: 'Synthetic team project', path: projectPath });
+  const boardScreenshot = process.env.BRANCHLOOM_TEAM_BOARD_OVERVIEW_SCREENSHOT;
+  const projectName = boardScreenshot ? 'Atlas sample' : 'Synthetic team project';
+  const project = store.createProject({ name: projectName, path: projectPath });
   const card = store.createCard({ projectId: project.id, columnId: store.snapshot(project.id).columns[0]!.id,
     title: 'Shared planning card', description: 'Accepted source description' });
   await new Promise<void>((resolve, reject) => {
@@ -20,6 +22,33 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
     window.webContents.once('did-fail-load', (_event, _code, detail) => reject(new Error(detail)));
     window.webContents.reload();
   });
+  if (boardScreenshot) {
+    const columns = store.snapshot(project.id).columns;
+    store.createCard({ projectId: project.id, columnId: columns[0]!.id,
+      title: 'Define workspace access', description: 'Agree on roles and project permissions.' });
+    store.createCard({ projectId: project.id, columnId: columns[1]?.id ?? columns[0]!.id,
+      title: 'Review the shared plan', description: 'Check the proposed work before an agent starts.' });
+    store.createCard({ projectId: project.id, columnId: columns[2]?.id ?? columns[0]!.id,
+      title: 'Verify the result', description: 'Inspect the diff, tests, and visible app behavior.' });
+    await window.webContents.executeJavaScript(`(async () => {
+      const select = document.querySelector('#project-select');
+      if (!(select instanceof HTMLSelectElement)) throw new Error('Synthetic board selector is missing.');
+      const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+      setter.call(select, ${JSON.stringify(project.id)});
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      for (let attempt = 0; attempt < 120; attempt += 1) {
+        if (document.querySelector('.board-columns')?.textContent?.includes('Verify the result')) return true;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      throw new Error('Synthetic board did not settle for screenshot.');
+    })()`);
+    window.showInactive();
+    try {
+      window.webContents.sendInputEvent({ type: 'mouseMove', x: 700, y: 180 });
+      await window.webContents.executeJavaScript('new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+      writeFileSync(boardScreenshot, (await window.capturePage()).toPNG());
+    } finally { window.hide(); }
+  }
   const result = await window.webContents.executeJavaScript(`(async () => {
     const wait = async (predicate, label) => {
       for (let attempt = 0; attempt < 120; attempt += 1) {
@@ -32,7 +61,7 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
     const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
     setter.call(select, ${JSON.stringify(project.id)}); select.dispatchEvent(new Event('change', { bubbles: true }));
     await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger')?.getAttribute('aria-label')
-      === 'Projekt auswählen: Synthetic team project' && document.querySelector('.board-columns'), 'selected project board');
+      === ${JSON.stringify(`Projekt auswählen: ${projectName}`)} && document.querySelector('.board-columns'), 'selected project board');
     const team = await wait(() => [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')]
       .find((button) => button.getAttribute('aria-label') === 'Team'), 'team button');
     team.click();
