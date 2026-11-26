@@ -566,32 +566,48 @@ export class StudioStore {
 
   column(id: string): Column { return column(required(this.db.prepare('SELECT * FROM columns WHERE id = ?').get(id) as ColumnRow | undefined, 'Column not found')); }
   createColumn(input: { projectId: string; name: string; autoStart?: boolean; agentId?: string | null; model?: string | null; effort?: ColumnEffort | null }): Column {
-    this.project(input.projectId);
-    const name = trimmed(input.name, 'Column name');
-    const names = this.db.prepare('SELECT name FROM columns WHERE project_id = ?').all(input.projectId) as Array<{ name: string }>;
-    if (names.some((item) => item.name.toLocaleLowerCase('de-DE') === name.toLocaleLowerCase('de-DE'))) throw new Error('Spaltenname existiert in diesem Projekt bereits.');
-    const selectedAgent = input.agentId ? this.agent(input.agentId) : null;
-    const settings = columnSettings(selectedAgent?.kind ?? null, input.model, input.effort);
-    const row: Column = { id: randomUUID(), projectId: input.projectId, name, position: (this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS next FROM columns WHERE project_id = ?').get(input.projectId) as { next: number }).next, autoStart: input.autoStart === true, agentId: input.agentId ?? null, ...settings };
-    if (row.autoStart && !row.agentId) throw new Error('Für automatischen Start zuerst einen Spaltenagenten wählen.');
-    this.db.prepare('INSERT INTO columns (id, project_id, name, position, auto_start, agent_id, model, effort) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(row.id, row.projectId, row.name, row.position, Number(row.autoStart), row.agentId, row.model, row.effort);
-    return row;
+    return this.db.transaction(() => {
+      this.project(input.projectId);
+      if (input.autoStart === true && this.projectQueue(input.projectId).state === 'running')
+        throw new Error('Pause the project queue before enabling another automatic column start.');
+      const name = trimmed(input.name, 'Column name');
+      const names = this.db.prepare('SELECT name FROM columns WHERE project_id = ?').all(input.projectId) as Array<{ name: string }>;
+      if (names.some((item) => item.name.toLocaleLowerCase('de-DE') === name.toLocaleLowerCase('de-DE'))) throw new Error('Spaltenname existiert in diesem Projekt bereits.');
+      const selectedAgent = input.agentId ? this.agent(input.agentId) : null;
+      const settings = columnSettings(selectedAgent?.kind ?? null, input.model, input.effort);
+      const row: Column = { id: randomUUID(), projectId: input.projectId, name, position: (this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS next FROM columns WHERE project_id = ?').get(input.projectId) as { next: number }).next, autoStart: input.autoStart === true, agentId: input.agentId ?? null, ...settings };
+      if (row.autoStart && !row.agentId) throw new Error('Für automatischen Start zuerst einen Spaltenagenten wählen.');
+      this.db.prepare('INSERT INTO columns (id, project_id, name, position, auto_start, agent_id, model, effort) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(row.id, row.projectId, row.name, row.position, Number(row.autoStart), row.agentId, row.model, row.effort);
+      return row;
+    }).immediate();
   }
   updateColumn(input: { id: string; name?: string; autoStart?: boolean; agentId?: string | null; model?: string | null; effort?: ColumnEffort | null }): Column {
-    const old = this.column(input.id);
-    const name = input.name === undefined ? old.name : trimmed(input.name, 'Column name');
-    if (name !== old.name) {
-      const others = this.db.prepare('SELECT name FROM columns WHERE project_id = ? AND id <> ?').all(old.projectId, old.id) as Array<{ name: string }>;
-      if (others.some((item) => item.name.toLocaleLowerCase('de-DE') === name.toLocaleLowerCase('de-DE'))) throw new Error('Spaltenname existiert in diesem Projekt bereits.');
-      if (old.name.toLocaleLowerCase('de-DE') === 'to do' && name.toLocaleLowerCase('de-DE') !== 'to do' && this.projectQueue(old.projectId).state !== 'off') throw new Error('To-Do-Spalte erst nach Ausschalten der Warteschlange umbenennen.');
-    }
-    const agentId = input.agentId === undefined ? old.agentId : input.agentId;
-    const selectedAgent = agentId ? this.agent(agentId) : null;
-    const settings = columnSettings(selectedAgent?.kind ?? null, input.model === undefined ? old.model : input.model, input.effort === undefined ? old.effort : input.effort);
-    const value = { ...old, name, autoStart: input.autoStart ?? old.autoStart, agentId, ...settings };
-    if (value.autoStart && !value.agentId) throw new Error('Für automatischen Start zuerst einen Spaltenagenten wählen.');
-    this.db.prepare('UPDATE columns SET name = ?, auto_start = ?, agent_id = ?, model = ?, effort = ? WHERE id = ?').run(value.name, Number(value.autoStart), value.agentId, value.model, value.effort, input.id);
-    return value;
+    return this.db.transaction(() => {
+      const old = this.column(input.id);
+      const name = input.name === undefined ? old.name : trimmed(input.name, 'Column name');
+      if (name !== old.name) {
+        const others = this.db.prepare('SELECT name FROM columns WHERE project_id = ? AND id <> ?').all(old.projectId, old.id) as Array<{ name: string }>;
+        if (others.some((item) => item.name.toLocaleLowerCase('de-DE') === name.toLocaleLowerCase('de-DE'))) throw new Error('Spaltenname existiert in diesem Projekt bereits.');
+        if (old.name.toLocaleLowerCase('de-DE') === 'to do' && name.toLocaleLowerCase('de-DE') !== 'to do' && this.projectQueue(old.projectId).state !== 'off') throw new Error('To-Do-Spalte erst nach Ausschalten der Warteschlange umbenennen.');
+      }
+      const agentId = input.agentId === undefined ? old.agentId : input.agentId;
+      const selectedAgent = agentId ? this.agent(agentId) : null;
+      const settings = columnSettings(selectedAgent?.kind ?? null, input.model === undefined ? old.model : input.model, input.effort === undefined ? old.effort : input.effort);
+      const value = { ...old, name, autoStart: input.autoStart ?? old.autoStart, agentId, ...settings };
+      if (value.autoStart && !value.agentId) throw new Error('Für automatischen Start zuerst einen Spaltenagenten wählen.');
+      const queue = this.projectQueue(old.projectId);
+      if (queue.state === 'running') {
+        if (!old.autoStart && value.autoStart)
+          throw new Error('Pause the project queue before enabling another automatic column start.');
+        const usedByRoute = [queue.templateWorkflowId, queue.activeWorkflowId].some((workflowId) =>
+          workflowId && this.workflow(workflowId).steps.some((step) => step.columnId === old.id));
+        if (usedByRoute && (value.agentId !== old.agentId || value.model !== old.model
+          || value.effort !== old.effort || value.autoStart !== old.autoStart))
+          throw new Error('Pause the project queue before changing launch settings of a column in its route.');
+      }
+      this.db.prepare('UPDATE columns SET name = ?, auto_start = ?, agent_id = ?, model = ?, effort = ? WHERE id = ?').run(value.name, Number(value.autoStart), value.agentId, value.model, value.effort, input.id);
+      return value;
+    }).immediate();
   }
   reorderColumn(input: { id: string; direction: 'left' | 'right' }): Column {
     if (input.direction !== 'left' && input.direction !== 'right') throw new Error('Ungültige Spaltenrichtung.');

@@ -60,6 +60,43 @@ describe('column agent settings', () => {
     store.close();
   });
 
+  it('keeps queue route column launch settings fixed until the queue is paused', () => {
+    const { store, project, codex, gemini } = fixture();
+    try {
+      const columns = store.snapshot(project.id).columns;
+      const used = store.updateColumn({ id: columns[2]!.id, agentId: codex.id, model: 'gpt-6.1-sol', effort: 'medium' });
+      const unrelated = columns[1]!;
+      const card = store.createCard({ projectId: project.id, columnId: columns[0]!.id, title: 'Queue template' });
+      const route = store.createWorkflow({ projectId: project.id, name: 'Queue route', cardIds: [card.id],
+        steps: [{ id: 'execute', columnId: used.id, agentId: codex.id, requireApproval: false }] });
+      store.saveProjectQueue({ projectId: project.id, state: 'running', templateWorkflowId: route.id,
+        activeWorkflowId: null, pauseReason: null });
+
+      expect(() => store.updateColumn({ id: used.id, model: 'gpt-6.1-astra' })).toThrow('Pause the project queue');
+      expect(() => store.updateColumn({ id: used.id, effort: 'high' })).toThrow('Pause the project queue');
+      expect(() => store.updateColumn({ id: used.id, agentId: gemini.id, model: 'gemini-3.8-flash', effort: null })).toThrow('Pause the project queue');
+      expect(() => store.updateColumn({ id: used.id, autoStart: true })).toThrow('Pause the project queue');
+      expect(store.column(used.id)).toMatchObject({ agentId: codex.id, model: 'gpt-6.1-sol', effort: 'medium', autoStart: false });
+
+      expect(store.updateColumn({ id: used.id, name: 'Renamed execution' }).name).toBe('Renamed execution');
+      expect(store.updateColumn({ id: unrelated.id, agentId: codex.id, model: 'gpt-6.1-sol' }).model).toBe('gpt-6.1-sol');
+      expect(() => store.updateColumn({ id: unrelated.id, autoStart: true })).toThrow('Pause the project queue');
+      expect(() => store.createColumn({ projectId: project.id, name: 'New auto', agentId: codex.id, autoStart: true })).toThrow('Pause the project queue');
+      expect(store.createColumn({ projectId: project.id, name: 'New manual' }).autoStart).toBe(false);
+
+      const active = store.createWorkflow({ projectId: project.id, name: 'Already claimed route', cardIds: [card.id],
+        steps: [{ id: 'planning', columnId: unrelated.id, agentId: codex.id, requireApproval: false }] });
+      store.saveProjectQueue({ projectId: project.id, state: 'running', templateWorkflowId: route.id,
+        activeWorkflowId: active.id, pauseReason: null });
+      expect(() => store.updateColumn({ id: unrelated.id, effort: 'high' })).toThrow('Pause the project queue');
+
+      store.saveProjectQueue({ projectId: project.id, state: 'paused', templateWorkflowId: route.id,
+        activeWorkflowId: active.id, pauseReason: 'Paused for settings' });
+      expect(store.updateColumn({ id: used.id, model: 'gpt-6.1-astra', effort: 'high' })).toMatchObject({ model: 'gpt-6.1-astra', effort: 'high' });
+      expect(store.updateColumn({ id: unrelated.id, autoStart: true }).autoStart).toBe(true);
+    } finally { store.close(); }
+  });
+
   it('builds Codex CLI flags for both interactive and workflow runs', () => {
     const agent: AgentPreset = { id: 'agent', name: 'Codex', kind: 'codex', command: 'codex', args: ['--sandbox', 'workspace-write'], model: 'profile-model', enabled: true };
     const column = { model: 'column-model', effort: 'high' as const };

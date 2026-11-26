@@ -2,6 +2,10 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Spalten-Startwerte während Queue-Lauf fixiert (Folgezweig, in Arbeit)
+
+- Verwendete Workflow-Spalten lassen während eines laufenden Queue-Starts keine Änderung von Agent, Modell, Effort oder Auto-Start zu. Das Einschalten eines neuen Auto-Starts in anderen oder neuen Spalten wird ebenfalls abgewiesen; Umbenennen und Änderungen an unbeteiligten Modellwerten bleiben möglich. Nach Pause können die Werte geändert und vor dem nächsten Start neu geprüft werden. 40 gezielte Backend-Tests, Typprüfung, Build und Public-Scan bestanden; das Audit meldete keine hohen Funde (sechs moderate). Windows-CI steht aus. [Ablauf](QUEUE.md).
+
 ## Gespeicherter Diff-Review im Queue-Bericht (in main)
 
 - Die Ergebnisansicht und kopierte Zusammenfassung zeigen den vorhandenen Diff-Review-Beleg einer Queue-Karte mit Quell-/Ziel-Commit und Zeitpunkt. Ein Vergleich der gespeicherten Kartenrevision und Commits kennzeichnet, ob der Review noch zum gespeicherten Integrationsstand passt oder einer früheren vorbereiteten Revision gehört. Das ist eine historische Anzeige, keine neue oder automatische Codeprüfung. Zehn gezielte Backend-/Renderer-Tests, die lokale Gesamtsuite mit 1.022 bestandenen und 8 übersprungenen Tests, Typprüfung, Build, Paketprüfung, breiter Paket-Smoke, G02-auto-Klickpfad, Public-Scan und zwei Windows-Verify-Läufe bestanden. Das Audit meldete keine hohen Funde (sechs moderate). P02 bleibt für automatische Browser-QA, Review und Push offen. [PR #25](https://github.com/mschr703/branchloom/pull/25) · [Ablauf](QUEUE.md).
