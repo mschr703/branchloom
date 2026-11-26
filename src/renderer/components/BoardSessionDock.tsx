@@ -9,7 +9,9 @@ interface Props {
 
 export function BoardSessionDock({ snapshot, onOpenSession }: Props) {
   const running = snapshot.sessions.filter((session) => session.state === 'running');
-  const [expanded, setExpanded] = useState(running.length > 0);
+  const recent = [...snapshot.sessions].filter((session) => session.state !== 'running').sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, 3);
+  const visible = running.length ? running : recent;
+  const [expanded, setExpanded] = useState(true);
   const previousCount = useRef(running.length);
 
   useEffect(() => {
@@ -25,18 +27,18 @@ export function BoardSessionDock({ snapshot, onOpenSession }: Props) {
       <ChevronDown size={15} aria-hidden="true" />
     </button>
     {expanded ? <div id="board-session-list" className="board-session-list">
-      {running.length ? running.map((session) => {
+      {visible.length ? visible.map((session) => {
         const card = snapshot.cards.find((item) => item.id === session.cardId);
         const agent = snapshot.agents.find((item) => item.id === session.agentId);
         const started = new Date(session.startedAt);
         const startedLabel = Number.isNaN(started.getTime()) ? 'Startzeit unbekannt' : `Start ${new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' }).format(started)}`;
         return <button type="button" key={session.id} className="board-session-row" disabled={!card} onClick={() => { if (card) onOpenSession(card.id, session.id); }}>
-          <span className="board-session-running" aria-hidden="true" />
+          <span className={`board-session-running state-${session.state}`} aria-hidden="true" />
           <span className="board-session-title">{card?.title ?? 'Karte nicht mehr verfügbar'}</span>
-          <span className="board-session-meta">{agent?.name ?? 'Agent unbekannt'} · {startedLabel}</span>
+          <span className="board-session-meta">{agent?.name ?? 'Agent unbekannt'} · {session.state === 'running' ? 'Läuft' : session.state === 'failed' ? 'Fehler' : session.state === 'stopped' ? 'Gestoppt' : 'Beendet'} · {startedLabel}</span>
           <span className="board-session-action">Sitzung öffnen</span>
         </button>;
-      }) : <p className="board-session-empty">Gerade läuft kein Agent. Starte eine Karte über ihre Agentenspalte oder ihre Details.</p>}
+      }) : <p className="board-session-empty">Noch keine Agentensitzung in diesem Projekt. Starte eine Karte, um ihren Verlauf hier zu sehen.</p>}
     </div> : null}
   </section>;
 }

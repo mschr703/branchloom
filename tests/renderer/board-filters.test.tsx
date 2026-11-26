@@ -1,6 +1,8 @@
-import { createElement } from 'react';
+// @vitest-environment jsdom
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Card, ProjectSnapshot } from '../../src/shared/types';
 import { filterBoardCards } from '../../src/renderer/board-filters';
 import { BoardView, boardEmptyMessage, isMoveShortcut, moveDestinations } from '../../src/renderer/components/BoardView';
@@ -13,6 +15,37 @@ const cards: Card[] = [
 ];
 
 describe('board filters and archive visibility', () => {
+  it('closes the card move form on cancel and returns focus to the card', async () => {
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    const previousAct = Object.getOwnPropertyDescriptor(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
+    const previousApi = Object.getOwnPropertyDescriptor(window, 'studio');
+    Object.defineProperty(window, 'studio', { configurable: true, value: { cardRunGate: vi.fn().mockResolvedValue({ cardId: 'active', projectId: 'p', dependencies: [] }) } });
+    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const snapshot = {
+      project: { id: 'p', name: 'Sample', path: 'C:\\sample', createdAt: stamp },
+      columns: [
+        { id: 'todo', projectId: 'p', name: 'To Do', position: 0, autoStart: false, agentId: null, model: null, effort: null },
+        { id: 'done', projectId: 'p', name: 'Done', position: 1, autoStart: false, agentId: null, model: null, effort: null },
+      ], cards: [cards[0]!], agents: [], sessions: [], workflows: [], notes: [],
+    } as ProjectSnapshot;
+    try {
+      await act(async () => { root.render(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() })); });
+      await act(async () => { host.querySelector<HTMLButtonElement>('.card-move-trigger')!.click(); });
+      expect(host.querySelector('.card-move-form')).not.toBeNull();
+      await act(async () => { host.querySelector<HTMLButtonElement>('.card-move-actions .secondary-button')!.click(); });
+      expect(host.querySelector('.card-move-form')).toBeNull();
+      expect(host.querySelector('.card-move-trigger')?.getAttribute('aria-expanded')).toBe('false');
+    } finally {
+      await act(async () => { root.unmount(); });
+      if (previousAct) Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', previousAct);
+      else Reflect.deleteProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
+      if (previousApi) Object.defineProperty(window, 'studio', previousApi);
+      else Reflect.deleteProperty(window, 'studio');
+      host.remove();
+    }
+  });
   it('offers keyboard moves only for active cards and ignores modified shortcuts', () => {
     const columns = [
       { id: 'todo', projectId: 'p', name: 'To Do', position: 0, autoStart: false, agentId: null, model: null, effort: null },
@@ -59,7 +92,9 @@ describe('board filters and archive visibility', () => {
     expect(html).toContain('Priorität filtern');
     expect(html).toContain('Label filtern');
     expect(html).toContain('Dringend');
+    expect(html).toContain('#active');
     expect(html).toContain('Kundenmail');
+    expect(html).toContain('Manueller Schritt');
     expect(html).toContain('Spalte filtern');
     expect(html).toContain('role="search"');
     expect(html).toContain('aria-live="polite"');

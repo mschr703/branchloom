@@ -19,7 +19,7 @@ const base = {
   notes: [],
 } as ProjectSnapshot;
 
-it('opens a newly active run from the board and removes it when it ends', async () => {
+it('opens a newly active run and keeps the finished session visible', async () => {
   const host = document.createElement('div');
   document.body.append(host);
   const root = createRoot(host);
@@ -28,7 +28,8 @@ it('opens a newly active run from the board and removes it when it ends', async 
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   try {
     await act(async () => { root.render(<BoardSessionDock snapshot={base} onOpenSession={onOpenSession} />); });
-    expect(host.querySelector('.board-session-toggle')?.getAttribute('aria-expanded')).toBe('false');
+    expect(host.querySelector('.board-session-toggle')?.getAttribute('aria-expanded')).toBe('true');
+    expect(host.textContent).toContain('Noch keine Agentensitzung');
     await act(async () => { root.render(<BoardSessionDock snapshot={{ ...base, sessions: [session] }} onOpenSession={onOpenSession} />); });
     expect(host.querySelector('.board-session-toggle')?.getAttribute('aria-expanded')).toBe('true');
     expect(host.textContent).toContain('Review invitation flow');
@@ -37,7 +38,8 @@ it('opens a newly active run from the board and removes it when it ends', async 
     expect(onOpenSession).toHaveBeenCalledWith('card', 'run');
     await act(async () => { root.render(<BoardSessionDock snapshot={{ ...base, sessions: [{ ...session, state: 'exited' }] }} onOpenSession={onOpenSession} />); });
     expect(host.textContent).toContain('0 aktiv');
-    expect(host.querySelector('.board-session-row')).toBeNull();
+    expect(host.querySelector('.board-session-row')?.textContent).toContain('Beendet');
+    expect(host.querySelector('.board-session-row')?.textContent).toContain('Review invitation flow');
   } finally {
     await act(async () => { root.unmount(); });
     if (previousAct) Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', previousAct);
