@@ -158,7 +158,7 @@ export function teamReviewRooms(store: StudioStore, cardId: string): TeamReviewR
 
 export function teamReviewInvites(store: StudioStore, roomId: string): TeamReviewInvite[] {
   requiredRoom(store, roomId);
-  return (store.db.prepare('SELECT * FROM team_review_invites WHERE room_id = ? ORDER BY created_at, id LIMIT 20').all(roomId) as InviteRow[]).map(asInvite);
+  return (store.db.prepare('SELECT * FROM team_review_invites WHERE room_id = ? ORDER BY created_at, rowid LIMIT 20').all(roomId) as InviteRow[]).map(asInvite);
 }
 
 export function teamReviewImage(store: StudioStore, roomId: string): Buffer {
