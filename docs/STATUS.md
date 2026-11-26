@@ -2,6 +2,11 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Board- und Designhierarchie nach Nutzerfeedback (lokal geprüft)
+
+- Das Board nennt einen tatsächlich konfigurierten Spaltenagenten samt Startmodus direkt unter dem Spaltentitel. Eine Karte zeigt bei einem laufenden Prozess den Agenten aus dieser Sitzung; ohne laufenden Prozess zeigt sie den Spaltenagenten, falls vorhanden. Leere Karten verlieren die bedeutungsarme Zeile „Noch kein Lauf“. Es werden keine Teammitglieder oder Sitzungen erfunden. Ein gezielter Renderer-Test prüft konfigurierten und tatsächlich laufenden Agenten; die Oberfläche wurde in einem isolierten synthetischen Electron-Profil bei 1280 × 720 sichtbar geprüft.
+- Der große Design-Editor zeigt den konkreten Kartentitel, legt Titel und Kartenauswahl in eine Kopfzeile, verkürzt die Ebenenbeschriftungen und versieht sie mit passenden Symbolen. Die drei Arbeitspanels erhalten eine feste Arbeitshöhe mit eigenem Scrollbereich. Die vorhandene Zeichen-, Speicher- und Freigabelogik bleibt dieselbe. Im synthetischen 1280 × 720-Fenster wurden der Einstieg aus der Designübersicht und die Zeichenfläche sichtbar geprüft. Typprüfung, Produktionsbuild und zehn gezielte Renderer-Tests bestanden. Das ist eine Verbesserung des vorhandenen Wireframe-Werkzeugs; automatisch eingesammelte Agentenentwürfe, freie projektweite Designs und Figma-ähnliche visuelle Bearbeitung realer App-Elemente im selben Canvas sind weiterhin offen.
+
 ## Gespeicherte QA-Aufnahme als Designreferenz (lokal geprüft)
 
 - In der Design-Übersicht kann eine tatsächlich gespeicherte QA-Aufnahme der zugehörigen Karte als visuelle Referenz geöffnet werden. Der Editor öffnet im großen Modus und legt das Bild auf die Zeichenfläche; Ein-/Ausblenden und Deckkraft sind reine Ansichtsänderungen. Eine Karte ohne Wireframe zeigt die Aufnahme vor der Wahl einer leeren Fläche oder Fenstergrundlage. Die Aufnahme wird nicht in die Wireframe-Revision, den PNG-Export oder den Agentenauftrag geschrieben. Der synthetische Electron-Pfad prüfte Galerie → Editor und das Ausblenden; gezielte Renderer-Tests prüfen Bildquelle, Umschalten und ausbleibendes Speichern. Die Aufnahme kann veraltet sein und ist kein editierbares Agentenartefakt. Eine automatische Übergabe nach einem Agentenlauf bleibt offen.

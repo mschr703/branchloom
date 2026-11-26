@@ -153,6 +153,17 @@
 :root[data-theme='light'] .board-column .column-footer { background: var(--column-wash, var(--surface-2)); }
 :root[data-theme] .board-filters .board-search { flex: 0 1 290px; max-width: 290px; }
 :root[data-theme] .board-new-task { margin-left: 0; }
+:root[data-theme] .board-column .column-header { align-items: flex-start; min-height: 48px; padding-top: 9px; padding-bottom: 8px; }
+:root[data-theme] .board-column .column-heading { display: grid; gap: 2px; min-width: 0; }
+:root[data-theme] .board-column .column-run-summary { overflow: hidden; padding-left: 15px; color: var(--muted); font-size: 10px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+:root[data-theme] .board-card-wrap > .task-card { min-height: 86px; padding-top: 12px; padding-bottom: 11px; transition: border-color 130ms ease, box-shadow 130ms ease; }
+:root[data-theme] .board-card-wrap > .task-card:hover { border-color: color-mix(in srgb, var(--text) 40%, var(--border)); box-shadow: 0 3px 12px #0000000d; }
+:root[data-theme] .board-card-wrap > .task-card strong { font-size: 13px; font-weight: 630; line-height: 1.32; letter-spacing: -.01em; }
+:root[data-theme] .board-card-wrap > .task-card .task-card-description { color: var(--muted); font-size: 11px; line-height: 1.4; }
+:root[data-theme] .board-card-wrap > .task-card .task-card-footer { justify-content: flex-start; margin-top: 11px; padding-top: 8px; gap: 8px; font-size: 10px; }
+:root[data-theme] .board-card-wrap > .task-card .task-card-footer > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:root[data-theme] .board-card-wrap > .task-card .task-card-run-count { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+:root[data-theme] .board-card-wrap > .task-card .task-card-metadata { margin-top: 8px; }
 @media (max-width: 1200px) {
   :root[data-theme] .board-toolbar.board-header-actions { align-items: flex-start; flex-direction: column; }
   :root[data-theme] .board-header-tools { justify-content: flex-start; }

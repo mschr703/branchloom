@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Archive, ArrowDown, ArrowRight, ArrowUp, Copy, FileJson2, FolderOpen, GripVertical, MessageCircle, MoreHorizontal, Pencil, Plus, Search, Terminal, X } from 'lucide-react';
+import { Archive, ArrowDown, ArrowUp, Copy, FileJson2, FolderOpen, GripVertical, MessageCircle, MoreHorizontal, Pencil, Plus, Search, Terminal, X } from 'lucide-react';
 import type { Card, CardPriority, Column, ColumnEffort, ProjectSnapshot } from '../../shared/types';
 import type { WorkflowRunEvidence } from '../../shared/workflow-evidence';
 import { CARD_PRIORITIES } from '../../shared/card-metadata';
@@ -330,8 +330,9 @@ function BoardColumn({ column, columns, cards, snapshot, workflowEvidence, empty
     requestAnimationFrame(() => settingsTrigger.current?.focus());
   }
   const activeOrder = snapshot.cards.filter((card) => card.columnId === column.id && !card.archivedAt).sort(compareCardOrder);
+  const columnAgent = snapshot.agents.find((item) => item.id === column.agentId);
   return <section className="board-column" data-run-mode={column.agentId ? column.autoStart ? 'automatic' : 'manual-agent' : 'manual'} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onDrop(event, column.id)} aria-label={`Spalte ${column.name}`}>
-    <header className="column-header"><div className="column-title"><span className="column-indicator" /><h3>{column.name}</h3><span className="count-pill">{cards.length}</span></div><button ref={settingsTrigger} className="column-settings-trigger" type="button" aria-label={`Spalte ${column.name} einstellen`} aria-haspopup="dialog" aria-expanded={settingsOpen} title="Spalte einstellen" onClick={() => setSettingsOpen(true)}><Pencil size={16} aria-hidden="true" /></button></header>
+    <header className="column-header"><div className="column-heading"><div className="column-title"><span className="column-indicator" /><h3>{column.name}</h3><span className="count-pill">{cards.length}</span></div>{columnAgent ? <span className="column-run-summary">{columnAgent.name} · {column.autoStart ? 'Start beim Verschieben' : 'Start auf Anfrage'}</span> : null}</div><button ref={settingsTrigger} className="column-settings-trigger" type="button" aria-label={`Spalte ${column.name} einstellen`} aria-haspopup="dialog" aria-expanded={settingsOpen} title="Spalte einstellen" onClick={() => setSettingsOpen(true)}><Pencil size={16} aria-hidden="true" /></button></header>
     <div className="column-body">
       {cards.map((card) => {
         const index = activeOrder.findIndex((item) => item.id === card.id);
@@ -391,6 +392,8 @@ function BoardCard({ card, column, columns, snapshot, workflowSignal, onSelect, 
   const sessions = snapshot.sessions.filter((session) => session.cardId === card.id);
   const hasWorktree = sessions.some((session) => Boolean(session.worktreePath));
   const active = sessions.some((session) => session.state === 'running');
+  const runningSession = sessions.find((session) => session.state === 'running');
+  const assignedAgent = snapshot.agents.find((item) => item.id === (runningSession?.agentId ?? (card.archivedAt ? null : column.agentId)));
   const destination = destinations.find((item) => item.id === destinationId);
   const destinationAgent = snapshot.agents.find((item) => item.id === destination?.agentId);
   const priority = CARD_PRIORITIES.find((item) => item.value === card.priority);
@@ -471,7 +474,7 @@ function BoardCard({ card, column, columns, snapshot, workflowSignal, onSelect, 
         {card.labels.length > 3 ? <span className="card-label" title={card.labels.slice(3).join(', ')}>+{card.labels.length - 3}</span> : null}
       </span> : null}
       {card.description ? <span className="task-card-description" id={`board-card-description-${card.id}`}>{card.description}</span> : null}
-      <span className="task-card-footer"><span>{active ? <><span className="live-dot" /> Agent läuft</> : sessions.length > 0 ? <><Terminal size={13} /> {sessions.length} Lauf{sessions.length === 1 ? '' : 'e'}</> : 'Noch kein Lauf'}</span><ArrowRight size={14} aria-hidden="true" /></span>
+      {active || sessions.length > 0 || assignedAgent ? <span className="task-card-footer"><span>{active ? <><span className="live-dot" /> {assignedAgent?.name ?? 'Agent'} arbeitet</> : assignedAgent ? <><Terminal size={13} /> {assignedAgent.name} {column.autoStart ? '· Start beim Verschieben' : '· bereit'}</> : <><Terminal size={13} /> {sessions.length} Lauf{sessions.length === 1 ? '' : 'e'}</>}</span>{!active && sessions.length > 0 ? <span className="task-card-run-count">{sessions.length} Lauf{sessions.length === 1 ? '' : 'e'}</span> : null}</span> : null}
     </button>
     <button ref={actionsTrigger} className="card-quick-trigger" type="button" aria-label={`Schnellaktionen für „${card.title}“`} aria-expanded={actionsOpen} aria-controls={actionsOpen ? `card-actions-${card.id}` : undefined} onKeyDown={(event) => { if (actionsOpen && event.key === 'Escape') { event.preventDefault(); closeActions(); } }} onClick={() => { setActionError(''); setActionsOpen((open) => !open); }}><MoreHorizontal size={18} aria-hidden="true" /></button>
     {actionsOpen ? <div ref={actionsPanel} className="card-quick-actions" id={`card-actions-${card.id}`} role="group" aria-label={`Schnellaktionen für „${card.title}“`} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeActions(); } }}>

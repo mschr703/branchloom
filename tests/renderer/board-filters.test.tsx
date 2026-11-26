@@ -80,6 +80,28 @@ describe('board filters and archive visibility', () => {
     expect(archived).toContain('disabled=""');
   });
 
+  it('shows the configured column agent and the actual running agent without an empty run footer', () => {
+    const snapshot: ProjectSnapshot = {
+      project: { id: 'p', name: 'Synthetic', path: 'C:\\test', createdAt: stamp },
+      columns: [{ id: 'todo', projectId: 'p', name: 'To Do', position: 0, autoStart: true, agentId: 'codex', model: null, effort: null }],
+      cards: [cards[0]!],
+      agents: [
+        { id: 'codex', name: 'Codex', kind: 'codex', command: 'codex', args: [], model: null, enabled: true },
+        { id: 'gemini', name: 'Gemini', kind: 'gemini', command: 'gemini', args: [], model: null, enabled: true },
+      ],
+      sessions: [], workflows: [], notes: [],
+      queue: { projectId: 'p', state: 'off', templateWorkflowId: null, activeWorkflowId: null, pauseReason: null, completedCount: 0, updatedAt: null },
+    };
+    const ready = renderToStaticMarkup(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() }));
+    expect(ready).toContain('Codex · Start beim Verschieben');
+    expect(ready).not.toContain('Noch kein Lauf');
+
+    snapshot.sessions = [{ id: 'run', projectId: 'p', cardId: 'active', agentId: 'gemini', state: 'running', startedAt: stamp, endedAt: null, exitCode: null, output: '', codexThreadId: null, worktreePath: null }];
+    const running = renderToStaticMarkup(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() }));
+    expect(running).toContain('Gemini arbeitet');
+    expect(running).not.toContain('Codex arbeitet');
+  });
+
   it('keeps session controls in the card drawer instead of claiming a universal resume action', () => {
     const snapshot: ProjectSnapshot = {
       project: { id: 'p', name: 'Synthetic', path: 'C:\\test', createdAt: stamp },
