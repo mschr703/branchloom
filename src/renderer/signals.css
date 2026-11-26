@@ -27,15 +27,22 @@
 :root[data-theme] .board-card-wrap > .task-card[data-priority='urgent'] { border-left: 3px solid #b65b4e; padding-left: 34px; }
 :root[data-theme] .board-card-wrap > .task-card[data-priority='high']:not(.is-running) { border-left: 3px solid #bf8145; padding-left: 34px; }
 :root[data-theme] .task-card strong { padding-right: 0; font-size: 13px; line-height: 1.36; font-weight: 640; }
-:root[data-theme] .board-workflow-signal { display: flex; align-items: center; gap: 7px; min-width: 0; margin-top: 5px; color: var(--muted); font-size: 10px; line-height: 1.3; }
-:root[data-theme] .board-workflow-name { overflow: hidden; min-width: 0; max-width: 100px; text-overflow: ellipsis; white-space: nowrap; }
-:root[data-theme] .board-workflow-steps { display: flex; align-items: center; gap: 2px; min-width: 0; }
-:root[data-theme] .board-workflow-step { display: block; width: 8px; height: 3px; border-radius: 1px; background: var(--border); }
-:root[data-theme] .board-workflow-step.not-recorded { height: 0; border-bottom: 1px dotted var(--muted); background: none; }
-:root[data-theme] .board-workflow-step.complete { background: #7c879c; }
-:root[data-theme] .board-workflow-step.running { background: #4d78a4; }
+:root[data-theme] .board-workflow-signal { display: flex; align-items: center; gap: 7px; min-width: 0; margin-top: 6px; color: var(--muted); font-size: 10px; line-height: 1.3; }
+:root[data-theme] .board-workflow-name { overflow: hidden; min-width: 0; max-width: 90px; text-overflow: ellipsis; white-space: nowrap; }
+:root[data-theme] .board-workflow-steps { display: inline-flex; align-items: center; gap: 1px; min-width: 0; padding: 2px 0; }
+:root[data-theme] .board-workflow-step { display: block; width: 9px; height: 4px; background: var(--border); transform: skewX(-20deg); }
+:root[data-theme] .board-workflow-step:first-child { border-radius: 2px 0 0 2px; }
+:root[data-theme] .board-workflow-step:last-child { border-radius: 0 2px 2px 0; }
+:root[data-theme] .board-workflow-step.not-recorded { background: color-mix(in srgb, var(--border) 45%, transparent); }
+:root[data-theme] .board-workflow-step.complete { background: #85898d; }
+:root[data-theme] .board-workflow-step.pending { background: #aaa9a5; }
+:root[data-theme] .board-workflow-step.running { background: #526ca1; }
 :root[data-theme] .board-workflow-step.needs_review,
-:root[data-theme] .board-workflow-step.manual_wait { background: #ba8150; }
+:root[data-theme] .board-workflow-step.manual_wait { background: #a66d43; }
+:root[data-theme] .board-workflow-step.is-current { width: 16px; height: 6px; }
+:root[data-theme] .board-workflow-attention { flex: none; color: #526ca1; font-weight: 600; white-space: nowrap; }
+:root[data-theme] .board-workflow-signal[data-attention='needs_review'] .board-workflow-attention,
+:root[data-theme] .board-workflow-signal[data-attention='manual_wait'] .board-workflow-attention { color: #a66d43; }
 :root[data-theme] .board-workflow-overflow,
 :root[data-theme] .board-workflow-count { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
 :root[data-theme] .board-workflow-count { margin-left: auto; }
@@ -114,4 +121,32 @@
   :root[data-theme] .board-session-dock { margin-right: 16px; }
   :root[data-theme] .board-session-row { grid-template-columns: 8px minmax(0, 1fr) auto; gap: 7px; }
   :root[data-theme] .board-session-meta { display: none; }
+}
+
+/* Project context leads the board; bulk controls only occupy space when requested. */
+:root[data-theme] .board-toolbar.board-header-actions { justify-content: space-between; align-items: flex-end; gap: 16px; min-height: 57px; padding-bottom: 11px; }
+:root[data-theme] .board-project-heading { min-width: 0; display: flex; align-items: baseline; gap: 14px; }
+:root[data-theme] .board-project-heading h2 { overflow: hidden; margin: 0; color: var(--text); font-size: 20px; font-weight: 620; letter-spacing: -.035em; text-overflow: ellipsis; white-space: nowrap; }
+:root[data-theme] .board-project-heading span { flex: none; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+:root[data-theme] .board-header-tools { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 7px; }
+:root[data-theme] .board-header-tools .secondary-button { border-color: transparent; background: transparent; }
+:root[data-theme] .board-header-tools .secondary-button:hover { border-color: var(--border); background: var(--surface); }
+:root[data-theme] .board-filters { gap: 8px; min-height: 49px; }
+:root[data-theme] .board-filters .board-search { flex-basis: 250px; max-width: 440px; }
+:root[data-theme] .board-selection-toggle { min-height: 35px; padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+:root[data-theme] .board-selection-toggle[aria-pressed='true'] { border-color: var(--accent); background: var(--surface-2); }
+:root[data-theme] .board-new-task { display: inline-flex; align-items: center; gap: 6px; min-height: 35px; padding: 6px 11px; font-size: 12px; white-space: nowrap; }
+:root[data-theme] .board-card-wrap:not(.is-selecting) > .task-card { padding-left: 13px; }
+:root[data-theme] .board-card-wrap:not(.is-selecting) > .task-card.is-running,
+:root[data-theme] .board-card-wrap:not(.is-selecting) > .task-card[data-priority='urgent'],
+:root[data-theme] .board-card-wrap:not(.is-selecting) > .task-card[data-priority='high']:not(.is-running) { padding-left: 11px; }
+:root[data-theme] .board-bulk-actions { margin: 3px 29px 9px 0; padding: 7px 9px; border-color: var(--border); border-radius: 6px; background: var(--surface); font-size: 12px; }
+@media (max-width: 1200px) {
+  :root[data-theme] .board-toolbar.board-header-actions { align-items: flex-start; flex-direction: column; }
+  :root[data-theme] .board-header-tools { justify-content: flex-start; }
+}
+@media (max-width: 800px) {
+  :root[data-theme] .board-project-heading { flex-wrap: wrap; gap: 2px 10px; }
+  :root[data-theme] .board-filters { flex-wrap: wrap; }
+  :root[data-theme] .board-filters .board-search { flex-basis: 100%; max-width: none; }
 }

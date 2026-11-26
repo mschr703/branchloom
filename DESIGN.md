@@ -8,6 +8,10 @@ Branchloom is an operating surface for people who plan, run, and review coding-a
 
 ## Current tokens and next direction
 
+The 26 November user reference sharpens the target: project identity, one quiet search entry, the board's real work, and a compact session rail should form a readable vertical sequence. Use restrained column tones and small status signals only where they distinguish actual work states. An absent feature in the reference image is not a request to remove it. The Design view needs a project-level entry that can show real saved drafts and actual agent-produced visual evidence before opening an editor; do not synthesize a design from a completed session. The existing editor's card binding, manual agent proposal, and explicit approval remain visible limitations until a broader artifact model ships.
+
+Team presence belongs to the place where work happens: a quiet count or face in navigation for an open view, and named viewers versus editors on the specific card or canvas selection. Show only authenticated live sessions, expire stale presence, and never present a viewing cursor as an edit. Keep the board readable when nobody is present.
+
 - **Type:** IBM Plex Sans Variable for interface copy and headings; tabular numerals for IDs, counts, sizes, and time. Keep primary controls and inspector values readable at 13–14 px or larger at a 1440 px desktop viewport. Secondary metadata may be smaller, but must remain legible.
 - **Light (default for new profiles; current implementation tokens):** canvas `#f6f5f2`, sidebar `#eeece7`, surface `#ffffff`, text `#25262a`, border `#d8d5ce`, ink accent `#373b46`. A previously saved dark preference remains dark.
 - **Dark (current implementation tokens):** canvas `#1d1d1f`, sidebar `#19191b`, surface `#28282b`, text `#eeece9`, border `#505055`, ink accent `#dedddd`.

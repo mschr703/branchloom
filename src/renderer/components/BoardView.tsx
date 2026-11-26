@@ -56,6 +56,7 @@ export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenBrow
   const [filterLabel, setFilterLabel] = useState('');
   const [announcement, setAnnouncement] = useState('');
   const [bulkNotice, setBulkNotice] = useState('');
+  const [bulkMode, setBulkMode] = useState(false);
   const [bulkIds, setBulkIds] = useState<Set<string>>(() => new Set());
   const [bulkDestinationId, setBulkDestinationId] = useState('');
   const [bulkPriority, setBulkPriority] = useState<CardPriority | ''>('');
@@ -232,7 +233,10 @@ export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenBrow
   }
 
   return <div className="board-page">
-    <div className="board-toolbar board-header-actions"><button className="secondary-button" type="button" onClick={() => setShowTaskDraft(true)} title="Mit einem Agenten aus einer Idee eine überprüfbare Aufgabe formulieren"><MessageCircle size={16} /> Aufgabe vorbereiten</button><button className="secondary-button" type="button" onClick={() => setShowImport(true)}><FileJson2 size={16} /> Trello importieren</button><QaCoveragePanel key={snapshot.project.id} snapshot={snapshot} onOpenQaReport={onOpenQaReport ?? ((cardId) => openBoardCard(cardId))} /></div>
+    <div className="board-toolbar board-header-actions">
+      <div className="board-project-heading"><h2>{snapshot.project.name}</h2><span>{snapshot.sessions.filter((session) => session.state === 'running').length} {snapshot.sessions.filter((session) => session.state === 'running').length === 1 ? 'Agent aktiv' : 'Agenten aktiv'}</span></div>
+      <div className="board-header-tools"><button className="secondary-button" type="button" onClick={() => setShowTaskDraft(true)} title="Mit einem Agenten aus einer Idee eine überprüfbare Aufgabe formulieren"><MessageCircle size={16} /> Aufgabe vorbereiten</button><button className="secondary-button" type="button" onClick={() => setShowImport(true)}><FileJson2 size={16} /> Trello importieren</button><QaCoveragePanel key={snapshot.project.id} snapshot={snapshot} onOpenQaReport={onOpenQaReport ?? ((cardId) => openBoardCard(cardId))} /></div>
+    </div>
     <div className="board-filters" role="search" aria-label="Board-Filter">
       <label className="board-search"><Search size={16} aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Karten suchen…" aria-label="Karten suchen" aria-describedby="board-filter-help" /></label>
       <label className="board-quick-filter"><span className="sr-only">Priorität filtern</span><select value={filterPriority} onChange={(event) => setFilterPriority(event.target.value as CardPriority | '')} aria-label="Priorität filtern"><option value="">Alle Prioritäten</option>{CARD_PRIORITIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
@@ -241,10 +245,12 @@ export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenBrow
       <label><span className="sr-only">Archivstatus filtern</span><select value={visibility} onChange={(event) => setVisibility(event.target.value as BoardVisibility)} aria-label="Archivstatus filtern"><option value="active">Aktive Karten</option><option value="archived">Archiv ({archivedCount})</option><option value="all">Alle Karten</option></select></label>
       </div></details>
       <span className="board-filter-count" role="status" aria-live="polite">{visibleCards.length} Treffer</span>
+      {selectableCards.length > 0 ? <button className="board-selection-toggle secondary-button" type="button" aria-pressed={bulkMode} onClick={() => { setBulkMode((current) => !current); setBulkIds(new Set()); setConfirmBulkArchive(false); setConfirmBulkPriority(null); setBulkNotice(''); }}>{bulkMode ? 'Auswahl beenden' : 'Karten auswählen'}</button> : null}
+      {visibility !== 'archived' && columns[0] ? <button className="board-new-task primary-button" type="button" onClick={() => { setCreatingIn(columns[0]!.id); setTitle(''); }}><Plus size={16} aria-hidden="true" />Neue Aufgabe</button> : null}
       {workflowEvidenceError ? <span className="board-workflow-error" role="status">Workflow-Verlauf nicht vollständig geladen. <button type="button" onClick={() => setWorkflowEvidenceRetry((value) => value + 1)}>Erneut laden</button></span> : null}
       <span id="board-filter-help" className="sr-only">Karten mit Tab erreichen. Enter öffnet Details, M öffnet die Verschiebeauswahl. Pfeiltasten-Schaltflächen ändern die Reihenfolge innerhalb der vollständigen Spalte, auch wenn Karten ausgefiltert sind. Archivierte Karten bleiben an ihrem Platz.</span>
     </div>
-    {selectableCards.length > 0 || selectedBulkCards.length > 0 ? <div className="board-bulk-actions" aria-label="Sammelaktionen">
+    {bulkMode && (selectableCards.length > 0 || selectedBulkCards.length > 0) ? <div className="board-bulk-actions" aria-label="Sammelaktionen">
       <label className="board-bulk-all"><input type="checkbox" checked={selectableCards.length > 0 && selectedBulkCards.length === selectableCards.length} disabled={selectableCards.length === 0 || selectableCards.length > 100 || bulkBusy} onChange={(event) => { setConfirmBulkArchive(false); setConfirmBulkPriority(null); setBulkNotice(''); setBulkIds(event.target.checked ? new Set(selectableCards.map((card) => card.id)) : new Set()); }} /> Sichtbare aktive Karten auswählen</label>
       <strong>{selectedBulkCards.length} ausgewählt</strong>
       {selectedBulkCards.length ? <><button className="secondary-button small" type="button" onClick={() => { setBulkIds(new Set()); setConfirmBulkArchive(false); setConfirmBulkPriority(null); setBulkNotice(''); }}>Auswahl aufheben</button>
@@ -276,7 +282,7 @@ export function BoardView({ snapshot, mutate, openCard, onOpenDesign, onOpenBrow
     {bulkNotice ? <p className="board-bulk-result" role="status">{bulkNotice}</p> : null}
     <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
     <div className="board-scroll"><div className="board-columns">
-      {visibleColumns.map((column, index) => <BoardColumn key={column.id} column={column} columns={columns} cards={visibleCards.filter((card) => card.columnId === column.id).sort(compareCardOrder)} snapshot={snapshot} workflowEvidence={workflowEvidence} emptyMessage={boardEmptyMessage(index, hasActiveCards, filtersActive)} onSelect={openBoardCard} onOpenSession={(id) => openBoardCard(id, true)} onAnnounce={setAnnouncement} onMove={moveCard} onReorder={reorderCard} onReorderColumn={reorderColumn} onDrop={onDrop} onCreate={() => { setCreatingIn(column.id); setTitle(''); }} canCreate={visibility !== 'archived'} mutate={mutate} bulkIds={bulkIds} onToggleBulk={toggleBulk}>
+      {visibleColumns.map((column, index) => <BoardColumn key={column.id} column={column} columns={columns} cards={visibleCards.filter((card) => card.columnId === column.id).sort(compareCardOrder)} snapshot={snapshot} workflowEvidence={workflowEvidence} emptyMessage={boardEmptyMessage(index, hasActiveCards, filtersActive)} onSelect={openBoardCard} onOpenSession={(id) => openBoardCard(id, true)} onAnnounce={setAnnouncement} onMove={moveCard} onReorder={reorderCard} onReorderColumn={reorderColumn} onDrop={onDrop} onCreate={() => { setCreatingIn(column.id); setTitle(''); }} canCreate={visibility !== 'archived'} mutate={mutate} bulkMode={bulkMode} bulkIds={bulkIds} onToggleBulk={toggleBulk}>
         {creatingIn === column.id && visibility !== 'archived' ? <form className="new-card-form" onSubmit={(event) => void addCard(event, column.id)}><input autoFocus required maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Aufgabe benennen…" aria-label="Neue Karte" /><div className="inline-actions"><button className="primary-button small" type="submit">Hinzufügen</button><button className="icon-button" type="button" onClick={() => setCreatingIn(null)} aria-label="Abbrechen"><X size={15} /></button></div></form> : null}
       </BoardColumn>)}
       {visibility !== 'archived' && !filterColumnId ? <form className="new-column-form" onSubmit={(event) => void addColumn(event)}><span><Plus size={17} /> Spalte hinzufügen</span><input value={newColumn} onChange={(event) => setNewColumn(event.target.value)} placeholder="Spaltenname" aria-label="Neue Spalte" maxLength={80} required /><button className="secondary-button small" type="submit">Erstellen</button></form> : null}
@@ -306,13 +312,13 @@ function compareCardOrder(a: Card, b: Card): number {
   return a.position - b.position || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
 }
 
-function BoardColumn({ column, columns, cards, snapshot, workflowEvidence, emptyMessage, onSelect, onOpenSession, onAnnounce, onMove, onReorder, onReorderColumn, onDrop, onCreate, canCreate, mutate, bulkIds, onToggleBulk, children }: {
+function BoardColumn({ column, columns, cards, snapshot, workflowEvidence, emptyMessage, onSelect, onOpenSession, onAnnounce, onMove, onReorder, onReorderColumn, onDrop, onCreate, canCreate, mutate, bulkMode, bulkIds, onToggleBulk, children }: {
   column: Column; columns: Column[]; cards: Card[]; snapshot: ProjectSnapshot; workflowEvidence: Record<string, WorkflowRunEvidence>; emptyMessage: string | null; onSelect: (id: string) => void; onOpenSession: (id: string) => void; onAnnounce: (message: string) => void;
   onMove: (card: Card, columnId: string) => Promise<boolean>;
   onReorder: (card: Card, direction: 'up' | 'down') => Promise<void>;
   onReorderColumn: (column: Column, direction: 'left' | 'right') => Promise<void>;
   onDrop: (event: React.DragEvent<HTMLElement>, columnId: string) => void;
-  onCreate: () => void; canCreate: boolean; mutate: Mutate; bulkIds: Set<string>; onToggleBulk: (id: string) => void; children: React.ReactNode;
+  onCreate: () => void; canCreate: boolean; mutate: Mutate; bulkMode: boolean; bulkIds: Set<string>; onToggleBulk: (id: string) => void; children: React.ReactNode;
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsTrigger = useRef<HTMLButtonElement>(null);
@@ -330,7 +336,7 @@ function BoardColumn({ column, columns, cards, snapshot, workflowEvidence, empty
     <div className="column-body">
       {cards.map((card) => {
         const index = activeOrder.findIndex((item) => item.id === card.id);
-        return <BoardCard key={card.id} card={card} column={column} columns={columns} snapshot={snapshot} workflowSignal={cardWorkflowSignal(card.id, snapshot.workflows, workflowEvidence)} onSelect={onSelect} onOpenSession={onOpenSession} onAnnounce={onAnnounce} onMove={onMove} onReorder={onReorder} bulkSelected={bulkIds.has(card.id)} onToggleBulk={onToggleBulk} previousTitle={index > 0 ? activeOrder[index - 1]?.title : undefined} nextTitle={index >= 0 ? activeOrder[index + 1]?.title : undefined} />;
+        return <BoardCard key={card.id} card={card} column={column} columns={columns} snapshot={snapshot} workflowSignal={cardWorkflowSignal(card.id, snapshot.workflows, workflowEvidence)} onSelect={onSelect} onOpenSession={onOpenSession} onAnnounce={onAnnounce} onMove={onMove} onReorder={onReorder} bulkMode={bulkMode} bulkSelected={bulkIds.has(card.id)} onToggleBulk={onToggleBulk} previousTitle={index > 0 ? activeOrder[index - 1]?.title : undefined} nextTitle={index >= 0 ? activeOrder[index + 1]?.title : undefined} />;
       })}
       {children}
       {cards.length === 0 && !children && emptyMessage ? <p className="empty-column">{emptyMessage}</p> : null}
@@ -364,11 +370,11 @@ export function ColumnAgentSettings({ column, agents, mutate }: { column: Column
   </form>;
 }
 
-function BoardCard({ card, column, columns, snapshot, workflowSignal, onSelect, onOpenSession, onAnnounce, onMove, onReorder, bulkSelected, onToggleBulk, previousTitle, nextTitle }: {
+function BoardCard({ card, column, columns, snapshot, workflowSignal, onSelect, onOpenSession, onAnnounce, onMove, onReorder, bulkMode, bulkSelected, onToggleBulk, previousTitle, nextTitle }: {
   card: Card; column: Column; columns: Column[]; snapshot: ProjectSnapshot; workflowSignal: BoardWorkflowSignal | null;
   onSelect: (id: string) => void; onOpenSession: (id: string) => void; onAnnounce: (message: string) => void; onMove: (card: Card, columnId: string) => Promise<boolean>;
   onReorder: (card: Card, direction: 'up' | 'down') => Promise<void>;
-  bulkSelected: boolean; onToggleBulk: (id: string) => void;
+  bulkMode: boolean; bulkSelected: boolean; onToggleBulk: (id: string) => void;
   previousTitle?: string; nextTitle?: string;
 }) {
   const destinations = moveDestinations(columns, card);
@@ -453,8 +459,8 @@ function BoardCard({ card, column, columns, snapshot, workflowSignal, onSelect, 
     } finally { setActionBusy(false); }
   }
 
-  return <div className="board-card-wrap" data-card-id={card.id}>
-    {!card.archivedAt ? <label className="board-bulk-card-select"><input type="checkbox" checked={bulkSelected} onChange={() => onToggleBulk(card.id)} aria-label={`„${card.title}“ für Sammelaktion auswählen`} /><span className="sr-only">Auswählen</span></label> : null}
+  return <div className={`board-card-wrap${bulkMode ? ' is-selecting' : ''}`} data-card-id={card.id}>
+    {!card.archivedAt && bulkMode ? <label className="board-bulk-card-select"><input type="checkbox" checked={bulkSelected} onChange={() => onToggleBulk(card.id)} aria-label={`„${card.title}“ für Sammelaktion auswählen`} /><span className="sr-only">Auswählen</span></label> : null}
     <button ref={cardButton} id={`board-card-${card.id}`} type="button" draggable={!card.archivedAt} onDragStart={(event) => { if (!card.archivedAt) event.dataTransfer.setData('text/card-id', card.id); }} className={`task-card${card.archivedAt ? ' archived' : ''}${active ? ' is-running' : ''}`} data-priority={card.priority} aria-label={`Karte „${card.title}“ in „${column.name}“ öffnen${card.archivedAt ? ', archiviert' : ''}${active ? ', Agent läuft' : ''}`} aria-describedby={[card.description ? `board-card-description-${card.id}` : null, workflowSignal ? `board-card-workflow-${card.id}` : null].filter(Boolean).join(' ') || undefined} aria-keyshortcuts={destinations.length ? 'M' : undefined} onKeyDown={(event) => { if (destinations.length && isMoveShortcut(event)) { event.preventDefault(); setMoveOpen(true); } }} onClick={() => onSelect(card.id)}>
       <span className="task-card-grip" aria-hidden="true">{card.archivedAt ? <Archive size={15} /> : <GripVertical size={15} />}</span>
       <strong>{card.title}</strong>

@@ -31,7 +31,22 @@ it('renders only stored per-card step progress, with an explicit missing-evidenc
   const html = renderToStaticMarkup(<BoardWorkflowMarkers cardId="card" signal={signal!} />);
   expect(html).toContain('1/4');
   expect(html).toContain('needs_review');
+  expect(html).toContain('Review nötig');
+  expect(html.match(/is-current/g)).toHaveLength(1);
   expect(html).toContain('Build and review');
+});
+
+it('marks a running step without presenting a pending step as completed', () => {
+  const runningEvidence = { ...evidence, rows: [
+    evidence.rows[0],
+    { ...evidence.rows[1], state: 'running' as const },
+    evidence.rows[2],
+  ] };
+  const signal = cardWorkflowSignal('card', [workflow], { workflow: runningEvidence });
+  const html = renderToStaticMarkup(<BoardWorkflowMarkers cardId="card" signal={signal!} />);
+  expect(html).toContain('Agent läuft');
+  expect(html).toContain('1/4');
+  expect(html.match(/is-current/g)).toHaveLength(1);
 });
 
 it('does not turn a route index, unrelated row, or truncated evidence into a progress signal', () => {

@@ -1618,6 +1618,10 @@ function createWindow(): void {
               catch (reason) { gateBlocked = String(reason).includes('aktuell freigegebenen Wireframe'); }
               if (!gateBlocked || !(await sessionsUnchanged())) throw new Error('Karten-Wireframe-Pflicht ließ einen Agenten ohne Freigabe starten.');
               gateDialog?.querySelector('button[aria-label="Karte schließen"]')?.click();
+              const bulkModeToggle = document.querySelector('.board-selection-toggle');
+              if (!(bulkModeToggle instanceof HTMLButtonElement) || bulkModeToggle.getAttribute('aria-pressed') !== 'false') throw new Error('Bulk-Priorität: ruhiger Standardzustand fehlt.');
+              bulkModeToggle.click();
+              for (let attempt = 0; attempt < 100 && bulkModeToggle.getAttribute('aria-pressed') !== 'true'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const bulkSelect = document.querySelector('.board-card-wrap input[aria-label="„Smoke-Karte“ für Sammelaktion auswählen"]');
               if (!bulkSelect) throw new Error('Bulk-Priorität: Kartenauswahl fehlt.');
               bulkSelect.click();

@@ -1,4 +1,6 @@
-import { createElement } from 'react';
+// @vitest-environment jsdom
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { BoardView, BulkArchiveConfirmation, BulkPriorityConfirmation } from '../../src/renderer/components/BoardView';
@@ -19,13 +21,40 @@ const base: ProjectSnapshot = {
 const mutate = async <T,>(action: () => Promise<T>) => action();
 
 describe('bulk board controls', () => {
-  it('offers selection only for visible active cards without an empty bulk-action notice', () => {
+  it('keeps bulk controls out of the default reading path', () => {
     const html = renderToStaticMarkup(createElement(BoardView, { snapshot: base, mutate }));
-    expect(html).toContain('Sichtbare aktive Karten auswählen');
-    expect(html).toContain('„Active“ für Sammelaktion auswählen');
+    expect(html).toContain('Karten auswählen');
+    expect(html).not.toContain('Sichtbare aktive Karten auswählen');
+    expect(html).not.toContain('„Active“ für Sammelaktion auswählen');
     expect(html).not.toContain('„Archived“ für Sammelaktion auswählen');
     expect(html).not.toContain('Sammelverschieben startet keine Spaltenagenten.');
     expect(html).not.toContain('Archivierung bestätigen');
+  });
+
+  it('reveals active-card selection on request and clears it when leaving selection mode', async () => {
+    const host = document.createElement('div'); document.body.append(host);
+    const root = createRoot(host);
+    const previousAct = Object.getOwnPropertyDescriptor(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
+    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    try {
+      await act(async () => { root.render(<BoardView snapshot={base} mutate={mutate} />); });
+      const toggle = host.querySelector<HTMLButtonElement>('.board-selection-toggle')!;
+      expect(host.querySelector('.board-bulk-actions')).toBeNull();
+      await act(async () => { toggle.click(); });
+      expect(toggle.getAttribute('aria-pressed')).toBe('true');
+      expect(host.querySelector('.board-bulk-actions')).not.toBeNull();
+      expect(host.querySelectorAll('.board-bulk-card-select')).toHaveLength(1);
+      await act(async () => { host.querySelector<HTMLInputElement>('.board-bulk-card-select input')!.click(); });
+      expect(host.querySelector('.board-bulk-actions')?.textContent).toContain('1 ausgewählt');
+      await act(async () => { toggle.click(); });
+      expect(host.querySelector('.board-bulk-actions')).toBeNull();
+      expect(host.querySelector('.board-bulk-card-select')).toBeNull();
+    } finally {
+      await act(async () => { root.unmount(); });
+      host.remove();
+      if (previousAct) Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', previousAct);
+      else Reflect.deleteProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
+    }
   });
 
   it('shows a bounded priority confirmation with the affected count and cancel path', () => {
@@ -38,7 +67,7 @@ describe('bulk board controls', () => {
 
   it('shows queue pause requirement and explicit two-step archive confirmation', () => {
     const html = renderToStaticMarkup(createElement(BoardView, { snapshot: { ...base, queue: { ...base.queue, state: 'running' } }, mutate }));
-    expect(html).toContain('Warteschlange vor Sammelaktionen pausieren.');
+    expect(html).toContain('Karten auswählen');
     const confirmation = renderToStaticMarkup(createElement(BulkArchiveConfirmation, { count: 2, busy: false, onConfirm: () => undefined, onCancel: () => undefined }));
     expect(confirmation).toContain('2 Karten archivieren?');
     expect(confirmation).toContain('Archivierung bestätigen');
