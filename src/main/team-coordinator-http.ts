@@ -3,12 +3,14 @@ import type { AddressInfo } from 'node:net';
 import type { StudioStore } from './store';
 import type { CardPriority } from '../shared/types';
 import { authenticateTeamMember, claimTeamMemberInvite, createTeamMemberInvite,
-  requireTeamProjectCapability, revokeTeamMember, setTeamCardPriority, type TeamRole } from './team-workspace';
+  requireTeamProjectCapability, revokeTeamMember, setTeamCardPriority, moveTeamCard, type TeamRole } from './team-workspace';
 import { teamBoardSnapshot } from './team-board';
 import { applyTeamCardDraftUpdate, readTeamCardDraft } from './team-card-draft';
 
 const LOOPBACK = '127.0.0.1';
 const MAX_BODY = 4_096;
+type DraftSubscriber = { response: ServerResponse; credential: string; memberId: string;
+  displayName: string; projectId: string; cardId: string };
 
 function reply(response: ServerResponse, status: number, body: unknown): void {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8',
@@ -42,6 +44,8 @@ async function body(request: IncomingMessage, maxLength = MAX_BODY): Promise<Rec
 /** First coordinator transport slice. It intentionally accepts only loopback connections. */
 export class TeamCoordinatorHttp {
   private server: Server | null = null;
+  private readonly subscribers = new Set<DraftSubscriber>();
+  private heartbeat: NodeJS.Timeout | null = null;
 
   constructor(private readonly store: StudioStore) {}
 
@@ -56,10 +60,16 @@ export class TeamCoordinatorHttp {
       });
     } catch (error) { server.close(); throw error; }
     this.server = server;
+    this.heartbeat = setInterval(() => this.refreshPresence(), 5_000);
+    this.heartbeat.unref();
     return `http://${LOOPBACK}:${(server.address() as AddressInfo).port}`;
   }
 
   async close(): Promise<void> {
+    if (this.heartbeat) clearInterval(this.heartbeat);
+    this.heartbeat = null;
+    for (const subscriber of this.subscribers) subscriber.response.end();
+    this.subscribers.clear();
     const server = this.server;
     this.server = null;
     if (server) await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
@@ -88,6 +98,9 @@ export class TeamCoordinatorHttp {
       const memberRevoke = /^\/v1\/workspace\/members\/([0-9a-f-]{36})\/revoke$/.exec(path);
       if (request.method === 'POST' && memberRevoke) {
         revokeTeamMember(this.store.db, actorCredential, memberRevoke[1]!);
+        for (const subscriber of this.subscribers) {
+          if (subscriber.memberId === memberRevoke[1]) subscriber.response.end();
+        }
         return reply(response, 200, { revoked: true });
       }
       if (request.method === 'GET' && path === '/v1/workspace') {
@@ -99,9 +112,12 @@ export class TeamCoordinatorHttp {
           ORDER BY project.name, project.id`).all(actor.id, actor.workspaceId, actor.role) as Array<{ id: string; name: string }>;
         return reply(response, 200, { member: actor, projects: projects.map((project) => {
           let canEditDraft = true;
+          let canManageTask = true;
           try { requireTeamProjectCapability(this.store.db, actorCredential, project.id, 'edit_draft'); }
           catch { canEditDraft = false; }
-          return { ...project, canEditDraft };
+          try { requireTeamProjectCapability(this.store.db, actorCredential, project.id, 'manage_task'); }
+          catch { canManageTask = false; }
+          return { ...project, canEditDraft, canManageTask };
         }) });
       }
       const board = /^\/v1\/projects\/([0-9a-f-]{36})\/board$/.exec(path);
@@ -117,15 +133,33 @@ export class TeamCoordinatorHttp {
         return reply(response, 200, view);
       }
       const draft = /^\/v1\/projects\/([0-9a-f-]{36})\/cards\/([0-9a-f-]{36})\/draft$/.exec(path);
+      const draftEvents = /^\/v1\/projects\/([0-9a-f-]{36})\/cards\/([0-9a-f-]{36})\/draft\/events$/.exec(path);
+      if (draftEvents && request.method === 'GET') {
+        readTeamCardDraft(this.store.db, { credential: actorCredential,
+          projectId: draftEvents[1]!, cardId: draftEvents[2]! });
+        if (this.subscribers.size >= 100) return reply(response, 429, { error: 'Too many open team draft streams' });
+        const actor = authenticateTeamMember(this.store.db, actorCredential);
+        const subscriber: DraftSubscriber = { response, credential: actorCredential, memberId: actor.id,
+          displayName: actor.displayName, projectId: draftEvents[1]!, cardId: draftEvents[2]! };
+        response.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-store', Connection: 'keep-alive', 'X-Content-Type-Options': 'nosniff' });
+        this.subscribers.add(subscriber);
+        response.on('close', () => { this.subscribers.delete(subscriber); this.refreshPresence(); });
+        this.refreshPresence();
+        return;
+      }
       if (draft && request.method === 'GET') {
         return reply(response, 200, readTeamCardDraft(this.store.db, { credential: actorCredential,
           projectId: draft[1]!, cardId: draft[2]! }));
       }
       if (draft && request.method === 'POST') {
         const value = await body(request, 96 * 1024);
-        return reply(response, 200, applyTeamCardDraftUpdate(this.store.db, { credential: actorCredential,
+        const saved = applyTeamCardDraftUpdate(this.store.db, { credential: actorCredential,
           projectId: draft[1]!, cardId: draft[2]!, mutationId: value.mutationId as string,
-          update: value.update as string }));
+          update: value.update as string });
+        reply(response, 200, saved);
+        if (!saved.repeated) this.broadcastDraft(draft[1]!, draft[2]!, saved.revision);
+        return;
       }
       const priority = /^\/v1\/projects\/([0-9a-f-]{36})\/cards\/([0-9a-f-]{36})\/priority$/.exec(path);
       if (request.method === 'POST' && priority) {
@@ -133,13 +167,27 @@ export class TeamCoordinatorHttp {
         const result = setTeamCardPriority(this.store, { credential: actorCredential,
           projectId: priority[1]!, cardId: priority[2]!, priority: value.priority as CardPriority,
           expectedRevision: value.expectedRevision as number, mutationId: value.mutationId as string });
-        return reply(response, 200, result);
+        reply(response, 200, result);
+        if (!result.repeated) this.broadcastCard(priority[1]!, priority[2]!, result.revision);
+        return;
+      }
+      const move = /^\/v1\/projects\/([0-9a-f-]{36})\/cards\/([0-9a-f-]{36})\/column$/.exec(path);
+      if (request.method === 'POST' && move) {
+        const value = await body(request);
+        const result = moveTeamCard(this.store, { credential: actorCredential,
+          projectId: move[1]!, cardId: move[2]!, columnId: value.columnId as string,
+          expectedRevision: value.expectedRevision as number, mutationId: value.mutationId as string });
+        reply(response, 200, result);
+        if (!result.repeated) this.broadcastCard(move[1]!, move[2]!, result.revision);
+        return;
       }
       reply(response, 404, { error: 'Route is unavailable' });
     } catch (error) {
       const message = error instanceof Error ? error.message : '';
       if (message === 'Card changed. Reload before applying this team action.') {
         reply(response, 409, { error: 'Card changed. Reload before applying this team action.' });
+      } else if (message === 'Team card is active. Pause the queue and finish its run before moving it.') {
+        reply(response, 423, { error: message });
       } else if (message === 'Unauthorized' || message === 'Team credential is unavailable.') {
         reply(response, 401, { error: 'Team credential is unavailable' });
       } else if (message.includes('not permitted') || message.includes('cannot invite') || message.includes('cannot be removed')) {
@@ -150,6 +198,51 @@ export class TeamCoordinatorHttp {
       } else {
         reply(response, 400, { error: 'Team command was not accepted' });
       }
+    }
+  }
+
+  private send(subscriber: DraftSubscriber, event: string, value: unknown): void {
+    if (!subscriber.response.destroyed && !subscriber.response.writableEnded) {
+      if (subscriber.response.writableLength > 64 * 1024) { subscriber.response.end(); return; }
+      subscriber.response.write(`event: ${event}\ndata: ${JSON.stringify(value)}\n\n`);
+    }
+  }
+
+  private matching(projectId: string, cardId: string): DraftSubscriber[] {
+    return [...this.subscribers].filter((subscriber) => subscriber.projectId === projectId && subscriber.cardId === cardId);
+  }
+
+  private authorized(subscriber: DraftSubscriber): boolean {
+    try {
+      readTeamCardDraft(this.store.db, { credential: subscriber.credential,
+        projectId: subscriber.projectId, cardId: subscriber.cardId });
+      return true;
+    } catch {
+      subscriber.response.end();
+      return false;
+    }
+  }
+
+  private refreshPresence(): void {
+    const targets = new Set([...this.subscribers].map((item) => `${item.projectId}:${item.cardId}`));
+    for (const target of targets) {
+      const [projectId, cardId] = target.split(':') as [string, string];
+      const subscribers = this.matching(projectId, cardId).filter((item) => this.authorized(item));
+      const members = [...new Map(subscribers.map((item) => [item.memberId,
+        { memberId: item.memberId, displayName: item.displayName }])).values()];
+      for (const subscriber of subscribers) this.send(subscriber, 'presence', { members });
+    }
+  }
+
+  private broadcastDraft(projectId: string, cardId: string, revision: number): void {
+    for (const subscriber of this.matching(projectId, cardId)) {
+      if (this.authorized(subscriber)) this.send(subscriber, 'draft', { revision });
+    }
+  }
+
+  private broadcastCard(projectId: string, cardId: string, revision: number): void {
+    for (const subscriber of this.matching(projectId, cardId)) {
+      if (this.authorized(subscriber)) this.send(subscriber, 'card', { revision });
     }
   }
 }

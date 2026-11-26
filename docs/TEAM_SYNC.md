@@ -2,9 +2,9 @@
 
 This is the implementation direction for the first real team release. It describes intended behavior, not a shipped service. The [current guest board](TEAM_BOARD.md) remains a short-lived view hosted by one running desktop app.
 
-The [local two-client preview](TEAM_LOCAL_PREVIEW.md) has concrete startup steps and limits for the isolated S03e branch.
+The [local two-client preview](TEAM_LOCAL_PREVIEW.md) has concrete startup steps and limits. Its S03e foundation, live presence, and revisioned card controls are in `main`.
 
-The isolated `codex/s03e` branch now exercises a local, authenticated coordinator and a first shared card draft. It uses Yjs document updates and a 1.2-second client poll while the editor is open; that is near-live synchronization, not presence or a production remote service. The coordinator reuses its saved loopback port after restart. The accepted board card remains separate from the draft. Incremental outgoing updates are encrypted on the client before each send and replayed with their original mutation ID after a failed response or restart. This has a bounded queue; when full or when OS encryption is unavailable, saving fails visibly. The server remains authoritative about project rights. The admin acceptance command does not exist yet, so no draft is promoted by AI agreement.
+The S03e foundation exercises a local, authenticated coordinator and a first shared card draft with Yjs updates. S03f added an authenticated server event stream for open-member presence and draft notifications; a five-second client poll remains as a fallback. This is local live editing, not a production remote service. The coordinator reuses its saved loopback port after restart. The accepted board card remains separate from the draft. Incremental outgoing updates are encrypted on the client before each send and replayed with their original mutation ID after a failed response or restart. This has a bounded queue; when full or when OS encryption is unavailable, saving fails visibly. The server remains authoritative about project rights. The admin acceptance command does not exist yet, so no draft is promoted by AI agreement.
 
 ## The first useful team session
 
@@ -29,7 +29,7 @@ Team role, project access, and project approval mode are separate. A developer m
 
 The first implementation should represent these as named capabilities rather than assuming every `editor` can do every project action: read, edit draft, propose plan, accept plan, manage task, start agent, review, integrate, and manage members. Some capabilities can be granted per project, subject to the owner’s policy. A permission change is itself a revisioned owner action and must take effect for existing sessions and reconnecting clients.
 
-The isolated S03e backend draft currently uses these conservative role presets; this is not a shipped UI or final permission policy:
+The current local team preview uses these conservative role presets; this is not a remote team release or final permission policy:
 
 | Role | Inherited project abilities | Additional rights |
 | --- | --- | --- |
@@ -39,7 +39,7 @@ The isolated S03e backend draft currently uses these conservative role presets; 
 | Developer | Read and edit drafts | Owner can grant a project capability, such as agent start, explicitly. |
 | Viewer | Read | Owner may grant a specific extra capability; the UI must make this visible. |
 
-The draft's new card-priority command requires `manage_task`; the older local-only `edit` capability still exists for compatibility and must be audited before any generic write endpoint is exposed to teammates. The current capability grant function has no UI and is not a substitute for a reviewed approval request.
+The card-priority and column-move commands require `manage_task`; the older local-only `edit` capability still exists for compatibility and must be audited before any generic write endpoint is exposed to teammates. The current capability grant function has no UI and is not a substitute for a reviewed approval request.
 
 ## Proposed service boundary
 

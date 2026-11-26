@@ -112,6 +112,9 @@ export interface TrelloConnectionStatus { connected: boolean; memberName: string
 export interface WorktreeReview { cardId: string; path: string; branch: string; targetPath: string; targetBranch: string | null; sourceHead: string; targetHead: string; sourceStatus: string[]; targetStatus: string[]; uncommittedStat: string; committedStat: string; ahead: number; behind: number; canFastForward: boolean; blockers: string[]; previewToken: string }
 export interface PrDraftPreview { cardId: string; sourceHead: string; targetHead: string; text: string; reportCount: number }
 
+export type TeamDraftWindowEvent = { watchId: string; event: import('../main/team-remote-client').TeamDraftStreamEvent }
+  | { watchId: string; type: 'error' | 'connected'; message?: string };
+
 export interface StudioAPI {
   hostedTeamProject(projectId: string): Promise<import('../main/team-local-service').HostedTeamWorkspace | null>;
   createLocalTeamWorkspace(input: { projectId: string; workspaceName: string; ownerName: string }): Promise<import('../main/team-local-service').HostedTeamWorkspace>;
@@ -122,12 +125,19 @@ export interface StudioAPI {
   joinTeam(input: { coordinatorUrl: string; inviteSecret: string; displayName: string }): Promise<import('../main/team-connection-store').SavedTeamConnection>;
   resumeTeamJoin(): Promise<import('../main/team-connection-store').SavedTeamConnection>;
   cancelTeamJoin(): Promise<void>;
-  teamWorkspace(workspaceId: string): Promise<{ member: import('../main/team-workspace').TeamMember; projects: Array<{ id: string; name: string; canEditDraft: boolean }> }>;
+  teamWorkspace(workspaceId: string): Promise<{ member: import('../main/team-workspace').TeamMember; projects: Array<{ id: string; name: string; canEditDraft: boolean; canManageTask: boolean }> }>;
   teamBoard(input: { workspaceId: string; projectId: string }): Promise<import('../main/team-remote-client').CollaborativeTeamBoard>;
+  setTeamCardPriority(input: { workspaceId: string; projectId: string; cardId: string; priority: CardPriority;
+    expectedRevision: number; mutationId: string }): Promise<{ cardId: string; revision: number; priority: CardPriority; repeated: boolean }>;
+  moveTeamCard(input: { workspaceId: string; projectId: string; cardId: string; columnId: string;
+    expectedRevision: number; mutationId: string }): Promise<{ cardId: string; columnId: string; revision: number; repeated: boolean }>;
   teamCardDraft(input: { workspaceId: string; projectId: string; cardId: string }): Promise<import('../main/team-card-draft').TeamCardDraft>;
   updateTeamCardDraft(input: { workspaceId: string; projectId: string; cardId: string; mutationId: string; update: string }): Promise<import('../main/team-card-draft').TeamCardDraft & { repeated: boolean }>;
   pendingTeamCardDraftUpdates(input: { workspaceId: string; projectId: string; cardId: string }): Promise<import('../main/team-draft-outbox').PendingTeamDraftUpdate[]>;
   resumeTeamCardDraftUpdates(input: { workspaceId: string; projectId: string; cardId: string }): Promise<number>;
+  startTeamDraftWatch(input: { watchId: string; workspaceId: string; projectId: string; cardId: string }): Promise<void>;
+  stopTeamDraftWatch(watchId: string): Promise<void>;
+  onTeamDraftEvent(callback: (event: TeamDraftWindowEvent) => void): () => void;
   apiContractOverview(projectId: string): Promise<import('./api-contract').ApiContractOverview>;
   previewApiContract(input: { projectId: string; draft: import('./api-contract').ApiContractDraft }): Promise<import('./api-contract').ApiContractPreview>;
   saveApiContract(input: { projectId: string; draft: import('./api-contract').ApiContractDraft; fingerprint: string; expectedLatestRevision: number }): Promise<import('./api-contract').ApiContractVersion>;

@@ -6,7 +6,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { basename, isAbsolute, join } from 'node:path';
-import type { AgentPreset, CommandTerminalEvent, QueueState, SessionEvent, StudioAPI, WorkflowAgentSettings, WorkflowProposal, WorkflowStep } from '../shared/types';
+import type { AgentPreset, CommandTerminalEvent, QueueState, SessionEvent, StudioAPI, TeamDraftWindowEvent, WorkflowAgentSettings, WorkflowProposal, WorkflowStep } from '../shared/types';
 import { StudioBrowser } from './browser';
 import { projectMemoryMapSources, readProjectMemorySource, refreshProjectMemoryIndex, searchProjectMemoryIndex } from './project-memory-index';
 import { createDiagnosticCard } from './error-catcher';
@@ -119,6 +119,11 @@ let tailnetReviewHttp: TeamReviewHttp | null = null;
 let tailnetReviewIp: string | null = null;
 let teamBoardHttp: TeamBoardHttp | null = null;
 let teamLocalService: TeamLocalService | null = null;
+const teamDraftWatches = new Map<string, AbortController>();
+function stopAllTeamDraftWatches(): void {
+  for (const controller of teamDraftWatches.values()) controller.abort();
+  teamDraftWatches.clear();
+}
 let tailnetBoardHttp: TeamBoardHttp | null = null;
 let tailnetBoardIp: string | null = null;
 let runner: SessionRunner | null = null;
@@ -253,10 +258,48 @@ function installIpc(): void {
   bind('cancelTeamJoin', () => teamRemoteClient.cancelPendingJoin());
   bind('teamWorkspace', (workspaceId: string) => teamRemoteClient.workspace(workspaceId));
   bind('teamBoard', (input: Parameters<StudioAPI['teamBoard']>[0]) => teamRemoteClient.board(input));
+  bind('setTeamCardPriority', (input: Parameters<StudioAPI['setTeamCardPriority']>[0]) => teamRemoteClient.setCardPriority(input));
+  bind('moveTeamCard', (input: Parameters<StudioAPI['moveTeamCard']>[0]) => teamRemoteClient.moveCard(input));
   bind('teamCardDraft', (input: Parameters<StudioAPI['teamCardDraft']>[0]) => teamRemoteClient.cardDraft(input));
   bind('updateTeamCardDraft', (input: Parameters<StudioAPI['updateTeamCardDraft']>[0]) => teamRemoteClient.updateCardDraft(input));
   bind('pendingTeamCardDraftUpdates', (input: Parameters<StudioAPI['pendingTeamCardDraftUpdates']>[0]) => teamRemoteClient.pendingCardDraftUpdates(input));
   bind('resumeTeamCardDraftUpdates', (input: Parameters<StudioAPI['resumeTeamCardDraftUpdates']>[0]) => teamRemoteClient.resumeCardDraftUpdates(input));
+  bind('startTeamDraftWatch', (input: Parameters<StudioAPI['startTeamDraftWatch']>[0]) => {
+    if (!input || typeof input.watchId !== 'string' || !/^[0-9a-f-]{36}$/i.test(input.watchId) ||
+      teamDraftWatches.has(input.watchId) || teamDraftWatches.size >= 20) throw new Error('Invalid team draft watch.');
+    const controller = new AbortController();
+    teamDraftWatches.set(input.watchId, controller);
+    const send = (payload: TeamDraftWindowEvent) => {
+      if (window && !window.isDestroyed()) window.webContents.send('studio:team-draft-event', payload);
+    };
+    void (async () => {
+      while (!controller.signal.aborted) {
+        try {
+          let connected = false;
+          await teamRemoteClient.streamCardDraft(input, (event) => {
+            if (!connected) { connected = true; send({ watchId: input.watchId, type: 'connected' }); }
+            send({ watchId: input.watchId, event });
+          }, controller.signal);
+        } catch (error) {
+          if (controller.signal.aborted) break;
+          const message = error instanceof Error ? error.message : 'Team event stream is unavailable.';
+          send({ watchId: input.watchId, type: 'error', message });
+          const terminal = message.toLowerCase();
+          if (terminal.includes('revoked') || terminal.includes('not saved') || terminal.includes('invalid')) break;
+        }
+        if (controller.signal.aborted) break;
+        await new Promise<void>((resolve) => {
+          const timer = setTimeout(resolve, 2_000);
+          controller.signal.addEventListener('abort', () => { clearTimeout(timer); resolve(); }, { once: true });
+        });
+      }
+      teamDraftWatches.delete(input.watchId);
+    })();
+  });
+  bind('stopTeamDraftWatch', (watchId: string) => {
+    teamDraftWatches.get(watchId)?.abort();
+    teamDraftWatches.delete(watchId);
+  });
   bind('installReleaseUpdate', () => releaseUpdater.update());
   bind('laterReleaseUpdate', () => releaseUpdater.later());
   bind('projects', () => db.projects());
@@ -1081,6 +1124,7 @@ function createWindow(): void {
   });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event) => event.preventDefault());
+  window.webContents.on('did-start-navigation', () => stopAllTeamDraftWatches());
   browser = new StudioBrowser(window, (state) => {
     if (window && !window.isDestroyed()) window.webContents.send('studio:browser-state', state);
   }, () => {
@@ -1096,7 +1140,7 @@ function createWindow(): void {
   else void window.loadFile(join(__dirname, '../../dist/renderer/index.html'));
   if (smokeTeamWorkspace) {
     window.webContents.once('did-finish-load', () => {
-      void runTeamWorkspaceVisibleSmoke(window!, mustStore(), smokeDataDirectory!).then(() => {
+      void runTeamWorkspaceVisibleSmoke(window!, mustStore(), smokeDataDirectory!, teamLocalService!).then(() => {
         process.stdout.write('STUDIO_SMOKE_TEAM_WORKSPACE_OK\n');
         app.quit();
       }).catch((error: unknown) => { console.error('STUDIO_SMOKE_TEAM_WORKSPACE_FAILED', error); app.exit(1); });
@@ -4621,7 +4665,7 @@ http.createServer((_request,response)=>{response.writeHead(200,{'Content-Type':'
       app.exit(1);
     });
   }
-  window.on('closed', () => { devAccountBrowser?.closeAll(); designInspector?.dispose(); designInspector = null; browser?.dispose(); browser = null; window = null; });
+  window.on('closed', () => { stopAllTeamDraftWatches(); devAccountBrowser?.closeAll(); designInspector?.dispose(); designInspector = null; browser?.dispose(); browser = null; window = null; });
 }
 
 function configureReleaseUpdater(): void {
@@ -4693,6 +4737,7 @@ if (ownsSharedProfile) app.whenReady().then(async () => {
 else app.quit();
 
 app.on('before-quit', () => {
+  stopAllTeamDraftWatches();
   void teamLocalService?.close();
   teamLocalService = null;
   teamReviewHttp?.close();

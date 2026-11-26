@@ -1,17 +1,19 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
-import { safeStorage, type BrowserWindow } from 'electron';
+import { app, safeStorage, type BrowserWindow } from 'electron';
 import type { StudioStore } from './store';
 import { TeamConnectionStore } from './team-connection-store';
 import { TeamJoinAttemptStore } from './team-join-attempt';
 import { TeamRemoteClient } from './team-remote-client';
+import { setTeamCapabilityGrant } from './team-workspace';
+import type { TeamLocalService } from './team-local-service';
 
 const Y = require('yjs') as typeof import('yjs', { with: { 'resolution-mode': 'require' } });
 
 /** Exercises the actual renderer, preload, IPC, encrypted owner storage, and loopback host. */
 export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store: StudioStore,
-  projectPath: string): Promise<void> {
+  projectPath: string, host: TeamLocalService): Promise<void> {
   const boardScreenshot = process.env.BRANCHLOOM_TEAM_BOARD_OVERVIEW_SCREENSHOT;
   const projectName = boardScreenshot ? 'Atlas sample' : 'Synthetic team project';
   const project = store.createProject({ name: projectName, path: projectPath });
@@ -93,6 +95,14 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
   const joined = await guest.beginJoin({ coordinatorUrl: result.coordinatorUrl,
     inviteSecret: result.secret, displayName: 'Guest' });
   if (joined.workspaceId !== result.workspaceId) throw new Error('Guest joined another workspace.');
+  const guestWatch = new AbortController();
+  let guestReady: () => void = () => undefined;
+  let guestFailed: (error: unknown) => void = () => undefined;
+  const guestPresence = new Promise<void>((resolve, reject) => { guestReady = resolve; guestFailed = reject; });
+  const guestWatchTask = guest.streamCardDraft({ workspaceId: result.workspaceId, projectId: project.id, cardId: card.id },
+    (event) => { if (event.type === 'presence') guestReady(); }, guestWatch.signal);
+  void guestWatchTask.catch(guestFailed);
+  await guestPresence;
   await window.webContents.executeJavaScript(`(async () => {
     const wait = async (predicate, label) => {
       for (let attempt = 0; attempt < 150; attempt += 1) {
@@ -109,6 +119,29 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
     if (!board.textContent.includes('Shared planning card')) throw new Error('Team card is absent from shared board.');
     board.querySelector('.team-workspace-card').click();
     const editor = await wait(() => document.querySelector('.team-card-draft textarea:not(:disabled)'), 'draft editor');
+    const priority = await wait(() => document.querySelector('select[aria-label="Teamkarten-Priorität"]'), 'priority control');
+    const prioritySetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+    prioritySetter.call(priority, 'high'); priority.dispatchEvent(new Event('change', { bubbles: true }));
+    document.querySelector('.team-card-priority .secondary-button').click();
+    await wait(async () => (await window.studio.teamBoard({ workspaceId: ${JSON.stringify(result.workspaceId)},
+      projectId: ${JSON.stringify(project.id)} })).cards.find((item) => item.id === ${JSON.stringify(card.id)})?.priority === 'high',
+      'revisioned team priority command');
+    await wait(() => document.querySelector('.team-workspace-card.selected small')?.textContent === 'high',
+      'refreshed card revision before moving');
+    const column = await wait(() => document.querySelector('select[aria-label="Teamkarten-Spalte"]'), 'column control');
+    const destination = [...column.options].find((option) => option.value !== column.value);
+    if (!destination) throw new Error('Team board needs another column for a visible move.');
+    prioritySetter.call(column, destination.value); column.dispatchEvent(new Event('change', { bubbles: true }));
+    await wait(() => !column.closest('.team-card-priority')?.querySelector('.secondary-button')?.disabled, 'move enabled');
+    column.closest('.team-card-priority').querySelector('.secondary-button').click();
+    await wait(async () => (await window.studio.teamBoard({ workspaceId: ${JSON.stringify(result.workspaceId)},
+      projectId: ${JSON.stringify(project.id)} })).cards.find((item) => item.id === ${JSON.stringify(card.id)})?.columnId === destination.value,
+      'revisioned team column move');
+    await wait(() => document.querySelector('.team-workspace-detail [role="status"]')?.textContent?.includes('Spalte gespeichert'),
+      'visible move confirmation');
+    await wait(() => document.querySelector('.team-card-presence')?.textContent?.includes('Live verbunden') &&
+      document.querySelector('.team-card-presence')?.textContent?.includes('Owner') &&
+      document.querySelector('.team-card-presence')?.textContent?.includes('Guest'), 'live team presence');
     const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
     setter.call(editor, 'Owner note. '); editor.dispatchEvent(new Event('input', { bubbles: true }));
     await wait(async () => (await window.studio.teamCardDraft({ workspaceId: ${JSON.stringify(result.workspaceId)},
@@ -122,7 +155,7 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
     cardId: card.id, mutationId: randomUUID(), update: guestUpdate });
   if (guestResult.revision !== 2) throw new Error('Guest draft edit did not follow owner edit.');
   await window.webContents.executeJavaScript(`(async () => {
-    for (let attempt = 0; attempt < 80; attempt += 1) {
+    for (let attempt = 0; attempt < 40; attempt += 1) {
       const value = document.querySelector('.team-card-draft textarea')?.value ?? '';
       if (value.includes('Owner note.') && value.includes('Guest note.')) return true;
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -132,7 +165,91 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
   if (store.snapshot(project.id).cards.find((item) => item.id === card.id)?.description !== 'Accepted source description') {
     throw new Error('A draft edit changed the accepted card description.');
   }
+  const ownerConnection = await new TeamConnectionStore(app.getPath('userData'), safeStorage).get(result.workspaceId);
+  if (!ownerConnection) throw new Error('Synthetic owner connection is unavailable.');
+  setTeamCapabilityGrant(store.db, ownerConnection.credential, project.id, joined.memberId, 'manage_task', true);
+  await window.webContents.executeJavaScript(`(() => {
+    window.__teamCardEventSeen = false;
+    window.__stopTeamCardEventCheck = window.studio.onTeamDraftEvent((event) => {
+      if ('event' in event && event.event.type === 'card') window.__teamCardEventSeen = true;
+    });
+    return true;
+  })()`);
+  const returnColumn = store.snapshot(project.id).columns[0]!.id;
+  const beforeGuestMove = (await guest.board({ workspaceId: result.workspaceId, projectId: project.id }))
+    .cards.find((item) => item.id === card.id);
+  if (!beforeGuestMove) throw new Error('Guest cannot see the team card before moving it.');
+  await guest.moveCard({ workspaceId: result.workspaceId, projectId: project.id, cardId: card.id,
+    columnId: returnColumn, expectedRevision: beforeGuestMove.revision, mutationId: randomUUID() });
+  await window.webContents.executeJavaScript(`(async () => {
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const selected = document.querySelector('.team-workspace-card.selected');
+      if (window.__teamCardEventSeen && selected?.closest('section')?.getAttribute('aria-label') ===
+        'Spalte ' + ${JSON.stringify(store.snapshot(project.id).columns[0]!.name)}) {
+        window.__stopTeamCardEventCheck();
+        return true;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    window.__stopTeamCardEventCheck();
+    throw new Error('Guest card move did not reach the visible owner board through the event stream.');
+  })()`);
   guestDocument.destroy();
+  guestWatch.abort();
+  await guestWatchTask;
+  await host.close();
+  await window.webContents.executeJavaScript(`(async () => {
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      if (document.querySelector('.team-card-presence')?.textContent?.includes('unterbrochen')) return true;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('The owner editor did not report the stopped coordinator.');
+  })()`);
+  await window.webContents.executeJavaScript(`(async () => {
+    const editor = document.querySelector('.team-card-draft textarea');
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
+    if (!(editor instanceof HTMLTextAreaElement) || !setter || editor.disabled) {
+      throw new Error('The disconnected owner editor is unavailable.');
+    }
+    setter.call(editor, editor.value + ' Offline owner note.');
+    editor.dispatchEvent(new Event('input', { bubbles: true }));
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      const pending = await window.studio.pendingTeamCardDraftUpdates({ workspaceId: ${JSON.stringify(result.workspaceId)},
+        projectId: ${JSON.stringify(project.id)}, cardId: ${JSON.stringify(card.id)} });
+      if (pending.length === 1 && document.querySelector('.team-card-draft .inline-error')) return true;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('The disconnected owner edit was not stored in the encrypted outbox.');
+  })()`);
+  await new Promise((resolve) => setTimeout(resolve, 6_000));
+  const stillPending = await window.webContents.executeJavaScript(`window.studio.pendingTeamCardDraftUpdates({
+    workspaceId: ${JSON.stringify(result.workspaceId)}, projectId: ${JSON.stringify(project.id)},
+    cardId: ${JSON.stringify(card.id)} })`) as Array<{ mutationId: string }>;
+  if (stillPending.length !== 1 || !stillPending[0]?.mutationId) {
+    throw new Error('The offline edit was lost or duplicated during a polling interval.');
+  }
+  if (await host.resumeSavedHost() !== result.coordinatorUrl) throw new Error('Coordinator did not reuse its saved port.');
+  await window.webContents.executeJavaScript(`(async () => {
+    for (let attempt = 0; attempt < 300; attempt += 1) {
+      const pending = await window.studio.pendingTeamCardDraftUpdates({ workspaceId: ${JSON.stringify(result.workspaceId)},
+        projectId: ${JSON.stringify(project.id)}, cardId: ${JSON.stringify(card.id)} });
+      const draft = await window.studio.teamCardDraft({ workspaceId: ${JSON.stringify(result.workspaceId)},
+        projectId: ${JSON.stringify(project.id)}, cardId: ${JSON.stringify(card.id)} });
+      const text = document.querySelector('.team-card-draft textarea')?.value ?? '';
+      if (document.querySelector('.team-card-presence')?.textContent?.includes('Live verbunden') && !pending.length &&
+        draft.revision === 3 && text.includes('Guest note.') && text.includes('Owner note.') &&
+        text.includes('Offline owner note.')) return true;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('The owner editor did not replay its offline edit after coordinator restart.');
+  })()`);
+  if ((await guest.cardDraft({ workspaceId: result.workspaceId, projectId: project.id, cardId: card.id })).revision !== 3) {
+    throw new Error('The replayed draft was not retained after coordinator restart.');
+  }
+  await new Promise((resolve) => setTimeout(resolve, 5_500));
+  if ((await guest.cardDraft({ workspaceId: result.workspaceId, projectId: project.id, cardId: card.id })).revision !== 3) {
+    throw new Error('A later poll replayed the same offline edit twice.');
+  }
   const screenshot = process.env.BRANCHLOOM_TEAM_WORKSPACE_SCREENSHOT;
   if (screenshot) {
     window.showInactive();

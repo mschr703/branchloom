@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { StudioAPI, SessionEvent, CommandTerminalEvent, BrowserState } from '../shared/types';
+import type { StudioAPI, SessionEvent, CommandTerminalEvent, BrowserState, TeamDraftWindowEvent } from '../shared/types';
 import type { ReleaseUpdateState } from '../shared/release-update';
 
 const invoke = <T>(name: keyof StudioAPI, ...args: unknown[]): Promise<T> => ipcRenderer.invoke(`studio:${String(name)}`, ...args) as Promise<T>;
@@ -16,10 +16,19 @@ const studio: StudioAPI = {
   cancelTeamJoin: () => invoke('cancelTeamJoin'),
   teamWorkspace: (workspaceId) => invoke('teamWorkspace', workspaceId),
   teamBoard: (input) => invoke('teamBoard', input),
+  setTeamCardPriority: (input) => invoke('setTeamCardPriority', input),
+  moveTeamCard: (input) => invoke('moveTeamCard', input),
   teamCardDraft: (input) => invoke('teamCardDraft', input),
   updateTeamCardDraft: (input) => invoke('updateTeamCardDraft', input),
   pendingTeamCardDraftUpdates: (input) => invoke('pendingTeamCardDraftUpdates', input),
   resumeTeamCardDraftUpdates: (input) => invoke('resumeTeamCardDraftUpdates', input),
+  startTeamDraftWatch: (input) => invoke('startTeamDraftWatch', input),
+  stopTeamDraftWatch: (watchId) => invoke('stopTeamDraftWatch', watchId),
+  onTeamDraftEvent: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: TeamDraftWindowEvent): void => callback(payload);
+    ipcRenderer.on('studio:team-draft-event', listener);
+    return () => ipcRenderer.removeListener('studio:team-draft-event', listener);
+  },
   apiContractOverview: (projectId) => invoke('apiContractOverview', projectId),
   previewApiContract: (input) => invoke('previewApiContract', input),
   saveApiContract: (input) => invoke('saveApiContract', input),
