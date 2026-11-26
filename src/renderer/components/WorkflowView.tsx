@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowRight, GitBranch, Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react';
 import type { Card, Column, ColumnEffort, ProjectSnapshot, Workflow, WorkflowStep } from '../../shared/types';
 import type { QueueResults } from '../../shared/queue-results';
@@ -8,6 +8,7 @@ import { WorkflowStepRows } from './WorkflowStepRows';
 import { WorkflowRunEvidencePanel } from './WorkflowRunEvidencePanel';
 import { WorkflowStepHaltpointControl } from './WorkflowStepHaltpointControl';
 import { QueueResultsPanel } from './QueueResultsPanel';
+import { QueueStartPreview } from './QueueStartPreview';
 import '../queue-preview.css';
 import './workflow-workbench.css';
 
@@ -89,6 +90,7 @@ export function WorkflowView({ snapshot, mutate, openWorkflow, openPlan, onOpenC
   const [effortByColumn, setEffortByColumn] = useState<Record<string, string>>({});
   const [queueTemplateId, setQueueTemplateId] = useState(snapshot.queue.templateWorkflowId ?? '');
   const [queueHours, setQueueHours] = useState(0);
+  const [queueStartRequest, setQueueStartRequest] = useState<{ projectId: string; templateId: string; hours: number } | null>(null);
   const [skipWorkflowId, setSkipWorkflowId] = useState<string | null>(null);
   const [skipReason, setSkipReason] = useState('');
   const [deleteWorkflowId, setDeleteWorkflowId] = useState<string | null>(null);
@@ -100,7 +102,8 @@ export function WorkflowView({ snapshot, mutate, openWorkflow, openPlan, onOpenC
   const deleteWorkflow = snapshot.workflows.find((item) => item.id === deleteWorkflowId);
 
   useEffect(() => { setQueueTemplateId(snapshot.queue.templateWorkflowId ?? ''); }, [snapshot.project.id, snapshot.queue.templateWorkflowId]);
-  useEffect(() => { setSkipWorkflowId(null); setSkipReason(''); setDeleteWorkflowId(null); setShowForm(false); setEditingWorkflowId(null); setQueueHours(0); }, [snapshot.project.id]);
+  useEffect(() => { setSkipWorkflowId(null); setSkipReason(''); setDeleteWorkflowId(null); setShowForm(false); setEditingWorkflowId(null); setQueueHours(0); setQueueStartRequest(null); }, [snapshot.project.id]);
+  const closeQueueStart = useCallback(() => setQueueStartRequest(null), []);
   useEffect(() => {
     let active = true;
     const projectId = snapshot.project.id;
@@ -183,6 +186,7 @@ export function WorkflowView({ snapshot, mutate, openWorkflow, openPlan, onOpenC
     <WorkflowPlanner snapshot={snapshot} mutate={mutate} openPlan={openPlan} />
 
     {skipWorkflowId ? <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSkipWorkflowId(null); }}><form className="dialog" onSubmit={(event) => void skipQueuedCard(event)}><div className="dialog-heading"><div><small>QUEUE-ENTSCHEIDUNG</small><h2>Karte überspringen</h2></div><button className="icon-button" type="button" onClick={() => setSkipWorkflowId(null)} aria-label="Schließen">×</button></div><p><strong>{skipCardTitle}</strong></p><p>Der bisherige Workflow und seine Sitzungsprotokolle bleiben erhalten. Diese Karte wird nicht automatisch erneut eingeplant. Danach bleibt die Queue angehalten, bis du sie ausdrücklich aktivierst.</p><label>Grund für das Überspringen<textarea autoFocus required minLength={3} maxLength={500} rows={3} value={skipReason} onChange={(event) => setSkipReason(event.target.value)} placeholder="Zum Beispiel: externer Dienst nicht erreichbar" /></label><div className="dialog-actions"><button className="secondary-button" type="button" onClick={() => setSkipWorkflowId(null)}>Abbrechen</button><button className="primary-button" type="submit" disabled={skipReason.trim().length < 3}>Karte überspringen</button></div></form></div> : null}
+    {queueStartRequest?.projectId === snapshot.project.id ? <QueueStartPreview {...queueStartRequest} mutate={mutate} onClose={closeQueueStart} /> : null}
     {deleteWorkflow ? <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setDeleteWorkflowId(null); }}><div className="dialog" role="dialog" aria-modal="true" aria-label="Workflow-Entwurf löschen"><div className="dialog-heading"><div><small>ENTWURF ENTFERNEN</small><h2>Workflow-Entwurf löschen?</h2></div><button className="icon-button" type="button" onClick={() => setDeleteWorkflowId(null)} aria-label="Schließen">×</button></div><p><strong>{deleteWorkflow.name}</strong></p><p>Nur dieser ungestartete Ablauf wird entfernt. Seine Karten und Dateien bleiben erhalten. Freie To-Do-Karten können danach wieder von der Warteschlange aufgenommen werden.</p><div className="dialog-actions"><button className="secondary-button" type="button" onClick={() => setDeleteWorkflowId(null)}>Abbrechen</button><button className="danger-button" type="button" onClick={() => void deleteDraftWorkflow()}>Entwurf endgültig löschen</button></div></div></div> : null}
 
     <section className="workflow-card" aria-label="Automatische Warteschlange">
@@ -199,7 +203,7 @@ export function WorkflowView({ snapshot, mutate, openWorkflow, openPlan, onOpenC
       {snapshot.queue.activeWorkflowId ? <p className="section-copy">Aktiver Ablauf: <a href={`#workflow-${snapshot.queue.activeWorkflowId}`}>{snapshot.workflows.find((workflow) => workflow.id === snapshot.queue.activeWorkflowId)?.name ?? 'Workflow öffnen'}</a>. Nach Unterbrechung den Ablauf prüfen und ausdrücklich fortsetzen.</p> : null}
       {snapshot.queue.pauseReason ? <p className="inline-note" role="status">{snapshot.queue.pauseReason}</p> : null}
       <div className="workflow-actions"><span>{snapshot.queue.state === 'running' ? 'Aktiv oder wartet auf neue To-Do-Karten.' : snapshot.queue.state === 'paused' ? 'Neue Karten starten erst nach Fortsetzung.' : 'Neue Karten starten nicht automatisch.'}</span>
-        {snapshot.queue.state !== 'running' ? <button className="primary-button small" type="button" disabled={!queueTemplateId || !hasTodoColumn} onClick={() => void mutate(() => window.studio.setProjectQueue({ projectId: snapshot.project.id, state: 'running', templateWorkflowId: queueTemplateId, runUntil: queueHours ? new Date(Date.now() + queueHours * 60 * 60 * 1_000).toISOString() : null }))}><Play size={14} /> {snapshot.queue.state === 'paused' ? 'Queue fortsetzen' : 'Queue aktivieren'}</button> : <button className="secondary-button small" type="button" onClick={() => void mutate(() => window.studio.setProjectQueue({ projectId: snapshot.project.id, state: 'paused' }))}><Pause size={14} /> Queue pausieren</button>}
+        {snapshot.queue.state !== 'running' ? <button className="primary-button small" type="button" disabled={!queueTemplateId || !hasTodoColumn} onClick={() => setQueueStartRequest({ projectId: snapshot.project.id, templateId: queueTemplateId, hours: queueHours })}><Play size={14} /> {snapshot.queue.state === 'paused' ? 'Queue fortsetzen' : 'Queue aktivieren'}</button> : <button className="secondary-button small" type="button" onClick={() => void mutate(() => window.studio.setProjectQueue({ projectId: snapshot.project.id, state: 'paused' }))}><Pause size={14} /> Queue pausieren</button>}
         {snapshot.queue.state !== 'off' ? <button className="secondary-button small" type="button" onClick={() => void mutate(() => window.studio.setProjectQueue({ projectId: snapshot.project.id, state: 'off' }))}>Ausschalten</button> : null}
       </div>
       {snapshot.queue.state !== 'running' && snapshot.queue.activeWorkflowId && snapshot.workflows.find((item) => item.id === snapshot.queue.activeWorkflowId)?.state === 'paused' ? <div className="workflow-actions"><span>Wenn diese Karte blockiert bleibt, kannst du sie mit Begründung überspringen. Der Verlauf bleibt erhalten. Die nächste Karte startet erst nach ausdrücklichem Aktivieren der Queue.</span><button className="secondary-button small" type="button" onClick={() => setSkipWorkflowId(snapshot.queue.activeWorkflowId)}>Aktive Karte überspringen</button></div> : null}

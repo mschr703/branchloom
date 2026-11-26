@@ -2,15 +2,19 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
-## Kopierbare Zusammenfassung des jüngsten Queue-Starts (Folgezweig, in Arbeit)
+## Projektlauf-Startvorschau (Folgezweig, in Arbeit)
+
+- Der Queue-Start öffnet eine kompakte Vorschau mit frisch geladener Route und Schritten, freien Karten, Zeitlimit, tatsächlich für Codex-Schritte geltendem CLI-Modus, Integrationsregel und Queue-Optionen. Browser-QA und Git-Push werden nicht als automatische Folgen behauptet. Ein zweiter Klick liest die Quellen erneut; bei Änderung muss der Nutzer die aktualisierte Vorschau nochmals bestätigen. Die Start-API prüft ihre Bedingungen unabhängig; die Vorschau ist noch kein atomarer Berechtigungsbeleg. 15 gezielte Renderer-Tests einschließlich des tatsächlichen Workflow-Seitenklicks, Start, geänderter Rechte, fehlgeschlagener Rechteabfrage, API-Ablehnung, Escape, Tastaturfokus und bestehender Queue-Ansicht bestanden; die acht neuen Vorschau-Tests wurden nach einer Testdaten-Korrektur nochmals ausgeführt. Typprüfung, Build, breiter Quell-Electron-Smoke, Audit ohne hohe Funde und Public-Scan bestanden; zwei Windows-Verify-Läufe bestanden vor dem Rebase. [Ablauf und Grenzen](QUEUE.md).
+
+## Kopierbare Zusammenfassung des jüngsten Queue-Starts (in main)
 
 - Ein bewusster Klick auf „Zusammenfassung kopieren“ liest die aktuelle Queue-Ergebnisquelle erneut und schreibt eine begrenzte Markdown-Fassung mit Startkennung, Status, Karten- und Sitzungsbezug sowie vorhandenen gespeicherten Test- und Integrationsbelegen in die Zwischenablage. Titel und Gründe werden einzeilig maskiert. Die Ausgabe belegt keine erneute Git-Prüfung, automatische QA oder Veröffentlichung. Zehn gezielte Renderer-/Backend-Tests einschließlich frischem IPC-Lesen und Fehleranzeige beim Kopieren, Typprüfung, Build, breiter Quell-Electron-Smoke, Audit ohne hohe Funde und Public-Scan bestanden. Windows-CI steht noch aus. [Ablauf und Grenzen](QUEUE.md).
 
-## Gespeicherte Test- und Integrationsbelege im Queue-Bericht (Folgezweig, in Arbeit)
+## Gespeicherte Test- und Integrationsbelege im Queue-Bericht (in main)
 
 - Der jüngste Queue-Start und die Gesamthistorie zeigen je Karte nun die zugehörige gespeicherte Integrationsquittung und den letzten gespeicherten npm-Integrationstest mit Belegnummern, Skript, Ergebnis und Git-Fingerabdrücken. Die Abfrage ist projektgebunden und bleibt nach erneutem Öffnen der SQLite-Datei erhalten. Sie ist ein historischer Beleg, keine erneute Git- oder Testprüfung und kein Nachweis, dass der Test während genau dieses Queue-Starts lief; die Karten-Ergebnismappe bleibt für die aktuelle Zielbranch-Prüfung zuständig. Acht gezielte Backend-/Renderer-Tests, Typprüfung, Build, Audit ohne hohe Funde, Public-Scan und breiter Quell-Electron-Smoke bestanden. Windows-CI steht noch aus. [Ablauf und Grenzen](QUEUE.md).
 
-## Ergebnisansicht je Queue-Start (Folgezweig, in Arbeit)
+## Ergebnisansicht je Queue-Start (in main)
 
 - Die Workflow-Seite zeigt die Zuordnungen des jüngsten Queue-Starts mit eigenen Statuszählern; ältere Karten stehen getrennt unter der gesamten Historie. Eine Karte wird nur dann diesem Start zugerechnet, wenn ihre gespeicherte Startkennung passt. Beide Ansichten nennen ihre Begrenzung auf 100 Einträge. Sie verlinken Karte, Workflow und letzte Sitzung, behaupten jedoch keine Tests, Git-Integration oder Veröffentlichung. Sieben gezielte Backend-/Renderer-Tests, Typprüfung, Build, Audit ohne hohe Funde, Public-Scan und der breite Quell-Electron-Smoke mit normaler Zeitgrenze bestanden. Ein vorheriger, auf 180 Sekunden verkürzter Smoke hatte unter paralleler Vollsuite das Limit nach der Memory-Karte getroffen; die unveränderte Wiederholung bestand. Zwei Windows-Verify-Läufe bestanden vor dem Rebase. [Ablauf und Grenzen](QUEUE.md).
 
