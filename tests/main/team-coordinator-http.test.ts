@@ -49,8 +49,8 @@ it('authenticates two separate HTTP clients, rejects stale writes, and survives 
     expect(secondBoard.status).toBe(200);
     expect((await (await getWorkspace(owner.credential)).json()).projects).toEqual([{ id: project.id, name: project.name }]);
     expect((await (await getWorkspace(editor.credential)).json()).projects).toEqual([{ id: project.id, name: project.name }]);
-    expect((await firstBoard.json()).cards[0].id).toBe(card.id);
-    expect((await secondBoard.json()).cards[0].id).toBe(card.id);
+    expect((await firstBoard.json()).cards[0]).toMatchObject({ id: card.id, revision: 0 });
+    expect((await secondBoard.json()).cards[0]).toMatchObject({ id: card.id, revision: 0 });
     expect((await getBoard(editor.credential, randomUUID())).status).toBe(403);
     expect((await getBoard('wrong')).status).toBe(401);
     expect((await fetch(`${base}/v1/workspace`, { headers: { Authorization: `Bearer ${owner.credential}`,
@@ -60,6 +60,7 @@ it('authenticates two separate HTTP clients, rejects stale writes, and survives 
       body: '{invalid' })).status).toBe(400);
     const ownerMutation = randomUUID();
     expect((await setPriority(owner.credential, 'high', 0, ownerMutation)).status).toBe(200);
+    expect((await (await getBoard(editor.credential)).json()).cards[0]).toMatchObject({ priority: 'high', revision: 1 });
     expect((await setPriority(editor.credential, 'urgent', 0, randomUUID())).status).toBe(403);
     setTeamCapabilityGrant(store.db, owner.credential, project.id, editor.member.id, 'manage_task', true);
     expect((await setPriority(editor.credential, 'urgent', 0, randomUUID())).status).toBe(409);

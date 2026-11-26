@@ -99,8 +99,15 @@ export class TeamCoordinatorHttp {
       }
       const board = /^\/v1\/projects\/([0-9a-f-]{36})\/board$/.exec(path);
       if (request.method === 'GET' && board) {
-        requireTeamProjectCapability(this.store.db, actorCredential, board[1]!, 'read');
-        return reply(response, 200, teamBoardSnapshot(this.store, board[1]!));
+        const view = this.store.db.transaction(() => {
+          requireTeamProjectCapability(this.store.db, actorCredential, board[1]!, 'read');
+          const snapshot = teamBoardSnapshot(this.store, board[1]!);
+          const rows = this.store.db.prepare(`SELECT id, content_revision FROM cards WHERE project_id = ? AND archived_at IS NULL
+            ORDER BY column_id, position, id LIMIT ?`).all(board[1]!, snapshot.cards.length) as Array<{ id: string; content_revision: number }>;
+          const revisions = new Map(rows.map((row) => [row.id, row.content_revision]));
+          return { ...snapshot, cards: snapshot.cards.map((card) => ({ ...card, revision: revisions.get(card.id) ?? 0 })) };
+        })();
+        return reply(response, 200, view);
       }
       const priority = /^\/v1\/projects\/([0-9a-f-]{36})\/cards\/([0-9a-f-]{36})\/priority$/.exec(path);
       if (request.method === 'POST' && priority) {
