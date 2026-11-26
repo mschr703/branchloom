@@ -1,10 +1,12 @@
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { afterEach, expect, it } from 'vitest';
 import { StudioStore } from '../../src/main/store';
 import { acceptTeamMemberInvite, authenticateTeamMember, createTeamMemberInvite, createTeamWorkspace,
   requireTeamProjectCapability, revokeTeamMember, revokeTeamMemberInvite } from '../../src/main/team-workspace';
+import { setTeamCardPriority } from '../../src/main/team-workspace';
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -78,4 +80,42 @@ it('expires and revokes invitation secrets without creating members', () => {
     expect(() => revokeTeamMemberInvite(f.store.db, owner.credential, revoked.inviteId)).toThrow('unavailable');
     expect((f.store.db.prepare('SELECT COUNT(*) AS count FROM team_members').get() as { count: number }).count).toBe(1);
   } finally { f.store.close(); }
+});
+
+it('serializes card metadata commands from two clients and keeps retries idempotent', () => {
+  const f = fixture();
+  const column = f.store.snapshot(f.project.id).columns[0];
+  const card = f.store.createCard({ projectId: f.project.id, columnId: column.id, title: 'Synthetic task' });
+  const owner = createTeamWorkspace(f.store.db, { workspaceName: 'Sample team', projectId: f.project.id, ownerName: 'Owner' });
+  const invite = createTeamMemberInvite(f.store.db, owner.credential, owner.workspaceId, 'editor');
+  const colleague = acceptTeamMemberInvite(f.store.db, invite.secret, 'Colleague');
+  const secondClient = new StudioStore(f.file);
+  const firstMutation = randomUUID();
+  const secondMutation = randomUUID();
+  try {
+    const first = setTeamCardPriority(f.store, { credential: owner.credential, projectId: f.project.id,
+      cardId: card.id, priority: 'high', expectedRevision: 0, mutationId: firstMutation });
+    expect(first).toMatchObject({ revision: 1, priority: 'high', repeated: false });
+    expect(() => setTeamCardPriority(secondClient, { credential: colleague.credential, projectId: f.project.id,
+      cardId: card.id, priority: 'urgent', expectedRevision: 0, mutationId: secondMutation })).toThrow('Card changed');
+    expect(setTeamCardPriority(secondClient, { credential: owner.credential, projectId: f.project.id,
+      cardId: card.id, priority: 'high', expectedRevision: 0, mutationId: firstMutation }))
+      .toMatchObject({ revision: 1, priority: 'high', repeated: true });
+    expect(() => setTeamCardPriority(secondClient, { credential: owner.credential, projectId: f.project.id,
+      cardId: card.id, priority: 'urgent', expectedRevision: 0, mutationId: firstMutation })).toThrow('Mutation ID');
+    const second = setTeamCardPriority(secondClient, { credential: colleague.credential, projectId: f.project.id,
+      cardId: card.id, priority: 'urgent', expectedRevision: 1, mutationId: secondMutation });
+    expect(second).toMatchObject({ revision: 2, priority: 'urgent', repeated: false });
+    expect(f.store.card(card.id).priority).toBe('urgent');
+    revokeTeamMember(f.store.db, owner.credential, colleague.member.id);
+    expect(() => setTeamCardPriority(secondClient, { credential: colleague.credential, projectId: f.project.id,
+      cardId: card.id, priority: 'low', expectedRevision: 2, mutationId: randomUUID() })).toThrow('unavailable');
+  } finally { secondClient.close(); f.store.close(); }
+  const restarted = new StudioStore(f.file);
+  try {
+    expect(setTeamCardPriority(restarted, { credential: owner.credential, projectId: f.project.id,
+      cardId: card.id, priority: 'high', expectedRevision: 0, mutationId: firstMutation }))
+      .toMatchObject({ revision: 1, repeated: true });
+    expect(restarted.card(card.id).priority).toBe('urgent');
+  } finally { restarted.close(); }
 });

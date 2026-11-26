@@ -1,5 +1,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type Database from 'better-sqlite3';
+import type { CardPriority } from '../shared/types';
+import type { StudioStore } from './store';
 
 export type TeamRole = 'owner' | 'editor' | 'viewer';
 export type TeamCapability = 'read' | 'edit' | 'start_agent' | 'integrate' | 'manage_members';
@@ -49,7 +51,49 @@ export function installTeamWorkspaces(db: Database.Database): void {
     role TEXT NOT NULL CHECK(role IN ('editor','viewer')), secret_hash TEXT NOT NULL UNIQUE,
     created_at TEXT NOT NULL, expires_at TEXT NOT NULL, revoked_at TEXT,
     accepted_member_id TEXT REFERENCES team_members(id)
+  );
+  CREATE TABLE IF NOT EXISTS team_card_commands (
+    workspace_id TEXT NOT NULL REFERENCES team_workspaces(id) ON DELETE CASCADE,
+    mutation_id TEXT NOT NULL, actor_id TEXT NOT NULL REFERENCES team_members(id),
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+    command TEXT NOT NULL, payload_json TEXT NOT NULL,
+    base_revision INTEGER NOT NULL, committed_revision INTEGER NOT NULL,
+    created_at TEXT NOT NULL, PRIMARY KEY (workspace_id, mutation_id)
   );`);
+}
+
+/** A revisioned business command. Free-form collaborative text uses a separate document path. */
+export function setTeamCardPriority(store: StudioStore, input: {
+  credential: string; projectId: string; cardId: string; priority: CardPriority;
+  expectedRevision: number; mutationId: string;
+}): { cardId: string; revision: number; priority: CardPriority; repeated: boolean } {
+  if (!input || typeof input.mutationId !== 'string' || !/^[0-9a-f-]{36}$/i.test(input.mutationId) ||
+    !Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 0) throw new Error('Invalid team card command.');
+  return store.db.transaction(() => {
+    const actor = requireTeamProjectCapability(store.db, input.credential, input.projectId, 'edit');
+    const payload = JSON.stringify({ priority: input.priority });
+    const previous = store.db.prepare(`SELECT actor_id, project_id, card_id, command, payload_json, committed_revision
+      FROM team_card_commands WHERE workspace_id = ? AND mutation_id = ?`)
+      .get(actor.workspaceId, input.mutationId) as { actor_id: string; project_id: string; card_id: string;
+        command: string; payload_json: string; committed_revision: number } | undefined;
+    if (previous) {
+      if (previous.actor_id !== actor.id || previous.project_id !== input.projectId || previous.card_id !== input.cardId ||
+        previous.command !== 'set_priority' || previous.payload_json !== payload) throw new Error('Mutation ID was already used for another action.');
+      return { cardId: input.cardId, revision: previous.committed_revision, priority: input.priority, repeated: true };
+    }
+    const card = store.card(input.cardId);
+    if (card.projectId !== input.projectId || card.archivedAt) throw new Error('Team card is unavailable.');
+    const current = store.db.prepare('SELECT content_revision FROM cards WHERE id = ?').get(card.id) as { content_revision: number };
+    if (current.content_revision !== input.expectedRevision) throw new Error('Card changed. Reload before applying this team action.');
+    store.updateCard({ id: card.id, priority: input.priority });
+    const after = store.db.prepare('SELECT content_revision FROM cards WHERE id = ?').get(card.id) as { content_revision: number };
+    store.db.prepare(`INSERT INTO team_card_commands (workspace_id, mutation_id, actor_id, project_id, card_id,
+      command, payload_json, base_revision, committed_revision, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(actor.workspaceId, input.mutationId, actor.id, input.projectId, card.id, 'set_priority', payload,
+        current.content_revision, after.content_revision, new Date().toISOString());
+    return { cardId: card.id, revision: after.content_revision, priority: input.priority, repeated: false };
+  }).immediate();
 }
 
 export function createTeamWorkspace(db: Database.Database, input: { workspaceName: string; projectId: string; ownerName: string }): {
