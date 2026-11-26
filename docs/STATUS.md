@@ -2,6 +2,10 @@
 
 Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Vollständiger CI-Lauf: veraltete Board-Testerwartung korrigiert
+
+- Der vollständige Windows-CI-Lauf für `db9e0c6` endete nach 1091 bestandenen und einem fehlgeschlagenen Test: `card-order.test.tsx` prüfte noch die entfernte Hover-Leiste. Der Test öffnet jetzt das echte Drei-Punkte-Menü und prüft die Reihenfolgeaktionen an den passenden Karten; lokal besteht er. Ein erneuter vollständiger CI-Lauf des Folgecommits steht noch aus. Die Änderung betrifft Testcode, nicht die gespeicherte Kartenreihenfolge.
+
 ## Design-Editor: Kopfbereich und Zeichenfläche (lokal geprüft)
 
 - Im vergrößerten Editor stehen Aufgabe, Speicher-/Freigabeaktionen, Zeichenflächenwechsel und Werkzeuge in zwei kompakten Zeilen über der Zeichenfläche. Eine zu spezifische Grid-Regel legte die Aktionen zuvor über andere Bedienelemente; sie ist korrigiert. Im echten Electron-Fenster bei 1268 × 714 waren Titel, Aufgabenwahl, alle drei Aktionen, Werkzeuge, Ebenen, Zeichenfläche und Eigenschaften ohne Überlagerung sichtbar. Drei gezielte Renderer-Dateien (4 Tests), Typprüfung, Build und Produktions-Audit bestanden. Der Editor bleibt derzeit an eine Karte gebunden; freie projektweite Entwürfe und eine umfassende Figma-ähnliche Bearbeitung sind noch offen.

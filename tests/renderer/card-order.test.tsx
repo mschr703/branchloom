@@ -1,6 +1,7 @@
-import { createElement } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+// @vitest-environment jsdom
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
+import { describe, expect, it, vi } from 'vitest';
 import type { Card, ProjectSnapshot } from '../../src/shared/types';
 import { BoardView } from '../../src/renderer/components/BoardView';
 import { filterBoardCards } from '../../src/renderer/board-filters';
@@ -11,7 +12,7 @@ function card(id: string, position: number, archivedAt: string | null = null): C
 }
 
 describe('board card order controls', () => {
-  it('renders active cards in saved order with accessible neighboring actions', () => {
+  it('renders saved order and offers neighboring actions in each card menu', async () => {
     const snapshot: ProjectSnapshot = {
       project: { id: 'p', name: 'Synthetic', path: 'C:\\synthetic', createdAt: stamp },
       columns: [{ id: 'todo', projectId: 'p', name: 'To Do', position: 0, autoStart: false, agentId: null, model: null, effort: null }],
@@ -19,14 +20,33 @@ describe('board card order controls', () => {
       agents: [], sessions: [], workflows: [], notes: [],
       queue: { projectId: 'p', state: 'off', templateWorkflowId: null, activeWorkflowId: null, pauseReason: null, completedCount: 0, updatedAt: null },
     };
-    const html = renderToStaticMarkup(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() }));
-    expect(html.indexOf('board-card-first')).toBeLessThan(html.indexOf('board-card-second'));
-    expect(html.indexOf('board-card-second')).toBeLessThan(html.indexOf('board-card-third'));
-    expect(html).toContain('„second“ in „To Do“ nach oben setzen, vor „first“');
-    expect(html).toContain('„second“ in „To Do“ nach unten setzen, hinter „third“');
-    expect(html).toContain('„first“ in „To Do“ nach oben setzen');
-    expect(html).not.toContain('„archived“ in „To Do“ nach oben setzen');
-    expect(html).toContain('auch wenn Karten ausgefiltert sind');
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    const previousAct = Object.getOwnPropertyDescriptor(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
+    const previousApi = Object.getOwnPropertyDescriptor(window, 'studio');
+    Object.defineProperty(window, 'studio', { configurable: true, value: { cardRunGate: vi.fn().mockResolvedValue({ cardId: 'second', projectId: 'p', dependencies: [] }) } });
+    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    try {
+      await act(async () => { root.render(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() })); });
+      const ids = [...host.querySelectorAll('.board-card-wrap')].map((item) => item.getAttribute('data-card-id'));
+      expect(ids).toEqual(['first', 'second', 'third']);
+      await act(async () => { host.querySelector<HTMLButtonElement>('[data-card-id="second"] .card-quick-trigger')!.click(); });
+      expect(document.querySelector('#card-actions-second')?.textContent).toContain('Vor „first“ setzen');
+      expect(document.querySelector('#card-actions-second')?.textContent).toContain('Hinter „third“ setzen');
+      await act(async () => { host.querySelector<HTMLButtonElement>('[data-card-id="first"] .card-quick-trigger')!.click(); });
+      expect(document.querySelector('#card-actions-first')?.textContent).not.toContain('Vor „');
+      expect(document.querySelector('#card-actions-first')?.textContent).toContain('Hinter „second“ setzen');
+      expect(host.querySelector('[data-card-id="archived"]')).toBeNull();
+      expect(host.textContent).toContain('auch wenn Karten ausgefiltert sind');
+    } finally {
+      await act(async () => { root.unmount(); });
+      host.remove();
+      if (previousAct) Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', previousAct);
+      else Reflect.deleteProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
+      if (previousApi) Object.defineProperty(window, 'studio', previousApi);
+      else Reflect.deleteProperty(window, 'studio');
+    }
     expect(filterBoardCards(snapshot.cards, { query: 'second', columnId: 'todo', visibility: 'active' }).map((item) => item.id)).toEqual(['second']);
     expect(snapshot.cards.map((item) => item.position)).toEqual([2, 0, 3, 1]);
   });
