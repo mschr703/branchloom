@@ -48,6 +48,25 @@ function fixture() {
 }
 
 describe('opt-in automatic integration', () => {
+  it('cannot be enabled after a queue start but can be disabled immediately', () => {
+    const f = fixture();
+    try {
+      setIntegrationTestScript(f.store, { projectId: f.project.id, scriptName: 'verify' });
+      f.store.saveProjectQueue({ projectId: f.project.id, state: 'running', templateWorkflowId: null,
+        activeWorkflowId: null, pauseReason: null });
+      expect(() => setIntegrationPolicy(f.store, { projectId: f.project.id, mode: 'automatic', confirm: true })).toThrow('Pause the project queue');
+      expect(integrationPolicy(f.store, f.project.id).mode).toBe('manual');
+      f.store.saveProjectQueue({ projectId: f.project.id, state: 'paused', templateWorkflowId: null,
+        activeWorkflowId: null, pauseReason: 'Synthetic review pause' });
+      setIntegrationPolicy(f.store, { projectId: f.project.id, mode: 'automatic', confirm: true });
+      f.store.saveProjectQueue({ projectId: f.project.id, state: 'running', templateWorkflowId: null,
+        activeWorkflowId: null, pauseReason: null });
+      expect(() => setIntegrationTestScript(f.store, { projectId: f.project.id, scriptName: 'other' })).toThrow('Pause the project queue');
+      expect(setIntegrationPolicy(f.store, { projectId: f.project.id, mode: 'manual', confirm: false }).mode).toBe('manual');
+      expect(setIntegrationTestScript(f.store, { projectId: f.project.id, scriptName: 'other' })).toBe('other');
+    } finally { f.store.close(); }
+  });
+
   it('defaults to manual, requires a configured test and explicit consent, and persists disablement', () => {
     const f = fixture();
     try {

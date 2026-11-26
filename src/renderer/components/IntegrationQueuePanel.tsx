@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Card } from '../../shared/types';
+import type { Card, QueueState } from '../../shared/types';
 import type { IntegrationItem, IntegrationPolicy } from '../../shared/integration-queue';
 import type { IntegrationEvidence } from '../../shared/integration-evidence';
 import type { DivergentIntegration } from '../../shared/divergent-integration';
 import { IntegrationResultFolder } from './IntegrationResultFolder';
 import '../integration-queue.css';
 
-interface Props { card: Card; cards: Card[]; onIntegrated: () => void; onOpenDiff: () => void }
+interface Props { card: Card; cards: Card[]; queueState: QueueState; onIntegrated: () => void; onOpenDiff: () => void }
 const names: Record<IntegrationItem['state'], string> = {
   queued: 'Wartet', ready: 'Geprüft · Freigabe nötig', blocked: 'Blockiert', integrating: 'Git-Ausgang wird geprüft', integrated: 'Übernommen',
 };
 const testNames = { running: 'Läuft', passed: 'Bestanden', failed: 'Fehlgeschlagen', interrupted: 'Unterbrochen', stale: 'Ungültig' } as const;
 
-export function IntegrationQueuePanel({ card, cards, onIntegrated, onOpenDiff }: Props) {
+export function IntegrationQueuePanel({ card, cards, queueState, onIntegrated, onOpenDiff }: Props) {
   const [items, setItems] = useState<IntegrationItem[]>([]);
   const [evidence, setEvidence] = useState<IntegrationEvidence | null>(null);
   const [policy, setPolicy] = useState<IntegrationPolicy | null>(null);
@@ -58,7 +58,7 @@ export function IntegrationQueuePanel({ card, cards, onIntegrated, onOpenDiff }:
   }, [card.id, card.projectId, policy?.mode]);
 
   async function changePolicy(mode: IntegrationPolicy['mode']) {
-    if (busy) return;
+    if (busy || (queueState === 'running' && mode === 'automatic' && policy?.mode !== 'automatic')) return;
     if (mode === 'automatic' && !window.confirm('Für dieses Projekt automatisch fast-forward integrieren, sobald die aktuelle Diff-Prüfung und der konfigurierte npm-Test bestanden sind? Branchloom prüft Karte, Git-Ziel und Belege unmittelbar vor jedem Merge erneut.')) return;
     setBusy(true); setError('');
     try { setPolicy(await window.studio.setIntegrationPolicy({ projectId: card.projectId, mode, confirm: mode === 'automatic' })); await reload(); }
@@ -97,8 +97,9 @@ export function IntegrationQueuePanel({ card, cards, onIntegrated, onOpenDiff }:
     <h4>Integrationswarteschlange</h4>
     <p className="section-copy">Fertige Karten werden pro Repository und Zielbranch nacheinander übernommen. Bei Divergenz entsteht auf Wunsch ein eigener Integrations-Worktree; Quell- und Zielcheckout bleiben erhalten.</p>
     <div className="integration-policy">
-      <label><input type="checkbox" checked={policy?.mode === 'automatic'} disabled={busy || !policy || (!evidence?.configuredScript && policy.mode !== 'automatic')} onChange={(event) => void changePolicy(event.target.checked ? 'automatic' : 'manual')} /> Nach aktuellen Belegen automatisch übernehmen</label>
+      <label><input type="checkbox" checked={policy?.mode === 'automatic'} disabled={busy || !policy || (!evidence?.configuredScript && policy.mode !== 'automatic') || (queueState === 'running' && policy.mode !== 'automatic')} onChange={(event) => void changePolicy(event.target.checked ? 'automatic' : 'manual')} /> Nach aktuellen Belegen automatisch übernehmen</label>
       <small>Projektweit, standardmäßig aus. Automatik verlangt einen ausdrücklich geprüften Diff und einen aktuellen bestandenen npm-Test. Sie startet weder Tests noch löst sie Konflikte. Eine frühere Karte oder sichere Projektpause hält sie an.</small>
+      {queueState === 'running' ? <small>Während die Queue läuft, kannst du diese Automatik ausschalten. Ein bereits begonnener Git-Schritt läuft zu Ende. Zum Aktivieren zuerst die Queue pausieren und danach ihren Start erneut prüfen.</small> : null}
       {!evidence?.configuredScript && policy?.mode !== 'automatic' ? <small>Richte zuerst unten ein Integrationstest-Skript ein.</small> : null}
     </div>
     {loading ? <p className="inline-note" role="status">Integrationsliste wird geladen…</p> : items.length ? <ol className="integration-queue-list">{items.map((entry, index) => <li key={entry.id} aria-current={entry.cardId === card.id ? 'true' : undefined}>
@@ -134,8 +135,8 @@ export function IntegrationQueuePanel({ card, cards, onIntegrated, onOpenDiff }:
     </section> : null}
     {mergeDiff ? <details open className="integration-attempt-diff"><summary>Integrations-Diff zum Zielstand</summary><pre>{mergeDiff}</pre></details> : null}
     {current && current.state !== 'integrated' ? <div className="integration-checks">
-      <label>Integrationstest des Projekts <span>npm run</span><input value={scriptDraft} maxLength={64} disabled={busy} onChange={(event) => setScriptDraft(event.target.value)} placeholder="test" /></label>
-      <button type="button" className="text-button" disabled={busy || scriptDraft.trim() === (evidence?.configuredScript ?? '')} onClick={() => void act('script')}>Testskript speichern</button>
+      <label>Integrationstest des Projekts <span>npm run</span><input value={scriptDraft} maxLength={64} disabled={busy || (queueState === 'running' && policy?.mode === 'automatic')} onChange={(event) => setScriptDraft(event.target.value)} placeholder="test" /></label>
+      <button type="button" className="text-button" disabled={busy || (queueState === 'running' && policy?.mode === 'automatic') || scriptDraft.trim() === (evidence?.configuredScript ?? '')} onClick={() => void act('script')}>Testskript speichern</button>
       <small>Nur ein Skriptname aus dem package.json des vorbereiteten Commits. Der Test läuft nach Bestätigung im temporären Checkout mit deinen lokalen Benutzerrechten.</small>
       {attempt && !evidence?.configuredScript ? <small>Für divergierte Ergebnisse ist ein aktueller Integrationstest Pflicht.</small> : null}
       {policy?.mode === 'automatic' && current.state === 'ready' ? <p className="section-copy" role="status">Automatik: {current.reason ?? (evidence?.review?.current && evidence.test?.state === 'passed' && evidence.test.current ? 'beide Belege aktuell; Fast-Forward wird geprüft' : 'wartet auf aktuellen Diff- und Testbeleg')}.</p> : null}

@@ -72,6 +72,9 @@ export function setIntegrationTestScript(store: StudioStore, input: { projectId:
   if (typeof input.scriptName !== 'string') throw new Error('Select an npm script name.');
   const name = input.scriptName.trim();
   if (name && !SCRIPT_NAME.test(name)) throw new Error('Only a simple npm script name is allowed.');
+  if (store.projectQueue(input.projectId).state === 'running' && integrationPolicy(store, input.projectId).mode === 'automatic'
+    && name !== configuredScript(store, input.projectId))
+    throw new Error('Pause the project queue or disable automatic integration before changing its npm test script.');
   if (!name && integrationPolicy(store, input.projectId).mode === 'automatic')
     throw new Error('Disable automatic integration before removing its required npm test.');
   if (store.projectQueue(input.projectId).autoTest && name !== configuredScript(store, input.projectId))
