@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { TeamCoordinatorHttp } from '../../src/main/team-coordinator-http';
-import { addTeamProject, createTeamWorkspace, setTeamCapabilityGrant, setTeamProjectAccess,
+import { acceptTeamMemberInvite, addTeamProject, createTeamMemberInvite, createTeamWorkspace,
+  setTeamCapabilityGrant, setTeamProjectAccess,
   type TeamMember } from '../../src/main/team-workspace';
 import { StudioStore } from '../../src/main/store';
 
@@ -126,4 +127,60 @@ it('authenticates two separate HTTP clients, rejects stale writes, and survives 
     store.close();
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+it('dispatches an authorized auto-start move once and never repeats it after a lost reply', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'branchloom-team-auto-start-'));
+  const store = new StudioStore(join(root, 'studio.sqlite'));
+  let coordinator: TeamCoordinatorHttp | null = null;
+  try {
+    const project = store.createProject({ name: 'Synthetic project', path: root });
+    const source = store.snapshot(project.id).columns[0]!;
+    const card = store.createCard({ projectId: project.id, columnId: source.id, title: 'Agent task' });
+    const failedCard = store.createCard({ projectId: project.id, columnId: source.id, title: 'Failed agent task' });
+    const agent = store.saveAgent({ name: 'Synthetic agent', kind: 'custom', command: process.execPath,
+      args: ['-e', 'console.log("TEAM_AGENT")'], model: null, enabled: true });
+    const target = store.createColumn({ projectId: project.id, name: 'Team run', agentId: agent.id, autoStart: true });
+    const owner = createTeamWorkspace(store.db, { workspaceName: 'Sample team', projectId: project.id, ownerName: 'Owner' });
+    const editor = acceptTeamMemberInvite(store.db,
+      createTeamMemberInvite(store.db, owner.credential, owner.workspaceId, 'editor').secret, 'Editor');
+    setTeamCapabilityGrant(store.db, owner.credential, project.id, editor.member.id, 'manage_task', true);
+    const sessionId = randomUUID();
+    let starts = 0;
+    coordinator = new TeamCoordinatorHttp(store, (cardId, agentId) => {
+      expect(agentId).toBe(agent.id); starts += 1;
+      if (cardId === failedCard.id) throw new Error('Synthetic launch failure');
+      return { id: sessionId };
+    });
+    const base = await coordinator.start();
+    const mutationId = randomUUID();
+    const move = (credential: string) => fetch(`${base}/v1/projects/${project.id}/cards/${card.id}/column`, {
+      method: 'POST', headers: { Authorization: `Bearer ${credential}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ columnId: target.id, expectedRevision: 0, mutationId }),
+    });
+    expect((await move(editor.credential)).status).toBe(403);
+    expect(store.card(card.id).columnId).toBe(source.id);
+    setTeamCapabilityGrant(store.db, owner.credential, project.id, editor.member.id, 'start_agent', true);
+    const first = await move(editor.credential);
+    expect(first.status).toBe(200);
+    expect(await first.json()).toMatchObject({ repeated: false,
+      agentLaunch: { state: 'started', sessionId, agentId: agent.id } });
+    const repeated = await move(editor.credential);
+    expect(repeated.status).toBe(200);
+    expect(await repeated.json()).toMatchObject({ repeated: true,
+      agentLaunch: { state: 'started', sessionId } });
+    expect(starts).toBe(1);
+    const failedMutation = randomUUID();
+    const failedMove = () => fetch(`${base}/v1/projects/${project.id}/cards/${failedCard.id}/column`, {
+      method: 'POST', headers: { Authorization: `Bearer ${editor.credential}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ columnId: target.id, expectedRevision: 0, mutationId: failedMutation }),
+    });
+    const failed = await failedMove();
+    expect(failed.status).toBe(200);
+    expect(await failed.json()).toMatchObject({ repeated: false, agentLaunch: { state: 'failed', sessionId: null } });
+    expect(store.card(failedCard.id).columnId).toBe(target.id);
+    const failedRetry = await failedMove();
+    expect(await failedRetry.json()).toMatchObject({ repeated: true, agentLaunch: { state: 'failed' } });
+    expect(starts).toBe(2);
+  } finally { await coordinator?.close(); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

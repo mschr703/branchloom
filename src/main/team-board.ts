@@ -150,7 +150,8 @@ function sharedTitle(value: string): string {
 /** Only this explicit projection may leave the host; no paths, logs, descriptions, agents or credentials. */
 export function teamBoardSnapshot(store: StudioStore, projectId: string): TeamBoardSnapshot {
   const project = store.project(projectId);
-  const columns = store.db.prepare('SELECT id, name FROM columns WHERE project_id = ? ORDER BY position, id').all(projectId) as Array<{ id: string; name: string }>;
+  const columns = store.db.prepare('SELECT id, name, auto_start AS autoStart FROM columns WHERE project_id = ? ORDER BY position, id')
+    .all(projectId) as Array<{ id: string; name: string; autoStart: number }>;
   const cards = store.db.prepare(`SELECT id, column_id, title, priority FROM cards
     WHERE project_id = ? AND archived_at IS NULL ORDER BY column_id, position, id LIMIT ?`)
     .all(projectId, MAX_CARDS + 1) as Array<{ id: string; column_id: string; title: string; priority: CardPriority }>;
@@ -158,7 +159,7 @@ export function teamBoardSnapshot(store: StudioStore, projectId: string): TeamBo
     .all(projectId) as Array<{ card_id: string; started_at: string }>;
   const runningByCard = new Map(running.map((row) => [row.card_id, row.started_at]));
   return { projectName: sharedTitle(project.name), observedAt: new Date().toISOString(),
-    columns: columns.map((item) => ({ id: item.id, name: sharedTitle(item.name) })),
+    columns: columns.map((item) => ({ id: item.id, name: sharedTitle(item.name), startsAgent: item.autoStart === 1 })),
     cards: cards.slice(0, MAX_CARDS).map((item) => ({ id: item.id, columnId: item.column_id,
       title: sharedTitle(item.title), priority: item.priority, runningSince: runningByCard.get(item.id) ?? null })),
     queueState: store.projectQueue(projectId).state, truncated: cards.length > MAX_CARDS };

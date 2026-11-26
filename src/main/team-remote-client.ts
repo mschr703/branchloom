@@ -2,6 +2,7 @@ import type { SavedTeamConnection } from './team-connection-store';
 import { TeamConnectionStore } from './team-connection-store';
 import { TeamJoinAttemptStore } from './team-join-attempt';
 import type { TeamMember, TeamRole } from './team-workspace';
+import type { TeamAgentLaunch } from './team-workspace';
 import type { TeamCardDraft } from './team-card-draft';
 import { TeamDraftOutboxStore, type PendingTeamDraftUpdate } from './team-draft-outbox';
 import type { TeamBoardSnapshot } from '../shared/team-board';
@@ -59,8 +60,11 @@ function checkedBoard(value: unknown): CollaborativeTeamBoard {
   const columns = item.columns.map((raw) => {
     const column = record(raw);
     if (!column || typeof column.id !== 'string' || !UUID.test(column.id) ||
-      typeof column.name !== 'string' || column.name.length > 200) throw new Error('Coordinator returned an invalid team board.');
-    return { id: column.id, name: column.name };
+      typeof column.name !== 'string' || column.name.length > 200 ||
+      (column.startsAgent !== undefined && typeof column.startsAgent !== 'boolean')) {
+      throw new Error('Coordinator returned an invalid team board.');
+    }
+    return { id: column.id, name: column.name, startsAgent: column.startsAgent === true };
   });
   const columnIds = new Set(columns.map((column) => column.id));
   const cards = item.cards.map((raw) => {
@@ -200,7 +204,7 @@ export class TeamRemoteClient {
 
   async moveCard(input: { workspaceId: string; projectId: string; cardId: string;
     columnId: string; expectedRevision: number; mutationId: string }): Promise<{
-    cardId: string; columnId: string; revision: number; repeated: boolean;
+    cardId: string; columnId: string; revision: number; repeated: boolean; agentLaunch: TeamAgentLaunch | null;
   }> {
     if (!UUID.test(input.projectId) || !UUID.test(input.cardId) || !UUID.test(input.columnId) ||
       !UUID.test(input.mutationId) || !Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 0) {
@@ -214,7 +218,19 @@ export class TeamRemoteClient {
       !Number.isSafeInteger(value.revision) || Number(value.revision) < 0 || typeof value.repeated !== 'boolean') {
       throw new Error('Coordinator returned an invalid card move result.');
     }
-    return { cardId: input.cardId, columnId: input.columnId, revision: value.revision as number, repeated: value.repeated };
+    let agentLaunch: TeamAgentLaunch | null = null;
+    if (value.agentLaunch !== undefined && value.agentLaunch !== null) {
+      const launch = record(value.agentLaunch);
+      if (!launch || !['pending', 'dispatching', 'started', 'failed'].includes(String(launch.state)) ||
+        typeof launch.agentId !== 'string' || !UUID.test(launch.agentId) ||
+        (launch.sessionId !== null && (typeof launch.sessionId !== 'string' || !UUID.test(launch.sessionId)))) {
+        throw new Error('Coordinator returned an invalid team agent launch.');
+      }
+      agentLaunch = { state: launch.state as TeamAgentLaunch['state'], agentId: launch.agentId,
+        sessionId: launch.sessionId as string | null };
+    }
+    return { cardId: input.cardId, columnId: input.columnId, revision: value.revision as number,
+      repeated: value.repeated, agentLaunch };
   }
 
   async updateCardDraft(input: { workspaceId: string; projectId: string; cardId: string;
@@ -333,6 +349,7 @@ export class TeamRemoteClient {
     if (response.status === 403) throw new Error('Team action is not permitted for this project.');
     if (response.status === 409) throw new Error('Team card changed. Reload before retrying.');
     if (response.status === 423) throw new Error('Pause the project queue and finish the active run before moving this card.');
+    if (response.status === 503) throw new Error('Team agent worker is unavailable.');
     if (!response.ok) throw new Error(`Coordinator request failed (HTTP ${response.status}).`);
     return limitedJson(response);
   }

@@ -17,6 +17,12 @@ export interface TeamMember {
   revokedAt: string | null;
 }
 
+export interface TeamAgentLaunch {
+  state: 'pending' | 'dispatching' | 'started' | 'failed';
+  agentId: string;
+  sessionId: string | null;
+}
+
 type MemberRow = { id: string; workspace_id: string; display_name: string; role: TeamRole; revoked_at: string | null };
 type InviteRow = { id: string; workspace_id: string; role: 'admin' | 'editor' | 'developer' | 'viewer'; expires_at: string;
   revoked_at: string | null; accepted_member_id: string | null; accepted_request_id: string | null };
@@ -80,6 +86,14 @@ export function installTeamWorkspaces(db: Database.Database): void {
     base_revision INTEGER NOT NULL, committed_revision INTEGER NOT NULL,
     created_at TEXT NOT NULL, PRIMARY KEY (workspace_id, mutation_id)
   );
+  CREATE TABLE IF NOT EXISTS team_agent_launches (
+    workspace_id TEXT NOT NULL REFERENCES team_workspaces(id) ON DELETE CASCADE,
+    mutation_id TEXT NOT NULL, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+    agent_id TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN ('pending','dispatching','started','failed')),
+    session_id TEXT, created_at TEXT NOT NULL,
+    PRIMARY KEY (workspace_id, mutation_id)
+  );
   CREATE TABLE IF NOT EXISTS team_card_drafts (
     card_id TEXT PRIMARY KEY REFERENCES cards(id) ON DELETE CASCADE,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -127,11 +141,31 @@ export function setTeamCardPriority(store: StudioStore, input: {
   }).immediate();
 }
 
-/** Moving a shared card is a revisioned board command; it never starts an agent. */
+export function teamAgentLaunch(db: Database.Database, workspaceId: string, mutationId: string): TeamAgentLaunch | null {
+  const row = db.prepare(`SELECT state, agent_id AS agentId, session_id AS sessionId FROM team_agent_launches
+    WHERE workspace_id = ? AND mutation_id = ?`).get(workspaceId, mutationId) as TeamAgentLaunch | undefined;
+  return row ?? null;
+}
+
+/** Once claimed, an uncertain launch stays visible and is never replayed on retry or restart. */
+export function claimTeamAgentLaunch(db: Database.Database, workspaceId: string, mutationId: string): boolean {
+  return db.prepare("UPDATE team_agent_launches SET state = 'dispatching' WHERE workspace_id = ? AND mutation_id = ? AND state = 'pending'")
+    .run(workspaceId, mutationId).changes === 1;
+}
+
+export function finishTeamAgentLaunch(db: Database.Database, workspaceId: string, mutationId: string,
+  sessionId: string | null): void {
+  const changed = db.prepare(`UPDATE team_agent_launches SET state = ?, session_id = ?
+    WHERE workspace_id = ? AND mutation_id = ? AND state = 'dispatching'`)
+    .run(sessionId ? 'started' : 'failed', sessionId, workspaceId, mutationId);
+  if (changed.changes !== 1) throw new Error('Team agent launch is no longer dispatching.');
+}
+
+/** Moving a shared card is revisioned; an auto-start is a separately recorded host action. */
 export function moveTeamCard(store: StudioStore, input: {
   credential: string; projectId: string; cardId: string; columnId: string;
-  expectedRevision: number; mutationId: string;
-}): { cardId: string; columnId: string; revision: number; repeated: boolean } {
+  expectedRevision: number; mutationId: string; agentStarterAvailable?: boolean;
+}): { cardId: string; columnId: string; revision: number; repeated: boolean; agentLaunch: TeamAgentLaunch | null } {
   if (!input || typeof input.columnId !== 'string' || !input.columnId ||
     typeof input.mutationId !== 'string' || !/^[0-9a-f-]{36}$/i.test(input.mutationId) ||
     !Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 0) throw new Error('Invalid team card command.');
@@ -145,12 +179,17 @@ export function moveTeamCard(store: StudioStore, input: {
     if (previous) {
       if (previous.actor_id !== actor.id || previous.project_id !== input.projectId || previous.card_id !== input.cardId ||
         previous.command !== 'move_card' || previous.payload_json !== payload) throw new Error('Mutation ID was already used for another action.');
-      return { cardId: input.cardId, columnId: input.columnId, revision: previous.committed_revision, repeated: true };
+      return { cardId: input.cardId, columnId: input.columnId, revision: previous.committed_revision,
+        repeated: true, agentLaunch: teamAgentLaunch(store.db, actor.workspaceId, input.mutationId) };
     }
     const card = store.card(input.cardId);
     if (card.projectId !== input.projectId || card.archivedAt) throw new Error('Team card is unavailable.');
     const column = store.column(input.columnId);
     if (column.projectId !== input.projectId) throw new Error('Team column is unavailable.');
+    if (column.autoStart) {
+      requireTeamProjectCapability(store.db, input.credential, input.projectId, 'start_agent');
+      if (!column.agentId || !input.agentStarterAvailable) throw new Error('Team agent worker is unavailable.');
+    }
     const current = store.db.prepare('SELECT content_revision FROM cards WHERE id = ?').get(card.id) as { content_revision: number };
     if (current.content_revision !== input.expectedRevision) throw new Error('Card changed. Reload before applying this team action.');
     if (store.projectQueue(input.projectId).state === 'running' ||
@@ -165,7 +204,11 @@ export function moveTeamCard(store: StudioStore, input: {
       command, payload_json, base_revision, committed_revision, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(actor.workspaceId, input.mutationId, actor.id, input.projectId, card.id, 'move_card', payload,
         current.content_revision, after, new Date().toISOString());
-    return { cardId: card.id, columnId: column.id, revision: after, repeated: false };
+    if (column.autoStart && column.agentId) store.db.prepare(`INSERT INTO team_agent_launches
+      (workspace_id, mutation_id, project_id, card_id, agent_id, state, created_at) VALUES (?, ?, ?, ?, ?, 'pending', ?)`)
+      .run(actor.workspaceId, input.mutationId, input.projectId, card.id, column.agentId, new Date().toISOString());
+    return { cardId: card.id, columnId: column.id, revision: after,
+      repeated: false, agentLaunch: teamAgentLaunch(store.db, actor.workspaceId, input.mutationId) };
   }).immediate();
 }
 

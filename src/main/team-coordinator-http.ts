@@ -3,7 +3,8 @@ import type { AddressInfo } from 'node:net';
 import type { StudioStore } from './store';
 import type { CardPriority } from '../shared/types';
 import { authenticateTeamMember, claimTeamMemberInvite, createTeamMemberInvite,
-  requireTeamProjectCapability, revokeTeamMember, setTeamCardPriority, moveTeamCard, type TeamRole } from './team-workspace';
+  claimTeamAgentLaunch, finishTeamAgentLaunch, requireTeamProjectCapability, revokeTeamMember,
+  setTeamCardPriority, moveTeamCard, teamAgentLaunch, type TeamRole } from './team-workspace';
 import { teamBoardSnapshot } from './team-board';
 import { applyTeamCardDraftUpdate, readTeamCardDraft } from './team-card-draft';
 
@@ -47,7 +48,8 @@ export class TeamCoordinatorHttp {
   private readonly subscribers = new Set<DraftSubscriber>();
   private heartbeat: NodeJS.Timeout | null = null;
 
-  constructor(private readonly store: StudioStore) {}
+  constructor(private readonly store: StudioStore,
+    private readonly startAgent?: (cardId: string, agentId: string) => { id: string }) {}
 
   async start(preferredPort = 0): Promise<string> {
     if (this.server) throw new Error('Team coordinator is already running.');
@@ -177,8 +179,20 @@ export class TeamCoordinatorHttp {
         const value = await body(request);
         const result = moveTeamCard(this.store, { credential: actorCredential,
           projectId: move[1]!, cardId: move[2]!, columnId: value.columnId as string,
-          expectedRevision: value.expectedRevision as number, mutationId: value.mutationId as string });
-        reply(response, 200, result);
+          expectedRevision: value.expectedRevision as number, mutationId: value.mutationId as string,
+          agentStarterAvailable: Boolean(this.startAgent) });
+        let launch = result.agentLaunch;
+        if (!result.repeated && launch) {
+          const actor = authenticateTeamMember(this.store.db, actorCredential);
+          if (claimTeamAgentLaunch(this.store.db, actor.workspaceId, value.mutationId as string)) {
+            let sessionId: string | null = null;
+            try { sessionId = this.startAgent!(result.cardId, launch.agentId).id; }
+            catch { /* The card move remains committed; the failed launch is explicit and not replayed. */ }
+            finishTeamAgentLaunch(this.store.db, actor.workspaceId, value.mutationId as string, sessionId);
+          }
+          launch = teamAgentLaunch(this.store.db, actor.workspaceId, value.mutationId as string);
+        }
+        reply(response, 200, { ...result, agentLaunch: launch });
         if (!result.repeated) this.broadcastCard(move[1]!, move[2]!, result.revision);
         return;
       }
@@ -189,6 +203,8 @@ export class TeamCoordinatorHttp {
         reply(response, 409, { error: 'Card changed. Reload before applying this team action.' });
       } else if (message === 'Team card is active. Pause the queue and finish its run before moving it.') {
         reply(response, 423, { error: message });
+      } else if (message === 'Team agent worker is unavailable.') {
+        reply(response, 503, { error: message });
       } else if (message === 'Unauthorized' || message === 'Team credential is unavailable.') {
         reply(response, 401, { error: 'Team credential is unavailable' });
       } else if (message.includes('not permitted') || message.includes('cannot invite') || message.includes('cannot be removed')) {

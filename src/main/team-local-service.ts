@@ -28,10 +28,16 @@ export interface OwnedTeamWorkspace {
 /** The first host transport stays on loopback and reuses its saved port after restart. */
 export class TeamLocalService {
   private coordinator: TeamCoordinatorHttp | null = null;
+  private agentStarter: ((cardId: string, agentId: string) => { id: string }) | null = null;
   private url: string | null = null;
   private starting: Promise<string> | null = null;
 
   constructor(private readonly store: StudioStore, private readonly connections: TeamConnectionStore) {}
+
+  setAgentStarter(start: (cardId: string, agentId: string) => { id: string }): void {
+    if (this.coordinator) throw new Error('Set the team agent worker before starting the coordinator.');
+    this.agentStarter = start;
+  }
 
   /** Restore the local coordinator after app restart without waiting for the Team page. */
   async resumeSavedHost(): Promise<string | null> {
@@ -170,7 +176,7 @@ export class TeamLocalService {
       const saved = (await this.connections.list()).find((item) => item.role === 'owner' &&
         item.coordinatorUrl.startsWith('http://127.0.0.1:'));
       const port = saved ? Number(new URL(saved.coordinatorUrl).port) : 0;
-      const coordinator = new TeamCoordinatorHttp(this.store);
+      const coordinator = new TeamCoordinatorHttp(this.store, this.agentStarter ?? undefined);
       const url = await coordinator.start(port);
       this.coordinator = coordinator;
       this.url = url;

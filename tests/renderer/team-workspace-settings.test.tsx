@@ -70,6 +70,13 @@ it('creates a local workspace, exposes an invitation once, and requires a second
       .find((button) => button.textContent === 'Aufgabensteuerung bestätigen')!.click(); });
     expect(setCapabilityGrant).toHaveBeenCalledWith({ projectId: 'project', memberId: 'colleague',
       capability: 'manage_task', grant: true });
+    await act(async () => { [...rights.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent === 'Agentenstart erlauben')!.click(); });
+    expect(setCapabilityGrant).toHaveBeenCalledTimes(1);
+    await act(async () => { [...rights.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent === 'Agentenstart bestätigen')!.click(); });
+    expect(setCapabilityGrant).toHaveBeenCalledWith({ projectId: 'project', memberId: 'colleague',
+      capability: 'start_agent', grant: true });
     await act(async () => { [...host.querySelectorAll<HTMLButtonElement>('button')]
       .find((button) => button.textContent === 'Zugriff widerrufen')!.click(); });
     expect(revoke).not.toHaveBeenCalled();

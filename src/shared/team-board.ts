@@ -14,7 +14,7 @@ export interface TeamBoardInvite {
 export interface TeamBoardSnapshot {
   projectName: string;
   observedAt: string;
-  columns: Array<{ id: string; name: string }>;
+  columns: Array<{ id: string; name: string; startsAgent?: boolean }>;
   cards: Array<{ id: string; columnId: string; title: string; priority: CardPriority; runningSince: string | null }>;
   queueState: 'off' | 'running' | 'paused';
   truncated: boolean;

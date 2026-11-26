@@ -227,6 +227,7 @@ function installIpc(): void {
     workflowEngine.onSessionFinished(session, finalMessage);
     queueEngine.onSessionFinished(session);
   }, agentCardMetadataBridge, agentBrowserBridge);
+  teamLocalService.setAgentStarter((cardId, agentId) => runner!.start({ cardId, agentId, useWorktree: true }));
   workflowEngine = new WorkflowEngine(db, runner, () => net.isOnline());
   queueEngine = new ProjectQueueEngine(db, workflowEngine, () => net.isOnline());
   recoveryMonitor = new SessionRecoveryMonitor(db, () => net.isOnline(), (sessionId) => runner?.hasLiveProcess(sessionId) ?? false,

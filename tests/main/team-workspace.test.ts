@@ -5,7 +5,8 @@ import { randomUUID } from 'node:crypto';
 import { afterEach, expect, it } from 'vitest';
 import { StudioStore } from '../../src/main/store';
 import { acceptTeamMemberInvite, addTeamProject, authenticateTeamMember, createTeamMemberInvite, createTeamWorkspace,
-  requireTeamProjectCapability, revokeTeamMember, revokeTeamMemberInvite, setTeamCardPriority, moveTeamCard,
+  claimTeamAgentLaunch, finishTeamAgentLaunch, requireTeamProjectCapability, revokeTeamMember,
+  revokeTeamMemberInvite, setTeamCardPriority, moveTeamCard, teamAgentLaunch,
   setTeamCapabilityGrant, setTeamProjectAccess } from '../../src/main/team-workspace';
 
 const roots: string[] = [];
@@ -128,6 +129,36 @@ it('serializes card metadata commands from two clients and keeps retries idempot
       .toMatchObject({ revision: 3, repeated: true });
     expect(restarted.card(card.id).columnId).toBe(nextColumn.id);
   } finally { restarted.close(); }
+});
+
+it('requires a separate start right and records an auto-start intent once per move', () => {
+  const f = fixture();
+  const from = f.store.snapshot(f.project.id).columns[0]!;
+  const card = f.store.createCard({ projectId: f.project.id, columnId: from.id, title: 'Agent task' });
+  const agent = f.store.saveAgent({ name: 'Synthetic agent', kind: 'custom', command: process.execPath,
+    args: ['-e', 'console.log("TEAM_AGENT")'], model: null, enabled: true });
+  const target = f.store.createColumn({ projectId: f.project.id, name: 'Team run', agentId: agent.id, autoStart: true });
+  const owner = createTeamWorkspace(f.store.db, { workspaceName: 'Sample team', projectId: f.project.id, ownerName: 'Owner' });
+  const editor = acceptTeamMemberInvite(f.store.db,
+    createTeamMemberInvite(f.store.db, owner.credential, owner.workspaceId, 'editor').secret, 'Editor');
+  const input = { credential: editor.credential, projectId: f.project.id, cardId: card.id,
+    columnId: target.id, expectedRevision: 0, mutationId: randomUUID(), agentStarterAvailable: true };
+  try {
+    setTeamCapabilityGrant(f.store.db, owner.credential, f.project.id, editor.member.id, 'manage_task', true);
+    expect(() => moveTeamCard(f.store, input)).toThrow('not permitted');
+    setTeamCapabilityGrant(f.store.db, owner.credential, f.project.id, editor.member.id, 'start_agent', true);
+    expect(() => moveTeamCard(f.store, { ...input, agentStarterAvailable: false })).toThrow('worker is unavailable');
+    expect(f.store.card(card.id).columnId).toBe(from.id);
+    const moved = moveTeamCard(f.store, input);
+    expect(moved.agentLaunch).toMatchObject({ state: 'pending', agentId: agent.id, sessionId: null });
+    expect(claimTeamAgentLaunch(f.store.db, owner.workspaceId, input.mutationId)).toBe(true);
+    expect(claimTeamAgentLaunch(f.store.db, owner.workspaceId, input.mutationId)).toBe(false);
+    const sessionId = randomUUID();
+    finishTeamAgentLaunch(f.store.db, owner.workspaceId, input.mutationId, sessionId);
+    expect(moveTeamCard(f.store, input)).toMatchObject({ repeated: true,
+      agentLaunch: { state: 'started', sessionId } });
+    expect(teamAgentLaunch(f.store.db, owner.workspaceId, input.mutationId)?.state).toBe('started');
+  } finally { f.store.close(); }
 });
 
 it('links several projects to a workspace and only narrows inherited project rights', () => {

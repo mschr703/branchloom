@@ -89,7 +89,11 @@ export function TeamWorkspaceView({ projectId }: { projectId?: string }) {
             }} /> : null}
           {workspace?.projects.find((item) => item.id === remoteProjectId)?.canManageTask ? <TeamCardColumnControl
             key={`column:${selectedCard.id}:${selectedCard.revision}`} workspaceId={workspaceId} projectId={remoteProjectId}
-            card={selectedCard} columns={board.columns} onSaved={() => setActionNotice('Spalte gespeichert. Kein Agent wurde gestartet.')} onReload={async () => {
+            card={selectedCard} columns={board.columns} onSaved={(agentState) => setActionNotice(
+              agentState === 'started' ? 'Spalte gespeichert. Agent im eigenen Worktree gestartet.' :
+                agentState === 'failed' ? 'Spalte gespeichert. Agentenstart auf dem Host fehlgeschlagen; prüfe die Agent-Einstellungen und starte danach bewusst neu.' :
+                  agentState ? 'Spalte gespeichert. Agentenstart ist noch ungeklärt; prüfe die Sitzungen.' :
+                    'Spalte gespeichert. Kein Agent wurde gestartet.')} onReload={async () => {
               setBoard(await window.studio.teamBoard({ workspaceId, projectId: remoteProjectId }));
             }} /> : null}
           <TeamCardDraftEditor key={`${workspaceId}:${remoteProjectId}:${selectedCard.id}`}

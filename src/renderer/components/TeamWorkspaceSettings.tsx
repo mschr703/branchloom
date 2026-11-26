@@ -23,6 +23,7 @@ export function TeamWorkspaceSettings({ projectId, onConnectionChange }: { proje
   const [displayName, setDisplayName] = useState('');
   const [revokeCandidate, setRevokeCandidate] = useState<string | null>(null);
   const [grantCandidate, setGrantCandidate] = useState<string | null>(null);
+  const [startCandidate, setStartCandidate] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -108,13 +109,13 @@ export function TeamWorkspaceSettings({ projectId, onConnectionChange }: { proje
     finally { setBusy(false); }
   }
 
-  async function setTaskGrant(memberId: string, grant: boolean) {
+  async function setExtraGrant(memberId: string, capability: 'manage_task' | 'start_agent', grant: boolean) {
     if (busy || !projectId) return;
     setBusy(true); setError(''); setNotice('');
     try {
-      setHosted(await window.studio.setTeamCapabilityGrant({ projectId, memberId, capability: 'manage_task', grant }));
-      setGrantCandidate(null);
-      setNotice(grant ? 'Aufgabensteuerung für dieses Mitglied freigegeben.' : 'Zusätzliche Aufgabensteuerung entfernt.');
+      setHosted(await window.studio.setTeamCapabilityGrant({ projectId, memberId, capability, grant }));
+      setGrantCandidate(null); setStartCandidate(null);
+      setNotice(`${capability === 'start_agent' ? 'Agentenstart' : 'Aufgabensteuerung'} ${grant ? 'freigegeben' : 'entfernt'}.`);
     } catch (reason) { setError(messageOf(reason)); }
     finally { setBusy(false); }
   }
@@ -194,11 +195,22 @@ export function TeamWorkspaceSettings({ projectId, onConnectionChange }: { proje
             <p>Erlaubt Priorität und Spaltenwechsel auf dem gemeinsamen Board. Agentenstart, Planfreigabe und Merge sind getrennte Rechte.</p>
             {member.role === 'admin' ? <small>Bereits durch die Admin-Rolle erlaubt.</small>
               : member.extraCapabilities.includes('manage_task')
-                ? <button type="button" className="text-button" disabled={busy} onClick={() => void setTaskGrant(member.id, false)}>Zusatzrecht entfernen</button>
+                ? <button type="button" className="text-button" disabled={busy} onClick={() => void setExtraGrant(member.id, 'manage_task', false)}>Zusatzrecht entfernen</button>
                 : grantCandidate === member.id ? <span className="team-workspace-confirm">
-                  <button type="button" disabled={busy} onClick={() => void setTaskGrant(member.id, true)}>Aufgabensteuerung bestätigen</button>
+                  <button type="button" disabled={busy} onClick={() => void setExtraGrant(member.id, 'manage_task', true)}>Aufgabensteuerung bestätigen</button>
                   <button type="button" disabled={busy} onClick={() => setGrantCandidate(null)}>Abbrechen</button>
                 </span> : <button type="button" className="text-button" disabled={busy} onClick={() => setGrantCandidate(member.id)}>Aufgabensteuerung erlauben</button>}
+            {member.projectAccess === 'none' || member.projectAccess === 'read' ? <small>Dieses Zusatzrecht wirkt erst bei vollem Projektzugang.</small> : null}
+          </div>
+          <div className="team-workspace-extra-right"><strong>Agentenstart auf dem Host</strong>
+            <p>Erlaubt dem Mitglied, durch Verschieben in eine Auto-Start-Spalte deine lokale CLI in einem eigenen Git-Worktree zu starten. Zusätzlich sind Aufgabensteuerung und voller Projektzugang nötig.</p>
+            {member.role === 'admin' ? <small>Bereits durch die Admin-Rolle erlaubt.</small>
+              : member.extraCapabilities.includes('start_agent')
+                ? <button type="button" className="text-button" disabled={busy} onClick={() => void setExtraGrant(member.id, 'start_agent', false)}>Agentenstartrecht entfernen</button>
+                : startCandidate === member.id ? <span className="team-workspace-confirm">
+                  <button type="button" disabled={busy} onClick={() => void setExtraGrant(member.id, 'start_agent', true)}>Agentenstart bestätigen</button>
+                  <button type="button" disabled={busy} onClick={() => setStartCandidate(null)}>Abbrechen</button>
+                </span> : <button type="button" className="text-button" disabled={busy} onClick={() => setStartCandidate(member.id)}>Agentenstart erlauben</button>}
             {member.projectAccess === 'none' || member.projectAccess === 'read' ? <small>Dieses Zusatzrecht wirkt erst bei vollem Projektzugang.</small> : null}
           </div>
         </details> : null}
