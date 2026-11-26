@@ -1138,7 +1138,7 @@ function createWindow(): void {
   else void window.loadFile(join(__dirname, '../../dist/renderer/index.html'));
   if (smokeTeamWorkspace) {
     window.webContents.once('did-finish-load', () => {
-      void runTeamWorkspaceVisibleSmoke(window!, mustStore(), smokeDataDirectory!).then(() => {
+      void runTeamWorkspaceVisibleSmoke(window!, mustStore(), smokeDataDirectory!, teamLocalService!).then(() => {
         process.stdout.write('STUDIO_SMOKE_TEAM_WORKSPACE_OK\n');
         app.quit();
       }).catch((error: unknown) => { console.error('STUDIO_SMOKE_TEAM_WORKSPACE_FAILED', error); app.exit(1); });

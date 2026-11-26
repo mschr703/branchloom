@@ -6,12 +6,13 @@ import type { StudioStore } from './store';
 import { TeamConnectionStore } from './team-connection-store';
 import { TeamJoinAttemptStore } from './team-join-attempt';
 import { TeamRemoteClient } from './team-remote-client';
+import type { TeamLocalService } from './team-local-service';
 
 const Y = require('yjs') as typeof import('yjs', { with: { 'resolution-mode': 'require' } });
 
 /** Exercises the actual renderer, preload, IPC, encrypted owner storage, and loopback host. */
 export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store: StudioStore,
-  projectPath: string): Promise<void> {
+  projectPath: string, host: TeamLocalService): Promise<void> {
   const project = store.createProject({ name: 'Synthetic team project', path: projectPath });
   const card = store.createCard({ projectId: project.id, columnId: store.snapshot(project.id).columns[0]!.id,
     title: 'Shared planning card', description: 'Accepted source description' });
@@ -117,6 +118,25 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
   guestDocument.destroy();
   guestWatch.abort();
   await guestWatchTask;
+  await host.close();
+  await window.webContents.executeJavaScript(`(async () => {
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      if (document.querySelector('.team-card-presence')?.textContent?.includes('unterbrochen')) return true;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('The owner editor did not report the stopped coordinator.');
+  })()`);
+  if (await host.resumeSavedHost() !== result.coordinatorUrl) throw new Error('Coordinator did not reuse its saved port.');
+  await window.webContents.executeJavaScript(`(async () => {
+    for (let attempt = 0; attempt < 160; attempt += 1) {
+      if (document.querySelector('.team-card-presence')?.textContent?.includes('Live verbunden')) return true;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('The owner editor did not reconnect after coordinator restart.');
+  })()`);
+  if ((await guest.cardDraft({ workspaceId: result.workspaceId, projectId: project.id, cardId: card.id })).revision !== 2) {
+    throw new Error('Shared draft was not retained after coordinator restart.');
+  }
   const screenshot = process.env.BRANCHLOOM_TEAM_WORKSPACE_SCREENSHOT;
   if (screenshot) {
     window.showInactive();
