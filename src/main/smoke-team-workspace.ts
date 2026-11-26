@@ -133,16 +133,50 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
     }
     throw new Error('The owner editor did not report the stopped coordinator.');
   })()`);
-  if (await host.resumeSavedHost() !== result.coordinatorUrl) throw new Error('Coordinator did not reuse its saved port.');
   await window.webContents.executeJavaScript(`(async () => {
-    for (let attempt = 0; attempt < 160; attempt += 1) {
-      if (document.querySelector('.team-card-presence')?.textContent?.includes('Live verbunden')) return true;
+    const editor = document.querySelector('.team-card-draft textarea');
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
+    if (!(editor instanceof HTMLTextAreaElement) || !setter || editor.disabled) {
+      throw new Error('The disconnected owner editor is unavailable.');
+    }
+    setter.call(editor, editor.value + ' Offline owner note.');
+    editor.dispatchEvent(new Event('input', { bubbles: true }));
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      const pending = await window.studio.pendingTeamCardDraftUpdates({ workspaceId: ${JSON.stringify(result.workspaceId)},
+        projectId: ${JSON.stringify(project.id)}, cardId: ${JSON.stringify(card.id)} });
+      if (pending.length === 1 && document.querySelector('.team-card-draft .inline-error')) return true;
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
-    throw new Error('The owner editor did not reconnect after coordinator restart.');
+    throw new Error('The disconnected owner edit was not stored in the encrypted outbox.');
   })()`);
-  if ((await guest.cardDraft({ workspaceId: result.workspaceId, projectId: project.id, cardId: card.id })).revision !== 2) {
-    throw new Error('Shared draft was not retained after coordinator restart.');
+  await new Promise((resolve) => setTimeout(resolve, 6_000));
+  const stillPending = await window.webContents.executeJavaScript(`window.studio.pendingTeamCardDraftUpdates({
+    workspaceId: ${JSON.stringify(result.workspaceId)}, projectId: ${JSON.stringify(project.id)},
+    cardId: ${JSON.stringify(card.id)} })`) as Array<{ mutationId: string }>;
+  if (stillPending.length !== 1 || !stillPending[0]?.mutationId) {
+    throw new Error('The offline edit was lost or duplicated during a polling interval.');
+  }
+  if (await host.resumeSavedHost() !== result.coordinatorUrl) throw new Error('Coordinator did not reuse its saved port.');
+  await window.webContents.executeJavaScript(`(async () => {
+    for (let attempt = 0; attempt < 300; attempt += 1) {
+      const pending = await window.studio.pendingTeamCardDraftUpdates({ workspaceId: ${JSON.stringify(result.workspaceId)},
+        projectId: ${JSON.stringify(project.id)}, cardId: ${JSON.stringify(card.id)} });
+      const draft = await window.studio.teamCardDraft({ workspaceId: ${JSON.stringify(result.workspaceId)},
+        projectId: ${JSON.stringify(project.id)}, cardId: ${JSON.stringify(card.id)} });
+      const text = document.querySelector('.team-card-draft textarea')?.value ?? '';
+      if (document.querySelector('.team-card-presence')?.textContent?.includes('Live verbunden') && !pending.length &&
+        draft.revision === 3 && text.includes('Guest note.') && text.includes('Owner note.') &&
+        text.includes('Offline owner note.')) return true;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('The owner editor did not replay its offline edit after coordinator restart.');
+  })()`);
+  if ((await guest.cardDraft({ workspaceId: result.workspaceId, projectId: project.id, cardId: card.id })).revision !== 3) {
+    throw new Error('The replayed draft was not retained after coordinator restart.');
+  }
+  await new Promise((resolve) => setTimeout(resolve, 5_500));
+  if ((await guest.cardDraft({ workspaceId: result.workspaceId, projectId: project.id, cardId: card.id })).revision !== 3) {
+    throw new Error('A later poll replayed the same offline edit twice.');
   }
   const screenshot = process.env.BRANCHLOOM_TEAM_WORKSPACE_SCREENSHOT;
   if (screenshot) {
