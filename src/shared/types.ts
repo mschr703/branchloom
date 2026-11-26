@@ -347,6 +347,7 @@ export interface StudioAPI {
   createReviewComment(input: CreateReviewComment): Promise<ReviewComment>;
   reviewInboxItems(input: ReviewInboxQuery): Promise<ReviewInboxPage>;
   agentQuestions(projectId: string): Promise<AgentQuestion[]>;
+  agentQuestionDecisionCount(projectId: string): Promise<number>;
   answerAgentQuestions(input: AnswerAgentQuestions): Promise<AgentQuestion[]>;
   globalInboxItems(input: GlobalInboxQuery): Promise<GlobalInboxPage>;
   acknowledgeReviewInboxComment(input: AcknowledgeReviewInboxComment): Promise<void>;

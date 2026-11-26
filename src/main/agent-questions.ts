@@ -63,6 +63,20 @@ export function agentQuestions(store: StudioStore, projectId: string): AgentQues
   return rows.map((row) => questionRow(store, row.id)).filter((row): row is Row => Boolean(row)).map((row) => asQuestion(store, row));
 }
 
+/** Count only questions that can still receive an answer in their exact running card session. */
+export function agentQuestionDecisionCount(store: StudioStore, projectId: string): number {
+  store.project(projectId);
+  const row = store.db.prepare(`SELECT COUNT(*) AS count FROM agent_questions q
+    JOIN cards c ON c.id = q.card_id AND c.project_id = q.project_id
+    JOIN sessions s ON s.id = q.session_id AND s.card_id = q.card_id AND s.project_id = q.project_id
+    WHERE q.project_id = ? AND q.delivery = 'open' AND q.answer_id IS NULL
+      AND c.archived_at IS NULL AND c.content_revision = q.card_revision AND s.state = 'running'
+      AND s.id = (SELECT latest.id FROM sessions latest WHERE latest.card_id = q.card_id
+        ORDER BY latest.started_at DESC, latest.rowid DESC LIMIT 1)`)
+    .get(projectId) as { count: number };
+  return row.count;
+}
+
 /** The local token bridge supplies the session ID; the agent cannot select another card or run. */
 export function recordAgentQuestion(store: StudioStore, input: { sessionId: string; requestId: string; question: string }): AgentQuestion {
   if (!input || typeof input.sessionId !== 'string' || typeof input.requestId !== 'string'
@@ -108,14 +122,14 @@ function terminalLine(value: string): string {
 }
 
 function terminalMessage(row: Row, answer: string): string {
-  return `[Branchloom shared answer for question ${row.id}] Original question: ${terminalLine(row.question)}. Decision: ${terminalLine(answer)}. Please confirm in your work whether you applied this decision.`;
+  return `[Branchloom answer for question ${row.id}] Original question: ${terminalLine(row.question)}. Decision: ${terminalLine(answer)}. Please confirm in your work whether you applied this decision.`;
 }
 
 /** Prepare once, then send to each exact live session. A crash never silently replays a prepared answer. */
 export function answerAgentQuestions(store: StudioStore, input: AnswerAgentQuestions,
   send: (sessionId: string, text: string) => void): AgentQuestion[] {
   if (!input || typeof input.projectId !== 'string' || !Array.isArray(input.questionIds)
-    || input.questionIds.length < 2 || input.questionIds.length > 12
+    || input.questionIds.length < 1 || input.questionIds.length > 12
     || input.questionIds.some((id) => typeof id !== 'string' || !id)
     || new Set(input.questionIds).size !== input.questionIds.length
     || !input.expectedRevisions || typeof input.expectedRevisions !== 'object'
@@ -129,7 +143,9 @@ export function answerAgentQuestions(store: StudioStore, input: AnswerAgentQuest
     const rows = input.questionIds.map((id) => questionRow(store, id));
     if (rows.some((row) => !row || row.project_id !== input.projectId)) throw new Error('Question belongs to another project or no longer exists.');
     const questions = rows as Row[];
-    if (new Set(questions.map((row) => row.card_id)).size < 2) throw new Error('Select questions from at least two different cards.');
+    if (questions.length > 1 && new Set(questions.map((row) => row.card_id)).size < 2) {
+      throw new Error('Select questions from at least two different cards.');
+    }
     for (const row of questions) {
       if (row.answer_id || row.delivery !== 'open') throw new Error('A selected question is already answered.');
       if (input.expectedRevisions[row.id] !== row.card_revision) throw new Error('Question revision changed; refresh the inbox.');

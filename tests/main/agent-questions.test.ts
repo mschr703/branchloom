@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AgentCardMetadataBridge } from '../../src/main/agent-card-metadata-bridge';
-import { agentQuestions, answerAgentQuestions, recordAgentQuestion } from '../../src/main/agent-questions';
+import { agentQuestionDecisionCount, agentQuestions, answerAgentQuestions, recordAgentQuestion } from '../../src/main/agent-questions';
 import { suggestAgentQuestionGroups } from '../../src/shared/agent-question-suggestions';
 import { SessionRunner } from '../../src/main/cli';
 import { StudioStore } from '../../src/main/store';
@@ -47,6 +47,52 @@ function answerInput(fixture: ReturnType<typeof fixture>, ids = [0, 1]) {
 }
 
 describe('shared agent questions', () => {
+  it('counts only currently answerable questions for the decision indicator', () => {
+    const f = fixture();
+    try {
+      expect(agentQuestionDecisionCount(f.store, f.project.id)).toBe(3);
+      answerAgentQuestions(f.store, answerInput(f, [0]), () => undefined);
+      expect(agentQuestionDecisionCount(f.store, f.project.id)).toBe(2);
+      f.store.updateCard({ id: f.cards[1]!.id, description: 'New scope' });
+      expect(agentQuestionDecisionCount(f.store, f.project.id)).toBe(1);
+      f.store.finishSession(f.runs[2]!.id, 'stopped', null);
+      expect(agentQuestionDecisionCount(f.store, f.project.id)).toBe(0);
+      expect(() => agentQuestionDecisionCount(f.store, 'other-project')).toThrow();
+    } finally { f.store.close(); }
+  });
+  it('answers one exact live question without touching other cards and never resends it on retry', () => {
+    const f = fixture();
+    const sent: Array<{ sessionId: string; text: string }> = [];
+    try {
+      const input = answerInput(f, [0]);
+      const [result] = answerAgentQuestions(f.store, input, (sessionId, text) => sent.push({ sessionId, text }));
+      expect(result).toMatchObject({ sessionId: f.runs[0]!.id, delivery: 'delivered', answer: input.answer });
+      expect(sent).toHaveLength(1);
+      expect(sent[0]!.text).toContain(f.questions[0]!.question);
+      expect(agentQuestions(f.store, f.project.id).filter((row) => row.answerId === null)).toHaveLength(2);
+      expect(() => answerAgentQuestions(f.store, input, () => sent.push({ sessionId: 'unexpected', text: '' }))).toThrow('already answered');
+      expect(sent).toHaveLength(1);
+    } finally { f.store.close(); }
+    const reopened = new StudioStore(f.file);
+    try {
+      expect(agentQuestions(reopened, f.project.id).find((row) => row.id === f.questions[0]!.id)).toMatchObject({
+        answerSource: 'user', delivery: 'delivered', answer: 'Archived projects are read-only.',
+      });
+    } finally { reopened.close(); }
+  });
+
+  it('rejects a single question after its card changes or session ends', () => {
+    const f = fixture();
+    try {
+      f.store.updateCard({ id: f.cards[0]!.id, description: 'New direction' });
+      expect(() => answerAgentQuestions(f.store, answerInput(f, [0]), () => undefined)).toThrow('changed');
+      expect(agentQuestions(f.store, f.project.id).find((row) => row.id === f.questions[0]!.id)?.answerId).toBeNull();
+      f.store.finishSession(f.runs[1]!.id, 'stopped', null);
+      expect(() => answerAgentQuestions(f.store, answerInput(f, [1]), () => undefined)).toThrow('no longer running');
+      expect(agentQuestions(f.store, f.project.id).find((row) => row.id === f.questions[1]!.id)?.answerId).toBeNull();
+    } finally { f.store.close(); }
+  });
+
   it('suggests two currently receivable questions without writing an answer, then drops a stale card', () => {
     const f = fixture();
     try {

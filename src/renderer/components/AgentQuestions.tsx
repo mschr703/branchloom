@@ -82,9 +82,11 @@ export function AgentQuestions({ projectId, onOpenCard, onOpenSession }: {
 
   const suggestions = useMemo(() => suggestAgentQuestionGroups(questions), [questions]);
   const picked = selected.map((id) => questions.find((item) => item.id === id)).filter((item): item is AgentQuestion => Boolean(item));
-  const canSend = picked.length >= 2 && picked.every((item) => item.receivable) && new Set(picked.map((item) => item.cardId)).size >= 2 && Boolean(answer.trim()) && !busy;
+  const canSend = picked.length >= 1 && picked.every((item) => item.receivable)
+    && (picked.length === 1 || new Set(picked.map((item) => item.cardId)).size >= 2)
+    && Boolean(answer.trim()) && !busy;
   return <section className="agent-questions" aria-label="Agentenfragen">
-    <div className="agent-questions-heading"><div><h3>Agentenfragen</h3><p>Fragen aus echten Karten-Sitzungen. Wähle mindestens zwei verschiedene Karten für eine gemeinsame Antwort.</p></div>
+    <div className="agent-questions-heading"><div><h3>Agentenfragen</h3><p>Fragen aus echten Karten-Sitzungen. Antworte auf eine Frage oder wähle mehrere Karten für eine gemeinsame Antwort.</p></div>
       <button className="decision-subaction" type="button" disabled={loading || busy} onClick={() => void refresh()}>Aktualisieren</button></div>
     {loading ? <p role="status">Fragen werden geladen…</p> : null}
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
@@ -97,13 +99,15 @@ export function AgentQuestions({ projectId, onOpenCard, onOpenSession }: {
         <label className="agent-question-choice"><input type="checkbox" checked={selected.includes(item.id)} disabled={!eligible || busy}
           onChange={(event) => setSelected((current) => event.target.checked ? [...current, item.id] : current.filter((id) => id !== item.id))} />
           <span><strong>{item.question}</strong><small>{item.cardTitle} · {item.agentName} · Auftragsrevision {item.cardRevision} · {status(item)}</small></span></label>
-        <div className="agent-question-links"><button type="button" className="decision-subaction" onClick={() => onOpenCard(item.cardId)}>Karte</button><button type="button" className="decision-subaction" onClick={() => onOpenSession(item.sessionId)}>Sitzung</button></div>
+        <div className="agent-question-links">{eligible ? <button type="button" className="decision-subaction" disabled={busy}
+          onClick={() => { setSelected([item.id]); requestAnimationFrame(() => composeRef.current?.scrollIntoView({ block: 'nearest' })); }}>Antworten</button> : null}
+          <button type="button" className="decision-subaction" onClick={() => onOpenCard(item.cardId)}>Karte</button><button type="button" className="decision-subaction" onClick={() => onOpenSession(item.sessionId)}>Sitzung</button></div>
         {item.answer ? <p className="agent-question-answer"><strong>Deine gemeinsame Antwort:</strong> {item.answer}{item.deliveryNote ? ` · ${item.deliveryNote}` : ''}</p> : null}
       </article>;
     })}</div> : null}
     {selected.length ? <div ref={composeRef} className="agent-question-compose"><p>{picked.length} Empfänger · {new Set(picked.map((item) => item.cardId)).size} Karten. Prüfe jede ursprüngliche Frage vor der gemeinsamen Antwort.</p><ul className="agent-question-recipients">{picked.map((item) => <li key={item.id}><span><strong>{item.cardTitle}</strong> · Revision {item.cardRevision}<br />{item.question}</span><button type="button" className="decision-subaction" disabled={busy} aria-label={`Frage von ${item.cardTitle} abwählen`} onClick={() => setSelected((current) => current.filter((id) => id !== item.id))}>Abwählen</button></li>)}</ul>
       <label>Gemeinsame Antwort<textarea value={answer} onChange={(event) => setAnswer(event.target.value)} maxLength={4_000} rows={3} placeholder="Entscheidung für die ausgewählten Fragen…" /></label>
-      <button className="primary-button" type="button" disabled={!canSend} onClick={() => void sendAnswer()}>{busy ? 'Speichert und stellt zu…' : 'Einmal beantworten'}</button>
+      <button className="primary-button" type="button" disabled={!canSend} onClick={() => void sendAnswer()}>{busy ? 'Speichert und stellt zu…' : picked.length === 1 ? 'Antwort senden' : 'Einmal beantworten'}</button>
     </div> : null}
   </section>;
 }

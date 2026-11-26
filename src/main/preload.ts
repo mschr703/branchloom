@@ -246,6 +246,7 @@ const studio: StudioAPI = {
   createReviewComment: (input) => invoke('createReviewComment', input),
   reviewInboxItems: (projectId) => invoke('reviewInboxItems', projectId),
   agentQuestions: (projectId) => invoke('agentQuestions', projectId),
+  agentQuestionDecisionCount: (projectId) => invoke('agentQuestionDecisionCount', projectId),
   answerAgentQuestions: (input) => invoke('answerAgentQuestions', input),
   globalInboxItems: (input) => invoke('globalInboxItems', input),
   acknowledgeReviewInboxComment: (input) => invoke('acknowledgeReviewInboxComment', input),

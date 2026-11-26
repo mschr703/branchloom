@@ -54,7 +54,7 @@ import { addCardComponentChoice, addCardComponentVariant, cardComponentChoiceSta
 import { checkoutMilestone, compareMilestone, createMilestone, createMilestoneWithPreview, listMilestones, milestonePreviewImage } from './milestones';
 import { createReviewComment, listReviewComments, previewCardDiff } from './diff-review';
 import { acknowledgeGuestInboxComment, acknowledgeQaInboxReport, acknowledgeReviewInboxComment, reviewInboxItems } from './review-inbox';
-import { agentQuestions, answerAgentQuestions } from './agent-questions';
+import { agentQuestionDecisionCount, agentQuestions, answerAgentQuestions } from './agent-questions';
 import { globalInboxItems } from './global-inbox';
 import { acceptReviewedPlan, createPlanComment, listPlanComments, listReviewedPlans, saveReviewedPlan } from './plan-review';
 import { createReviewRuleFromComment, deleteReviewRule, listReviewRules, updateReviewRule } from './review-rules';
@@ -614,6 +614,7 @@ function installIpc(): void {
   bind('createReviewComment', (input: Parameters<StudioAPI['createReviewComment']>[0]) => createReviewComment(db, input));
   bind('reviewInboxItems', (input: Parameters<StudioAPI['reviewInboxItems']>[0]) => reviewInboxItems(db, input));
   bind('agentQuestions', (projectId: string) => agentQuestions(db, projectId));
+  bind('agentQuestionDecisionCount', (projectId: string) => agentQuestionDecisionCount(db, projectId));
   bind('answerAgentQuestions', (input: Parameters<StudioAPI['answerAgentQuestions']>[0]) => answerAgentQuestions(db, input, (sessionId, text) => {
     if (!runner) throw new Error('Agent runner is unavailable.');
     runner.send({ sessionId, text });
@@ -4543,13 +4544,35 @@ http.createServer((_request,response)=>{response.writeHead(200,{'Content-Type':'
               await wait(() => firstIds.every((id) => panel.querySelector('[data-agent-question-id="' + id + '"]')?.textContent?.includes('An diese Sitzung zugestellt')), 'visible delivery status');
               return true;
             })()`);
-            for (let attempt = 0; attempt < 100 && f05Runs.slice(0, 2).some((run) => smokeStore.session(run.id).state === 'running'); attempt++) {
+            await smokeWindow.webContents.executeJavaScript(`(async () => {
+              const projectId = ${JSON.stringify(f05Project.id)};
+              const questionId = ${JSON.stringify(f05Questions.find((item) => item.cardId === f05Cards[2]!.id)!.id)};
+              const wait = async (predicate, label) => {
+                for (let i = 0; i < 100; i++) { const result = await predicate(); if (result) return result; await new Promise((resolve) => setTimeout(resolve, 50)); }
+                throw new Error('F05 single-answer UI smoke timed out: ' + label);
+              };
+              const panel = await wait(() => document.querySelector('.agent-questions'), 'question inbox');
+              const row = await wait(() => panel.querySelector('[data-agent-question-id="' + questionId + '"]'), 'remaining question');
+              const choose = [...row.querySelectorAll('button')].find((button) => button.textContent?.trim() === 'Antworten');
+              if (!choose) throw new Error('F05 single question answer action missing.');
+              choose.click();
+              const compose = await wait(() => panel.querySelector('.agent-question-compose'), 'single recipient review');
+              await wait(() => compose.querySelectorAll('.agent-question-recipients li').length === 1, 'one exact recipient');
+              const answer = compose.querySelector('textarea');
+              const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+              if (!answer || !setter) throw new Error('F05 single answer editor missing.');
+              setter.call(answer, 'Archived projects are read-only.'); answer.dispatchEvent(new Event('input', { bubbles: true }));
+              const send = await wait(() => [...compose.querySelectorAll('button')].find((button) => button.textContent?.includes('Antwort senden') && !button.disabled), 'single send action');
+              send.click();
+              await wait(async () => (await window.studio.agentQuestions(projectId)).find((item) => item.id === questionId)?.delivery === 'delivered', 'single answer delivered');
+              return true;
+            })()`);
+            for (let attempt = 0; attempt < 100 && f05Runs.some((run) => smokeStore.session(run.id).state === 'running'); attempt++) {
               await new Promise((resolve) => setTimeout(resolve, 100));
             }
-            if (f05Runs.slice(0, 2).some((run) => smokeStore.session(run.id).state !== 'exited' || !smokeStore.session(run.id).output.includes('F05_ANSWER_RECEIVED'))) {
+            if (f05Runs.some((run) => smokeStore.session(run.id).state !== 'exited' || !smokeStore.session(run.id).output.includes('F05_ANSWER_RECEIVED'))) {
               throw new Error('F05 live CLI recipients did not acknowledge the terminal message.');
             }
-            runner!.stop(f05Runs[2]!.id);
             await runF03Acceptance(smokeWindow, smokeStore, smokeDataDirectory!);
             process.stdout.write('STUDIO_SMOKE_OK\n');
             app.quit();
