@@ -8,6 +8,7 @@ import { CrossProjectInbox } from './CrossProjectInbox';
 import { RequirementConflictsPanel } from './RequirementConflictsPanel';
 import { AgentQuestions } from './AgentQuestions';
 import { inboxFirstPageChanged, useVisibleInboxRefresh } from '../inbox-refresh';
+import { notifyInboxChanged } from '../decision-navigation';
 import '../decision-inbox.css';
 
 interface Props {
@@ -127,7 +128,7 @@ export function DecisionInbox({ snapshot, onOpenWorkflow, onOpenQueue, onOpenSes
       else if (item.kind === 'qa') await window.studio.acknowledgeQaInboxReport({ projectId, reportId: item.id });
       else await window.studio.acknowledgeReviewInboxComment({ projectId, kind: item.kind, commentId: item.id });
       const page = await window.studio.reviewInboxItems({ projectId, query: query.trim() });
-      if (activeProject.current === projectId && activeReviewKey.current === reviewKey && reviewRevision.current === revision) { setReviewResult({ key: reviewKey, page }); setReviewUpdateAvailable(false); setReviewNotice(item.kind === 'qa' ? 'QA-Hinweis als geprüft markiert. Der Kartenbericht bleibt erhalten.' : item.kind === 'guest' ? 'Gastfeedback als gelesen markiert. Der Kommentar bleibt in den Projekteinstellungen erhalten.' : 'Kommentar als geprüft markiert. Der Originalkommentar bleibt an seiner Quelle.'); }
+      if (activeProject.current === projectId && activeReviewKey.current === reviewKey && reviewRevision.current === revision) { setReviewResult({ key: reviewKey, page }); setReviewUpdateAvailable(false); setReviewNotice(item.kind === 'qa' ? 'QA-Hinweis als geprüft markiert. Der Kartenbericht bleibt erhalten.' : item.kind === 'guest' ? 'Gastfeedback als gelesen markiert. Der Kommentar bleibt in den Projekteinstellungen erhalten.' : 'Kommentar als geprüft markiert. Der Originalkommentar bleibt an seiner Quelle.'); notifyInboxChanged(); }
     } catch (reason) { if (activeProject.current === projectId) setReviewError(reason instanceof Error ? reason.message : String(reason)); }
     finally { if (activeProject.current === projectId) setReviewBusy(null); }
   }

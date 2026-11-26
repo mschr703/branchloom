@@ -31,7 +31,8 @@ const secondaryGroups: { name: string; ids: View[] }[] = [
 
 interface Props {
   activeView: View;
-  decisionCount: number;
+  decisionCount: number | null;
+  decisionHasMore?: boolean;
   onView: (view: View) => void;
   status?: ProjectNavigationStatus | null;
 }
@@ -47,13 +48,14 @@ export function projectNavigationStatus(snapshot: ProjectSnapshot | null, projec
 }
 
 /** Project context stays above this compact, fully labelled navigation. */
-export function WorkspaceNavigation({ activeView, decisionCount, onView, status }: Props) {
+export function WorkspaceNavigation({ activeView, decisionCount, decisionHasMore = false, onView, status }: Props) {
   const item = ({ id, name, icon: Icon }: typeof views[number]) =>
     <button key={id} type="button" className={activeView === id ? 'nav-item active' : 'nav-item'}
       onClick={() => onView(id)} aria-current={activeView === id ? 'page' : undefined}
-      aria-label={id === 'decisions' && decisionCount ? `${name}: ${decisionCount} offen` : name} title={name}>
+      aria-label={id === 'decisions' && decisionCount === null ? `${name}: offene Einträge werden geprüft` : id === 'decisions' && decisionCount ? `${name}: ${decisionHasMore ? 'mindestens ' : ''}${decisionCount} offen` : name} title={name}>
       <Icon size={18} aria-hidden="true" /><span className="nav-label">{name}</span>
-      {id === 'decisions' && decisionCount ? <span className="nav-count" aria-hidden="true">{decisionCount}</span> : null}
+      {id === 'decisions' && decisionCount === null ? <span className="nav-count" aria-hidden="true">…</span> : null}
+      {id === 'decisions' && Boolean(decisionCount) ? <span className="nav-count" aria-hidden="true">{decisionCount}{decisionHasMore ? '+' : ''}</span> : null}
     </button>;
   return <><nav className="side-nav" aria-label="Hauptnavigation">
     <div className="nav-primary" role="group" aria-label="Planung">{primaryViews.map(item)}</div>

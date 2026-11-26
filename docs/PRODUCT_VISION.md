@@ -1,6 +1,6 @@
 # Branchloom · Produktvision und Ausbaufolge
 
-Stand: 25.11.2026. Diese Datei hält Nutzerentscheidungen und offene Produktfragen fest und ist **kein** Fertigstellungsnachweis. Der technische Iststand steht in [STATUS.md](STATUS.md); Kangentic-Parität und Grenzen stehen in [PARITY.md](PARITY.md).
+Stand: 26.11.2026. Diese Datei hält Nutzerentscheidungen und offene Produktfragen fest und ist **kein** Fertigstellungsnachweis. Der technische Iststand steht in [STATUS.md](STATUS.md); Kangentic-Parität und Grenzen stehen in [PARITY.md](PARITY.md).
 
 ## Was Branchloom werden soll
 

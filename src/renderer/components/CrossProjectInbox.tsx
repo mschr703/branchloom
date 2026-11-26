@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Inbox } from 'lucide-react';
 import type { GlobalInboxCategory, GlobalInboxItem, GlobalInboxPage } from '../../shared/global-inbox';
 import { inboxFirstPageChanged, useVisibleInboxRefresh } from '../inbox-refresh';
+import { notifyInboxChanged } from '../decision-navigation';
 
 const label: Record<GlobalInboxItem['kind'], string> = {
   workflow: 'Workflow', queue: 'Warteschlange', session: 'Agentenlauf',
@@ -90,6 +91,7 @@ export function CrossProjectInbox({ onOpen }: { onOpen: (item: GlobalInboxItem) 
         setPage(next); setResultKey(currentKey);
         setUpdateAvailable(false);
         setNotice(item.kind === 'guest' ? 'Gastfeedback als gelesen markiert. Der Kommentar bleibt an der Karte.' : 'Eintrag lokal als geprüft markiert. Quelle und Workflow bleiben erhalten.');
+        notifyInboxChanged();
       }
     } catch (reason) { if (generation.current === current) setError(errorText(reason)); }
     finally { if (generation.current === current) setBusy(null); }

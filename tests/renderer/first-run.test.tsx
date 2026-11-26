@@ -56,6 +56,7 @@ it('restores project actions after a saved project loads', async () => {
     projects: async () => [{ id: 'synthetic-project', name: 'Synthetic project', path: 'C:\\synthetic', createdAt: '2026-01-01T00:00:00.000Z' }],
     projectOrganization: async () => ({ groups: [], assignments: {}, sort: 'name' }),
     snapshot: async () => new Promise<never>(() => undefined),
+    reviewInboxItems: async () => ({ items: [], hasMore: false }),
     onSessionEvent: () => () => undefined,
     onBrowserSearchShortcut: () => () => undefined,
   } });

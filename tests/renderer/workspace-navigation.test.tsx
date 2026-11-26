@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { ProjectSnapshot } from '../../src/shared/types';
 import { projectNavigationStatus, WorkspaceNavigation, views } from '../../src/renderer/components/WorkspaceNavigation';
+import { decisionNavigationStatus } from '../../src/renderer/decision-navigation';
 
 describe('compact workspace navigation', () => {
   it('keeps every view reachable by its full name with one current destination', () => {
@@ -23,6 +24,18 @@ describe('compact workspace navigation', () => {
     const html = renderToStaticMarkup(createElement(WorkspaceNavigation, { activeView: 'board', decisionCount: 3, onView: () => undefined }));
     expect(html).toContain('aria-label="Entscheidungen: 3 offen"');
     expect(html).toContain('class="nav-count" aria-hidden="true">3</span>');
+  });
+
+  it('shows an honest lower bound when older review pages exist and no stale count on project changes', () => {
+    const snapshot = { project: { id: 'p' }, columns: [], cards: [], agents: [], workflows: [], queue: { state: 'off' } } as ProjectSnapshot;
+    expect(decisionNavigationStatus(snapshot, 'p', { projectId: 'other', count: 7, hasMore: false })).toBeNull();
+    expect(decisionNavigationStatus(snapshot, 'p', { projectId: 'p', count: 100, hasMore: true })).toEqual({ count: 100, hasMore: true });
+    const html = renderToStaticMarkup(createElement(WorkspaceNavigation, { activeView: 'board', decisionCount: 100, decisionHasMore: true, onView: () => undefined }));
+    expect(html).toContain('aria-label="Entscheidungen: mindestens 100 offen"');
+    expect(html).toContain('class="nav-count" aria-hidden="true">100+</span>');
+    const loading = renderToStaticMarkup(createElement(WorkspaceNavigation, { activeView: 'board', decisionCount: null, onView: () => undefined }));
+    expect(loading).toContain('aria-label="Entscheidungen: offene Einträge werden geprüft"');
+    expect(loading).not.toContain('100+');
   });
 
   it('uses only the current project snapshot for real sidebar counts', () => {

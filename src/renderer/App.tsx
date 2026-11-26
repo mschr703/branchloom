@@ -17,7 +17,7 @@ import { BranchloomMark } from './components/BranchloomMark';
 import { sessionMemoryDraft } from './activity-transcript';
 import { viewForSearchKind, type ProjectSearchResult, type SearchKind } from './project-search';
 import { currentTheme, persistTheme, themeToggleLabel, type ThemePreference } from './theme';
-import { decisionItems } from './decision-inbox';
+import { decisionNavigationStatus, useReviewInboxIndicator } from './decision-navigation';
 import type { ProjectConflictRadarResult } from '../shared/conflict-radar';
 import type { GlobalInboxItem } from '../shared/global-inbox';
 import { ProjectConflictBanner } from './components/ProjectConflictBanner';
@@ -64,6 +64,7 @@ export function App() {
   const [navigationTarget, setNavigationTarget] = useState<NavigationTarget | null>(null);
   const [openPlan, setOpenPlan] = useState<{ id: string; token: number } | null>(null);
   const [pendingGlobalItem, setPendingGlobalItem] = useState<GlobalInboxItem | null>(null);
+  const reviewIndicator = useReviewInboxIndicator(projectId);
   const [queueNavigationToken, setQueueNavigationToken] = useState(0);
   const [theme, setTheme] = useState<ThemePreference>(currentTheme);
   const [projectRadar, setProjectRadar] = useState<ProjectConflictRadarResult | null>(null);
@@ -336,7 +337,7 @@ export function App() {
   }
 
   const activeView = views.find((item) => item.id === view)!;
-  const decisionCount = snapshot?.project.id === projectId ? decisionItems(snapshot).length : 0;
+  const decisionStatus = decisionNavigationStatus(snapshot, projectId, reviewIndicator);
 
   return <div className="app-shell">
     <aside className="sidebar">
@@ -354,7 +355,7 @@ export function App() {
       <select id="project-select" hidden aria-hidden="true" tabIndex={-1} value={projectId ?? ''} onChange={(event) => { setPendingGlobalItem(null); setProjectId(event.target.value || null); }}>
         {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
       </select>
-      {projectId ? <WorkspaceNavigation activeView={view} decisionCount={decisionCount} onView={setView} status={projectNavigationStatus(snapshot, projectId)} /> : null}
+      {projectId ? <WorkspaceNavigation activeView={view} decisionCount={decisionStatus?.count ?? null} decisionHasMore={decisionStatus?.hasMore} onView={setView} status={projectNavigationStatus(snapshot, projectId)} /> : null}
     </aside>
 
     <main className="main-area">
