@@ -207,6 +207,7 @@ const studio: StudioAPI = {
   setProjectQueue: (input) => invoke('setProjectQueue', input),
   setQueueContinueBlocked: (input) => invoke('setQueueContinueBlocked', input),
   setQueueAutoResumeIdle: (input) => invoke('setQueueAutoResumeIdle', input),
+  setQueueAutoTest: (input) => invoke('setQueueAutoTest', input),
   setProjectRunPause: (input) => invoke('setProjectRunPause', input),
   queueCandidates: (projectId) => invoke('queueCandidates', projectId),
   queueResults: (projectId) => invoke('queueResults', projectId),

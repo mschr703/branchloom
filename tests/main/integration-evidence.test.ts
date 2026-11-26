@@ -1,13 +1,17 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { attestIntegrationReview, integrationEvidence, runIntegrationTest, setIntegrationTestScript } from '../../src/main/integration-evidence';
+import { attestIntegrationReview, integrationEvidence, npmScriptApprovalHash, runIntegrationTest, setIntegrationTestScript } from '../../src/main/integration-evidence';
 import { approveIntegration, enqueueIntegration, prepareIntegration } from '../../src/main/integration-queue';
 import { ensureCardWorktree } from '../../src/main/git-worktree';
 import { createCardCriterion } from '../../src/main/card-acceptance';
 import { StudioStore } from '../../src/main/store';
+import { ProjectQueueEngine, testCompletedQueueCard } from '../../src/main/queue';
+import { WorkflowEngine } from '../../src/main/workflows';
+import type { SessionRunner } from '../../src/main/cli';
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); });
@@ -23,7 +27,7 @@ function commit(cwd: string, file: string, text: string): string {
   git(cwd, ['-c', 'user.name=Branchloom Test', '-c', 'user.email=branchloom-test@example.invalid', 'commit', '-qm', 'Synthetic change']);
   return git(cwd, ['rev-parse', 'HEAD']);
 }
-function fixture(script = 'node -e "process.stdout.write(\'verified\\n\')"') {
+function fixture(script = 'node -e "process.stdout.write(\'verified\\n\')"', queueIntegration = true) {
   const root = mkdtempSync(join(tmpdir(), 'branchloom-integration-evidence-'));
   roots.push(root);
   const repo = join(root, 'repo'); const data = join(root, 'data');
@@ -39,12 +43,70 @@ function fixture(script = 'node -e "process.stdout.write(\'verified\\n\')"') {
   const session = store.createSession({ cardId: card.id, agentId: store.agents()[0]!.id, worktreePath: tree.path });
   const sourceHead = commit(tree.path, 'feature.txt', 'feature');
   store.finishSession(session.id, 'exited', 0);
-  enqueueIntegration(store, card.id);
-  prepareIntegration(store, card.id);
+  if (queueIntegration) { enqueueIntegration(store, card.id); prepareIntegration(store, card.id); }
   return { store, project, card, tree, sourceHead, repo, dbPath };
 }
 
 describe('commit-bound integration evidence', () => {
+  it('records a passing check for a completed queue card without integrating its commit', async () => {
+    const { store, project, card, tree, sourceHead, repo } = fixture(undefined, false);
+    try {
+      setIntegrationTestScript(store, { projectId: project.id, scriptName: 'verify' });
+      store.setQueueAutoTest({ projectId: project.id, enabled: true, confirm: true });
+      const columnId = store.snapshot(project.id).columns[0]!.id;
+      const workflow = store.createWorkflow({ projectId: project.id, name: 'Check only', cardIds: [card.id],
+        steps: [{ id: 'check', columnId, agentId: store.agents()[0]!.id, requireApproval: false }] });
+      store.saveProjectQueue({ projectId: project.id, state: 'running', templateWorkflowId: workflow.id,
+        activeWorkflowId: workflow.id, pauseReason: null });
+      await testCompletedQueueCard(store, project.id, workflow.id, card.id);
+      const receipt = integrationEvidence(store, card.id).test;
+      expect(receipt).toMatchObject({ state: 'passed', current: true, sourceHead });
+      expect(receipt?.scriptHash).toBe(npmScriptApprovalHash(repo, 'verify'));
+      const second = store.createCard({ projectId: project.id, columnId, title: 'Next synthetic card' });
+      store.db.prepare("UPDATE workflows SET state = 'done', current_step = 1 WHERE id = ?").run(workflow.id);
+      const runner = { start: ({ cardId, agentId }: { cardId: string; agentId: string }) => store.createSession({ cardId, agentId }),
+        stop: () => undefined } as unknown as SessionRunner;
+      const queue = new ProjectQueueEngine(store, new WorkflowEngine(store, runner));
+      store.db.prepare('UPDATE project_queues SET auto_test_script_hash = ? WHERE project_id = ?')
+        .run(createHash('sha256').update('different approval').digest('hex'), project.id);
+      queue.onBoardChanged(project.id);
+      expect(store.projectQueue(project.id).state).toBe('paused');
+      expect(store.activeSessionForProject(project.id)).toBeNull();
+      store.db.prepare('UPDATE project_queues SET auto_test_script_hash = ? WHERE project_id = ?')
+        .run(receipt?.scriptHash, project.id);
+      queue.setState({ projectId: project.id, state: 'running' });
+      expect(store.projectQueue(project.id).state).toBe('running');
+      expect(store.activeSessionForProject(project.id)?.cardId).toBe(second.id);
+      queue.dispose();
+      expect(git(repo, ['rev-parse', 'HEAD'])).not.toBe(sourceHead);
+      expect(git(tree.path, ['rev-parse', 'HEAD'])).toBe(sourceHead);
+    } finally { store.close(); }
+  });
+
+  it('refuses an unattended test when the prepared npm script differs from the approved body', async () => {
+    const { store, project, card } = fixture();
+    try {
+      setIntegrationTestScript(store, { projectId: project.id, scriptName: 'verify' });
+      const expected = createHash('sha256').update('a different approved script').digest('hex');
+      await expect(runIntegrationTest(store, card.id, undefined, expected)).rejects.toThrow('script changed');
+      expect(integrationEvidence(store, card.id).test).toBeNull();
+    } finally { store.close(); }
+  });
+
+  it('rejects a new npm pre-script before running the approved main script', async () => {
+    const { store, project, card, tree, repo } = fixture();
+    try {
+      setIntegrationTestScript(store, { projectId: project.id, scriptName: 'verify' });
+      const approved = npmScriptApprovalHash(repo, 'verify');
+      const manifest = JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8')) as { scripts: Record<string, string> };
+      manifest.scripts.preverify = 'node -e "process.exit(1)"';
+      commit(tree.path, 'package.json', JSON.stringify(manifest));
+      prepareIntegration(store, card.id);
+      await expect(runIntegrationTest(store, card.id, undefined, approved)).rejects.toThrow('script changed');
+      expect(integrationEvidence(store, card.id).test).toBeNull();
+    } finally { store.close(); }
+  });
+
   it('runs a configured npm script in an isolated checkout and gates the manual merge', async () => {
     const { store, project, card, tree, sourceHead, repo } = fixture();
     try {

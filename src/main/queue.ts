@@ -4,8 +4,27 @@ import { WorkflowEngine } from './workflows';
 import { detectQueueFailureLoop } from './loop-guard';
 import { AgentSpawnError } from './cli';
 import { assertProjectCanStart, projectPauseRequested } from './project-pause';
+import { enqueueIntegration, prepareIntegration } from './integration-queue';
+import { integrationEvidence, runIntegrationTest } from './integration-evidence';
 
 const RETRY_DELAYS_MS = [5_000, 20_000] as const;
+
+/** One opt-in, bounded npm check for the exact prepared source; no merge or push follows. */
+export async function testCompletedQueueCard(store: StudioStore, projectId: string, workflowId: string, cardId: string): Promise<void> {
+  if (store.projectQueue(projectId).state !== 'running') return;
+  const policy = store.db.prepare('SELECT auto_test_script_hash AS hash FROM project_queues WHERE project_id = ?')
+    .get(projectId) as { hash: string | null } | undefined;
+  if (!policy?.hash) throw new Error('Der freigegebene npm-Skriptstand fehlt. Automatische Tests neu aktivieren.');
+  const existing = store.db.prepare('SELECT id FROM integration_items WHERE card_id = ?').get(cardId);
+  if (existing) throw new Error('Für diese Karte existiert bereits ein Integrationsstand. Ihn zuerst manuell prüfen.');
+  enqueueIntegration(store, cardId);
+  const prepared = prepareIntegration(store, cardId);
+  if (prepared.state !== 'ready') throw new Error(prepared.reason ?? 'Git-Stand ist für den Test nicht bereit.');
+  if (store.projectQueue(projectId).state !== 'running' || store.projectQueue(projectId).activeWorkflowId !== workflowId) return;
+  const test = await runIntegrationTest(store, cardId, undefined, policy.hash);
+  if (test.state !== 'passed' || !test.current)
+    throw new Error(`npm run ${test.scriptName} endete mit ${test.state}${test.current ? '' : ' oder veraltetem Git-Stand'}.`);
+}
 const CONNECTION_PAUSE_PREFIX = 'Gerät meldete offline.';
 const IDLE_RECONNECT_PAUSE_REASON = `${CONNECTION_PAUSE_PREFIX} Die ruhende Queue kann nach Rückkehr innerhalb ihrer Frist ohne erneut gesendeten Auftrag fortfahren.`;
 
@@ -20,9 +39,12 @@ function pauseMessage(workflow: Workflow): string {
 /** Explicit project queue. Restart and any uncertain outcome leave it paused. */
 export class ProjectQueueEngine {
   private readonly pumping = new Set<string>();
+  private readonly postChecks = new Set<string>();
   private readonly retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly deadlineTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  constructor(private readonly store: StudioStore, private readonly workflows: WorkflowEngine, private readonly deviceOnline: () => boolean = () => true) {}
+  constructor(private readonly store: StudioStore, private readonly workflows: WorkflowEngine,
+    private readonly deviceOnline: () => boolean = () => true,
+    private readonly postCheck: typeof testCompletedQueueCard = testCompletedQueueCard) {}
 
   dispose(): void {
     for (const timer of this.retryTimers.values()) clearTimeout(timer);
@@ -79,6 +101,20 @@ export class ProjectQueueEngine {
 
   onSessionFinished(session: Session): void {
     const current = this.store.projectQueue(session.projectId);
+    const linked = this.store.workflowForSession(session.id);
+    if (current.state === 'running' && current.autoTest && linked && current.activeWorkflowId === linked.id
+      && this.store.workflow(linked.id).state === 'done' && !this.postChecks.has(session.projectId)) {
+      this.postChecks.add(session.projectId);
+      void this.postCheck(this.store, session.projectId, linked.id, linked.cardId).then(
+        () => { this.postChecks.delete(session.projectId); this.pump(session.projectId); },
+        (error: unknown) => {
+          this.postChecks.delete(session.projectId);
+          if (this.store.projectQueue(session.projectId).state === 'running')
+            this.pause(session.projectId, `Automatischer Kartentest angehalten: ${error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300)}. Test- und Git-Stand prüfen; Queue bewusst fortsetzen.`);
+        },
+      );
+      return;
+    }
     if (current.state === 'running' && current.activeWorkflowId === this.store.workflowForSession(session.id)?.id) {
       const repeated = detectQueueFailureLoop(this.store, session.projectId);
       if (repeated?.sessionIds[0] === session.id) {
@@ -187,7 +223,7 @@ export class ProjectQueueEngine {
   }
 
   private pump(projectId: string): void {
-    if (this.pumping.has(projectId) || this.store.projectQueue(projectId).state !== 'running') return;
+    if (this.pumping.has(projectId) || this.postChecks.has(projectId) || this.store.projectQueue(projectId).state !== 'running') return;
     if (this.deadlineReached(projectId)) return;
     if (projectPauseRequested(this.store, projectId)) {
       this.pause(projectId, 'Projektweite sichere Pause angefordert. Queue nach Prüfung bewusst fortsetzen.');
@@ -241,6 +277,16 @@ export class ProjectQueueEngine {
             this.pause(projectId, pauseMessage(active)); return;
           }
           if (active.currentStep < active.steps.length) { this.pause(projectId, 'Aktiver Workflow wurde vorzeitig als erledigt markiert; bitte prüfen.'); return; }
+          if (queue.autoTest) {
+            const approved = this.store.db.prepare('SELECT auto_test_script_hash AS hash FROM project_queues WHERE project_id = ?')
+              .get(projectId) as { hash: string | null } | undefined;
+            const cardId = active.cardIds[0];
+            const test = cardId ? integrationEvidence(this.store, cardId).test : null;
+            if (!approved?.hash || test?.state !== 'passed' || !test.current || test.scriptHash !== approved.hash) {
+              this.pause(projectId, 'Automatischer npm-Test für die abgeschlossene Karte fehlt, ist fehlgeschlagen oder passt nicht mehr zum freigegebenen Skript- und Git-Stand. Karte und Testbeleg prüfen; danach Test erneut ausführen oder die Einstellung bewusst ausschalten.');
+              return;
+            }
+          }
           this.store.saveProjectQueue({ projectId, state: 'running', templateWorkflowId: queue.templateWorkflowId, activeWorkflowId: null, pauseReason: null });
         }
         if (this.store.activeSessionForProject(projectId)) return;

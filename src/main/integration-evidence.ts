@@ -74,6 +74,8 @@ export function setIntegrationTestScript(store: StudioStore, input: { projectId:
   if (name && !SCRIPT_NAME.test(name)) throw new Error('Only a simple npm script name is allowed.');
   if (!name && integrationPolicy(store, input.projectId).mode === 'automatic')
     throw new Error('Disable automatic integration before removing its required npm test.');
+  if (store.projectQueue(input.projectId).autoTest && name !== configuredScript(store, input.projectId))
+    throw new Error('Disable automatic queue tests before changing their npm script.');
   if (name) store.db.prepare('INSERT INTO integration_test_config (project_id, script_name) VALUES (?, ?) ON CONFLICT(project_id) DO UPDATE SET script_name = excluded.script_name')
     .run(input.projectId, name);
   else store.db.prepare('DELETE FROM integration_test_config WHERE project_id = ?').run(input.projectId);
@@ -135,13 +137,22 @@ function git(cwd: string, args: string[], emptyHooks: string): string {
   return result.stdout.trim();
 }
 
-function readScript(checkout: string, name: string): string {
+function scriptDefinition(checkout: string, name: string): { body: string; lifecycleHash: string } {
   const file = join(checkout, 'package.json');
   if (!existsSync(file) || !lstatSync(file).isFile()) throw new Error('The source commit has no regular package.json.');
   const packageInfo = JSON.parse(readFileSync(file, 'utf8')) as { scripts?: Record<string, unknown> };
   const body = packageInfo.scripts?.[name];
   if (typeof body !== 'string' || !body.trim()) throw new Error(`The source commit has no npm script named ${name}.`);
-  return body;
+  const before = packageInfo.scripts?.[`pre${name}`] ?? null;
+  const after = packageInfo.scripts?.[`post${name}`] ?? null;
+  if ((before !== null && typeof before !== 'string') || (after !== null && typeof after !== 'string'))
+    throw new Error('The npm lifecycle scripts must be strings.');
+  return { body, lifecycleHash: sha(JSON.stringify([name, before, body, after])) };
+}
+
+/** Pin the command npm actually invokes, including its implicit pre/post scripts. */
+export function npmScriptApprovalHash(root: string, name: string): string {
+  return scriptDefinition(root, name).lifecycleHash;
 }
 
 function testEnvironment(): NodeJS.ProcessEnv {
@@ -193,7 +204,8 @@ function cleanTemporaryRoot(root: string): void {
 }
 
 /** Run a selected npm script in a detached checkout of the prepared source commit. */
-export async function runIntegrationTest(store: StudioStore, cardId: string, timeoutMs = TEST_TIMEOUT_MS): Promise<IntegrationTestEvidence> {
+export async function runIntegrationTest(store: StudioStore, cardId: string, timeoutMs = TEST_TIMEOUT_MS,
+  expectedScriptHash?: string): Promise<IntegrationTestEvidence> {
   const prepared = currentPreparedIntegration(store, cardId);
   assertProjectCanStart(store, prepared.item.projectId);
   const scriptName = configuredScript(store, prepared.item.projectId);
@@ -207,12 +219,14 @@ export async function runIntegrationTest(store: StudioStore, cardId: string, tim
   try {
     git(prepared.worktreePath, ['worktree', 'add', '--detach', '--', checkout, prepared.item.sourceHead], emptyHooks);
     worktreeAdded = true;
-    const scriptBody = readScript(checkout, scriptName);
+    const script = scriptDefinition(checkout, scriptName);
+    if (expectedScriptHash && script.lifecycleHash !== expectedScriptHash)
+      throw new Error('The npm script changed since automatic queue tests were enabled. Review the script and enable the policy again.');
     const dependencyDir = join(prepared.worktreePath, 'node_modules');
     const dependencyLink = join(checkout, 'node_modules');
     if (existsSync(dependencyDir) && !existsSync(dependencyLink))
       symlinkSync(dependencyDir, dependencyLink, process.platform === 'win32' ? 'junction' : 'dir');
-    const scriptHash = sha(scriptBody);
+    const scriptHash = script.lifecycleHash;
     const inserted = store.db.transaction(() => {
       assertProjectCanStart(store, prepared.item.projectId);
       const fresh = currentPreparedIntegration(store, cardId);
@@ -238,7 +252,7 @@ export async function runIntegrationTest(store: StudioStore, cardId: string, tim
       const fresh = currentPreparedIntegration(store, cardId);
       if (fresh.item.sourceHead !== prepared.item.sourceHead || fresh.item.targetHead !== prepared.item.targetHead
         || fresh.item.cardFingerprint !== prepared.item.cardFingerprint || configuredScript(store, fresh.item.projectId) !== scriptName
-        || sha(readScript(checkout, scriptName)) !== scriptHash) {
+        || scriptDefinition(checkout, scriptName).lifecycleHash !== scriptHash) {
         state = 'stale'; output = (output + '\n[Prepared source, target, card, or script changed during the test.]').slice(-MAX_OUTPUT);
       }
     } catch {
