@@ -74,12 +74,13 @@ describe('board column settings', () => {
     expect(html).not.toContain('Other');
   });
 
-  it('shows board search, priority and label filters before advanced options', () => {
+  it('keeps search visible and groups priority, label, column and archive filters', () => {
     const html = renderToStaticMarkup(createElement(BoardView, { snapshot, mutate }));
     expect(html).toContain('aria-label="Karten suchen"');
-    expect(html.indexOf('aria-label="Priorität filtern"')).toBeLessThan(html.indexOf('<details class="board-filter-options"'));
-    expect(html.indexOf('aria-label="Label filtern"')).toBeLessThan(html.indexOf('<details class="board-filter-options"'));
-    expect(html).toContain('<summary>Weitere Filter</summary>');
+    expect(html).toContain('<summary>Filter</summary>');
+    expect(html.indexOf('aria-label="Karten suchen"')).toBeLessThan(html.indexOf('<details class="board-filter-options"'));
+    expect(html.indexOf('<details class="board-filter-options"')).toBeLessThan(html.indexOf('aria-label="Priorität filtern"'));
+    expect(html).toContain('aria-label="Label filtern"');
     expect(html).toContain('aria-label="Spalte filtern"');
     expect(html).toContain('aria-label="Archivstatus filtern"');
   });

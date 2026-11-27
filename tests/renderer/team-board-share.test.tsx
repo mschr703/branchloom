@@ -12,7 +12,7 @@ it('creates a read-only project link only on click and revokes that invitation',
   const previousAct = Object.getOwnPropertyDescriptor(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   const invite: TeamBoardInvite = { id: 'invite', projectId: 'project', displayName: 'Alex', role: 'viewer',
-    canComment: false, createdAt: '2026-11-26T08:00:00.000Z', expiresAt: '2026-11-27T08:00:00.000Z', revokedAt: null };
+    canComment: false, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 86_400_000).toISOString(), revokedAt: null };
   let invites: TeamBoardInvite[] = [];
   const create = vi.fn().mockImplementation(async () => { invites = [invite];
     return { invite, secret: 'secret', url: 'http://100.101.102.103:4567/board/secret' }; });
@@ -53,7 +53,7 @@ it('requires an explicit comment permission and shows guest feedback only in the
   const previousAct = Object.getOwnPropertyDescriptor(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   const invite: TeamBoardInvite = { id: 'commenter', projectId: 'project', displayName: 'Sam', role: 'viewer',
-    canComment: true, createdAt: '2026-11-26T08:00:00.000Z', expiresAt: '2026-11-27T08:00:00.000Z', revokedAt: null };
+    canComment: true, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 86_400_000).toISOString(), revokedAt: null };
   const create = vi.fn().mockResolvedValue({ invite, secret: 'secret', url: 'http://127.0.0.1:4567/board/secret' });
   Object.defineProperty(window, 'studio', { configurable: true, value: {
     teamBoardInvites: vi.fn().mockResolvedValue([invite]), teamBoardComments: vi.fn().mockResolvedValue([{
