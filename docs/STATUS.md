@@ -2,6 +2,10 @@
 
 Stand: 27.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Windows-Paketprüfung nach neuem Board-Kopf
+
+- Für Commit `9d76f0f` bestand der vollständige Windows-Verify-Job, während beide Paketjobs an derselben veralteten Smoke-Annahme scheiterten: Der Test suchte „Board“ noch im entfernten alten Kopftitel. Tatsächlich war der gespeicherte Diff-Kommentar geöffnet und fokussiert. Die beiden Prüfungen für Diff- und QA-Inbox suchen jetzt den aktiven Board-Tab. Der vollständige lokale Quell-Electron-Smoke bestand danach einschließlich der Navigation aus der Inbox. Der erneute Windows-Paketlauf für diese Korrektur steht noch aus; das bisherige Desktop-Paket ist nicht auf den neuen Commit aktualisiert.
+
 ## Board-Kopf nach der Figma-Referenz (lokal geprüft)
 
 - Oben steht nun eine schmale globale Leiste mit Projektpfad und Suche; darunter nennt der Board-Kopf das aktuelle Projekt genau einmal als große Überschrift. Aufgaben- und Spaltenzahl stammen aus dem Snapshot. „Sicher anhalten“ bleibt im Projektkopf erreichbar. Nur wenn tatsächlich eine Sitzung läuft, erscheint eine anklickbare Zeile mit Agent und zugehöriger Karte. Die Ansichten Board, Ideenraum und Workflows lassen sich direkt nebeneinander wechseln; die Hauptaktion und seltene Board-Aktionen bleiben rechts in derselben Zeile.
