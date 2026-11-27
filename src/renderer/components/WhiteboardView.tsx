@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ReactFlow, Background, Controls, MiniMap, Position, SelectionMode, useNodesState, type Connection, type Edge, type Node, type ReactFlowInstance } from '@xyflow/react';
-import { FolderTree, MousePointer2, Plus, Trash2 } from 'lucide-react';
+import { FileText, Folder, FolderTree, LayoutList, MousePointer2, Plus, StickyNote, Trash2 } from 'lucide-react';
 import type { ProjectSnapshot, WhiteboardNode, WhiteboardReference, WhiteboardSnapshot } from '../../shared/types';
 import type { RepoMapProposal, RepoMapImportResult } from '../../shared/repo-map';
 import type { WhiteboardDirectImporter, WhiteboardImpact } from '../../shared/whiteboard-impact';
@@ -149,8 +149,8 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
   useEffect(() => {
     if (showRepository) {
       setFlowNodes(overview?.nodes.map((item) => ({ id: item.id, position: { x: item.x, y: item.y }, data: {
-        label: <div className="wb-node-content"><strong>{item.title}</strong><small>{item.kind === 'package' ? 'Paketordner' : item.kind === 'folder' ? 'Ordner' : 'Mögliche UI-Komponente'} · {item.path}</small></div>,
-      }, className: 'wb-node wb-proposal-node' })) ?? []);
+        label: <div className="wb-node-content"><span className="wb-node-kind"><Folder size={13} aria-hidden="true" /> {item.kind === 'package' ? 'Paketordner' : item.kind === 'folder' ? 'Ordner' : 'Mögliche UI-Komponente'}</span><strong>{item.title}</strong><small>{item.path}</small></div>,
+      }, className: `wb-node wb-proposal-node wb-node-${item.kind === 'component-candidate' ? 'file' : 'folder'}` })) ?? []);
       return;
     }
     setFlowNodes(board.nodes.map((item) => {
@@ -163,11 +163,10 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
       const sourcePosition = Math.abs(sourceDy) > Math.abs(sourceDx) ? (sourceDy < 0 ? Position.Top : Position.Bottom) : sourceDx < 0 ? Position.Left : Position.Right;
       const targetPosition = Math.abs(targetDy) > Math.abs(targetDx) ? (targetDy < 0 ? Position.Top : Position.Bottom) : targetDx > 0 ? Position.Right : Position.Left;
       return { id: item.id, position: { x: item.x, y: item.y }, sourcePosition, targetPosition, data: {
-      label: <div className="wb-node-content"><strong>{item.title}</strong>{item.description ? <span>{item.description}</span> : null}
-        {item.reference?.kind === 'card' ? <small>Karte · {snapshot.cards.find((card) => card.id === (item.reference as { kind: 'card'; cardId: string }).cardId)?.title ?? 'entfernt'}</small> : null}
-        {item.reference?.kind === 'folder' ? <small>Ordner · {item.reference.path}</small> : null}
-        {item.reference?.kind === 'file' ? <small>Datei · {item.reference.path}</small> : null}</div>,
-    }, className: `wb-node${item.reference ? ' wb-node-linked' : ''}` };
+      label: <div className="wb-node-content"><span className="wb-node-kind">{item.reference?.kind === 'card' ? <LayoutList size={13} aria-hidden="true" /> : item.reference?.kind === 'folder' ? <Folder size={13} aria-hidden="true" /> : item.reference?.kind === 'file' ? <FileText size={13} aria-hidden="true" /> : <StickyNote size={13} aria-hidden="true" />}{item.reference?.kind === 'card' ? 'Board-Karte' : item.reference?.kind === 'folder' ? 'Ordner' : item.reference?.kind === 'file' ? 'Datei' : 'Skizze'}</span><strong>{item.title}</strong>{item.description ? <span className="wb-node-description">{item.description}</span> : null}
+        {item.reference?.kind === 'card' ? <small>{snapshot.cards.find((card) => card.id === (item.reference as { kind: 'card'; cardId: string }).cardId)?.title ?? 'Karte entfernt'}</small> : null}
+        {item.reference?.kind === 'folder' || item.reference?.kind === 'file' ? <small>{item.reference.path}</small> : null}</div>,
+    }, className: `wb-node wb-node-${item.reference?.kind ?? 'note'}${item.reference ? ' wb-node-linked' : ''}` };
     }));
   }, [board.nodes, board.edges, overview, showRepository, snapshot.cards]);
 
@@ -178,8 +177,8 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
   }, [projectId, flowNodes.length]);
 
   const canvasNodes = useMemo<Node[]>(() => newNodeDraft && !showRepository ? [...flowNodes, { id: 'whiteboard-unsaved-draft', position: { x: newNodeDraft.x, y: newNodeDraft.y },
-    sourcePosition: Position.Right, targetPosition: Position.Left, data: { label: <div className="wb-node-content"><strong>{newNodeDraft.title || 'Neue Box'}</strong><small>Entwurf · nicht gespeichert</small></div> },
-    className: 'wb-node wb-unsaved-node', selectable: false }] : flowNodes, [flowNodes, newNodeDraft, showRepository]);
+    sourcePosition: Position.Right, targetPosition: Position.Left, data: { label: <div className="wb-node-content"><span className="wb-node-kind"><StickyNote size={13} aria-hidden="true" /> Entwurf</span><strong>{newNodeDraft.title || 'Neue Box'}</strong><small>Nicht gespeichert</small></div> },
+    className: 'wb-node wb-node-note wb-unsaved-node', selectable: false }] : flowNodes, [flowNodes, newNodeDraft, showRepository]);
   const flowEdges = useMemo<Edge[]>(() => showRepository ? overview?.edges.map((item) => ({ id: `${item.sourceId}>${item.targetId}`, source: item.sourceId, target: item.targetId,
     type: 'smoothstep', className: 'wb-proposal-edge' })) ?? [] : [...board.edges.map((item) => ({ id: item.id, source: item.sourceId, target: item.targetId, label: item.label || undefined,
     type: 'smoothstep', pathOptions: { offset: 12, borderRadius: 8 }, className: 'wb-edge' })), ...(newEdgeDraft ? [{ id: 'whiteboard-unsaved-edge', source: newEdgeDraft.sourceId, target: newEdgeDraft.targetId,
@@ -397,6 +396,7 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
   return <div className="wb-view">
     <div className="view-header wb-heading"><div><h2>Architektur</h2><p>Skizze bearbeiten, Bereich besprechen, gespeicherte Bezüge in Kartenläufe mitnehmen.</p></div>
       <div className="wb-heading-actions">
+        {!loading && !inspectorVisible && board.edges.length > 0 ? <details className="wb-connection-index"><summary>Verbindungen · {board.edges.length}</summary><div>{board.edges.map((item) => <button type="button" key={item.id} onClick={() => { setSelectedEdge(item.id); setSelected(null); setCardDraft(null); }}><span>{board.nodes.find((node) => node.id === item.sourceId)?.title ?? 'Entfernte Box'} → {board.nodes.find((node) => node.id === item.targetId)?.title ?? 'Entfernte Box'}</span></button>)}</div></details> : null}
         {board.nodes.length > 0 ? <button className="secondary-button" type="button" disabled={loading} onClick={switchCanvasMode}><FolderTree size={16} /> {canvasMode === 'repository' ? 'Arbeitsfläche ansehen' : 'Git-Struktur ansehen'}</button> : null}
         {!showRepository && board.nodes.length ? <button className={selectArea ? 'secondary-button wb-select-active' : 'secondary-button'} type="button" aria-pressed={selectArea} onClick={toggleAreaMode}><MousePointer2 size={16} /> {selectArea ? 'Auswahl beenden' : 'Bereich wählen'}</button> : null}
         <button className="primary-button" type="button" disabled={busy || loading || Boolean(newNodeDraft)} onClick={addNode}><Plus size={16} /> Box entwerfen</button>
@@ -418,7 +418,6 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
           deleteKeyCode={null} selectionKeyCode={selectArea ? null : 'Shift'} attributionPosition="bottom-left">
           <Background color="var(--border)" gap={24} size={1} /><Controls showInteractive={false} />{(overview?.nodes.length ?? board.nodes.length) > 8 ? <MiniMap pannable zoomable maskColor="var(--surface-2)" /> : null}
         </ReactFlow>}
-        {!loading && !inspectorVisible && board.edges.length > 0 ? <details className="wb-connection-index"><summary>Verbindungen · {board.edges.length}</summary><div>{board.edges.map((item) => <button type="button" key={item.id} onClick={() => { setSelectedEdge(item.id); setSelected(null); setCardDraft(null); }}><span>{board.nodes.find((node) => node.id === item.sourceId)?.title ?? 'Entfernte Box'} → {board.nodes.find((node) => node.id === item.targetId)?.title ?? 'Entfernte Box'}</span></button>)}</div></details> : null}
         {!loading && overview && overview.nodes.length > 0 ? <div className="wb-source-banner" role="status"><strong>Vorschau aus Git</strong><span>{overview.nodes.length} von {automaticProposal?.nodes.length} Pfaden · nicht gespeichert</span></div> : null}
         {!loading && showRepository && !overview?.nodes.length ? <div className="wb-empty"><strong>{automaticMapBusy ? 'Git-Struktur wird gelesen…' : automaticMapError ? 'Git-Struktur nicht verfügbar.' : 'Keine geeigneten Git-Pfade.'}</strong><span>{automaticMapError ? 'Die Arbeitsfläche bleibt erhalten. Du kannst zu ihr zurückkehren oder eigene Boxen anlegen.' : 'Nur versionierte Projektpfade erscheinen in dieser Vorschau. Es wird nichts gespeichert.'}</span></div> : null}
       </div>

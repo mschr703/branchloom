@@ -7,6 +7,13 @@
 *A board in the current light appearance. This image uses generated tasks, a simulated running session, and sample output to show the session rail; no CLI process or user account is involved. Other screenshots below also use disposable project data.*
 
 <details>
+<summary>The same board in dark mode</summary>
+
+![Branchloom board in dark mode with synthetic sample tasks](docs/assets/branchloom-board-dark.png)
+
+</details>
+
+<details>
 <summary>Board in a narrow window</summary>
 
 ![The same synthetic board in a narrow Branchloom window](docs/assets/branchloom-board-narrow.png)
@@ -34,7 +41,7 @@ Branchloom is an early Windows preview. Settings offers four persistent themes a
 
 | Area | Current path |
 | --- | --- |
-| **Plan work** | Import an existing local Git project, capture ideas, create and filter board cards, set priorities and labels, and configure columns and workflows. Board, Ideas, and Workflows keep a shared view switcher; dragging a card gives lift and destination feedback, while the keyboard move path remains available. An unused card can be deleted after confirmation; cards with work history are archived instead. Active or paused workflows can show recorded per-card step progress on the board. A project calendar separates planned card dates from explicitly recorded completions. Trello import now collects selected cards as Ideas by default, ready for discussion and promotion to the Board. The official Windows installer includes Trello sign-in; a custom package needs its own [Trello app setup](docs/IMPORT.md). |
+| **Plan work** | Import an existing local Git project, capture ideas, create and filter board cards, set priorities and labels, and configure columns and workflows. Board, Ideas, and Workflows keep a shared view switcher; dragging a card gives lift and destination feedback, including touch input, while the keyboard move path remains available. Search and bounded pages keep larger Ideas collections navigable. An unused card can be deleted after confirmation; cards with work history are archived instead. Active or paused workflows can show recorded per-card step progress on the board. A project calendar separates planned card dates from explicitly recorded completions. Trello import now collects selected cards as Ideas by default, ready for discussion and promotion to the Board. The official Windows installer includes Trello sign-in; a custom package needs its own [Trello app setup](docs/IMPORT.md). |
 | **Run agents** | Assign an installed CLI agent to a column or task. A card uses its column agent unless you choose a different one for that start. Branchloom starts local sessions, records their output, shows active runs under the board, and can run independent cards in separate Git worktrees. Agent profiles distinguish project activation from a local CLI check; sign-in and model access still depend on the CLI. Codex's structured session stream now shows recognized command and file-change events without dumping unknown JSON events as prose. |
 | **Keep context** | Search locally indexed tasks, completed runs, Git commits, and code passages, then open a matching source in the Memory graph. Its inspector groups and searches the underlying sources, marks unavailable items, and shows only saved links; it does not infer semantic links from prose. Project Chat can answer from indexed sources and prepare editable card or Whiteboard drafts. Saving either draft requires a click. |
 | **Shape the UI** | Open a project Design overview of saved wireframes, local QA screenshots, and captured app elements. QA images are dated evidence from earlier browser checks, not editable drafts. Edit a card wireframe across desktop, tablet, and mobile artboards, with layers, properties, and explicit save and approval. A separate view inspects an explicitly opened local dev page and collects element, CSS, component, and token references. A saved wireframe reaches an agent only after separate approval. |

@@ -100,7 +100,7 @@ export function ProjectChat({ snapshot, onOpenCard, onOpenSession, onSaveTask, o
     </header>
     <div className="project-chat-layout">
       <div className="project-chat-main">
-        <div ref={transcript} className="project-chat-transcript" aria-live="polite">
+        <div ref={transcript} className={`project-chat-transcript${turns.length ? '' : ' is-empty'}`} aria-live="polite">
           {turns.length ? turns.map((turn, index) => <article key={index} className={turn.role === 'user' ? 'project-chat-turn user' : 'project-chat-turn'}><small>{turn.role === 'user' ? 'Du' : 'Projektagent'}</small><p>{turn.text}</p></article>) : <div className="project-chat-empty">
             <p>Was möchtest du über dieses Projekt wissen?</p>
             <div className="project-chat-prompts" aria-label="Beispielfragen">

@@ -2549,10 +2549,13 @@ function createWindow(): void {
                   const project = (await window.studio.projects())[0];
                   const current = await window.studio.snapshot(project.id);
                   savedNote = current.notes.some((note) => note.title === 'Agentenlauf: Smoke-Karte' && note.tags.includes('agentenlauf') && note.body.includes('JARVIS_STUDIO_AGENT_OK'));
-                  if (savedNote && document.querySelector('.topbar-title h1')?.textContent === 'Memory') break;
+                  if (savedNote && document.querySelector('nav[aria-label="Hauptnavigation"] button[aria-current="page"] .nav-label')?.textContent === 'Memory'
+                    && [...document.querySelectorAll('.memory-item')].some((item) => item.textContent?.includes('Agentenlauf: Smoke-Karte'))) break;
                   await new Promise((resolve) => setTimeout(resolve, 50));
                 }
-                if (!savedNote || document.querySelector('.topbar-title h1')?.textContent !== 'Memory') throw new Error('Agentenlauf wurde nicht sichtbar als lokale Memory-Notiz gespeichert.');
+                if (!savedNote || document.querySelector('nav[aria-label="Hauptnavigation"] button[aria-current="page"] .nav-label')?.textContent !== 'Memory'
+                  || ![...document.querySelectorAll('.memory-item')].some((item) => item.textContent?.includes('Agentenlauf: Smoke-Karte')))
+                  throw new Error('Agentenlauf wurde nicht sichtbar als lokale Memory-Notiz gespeichert.');
                 [...document.querySelectorAll('.knowledge-index-view-tabs button')].find((item) => item.textContent?.includes('Beziehungen'))?.click();
                 for (let attempt = 0; attempt < 100 && !document.querySelector('.knowledge-map-view'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
                 let linkedFileVisible = false;
@@ -2606,7 +2609,8 @@ function createWindow(): void {
                 sourceButton.click();
                 let sourceOpened = false;
                 for (let attempt = 0; attempt < 300; attempt++) {
-                  sourceOpened = document.querySelector('.topbar-title h1')?.textContent === 'Aktivität' && Boolean(document.querySelector('.activity-transcript-dialog')?.textContent?.includes('JARVIS_STUDIO_AGENT_OK'));
+                  sourceOpened = document.querySelector('nav[aria-label="Hauptnavigation"] button[aria-current="page"] .nav-label')?.textContent === 'Aktivität'
+                    && Boolean(document.querySelector('.activity-transcript-dialog')?.textContent?.includes('JARVIS_STUDIO_AGENT_OK'));
                   if (sourceOpened) break;
                   await new Promise((resolve) => setTimeout(resolve, 50));
                 }

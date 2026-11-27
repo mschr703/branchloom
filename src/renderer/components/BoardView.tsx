@@ -27,6 +27,8 @@ import '../board-drag.css';
 
 interface Props { snapshot: ProjectSnapshot; mutate: Mutate; language?: LanguagePreference; openCard?: { id: string; token: number; reviewCommentId?: string; qaReportId?: string } | null; decisionCount?: number | null; decisionHasMore?: boolean; onNavigate?: (view: 'ideas' | 'workflows' | 'decisions') => void; onOpenDesign?: (cardId: string) => void; onOpenBrowser?: () => void; onOpenQaReport?: (cardId: string, reportId: string) => void }
 
+interface TouchCardDrag { pointerId: number; cardId: string; sourceColumnId: string; startX: number; startY: number; x: number; y: number; active: boolean }
+
 export function isMoveShortcut(event: Pick<React.KeyboardEvent, 'key' | 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey'>): boolean {
   return event.key.toLocaleLowerCase() === 'm' && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
 }
@@ -72,6 +74,9 @@ export function BoardView({ snapshot, mutate, language = 'de', openCard, decisio
   const dragOffset = useRef({ x: 0, y: 0 });
   const dragLastPointerX = useRef(0);
   const dragSourceColumnId = useRef<string | null>(null);
+  const touchDrag = useRef<TouchCardDrag | null>(null);
+  const touchScrollFrame = useRef<number | null>(null);
+  const suppressCardClick = useRef<{ cardId: string; until: number } | null>(null);
   const boardScroll = useRef<HTMLDivElement>(null);
   const landingFrom = useRef<{ cardId: string; columnId: string; left: number; top: number } | null>(null);
   const [workflowEvidence, setWorkflowEvidence] = useState<Record<string, WorkflowRunEvidence>>({});
@@ -146,7 +151,10 @@ export function BoardView({ snapshot, mutate, language = 'de', openCard, decisio
       { transform: 'translate(0, 0) rotate(0) scale(1)', opacity: 1 },
     ], { duration: 390, easing: 'cubic-bezier(.2, .85, .28, 1)' });
   }, [snapshot.cards]);
-  useEffect(() => () => { dragPreview.current?.remove(); }, []);
+  useEffect(() => () => {
+    dragPreview.current?.remove();
+    if (touchScrollFrame.current !== null) cancelAnimationFrame(touchScrollFrame.current);
+  }, []);
   useEffect(() => {
     if (!draggingCardId) return;
     const followDrag = (event: DragEvent) => {
@@ -235,6 +243,9 @@ export function BoardView({ snapshot, mutate, language = 'de', openCard, decisio
   }
 
   function finishCardDrag() {
+    if (touchScrollFrame.current !== null) cancelAnimationFrame(touchScrollFrame.current);
+    touchScrollFrame.current = null;
+    touchDrag.current = null;
     dragPreview.current?.remove();
     dragPreview.current = null;
     dragSourceColumnId.current = null;
@@ -244,11 +255,20 @@ export function BoardView({ snapshot, mutate, language = 'de', openCard, decisio
 
   function beginCardDrag(event: React.DragEvent<HTMLButtonElement>, card: Card) {
     if (card.archivedAt) return;
+    if (touchDrag.current) { event.preventDefault(); return; }
     const source = event.currentTarget.closest<HTMLElement>('.board-card-wrap');
-    const rect = source?.getBoundingClientRect();
     event.dataTransfer.setData('text/card-id', card.id);
     event.dataTransfer.effectAllowed = 'move';
-    if (!source || !rect) return;
+    if (!source) return;
+    liftCard(source, card, event.clientX, event.clientY);
+    const transparentImage = document.createElement('canvas');
+    transparentImage.width = 1;
+    transparentImage.height = 1;
+    event.dataTransfer.setDragImage?.(transparentImage, 0, 0);
+  }
+
+  function liftCard(source: HTMLElement, card: Card, x: number, y: number) {
+    const rect = source.getBoundingClientRect();
     const preview = source.cloneNode(true) as HTMLElement;
     preview.classList.add('board-drag-preview');
     preview.removeAttribute('data-card-id');
@@ -256,18 +276,100 @@ export function BoardView({ snapshot, mutate, language = 'de', openCard, decisio
     preview.querySelectorAll('[id]').forEach((element) => element.removeAttribute('id'));
     preview.querySelectorAll('button, input').forEach((element) => element.setAttribute('tabindex', '-1'));
     preview.style.width = `${rect.width}px`;
-    dragOffset.current = { x: event.clientX - rect.left, y: event.clientY - rect.top };
-    dragLastPointerX.current = event.clientX;
+    dragOffset.current = { x: x - rect.left, y: y - rect.top };
+    dragLastPointerX.current = x;
     dragSourceColumnId.current = card.columnId;
     preview.style.left = `${rect.left}px`;
     preview.style.top = `${rect.top}px`;
     document.body.append(preview);
     dragPreview.current = preview;
-    const transparentImage = document.createElement('canvas');
-    transparentImage.width = 1;
-    transparentImage.height = 1;
-    event.dataTransfer.setDragImage?.(transparentImage, 0, 0);
     setDraggingCardId(card.id);
+  }
+
+  function touchDestination(x: number, y: number): string | null {
+    const element = document.elementFromPoint?.(x, y);
+    const column = element?.closest<HTMLElement>('.board-column[data-column-id]');
+    const id = column?.dataset.columnId;
+    return id && id !== touchDrag.current?.sourceColumnId ? id : null;
+  }
+
+  function moveTouchPreview(x: number, y: number) {
+    const preview = dragPreview.current;
+    if (preview) {
+      preview.style.left = `${x - dragOffset.current.x}px`;
+      preview.style.top = `${y - dragOffset.current.y}px`;
+      const tilt = Math.max(-3, Math.min(3, (x - dragLastPointerX.current) * .12));
+      preview.style.setProperty('--drag-tilt', `${tilt}deg`);
+      dragLastPointerX.current = x;
+    }
+    setDropTargetColumnId(touchDestination(x, y));
+  }
+
+  function scrollTouchAtEdge() {
+    touchScrollFrame.current = null;
+    const drag = touchDrag.current;
+    const scroll = boardScroll.current;
+    if (!drag?.active || !scroll) return;
+    const bounds = scroll.getBoundingClientRect();
+    if (drag.y < bounds.top || drag.y > bounds.bottom) return;
+    const direction = drag.x >= bounds.right - 42 && drag.x <= bounds.right ? 1 : drag.x >= bounds.left && drag.x <= bounds.left + 42 ? -1 : 0;
+    if (!direction) return;
+    const before = scroll.scrollLeft;
+    scroll.scrollLeft += direction * 16;
+    if (scroll.scrollLeft === before) return;
+    setDropTargetColumnId(touchDestination(drag.x, drag.y));
+    touchScrollFrame.current = requestAnimationFrame(scrollTouchAtEdge);
+  }
+
+  function beginTouchCardDrag(event: React.PointerEvent<HTMLButtonElement>, card: Card) {
+    if (event.pointerType === 'mouse' || card.archivedAt || bulkMode || !event.isPrimary || touchDrag.current) return;
+    touchDrag.current = { pointerId: event.pointerId, cardId: card.id, sourceColumnId: card.columnId,
+      startX: event.clientX, startY: event.clientY, x: event.clientX, y: event.clientY, active: false };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }
+
+  function moveTouchCardDrag(event: React.PointerEvent<HTMLButtonElement>, card: Card) {
+    const drag = touchDrag.current;
+    if (!drag || drag.pointerId !== event.pointerId || drag.cardId !== card.id) return;
+    drag.x = event.clientX; drag.y = event.clientY;
+    if (!drag.active) {
+      const dx = drag.x - drag.startX;
+      const dy = drag.y - drag.startY;
+      if (Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy)) return;
+      const source = event.currentTarget.closest<HTMLElement>('.board-card-wrap');
+      if (!source) return;
+      drag.active = true;
+      liftCard(source, card, drag.startX, drag.startY);
+    }
+    event.preventDefault();
+    moveTouchPreview(drag.x, drag.y);
+    if (touchScrollFrame.current === null) scrollTouchAtEdge();
+  }
+
+  async function endTouchCardDrag(event: React.PointerEvent<HTMLButtonElement>, card: Card) {
+    const drag = touchDrag.current;
+    if (!drag || drag.pointerId !== event.pointerId || drag.cardId !== card.id) return;
+    if (!drag.active) { touchDrag.current = null; return; }
+    event.preventDefault();
+    suppressCardClick.current = { cardId: card.id, until: Date.now() + 500 };
+    const columnId = touchDestination(event.clientX, event.clientY);
+    const previewRect = dragPreview.current?.getBoundingClientRect();
+    if (columnId) landingFrom.current = { cardId: card.id, columnId, left: previewRect?.left ?? event.clientX, top: previewRect?.top ?? event.clientY };
+    finishCardDrag();
+    if (columnId && !await moveCard(card, columnId)) landingFrom.current = null;
+  }
+
+  function cancelTouchCardDrag(event: React.PointerEvent<HTMLButtonElement>, card: Card) {
+    const drag = touchDrag.current;
+    if (drag?.pointerId !== event.pointerId || drag.cardId !== card.id) return;
+    finishCardDrag();
+  }
+
+  function cardClickAllowed(cardId: string): boolean {
+    const suppressed = suppressCardClick.current;
+    if (!suppressed || suppressed.cardId !== cardId || Date.now() > suppressed.until) return true;
+    suppressCardClick.current = null;
+    return false;
   }
 
   async function onDrop(event: React.DragEvent<HTMLElement>, columnId: string) {
@@ -380,7 +482,7 @@ export function BoardView({ snapshot, mutate, language = 'de', openCard, decisio
     {bulkNotice ? <p className="board-bulk-result" role="status">{bulkNotice}</p> : null}
     <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
     <div className="board-scroll" ref={boardScroll}><div className="board-columns">
-      {visibleColumns.map((column, index) => <BoardColumn key={column.id} column={column} columns={columns} cards={visibleCards.filter((card) => card.columnId === column.id).sort(compareCardOrder)} snapshot={snapshot} workflowEvidence={workflowEvidence} emptyMessage={boardEmptyMessage(index, hasActiveCards, filtersActive)} onSelect={openBoardCard} onOpenSession={(id) => openBoardCard(id, true)} onAnnounce={setAnnouncement} onMove={moveCard} onReorder={reorderCard} onReorderColumn={reorderColumn} onDrop={onDrop} onCardDragStart={beginCardDrag} onCardDragEnd={finishCardDrag} draggingCardId={draggingCardId} isDropTarget={dropTargetColumnId === column.id} onCreate={() => { setCreatingIn(column.id); setTitle(''); }} canCreate={visibility !== 'archived'} mutate={mutate} bulkMode={bulkMode} bulkIds={bulkIds} onToggleBulk={toggleBulk}>
+      {visibleColumns.map((column, index) => <BoardColumn key={column.id} column={column} columns={columns} cards={visibleCards.filter((card) => card.columnId === column.id).sort(compareCardOrder)} snapshot={snapshot} workflowEvidence={workflowEvidence} emptyMessage={boardEmptyMessage(index, hasActiveCards, filtersActive)} onSelect={openBoardCard} onOpenSession={(id) => openBoardCard(id, true)} onAnnounce={setAnnouncement} onMove={moveCard} onReorder={reorderCard} onReorderColumn={reorderColumn} onDrop={onDrop} onCardDragStart={beginCardDrag} onCardDragEnd={finishCardDrag} onCardPointerDown={beginTouchCardDrag} onCardPointerMove={moveTouchCardDrag} onCardPointerUp={endTouchCardDrag} onCardPointerCancel={cancelTouchCardDrag} cardClickAllowed={cardClickAllowed} draggingCardId={draggingCardId} isDropTarget={dropTargetColumnId === column.id} onCreate={() => { setCreatingIn(column.id); setTitle(''); }} canCreate={visibility !== 'archived'} mutate={mutate} bulkMode={bulkMode} bulkIds={bulkIds} onToggleBulk={toggleBulk}>
         {creatingIn === column.id && visibility !== 'archived' ? <form className="new-card-form" onSubmit={(event) => void addCard(event, column.id)}><input autoFocus required maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Aufgabe benennen…" aria-label="Neue Karte" /><div className="inline-actions"><button className="primary-button small" type="submit">Hinzufügen</button><button className="icon-button" type="button" onClick={() => setCreatingIn(null)} aria-label="Abbrechen"><X size={15} /></button></div></form> : null}
       </BoardColumn>)}
       {visibility !== 'archived' && !filterColumnId ? <form className="new-column-form" onSubmit={(event) => void addColumn(event)}><span><Plus size={17} /> Spalte hinzufügen</span><input value={newColumn} onChange={(event) => setNewColumn(event.target.value)} placeholder="Spaltenname" aria-label="Neue Spalte" maxLength={80} required /><button className="secondary-button small" type="submit">Erstellen</button></form> : null}
@@ -410,7 +512,7 @@ function compareCardOrder(a: Card, b: Card): number {
   return a.position - b.position || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
 }
 
-function BoardColumn({ column, columns, cards, snapshot, workflowEvidence, emptyMessage, onSelect, onOpenSession, onAnnounce, onMove, onReorder, onReorderColumn, onDrop, onCardDragStart, onCardDragEnd, draggingCardId, isDropTarget, onCreate, canCreate, mutate, bulkMode, bulkIds, onToggleBulk, children }: {
+function BoardColumn({ column, columns, cards, snapshot, workflowEvidence, emptyMessage, onSelect, onOpenSession, onAnnounce, onMove, onReorder, onReorderColumn, onDrop, onCardDragStart, onCardDragEnd, onCardPointerDown, onCardPointerMove, onCardPointerUp, onCardPointerCancel, cardClickAllowed, draggingCardId, isDropTarget, onCreate, canCreate, mutate, bulkMode, bulkIds, onToggleBulk, children }: {
   column: Column; columns: Column[]; cards: Card[]; snapshot: ProjectSnapshot; workflowEvidence: Record<string, WorkflowRunEvidence>; emptyMessage: string | null; onSelect: (id: string) => void; onOpenSession: (id: string) => void; onAnnounce: (message: string) => void;
   onMove: (card: Card, columnId: string) => Promise<boolean>;
   onReorder: (card: Card, direction: 'up' | 'down') => Promise<void>;
@@ -418,6 +520,11 @@ function BoardColumn({ column, columns, cards, snapshot, workflowEvidence, empty
   onDrop: (event: React.DragEvent<HTMLElement>, columnId: string) => void;
   onCardDragStart: (event: React.DragEvent<HTMLButtonElement>, card: Card) => void;
   onCardDragEnd: () => void;
+  onCardPointerDown: (event: React.PointerEvent<HTMLButtonElement>, card: Card) => void;
+  onCardPointerMove: (event: React.PointerEvent<HTMLButtonElement>, card: Card) => void;
+  onCardPointerUp: (event: React.PointerEvent<HTMLButtonElement>, card: Card) => void;
+  onCardPointerCancel: (event: React.PointerEvent<HTMLButtonElement>, card: Card) => void;
+  cardClickAllowed: (cardId: string) => boolean;
   draggingCardId: string | null; isDropTarget: boolean;
   onCreate: () => void; canCreate: boolean; mutate: Mutate; bulkMode: boolean; bulkIds: Set<string>; onToggleBulk: (id: string) => void; children: React.ReactNode;
 }) {
@@ -438,7 +545,7 @@ function BoardColumn({ column, columns, cards, snapshot, workflowEvidence, empty
     <div className="column-body">
       {cards.map((card) => {
         const index = activeOrder.findIndex((item) => item.id === card.id);
-        return <BoardCard key={card.id} card={card} column={column} columns={columns} snapshot={snapshot} workflowSignal={cardWorkflowSignal(card.id, snapshot.workflows, workflowEvidence)} onSelect={onSelect} onOpenSession={onOpenSession} onAnnounce={onAnnounce} onMove={onMove} onReorder={onReorder} onCardDragStart={onCardDragStart} onCardDragEnd={onCardDragEnd} isDragOrigin={draggingCardId === card.id} bulkMode={bulkMode} bulkSelected={bulkIds.has(card.id)} onToggleBulk={onToggleBulk} previousTitle={index > 0 ? activeOrder[index - 1]?.title : undefined} nextTitle={index >= 0 ? activeOrder[index + 1]?.title : undefined} />;
+        return <BoardCard key={card.id} card={card} column={column} columns={columns} snapshot={snapshot} workflowSignal={cardWorkflowSignal(card.id, snapshot.workflows, workflowEvidence)} onSelect={onSelect} onOpenSession={onOpenSession} onAnnounce={onAnnounce} onMove={onMove} onReorder={onReorder} onCardDragStart={onCardDragStart} onCardDragEnd={onCardDragEnd} onCardPointerDown={onCardPointerDown} onCardPointerMove={onCardPointerMove} onCardPointerUp={onCardPointerUp} onCardPointerCancel={onCardPointerCancel} cardClickAllowed={cardClickAllowed} isDragOrigin={draggingCardId === card.id} bulkMode={bulkMode} bulkSelected={bulkIds.has(card.id)} onToggleBulk={onToggleBulk} previousTitle={index > 0 ? activeOrder[index - 1]?.title : undefined} nextTitle={index >= 0 ? activeOrder[index + 1]?.title : undefined} />;
       })}
       {children}
       {cards.length === 0 && !children && emptyMessage ? <p className="empty-column">{emptyMessage}</p> : null}
@@ -472,12 +579,17 @@ export function ColumnAgentSettings({ column, agents, mutate }: { column: Column
   </form>;
 }
 
-function BoardCard({ card, column, columns, snapshot, workflowSignal, onSelect, onOpenSession, onAnnounce, onMove, onReorder, onCardDragStart, onCardDragEnd, isDragOrigin, bulkMode, bulkSelected, onToggleBulk, previousTitle, nextTitle }: {
+function BoardCard({ card, column, columns, snapshot, workflowSignal, onSelect, onOpenSession, onAnnounce, onMove, onReorder, onCardDragStart, onCardDragEnd, onCardPointerDown, onCardPointerMove, onCardPointerUp, onCardPointerCancel, cardClickAllowed, isDragOrigin, bulkMode, bulkSelected, onToggleBulk, previousTitle, nextTitle }: {
   card: Card; column: Column; columns: Column[]; snapshot: ProjectSnapshot; workflowSignal: BoardWorkflowSignal | null;
   onSelect: (id: string) => void; onOpenSession: (id: string) => void; onAnnounce: (message: string) => void; onMove: (card: Card, columnId: string) => Promise<boolean>;
   onReorder: (card: Card, direction: 'up' | 'down') => Promise<void>;
   onCardDragStart: (event: React.DragEvent<HTMLButtonElement>, card: Card) => void;
   onCardDragEnd: () => void; isDragOrigin: boolean;
+  onCardPointerDown: (event: React.PointerEvent<HTMLButtonElement>, card: Card) => void;
+  onCardPointerMove: (event: React.PointerEvent<HTMLButtonElement>, card: Card) => void;
+  onCardPointerUp: (event: React.PointerEvent<HTMLButtonElement>, card: Card) => void;
+  onCardPointerCancel: (event: React.PointerEvent<HTMLButtonElement>, card: Card) => void;
+  cardClickAllowed: (cardId: string) => boolean;
   bulkMode: boolean; bulkSelected: boolean; onToggleBulk: (id: string) => void;
   previousTitle?: string; nextTitle?: string;
 }) {
@@ -594,7 +706,7 @@ function BoardCard({ card, column, columns, snapshot, workflowSignal, onSelect, 
 
   return <div className={`board-card-wrap${bulkMode ? ' is-selecting' : ''}${isDragOrigin ? ' is-drag-origin' : ''}`} data-card-id={card.id}>
     {!card.archivedAt && bulkMode ? <label className="board-bulk-card-select"><input type="checkbox" checked={bulkSelected} onChange={() => onToggleBulk(card.id)} aria-label={`„${card.title}“ für Sammelaktion auswählen`} /><span className="sr-only">Auswählen</span></label> : null}
-    <button ref={cardButton} id={`board-card-${card.id}`} type="button" draggable={!card.archivedAt} onDragStart={(event) => onCardDragStart(event, card)} onDragEnd={onCardDragEnd} className={`task-card${card.archivedAt ? ' archived' : ''}${active ? ' is-running' : ''}`} data-priority={card.priority} data-run-state={latestSession?.state ?? 'none'} aria-label={`Karte „${card.title}“ in „${column.name}“ öffnen${card.archivedAt ? ', archiviert' : ''}${active ? ', Agent läuft' : ''}`} aria-describedby={[card.description ? `board-card-description-${card.id}` : null, workflowSignal ? `board-card-workflow-${card.id}` : null].filter(Boolean).join(' ') || undefined} aria-keyshortcuts={destinations.length ? 'M' : undefined} onKeyDown={(event) => { if (destinations.length && isMoveShortcut(event)) { event.preventDefault(); openMove(); } }} onClick={() => onSelect(card.id)}>
+    <button ref={cardButton} id={`board-card-${card.id}`} type="button" draggable={!card.archivedAt} onDragStart={(event) => onCardDragStart(event, card)} onDragEnd={onCardDragEnd} onPointerDown={(event) => onCardPointerDown(event, card)} onPointerMove={(event) => onCardPointerMove(event, card)} onPointerUp={(event) => void onCardPointerUp(event, card)} onPointerCancel={(event) => onCardPointerCancel(event, card)} onLostPointerCapture={(event) => onCardPointerCancel(event, card)} className={`task-card${card.archivedAt ? ' archived' : ''}${active ? ' is-running' : ''}`} data-priority={card.priority} data-run-state={latestSession?.state ?? 'none'} aria-label={`Karte „${card.title}“ in „${column.name}“ öffnen${card.archivedAt ? ', archiviert' : ''}${active ? ', Agent läuft' : ''}`} aria-describedby={[card.description ? `board-card-description-${card.id}` : null, workflowSignal ? `board-card-workflow-${card.id}` : null].filter(Boolean).join(' ') || undefined} aria-keyshortcuts={destinations.length ? 'M' : undefined} onKeyDown={(event) => { if (destinations.length && isMoveShortcut(event)) { event.preventDefault(); openMove(); } }} onClick={(event) => { if (cardClickAllowed(card.id)) onSelect(card.id); else event.preventDefault(); }}>
       <span className="task-card-grip" aria-hidden="true">{card.archivedAt ? <Archive size={15} /> : <GripVertical size={15} />}</span>
       {workflowSignal ? <BoardWorkflowMarkers cardId={card.id} signal={workflowSignal} /> : null}
       <span className="task-card-kicker"><span title={`Karten-ID: ${card.id}`}>#{card.id.slice(0, 6)}</span>{card.priority !== 'none' ? <span className={`task-card-priority-text priority-${card.priority}`}>{card.priority === 'low' ? <ArrowDown size={12} aria-hidden="true" /> : card.priority === 'medium' ? null : <ArrowUp size={12} aria-hidden="true" />}{priority?.label ?? card.priority}</span> : null}</span>
@@ -605,7 +717,7 @@ function BoardCard({ card, column, columns, snapshot, workflowSignal, onSelect, 
         {card.labels.length > 3 ? <span className="card-label" title={card.labels.slice(3).join(', ')}>+{card.labels.length - 3}</span> : null}
       </span> : null}
       {card.description ? <span className="task-card-description" id={`board-card-description-${card.id}`}>{card.description}</span> : null}
-      {!card.archivedAt || sessions.length > 0 ? <span className="task-card-footer"><span>{active ? <><span className="live-dot" /> {assignedAgent?.name ?? 'Agent'} arbeitet</> : latestSession?.state === 'failed' ? <><Terminal size={13} /> {latestAgent?.name ?? 'Agent'} · Lauf fehlgeschlagen</> : latestSession?.state === 'stopped' ? <><Terminal size={13} /> {latestAgent?.name ?? 'Agent'} · Lauf gestoppt</> : assignedAgent ? <><Terminal size={13} /> {assignedAgent.name} {column.autoStart ? '· Start beim Verschieben' : '· bereit'}</> : sessions.length ? <><Terminal size={13} /> Letzter Lauf beendet</> : 'Kein Agent zugewiesen'}</span>{!active && sessions.length > 0 ? <span className="task-card-run-count">{sessions.length} Lauf{sessions.length === 1 ? '' : 'e'}</span> : null}</span> : null}
+      {!card.archivedAt || sessions.length > 0 ? <span className="task-card-footer"><span>{assignedAgent || latestAgent ? <span className="task-card-agent-mark" aria-hidden="true">{(assignedAgent?.name ?? latestAgent?.name ?? 'A').slice(0, 1).toLocaleUpperCase()}</span> : null}<span className="task-card-agent-state">{active ? <>{assignedAgent?.name ?? 'Agent'} arbeitet</> : latestSession?.state === 'failed' ? <>{latestAgent?.name ?? 'Agent'} · Lauf fehlgeschlagen</> : latestSession?.state === 'stopped' ? <>{latestAgent?.name ?? 'Agent'} · Lauf gestoppt</> : assignedAgent ? <>{assignedAgent.name} {column.autoStart ? '· Start beim Verschieben' : '· bereit'}</> : sessions.length ? 'Letzter Lauf beendet' : 'Kein Agent zugewiesen'}</span></span>{!active && sessions.length > 0 ? <span className="task-card-run-count">{sessions.length} Lauf{sessions.length === 1 ? '' : 'e'}</span> : null}</span> : null}
     </button>
     <button ref={actionsTrigger} className="card-quick-trigger" type="button" aria-label={`Schnellaktionen für „${card.title}“`} aria-expanded={actionsOpen} aria-controls={actionsOpen ? `card-actions-${card.id}` : undefined} onKeyDown={(event) => { if (actionsOpen && event.key === 'Escape') { event.preventDefault(); closeActions(); } }} onClick={() => { setActionError(''); if (!actionsOpen) { const rect = actionsTrigger.current?.getBoundingClientRect(); if (rect) { const height = 220; const top = rect.bottom + 5 + height <= window.innerHeight ? rect.bottom + 5 : Math.max(8, rect.top - height - 5); setActionsPosition({ top, left: Math.max(8, Math.min(rect.right - 220, window.innerWidth - 228)) }); } } setActionsOpen((open) => !open); }}><MoreHorizontal size={18} aria-hidden="true" /></button>
     {actionsOpen ? createPortal(<div ref={actionsPanel} className="card-quick-actions card-quick-popover" style={actionsPosition} id={`card-actions-${card.id}`} role="group" aria-label={`Schnellaktionen für „${card.title}“`} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeActions(); } }}>

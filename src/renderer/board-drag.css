@@ -1,4 +1,8 @@
 /* Drag feedback belongs to the moving card and its actual destination. */
+:root[data-theme] .board-card-wrap > .task-card:not(.archived) {
+  touch-action: pan-y pinch-zoom;
+}
+
 :root[data-theme] .board-card-wrap.is-drag-origin > .task-card {
   opacity: .32;
   border-style: dashed;

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Download, MessageCircle, Moon, MoreHorizontal, Pause, Play, Plus, RefreshCw, Search, Settings2, Sun, Upload, X } from 'lucide-react';
+import { Download, MessageCircle, Moon, MoreHorizontal, Pause, Play, Plus, RefreshCw, Search, Settings2, Sun, Upload } from 'lucide-react';
 import type { Project, ProjectOrganization, ProjectPackagePreview, ProjectSnapshot, Session } from '../shared/types';
 import { BoardView } from './components/BoardView';
 import { IdeasView } from './components/IdeasView';
@@ -26,6 +26,7 @@ import type { GlobalInboxItem } from '../shared/global-inbox';
 import { ProjectConflictBanner } from './components/ProjectConflictBanner';
 import { ProjectSwitcher } from './components/ProjectSwitcher';
 import { NotificationCenter } from './components/NotificationCenter';
+import { ProjectChatHost } from './components/ProjectChatHost';
 import { projectNavigationStatus, viewName, WorkspaceNavigation, views, type View } from './components/WorkspaceNavigation';
 import { startConflictRadarRefresh } from './conflict-radar-schedule';
 import { savePreparedChatCanvasNode } from './project-chat-canvas';
@@ -424,8 +425,7 @@ export function App() {
         {view === 'design' ? <DesignInspectionView key={snapshot.project.id} projectId={snapshot.project.id} active={!creatingProject && !searchOpen} cards={snapshot.cards} startCardId={designCardId} columns={snapshot.columns} queueState={snapshot.queue.state} onOpenCard={async (id) => { await refresh(); navigateToEntity('card', id); }} onCreated={refresh} /> : null}
         </Suspense>
       </div>}
-      {snapshot?.project.id === projectId ? <div className={`project-chat-host ${view === 'chat' ? 'page' : 'dock'}`} hidden={view !== 'chat' && !chatDockOpen}>
-        {view !== 'chat' && chatDockOpen ? <button type="button" className="project-chat-close icon-button" aria-label="Projektgespräch schließen" title="Projektgespräch schließen" onClick={() => setChatDockOpen(false)}><X size={17} aria-hidden="true" /></button> : null}
+      {snapshot?.project.id === projectId ? <ProjectChatHost page={view === 'chat'} open={chatDockOpen} onClose={() => setChatDockOpen(false)}>
         <Suspense fallback={<div className="content-message" role="status">Projektgespräch wird geladen…</div>}><ProjectChat key={snapshot.project.id} snapshot={snapshot} onOpenCard={(id) => { setChatDockOpen(false); navigateToEntity('card', id); }} onOpenSession={(id) => { setChatDockOpen(false); void openSessionFromMemory(id); }} onQueueCommand={(text) => { setQueueCommand((old) => ({ text, token: (old?.token ?? 0) + 1 })); setChatDockOpen(false); setView('workflows'); setQueueNavigationToken((value) => value + 1); }} onSaveTask={async (title, description) => {
           const column = snapshot.columns.find((item) => item.name.trim().toLocaleLowerCase() === 'to do') ?? snapshot.columns[0];
           if (!column) throw new Error('Dieses Projekt hat keine Boardspalte.');
@@ -442,7 +442,7 @@ export function App() {
           setChatDockOpen(false);
           setView('whiteboard');
         }} /></Suspense>
-      </div> : null}
+      </ProjectChatHost> : null}
     </main>
 
     {creatingProject ? <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setCreatingProject(false); }}><form className="dialog" onSubmit={(event) => void createProject(event)}><div className="dialog-heading"><div><small>{ui('project')}</small><h2>{ui('addFolder')}</h2></div><button type="button" className="icon-button" onClick={() => setCreatingProject(false)} aria-label={ui('close')}>×</button></div><p className="field-help">{ui('folderHelp')}</p><label>{ui('projectName')}<input autoFocus required maxLength={80} value={newProject.name} onChange={(event) => setNewProject((old) => ({ ...old, name: event.target.value }))} placeholder={ui('projectNamePlaceholder')} /></label><ProjectFolderField id="new-project-folder" value={newProject.path} onChange={(path) => setNewProject((old) => ({ ...old, path }))} onSelected={(path) => setNewProject((old) => ({ path, name: old.name || path.split(/[\\/]/).filter(Boolean).at(-1)?.slice(0, 80) || '' }))} onError={setError} /><p className="field-help">{ui('agentFolderHelp')}</p><div className="dialog-actions"><button type="button" className="secondary-button" onClick={() => setCreatingProject(false)}>{ui('cancel')}</button><button type="submit" className="primary-button">{ui('connectProject')}</button></div></form></div> : null}

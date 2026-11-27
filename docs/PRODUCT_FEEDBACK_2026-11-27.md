@@ -36,6 +36,27 @@ Keep one authoritative project board and let planning, agents, and teammates act
 
 The wider team planning flow remains a joint product discussion: how a team starts from an unstructured idea, communicates in context, drafts a plan, and adopts it into the shared board. The user asked to discuss this before treating a particular interaction as settled.
 
+## Further review after opening the 0.1.4 portable app
+
+These are new observations from the user, not completed features. The linked F items above remain open where their actual experience is still weaker than the acceptance path.
+
+| ID | Observation and requested outcome | Acceptance path |
+| --- | --- | --- |
+| F26 | Board columns and individual cards still feel flat compared with the user's Figma reference, including in dark mode. | Inspect the reference again; give columns and cards controlled depth and stage tone without decorative neon or invented progress. Compare full light/dark screenshots at desktop and narrow widths. |
+| F27 | The board card search is offset to the right, its focused blue box looks foreign, the project search frame touches the top/bottom edges, and columns sit too close below search. | Align search with the first column, use the app's focus language, inset the top search, and give the controls/columns measured breathing room. Check focus and overflow. |
+| F28 | Card dragging does not work on the user's touch laptop. | Move a real card between columns by touch or provide an equally direct accessible touch path; keep mouse and keyboard behavior, cancel and persistence correct. |
+| F29 | The four current themes are useful but the user wants more choices. | Add deliberate, distinct themes after checking contrast and both board and content surfaces; preserve saved choices and avoid palette-only novelty. |
+| F30 | The Team view's people list needs clearer visual hierarchy, sorting and role changes. | Show actual member identity/role/project rights, support a meaningful sort and authorized role edit with server-side checks; never imply a remote teammate from synthetic/local data. |
+| F31 | The calendar could have an agenda that records progress automatically. | Show a source-backed dated agenda of planned cards, actual completions and observed work; label source and unknowns rather than fabricating percentages or progress. |
+| F32 | Trello-to-Ideas exists but is difficult to discover; a large imported note list requires long scrolling and better filters. | Make the Ideas destination obvious in the Trello flow, provide search and bounded pages/filtering for imported notes, and preserve explicit promotion to the Board. |
+| F33 | The Ideas discussion input should expand on focus; users should be able to discuss a project/team topic even without selecting a note. | Expand the composer when focused and route note-specific versus general project/team conversation clearly, with real access checks and no silent conversion of a discussion into a card. |
+| F34 | Project Chat still has too much dead space, especially in dark mode, and clicking outside the modal does not close it. | Compact the empty state and composer, preserve sources/drafts, and close on a genuine backdrop click or Escape without losing unsaved content silently. |
+| F35 | Ideas and Workflows have heavier/taller headers than Board; the different active underline tones are liked but too faint. | Keep one project/view hierarchy across the three planning views; make the selected tab evident from label plus restrained color in light/dark modes. |
+| F36 | Changelog still feels too much like Git commits despite the first timeline pass. | Design a useful work narrative with card/run/review outcomes, real team attribution when available, meaningful filters, and source links; validate its utility with the user before claiming this solved. |
+| F37 | Whiteboard's draft and close flow feels awkward; the user wants Lucidchart-like direct drawing. | Offer a shape palette, free placement, lines, ordinary/dotted/directed connectors, multi-select and clear draft versus accepted states. AI discussion can highlight selected nodes and propose changes before explicit incorporation; saved accepted plan data must be usable by agents. Clarify the Whiteboard's role next to the one canonical Board with the user. |
+
+The user emphasized F26 twice: a small color change to column backgrounds alone is not sufficient; individual task cards and the board composition need the same design review. The user also reiterated the intended paid VPS team mode. Its current design boundary is in [TEAM_HOSTING.md](TEAM_HOSTING.md); the service and entitlement enforcement are not shipped.
+
 ## Delivery order
 
 1. First verify the `v0.1.3` release and give testers its installer link. Keep new changes on `main` after the release tag.

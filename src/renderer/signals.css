@@ -21,7 +21,7 @@
 :root[data-theme] .count-pill { padding: 1px 5px; border-radius: 5px; font-size: 10px; font-variant-numeric: tabular-nums; }
 :root[data-theme] .column-body { gap: 7px; padding: 9px; min-height: 70px; }
 :root[data-theme] .board-card-wrap > .task-card { padding: 10px 33px 9px 36px; border-radius: 6px; border-color: var(--border); background: var(--surface); color: var(--text); box-shadow: none; transform: none; }
-:root[data-theme] .board-card-wrap > .task-card:hover { border-color: var(--muted); background: var(--surface); }
+:root[data-theme] .board-card-wrap > .task-card:hover { border-color: var(--muted); }
 :root[data-theme] .board-card-wrap > .task-card.dependency-source { border-color: #4e70ad; box-shadow: inset 0 0 0 1px #4e70ad; }
 :root[data-theme] .board-card-wrap > .task-card.is-running { border-left: 3px solid #4d78a4; padding-left: 34px; }
 :root[data-theme] .board-card-wrap > .task-card[data-priority='urgent'] { border-left: 3px solid #b65b4e; padding-left: 34px; }
@@ -136,25 +136,33 @@
 :root[data-theme] .board-bulk-actions { margin: 3px 29px 9px 0; padding: 7px 9px; border-color: var(--border); border-radius: 6px; background: var(--surface); font-size: 12px; }
 /* Quiet column washes make adjacent work stages easier to scan. The colored
    agent-start line above each heading remains a separate, factual signal. */
-:root[data-theme='light'] .board-columns > .board-column:nth-child(5n + 1) { --column-wash: #f7f6f4; --column-edge: #bab6ae; }
-:root[data-theme='light'] .board-columns > .board-column:nth-child(5n + 2) { --column-wash: #f7f5fa; --column-edge: #b9a4d1; }
-:root[data-theme='light'] .board-columns > .board-column:nth-child(5n + 3) { --column-wash: #f4f7fb; --column-edge: #9eb6d4; }
-:root[data-theme='light'] .board-columns > .board-column:nth-child(5n + 4) { --column-wash: #faf7f2; --column-edge: #d3b98e; }
-:root[data-theme='light'] .board-columns > .board-column:nth-child(5n) { --column-wash: #f6f7f8; --column-edge: #aeb5bb; }
+:root[data-theme='light'] .board-columns > .board-column:nth-child(5n + 1) { --column-wash: #f4f2ee; --column-edge: #aba59c; }
+:root[data-theme='light'] .board-columns > .board-column:nth-child(5n + 2) { --column-wash: #f3f0f8; --column-edge: #aa93c3; }
+:root[data-theme='light'] .board-columns > .board-column:nth-child(5n + 3) { --column-wash: #eff3f8; --column-edge: #8da9cb; }
+:root[data-theme='light'] .board-columns > .board-column:nth-child(5n + 4) { --column-wash: #f8f3e9; --column-edge: #c6a675; }
+:root[data-theme='light'] .board-columns > .board-column:nth-child(5n) { --column-wash: #f1f4f1; --column-edge: #9daf9c; }
 :root[data-theme='light'] .board-columns > .board-column[data-tint='lilac'] { --column-wash: #f5f2fa; --column-edge: #aa91cc; }
 :root[data-theme='light'] .board-columns > .board-column[data-tint='blue'] { --column-wash: #f1f6fb; --column-edge: #8aaed2; }
 :root[data-theme='light'] .board-columns > .board-column[data-tint='sand'] { --column-wash: #faf5eb; --column-edge: #cbaa72; }
 :root[data-theme='light'] .board-columns > .board-column[data-tint='coral'] { --column-wash: #faf2f1; --column-edge: #d39a91; }
-:root[data-theme='dark'] .board-column[data-tint='lilac'] { --column-wash: #302d38; }
-:root[data-theme='dark'] .board-column[data-tint='blue'] { --column-wash: #29313a; }
-:root[data-theme='dark'] .board-column[data-tint='sand'] { --column-wash: #38332b; }
-:root[data-theme='dark'] .board-column[data-tint='coral'] { --column-wash: #392e2e; }
+:root[data-theme='dark'] .board-column { --column-wash: #292a2d; --column-edge: #8c8e94; }
+:root[data-theme='dark'] .board-column:nth-child(5n + 2) { --column-wash: #2c2933; --column-edge: #a99aba; }
+:root[data-theme='dark'] .board-column:nth-child(5n + 3) { --column-wash: #272d34; --column-edge: #8ba4bd; }
+:root[data-theme='dark'] .board-column:nth-child(5n + 4) { --column-wash: #302d29; --column-edge: #b6a07c; }
+:root[data-theme='dark'] .board-column:nth-child(5n) { --column-wash: #292e2b; --column-edge: #8ea796; }
+:root[data-theme='dark'] .board-column[data-tint='lilac'] { --column-wash: #302d38; --column-edge: #a99aba; }
+:root[data-theme='dark'] .board-column[data-tint='blue'] { --column-wash: #29313a; --column-edge: #8ba4bd; }
+:root[data-theme='dark'] .board-column[data-tint='sand'] { --column-wash: #38332b; --column-edge: #b6a07c; }
+:root[data-theme='dark'] .board-column[data-tint='coral'] { --column-wash: #392e2e; --column-edge: #b48e8b; }
 :root[data-theme='light'] .board-column,
-:root[data-theme='light'] .board-column .column-header,
 :root[data-theme='light'] .board-column .column-footer { background: var(--column-wash, var(--surface-2)); }
-:root[data-theme='dark'] .board-column:not([data-tint='default']),
-:root[data-theme='dark'] .board-column:not([data-tint='default']) .column-header,
-:root[data-theme='dark'] .board-column:not([data-tint='default']) .column-footer { background: var(--column-wash, var(--surface-2)); }
+:root[data-theme='dark'] .board-column,
+:root[data-theme='dark'] .board-column .column-footer { background: var(--column-wash, var(--surface-2)); }
+:root[data-theme] .board-column .column-header {
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--column-edge, var(--border)) 12%, var(--column-wash, var(--surface-2))),
+    var(--column-wash, var(--surface-2)) 72%);
+}
 :root[data-theme] .board-filters .board-search { flex: 0 1 290px; max-width: 290px; }
 :root[data-theme] .board-new-task { margin-left: 0; }
 :root[data-theme] .board-column .column-header { align-items: flex-start; min-height: 48px; padding-top: 9px; padding-bottom: 8px; }
@@ -377,7 +385,175 @@
 :root[data-theme] .board-view-tabs > button:hover { color: var(--text); }
 :root[data-theme] .board-view-tabs > .is-active { color: var(--text); font-weight: 660; }
 :root[data-theme] .board-view-tabs > .is-active::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: var(--accent); content: ''; }
+:root[data-theme] .board-view-tabs[data-planning-view] > .is-active::after { height: 3px; border-radius: 2px 2px 0 0; }
+/* Planning views share the board's compact top rhythm without hiding their context. */
+:root[data-theme] .ideas-page > .planning-view-tabs-row,
+:root[data-theme] .workflow-workbench > .planning-view-tabs-row { margin-bottom: 12px; }
+:root[data-theme] .ideas-page > .ideas-heading { padding-bottom: 10px; }
+:root[data-theme] .ideas-page > .ideas-heading p { font-size: 12px; line-height: 1.45; }
+:root[data-theme] .workflow-workbench > .view-header { margin-bottom: 16px; padding-bottom: 12px; }
+:root[data-theme] .workflow-workbench > .view-header h2 { font-size: 20px; line-height: 1.25; }
+:root[data-theme] .workflow-workbench > .view-header p { font-size: 12px; line-height: 1.45; }
 :root[data-theme] .board-filters { padding-top: 5px; padding-bottom: 5px; min-height: 42px; }
+/* Align the search control with the first column; the board page already owns the left gutter. */
+:root[data-theme] .board-filters { padding-left: 0; padding-bottom: 12px; }
+:root[data-theme] .board-filters .board-search:focus-within {
+  border-color: color-mix(in srgb, var(--text) 46%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 10%, transparent);
+}
+:root[data-theme] .board-filters .board-search input:focus,
+:root[data-theme] .board-filters .board-search input:focus-visible {
+  outline: 0;
+  border: 0;
+  box-shadow: none !important;
+}
+:root[data-theme='dark'] .board-filters .board-selection-toggle.secondary-button {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text);
+  transition: none;
+}
+:root[data-theme='dark'] .board-filters .board-selection-toggle.secondary-button:hover {
+  background: var(--surface-2);
+}
+:root[data-theme='dark'] .board-header-tools .board-new-task.primary-button {
+  background: #dedddd;
+  border-color: #dedddd;
+  color: #202124;
+  transition: none;
+}
+/* Stage tone is a navigation cue. The card gradient stays inside the surface and
+   never represents progress, priority, or agent state. */
+:root[data-theme] .board-column {
+  border-color: color-mix(in srgb, var(--column-edge, var(--border)) 37%, var(--border));
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--text) 5%, transparent);
+}
+:root[data-theme] .board-column .column-header {
+  border-bottom-color: color-mix(in srgb, var(--column-edge, var(--border)) 25%, var(--border));
+}
+:root[data-theme] .board-card-wrap > .task-card {
+  border-color: color-mix(in srgb, var(--column-edge, var(--border)) 22%, var(--border));
+  background: linear-gradient(165deg,
+    color-mix(in srgb, var(--column-edge, var(--border)) 16%, var(--surface)),
+    var(--surface) 68%);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 5%, transparent),
+    0 5px 14px color-mix(in srgb, var(--text) 3%, transparent);
+}
+:root[data-theme] .board-card-wrap > .task-card:hover {
+  border-color: color-mix(in srgb, var(--column-edge, var(--text)) 50%, var(--text));
+  box-shadow: 0 2px 5px color-mix(in srgb, var(--text) 8%, transparent),
+    0 8px 18px color-mix(in srgb, var(--text) 5%, transparent);
+}
+:root[data-theme] .board-card-wrap > .task-card .task-card-footer {
+  background: color-mix(in srgb, var(--column-edge, var(--border)) 7%, var(--surface));
+}
+:root[data-theme='dark'] .board-card-wrap > .task-card {
+  border-color: color-mix(in srgb, var(--column-edge, var(--border)) 24%, #444448);
+}
+/* The stage color travels through the whole column, rather than ending at its header. */
+:root[data-theme] .board-column {
+  background: linear-gradient(158deg,
+    color-mix(in srgb, var(--column-edge, var(--border)) 27%, var(--column-wash, var(--surface-2))) 0%,
+    var(--column-wash, var(--surface-2)) 38%,
+    color-mix(in srgb, var(--column-wash, var(--surface-2)) 35%, var(--surface)) 100%);
+}
+:root[data-theme] .board-column .column-body { background: transparent; }
+:root[data-theme] .board-column .column-footer {
+  background: color-mix(in srgb, var(--column-wash, var(--surface-2)) 35%, var(--surface));
+}
+/* A card reads as a piece of the column: identity, work, then the real agent state. */
+:root[data-theme] .board-column .column-header {
+  background: linear-gradient(110deg,
+    color-mix(in srgb, var(--column-edge, var(--border)) 26%, var(--column-wash, var(--surface-2))),
+    var(--column-wash, var(--surface-2)) 76%);
+}
+:root[data-theme] .board-card-wrap > .task-card {
+  overflow: hidden;
+  min-height: 122px;
+  padding-top: 13px;
+  border-radius: 8px;
+  border-color: color-mix(in srgb, var(--column-edge, var(--border)) 34%, var(--border));
+  background: linear-gradient(155deg,
+    color-mix(in srgb, var(--column-edge, var(--border)) 24%, var(--surface)) 0%,
+    color-mix(in srgb, var(--column-wash, var(--surface-2)) 16%, var(--surface)) 47%,
+    var(--surface) 79%);
+  box-shadow: 0 2px 3px color-mix(in srgb, var(--text) 6%, transparent),
+    0 9px 18px color-mix(in srgb, var(--text) 4%, transparent);
+}
+:root[data-theme] .board-card-wrap > .task-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--column-edge, var(--border)) 74%, var(--text)),
+    color-mix(in srgb, var(--column-edge, var(--border)) 45%, var(--surface)) 56%,
+    transparent 100%);
+  opacity: .72;
+}
+:root[data-theme] .board-card-wrap > .task-card .task-card-kicker {
+  margin-bottom: 8px;
+  color: color-mix(in srgb, var(--muted) 84%, var(--text));
+  font-size: 10px;
+}
+:root[data-theme] .board-card-wrap > .task-card strong {
+  font-size: 14px;
+  font-weight: 665;
+  letter-spacing: -.018em;
+  line-height: 1.3;
+}
+:root[data-theme] .board-card-wrap > .task-card .task-card-description {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.42;
+}
+:root[data-theme] .board-card-wrap > .task-card .task-card-metadata { margin-top: 11px; margin-bottom: 9px; }
+:root[data-theme] .board-card-wrap > .task-card .task-card-metadata .card-label {
+  padding: 2px 6px;
+  border: 1px solid color-mix(in srgb, var(--column-edge, var(--border)) 22%, var(--border));
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--column-wash, var(--surface-2)) 64%, var(--surface));
+  color: var(--text);
+}
+:root[data-theme] .board-card-wrap > .task-card .task-card-footer {
+  min-height: 35px;
+  margin-top: auto;
+  border-top-color: color-mix(in srgb, var(--column-edge, var(--border)) 20%, var(--border));
+  background: color-mix(in srgb, var(--column-wash, var(--surface-2)) 28%, var(--surface));
+  font-size: 10px;
+}
+:root[data-theme] .task-card-agent-mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 17px;
+  height: 17px;
+  border: 1px solid color-mix(in srgb, var(--column-edge, var(--border)) 44%, var(--border));
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--column-wash, var(--surface-2)) 82%, var(--surface));
+  color: var(--text);
+  font-size: 9px;
+  font-weight: 700;
+}
+:root[data-theme] .task-card-agent-state { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:root[data-theme] .board-card-wrap > .task-card.is-running::after {
+  content: '';
+  position: absolute;
+  inset: auto auto 0 0;
+  width: 42%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--column-edge, var(--accent)), transparent);
+  animation: board-card-working 2.2s ease-in-out infinite alternate;
+}
+@keyframes board-card-working { to { left: 58%; } }
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme] .board-card-wrap > .task-card.is-running::after { animation: none; width: 100%; }
+}
+/* The global search has enough air above and below its outline in the compact header. */
+:root[data-theme] .topbar:has(.topbar-search-slot) { min-height: 52px; padding-block: 6px; }
+:root[data-theme] .topbar:has(.topbar-search-slot) .topbar-search-slot,
+:root[data-theme] .topbar:has(.topbar-search-slot) .topbar-search-slot .search-trigger,
+:root[data-theme] .topbar:has(.topbar-search-slot) .topbar-search-slot .search-input-wrap { height: 36px; }
 @media (max-width: 1200px) {
   :root[data-theme] .board-toolbar.board-header-actions { flex-direction: row; align-items: center; }
 }
@@ -395,9 +571,10 @@
   :root[data-theme] .board-toolbar.board-header-actions { min-height: 41px; overflow: visible; }
   :root[data-theme] .board-view-tabs { gap: 10px; overflow: auto; scrollbar-width: none; }
   :root[data-theme] .board-view-tabs > * { font-size: 11px; }
-  :root[data-theme] .board-filters { padding-block: 5px; }
+  :root[data-theme] .board-filters { padding-block: 5px; padding-left: 0; }
 }
 @media (forced-colors: active) {
   :root[data-theme] .column-indicator { color: ButtonText; }
   :root[data-theme] .board-session-preview { border-left-color: CanvasText; }
+  :root[data-theme] .board-filters .board-search:focus-within { outline: 2px solid Highlight; outline-offset: 2px; }
 }

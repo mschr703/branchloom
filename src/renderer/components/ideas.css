@@ -3,6 +3,7 @@
 .ideas-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
 .ideas-heading p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
 .ideas-heading > button { flex: none; }
+.ideas-heading .ideas-trello-entry { display: inline-flex; align-items: center; gap: 7px; min-height: 35px; font-size: 12px; }
 
 /* The writing surface is open; only saved notes become cards. */
 .ideas-editor { padding: 16px 0 16px; border-bottom: 1px solid var(--border); }
@@ -30,6 +31,12 @@
 .ideas-shelf-head { margin-bottom: 16px; }
 .ideas-shelf-head h3 { margin: 0; font-size: 17px; font-weight: 650; }
 .ideas-shelf-head h3 span { margin-left: 6px; color: var(--muted); font-size: 13px; font-weight: 450; font-variant-numeric: tabular-nums; }
+.ideas-shelf-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.ideas-shelf-controls .ideas-search-label { min-width: min(100%, 230px); }
+.ideas-search-label input { width: 100%; min-height: 32px; padding: 5px 9px; font-size: 12px; }
+.ideas-result-count { margin: -7px 0 9px; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.ideas-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 46px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.ideas-pagination .text-button { padding: 6px 0; }
 .ideas-note-grid { display: grid; grid-template-columns: 1fr; gap: 0; border-top: 1px solid var(--border); }
 .ideas-note { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 18px; align-items: start; min-height: 0; padding: 14px 10px 13px 17px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; }
 .ideas-note:hover { background: var(--surface-2); }
@@ -64,6 +71,7 @@
 .ideas-ask { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); }
 .ideas-ask label { display: grid; gap: 7px; color: var(--soft); font-size: 12px; }
 .ideas-ask textarea { width: 100%; resize: vertical; font-size: 13px; line-height: 1.45; }
+.ideas-ask textarea:focus { min-height: 150px; }
 .ideas-ask .secondary-button { justify-self: end; display: inline-flex; align-items: center; gap: 7px; }
 .ideas-disclosure { margin-top: 19px; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .ideas-disclosure summary { cursor: pointer; width: max-content; max-width: 100%; }
@@ -88,5 +96,5 @@
 .ideas-feedback.error { border-color: var(--danger); color: var(--danger); }
 
 @media (max-width: 1080px) { .ideas-flow { grid-template-columns: 1fr; } .ideas-conversation { min-height: 0; padding: 22px 0 0; border-left: 0; border-top: 1px solid var(--border); } }
-@media (max-width: 700px) { .ideas-page { padding: 0 16px 42px; } .ideas-heading { align-items: start; flex-direction: column; } .ideas-editor-head { align-items: start; } .ideas-editor-meta { flex-wrap: wrap; justify-content: flex-end; } .ideas-note-field textarea { font-size: 17px; } .ideas-editor-foot { align-items: end; flex-wrap: wrap; } .ideas-editor-foot .primary-button { margin-left: auto; } .ideas-convert { align-items: stretch; flex-direction: column; } .ideas-convert-controls { flex-wrap: wrap; } }
+@media (max-width: 700px) { .ideas-page { padding: 0 16px 42px; } .ideas-heading { align-items: start; flex-direction: column; } .ideas-editor-head { align-items: start; } .ideas-editor-meta { flex-wrap: wrap; justify-content: flex-end; } .ideas-shelf-head { align-items: start; flex-direction: column; } .ideas-shelf-controls { width: 100%; } .ideas-search-label { flex: 1; } .ideas-note-field textarea { font-size: 17px; } .ideas-editor-foot { align-items: end; flex-wrap: wrap; } .ideas-editor-foot .primary-button { margin-left: auto; } .ideas-convert { align-items: stretch; flex-direction: column; } .ideas-convert-controls { flex-wrap: wrap; } }
 @media (prefers-reduced-motion: reduce) { .ideas-conversation { transition: none; } }

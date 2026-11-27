@@ -26,6 +26,13 @@ function dragEvent(type: string, dataTransfer: object, point?: { x: number; y: n
   return event;
 }
 
+function pointerEvent(type: string, x: number, y: number): Event {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  for (const [key, value] of Object.entries({ pointerId: 7, pointerType: 'touch', isPrimary: true, clientX: x, clientY: y }))
+    Object.defineProperty(event, key, { value });
+  return event;
+}
+
 afterEach(() => {
   document.body.replaceChildren();
   Reflect.deleteProperty(window, 'studio');
@@ -97,6 +104,78 @@ describe('board card drag feedback', () => {
       await act(async () => { card.dispatchEvent(dragEvent('dragend', transfer)); });
       expect(document.querySelector('.board-drag-preview')).toBeNull();
       expect(host.querySelector('.is-drag-origin')).toBeNull();
+    } finally {
+      await act(async () => root.unmount());
+      host.remove();
+    }
+  });
+
+  it('moves a card by touch while keeping a tap and vertical scroll distinct', async () => {
+    const moveCard = vi.fn().mockResolvedValue({ ...snapshot.cards[0], columnId: 'review' });
+    Object.defineProperty(window, 'studio', { configurable: true, value: { moveCard,
+      cardRunGate: vi.fn().mockResolvedValue({ cardId: 'card', projectId: 'project', dependencies: [] }) } });
+    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    const originalElementFromPoint = Object.getOwnPropertyDescriptor(document, 'elementFromPoint');
+    try {
+      await act(async () => root.render(<BoardView snapshot={snapshot} mutate={async <T,>(action: () => Promise<T>) => action()} />));
+      const card = host.querySelector<HTMLButtonElement>('#board-card-card')!;
+      const destination = host.querySelector<HTMLElement>('[data-column-id="review"]')!;
+      const scroll = host.querySelector<HTMLElement>('.board-scroll')!;
+      vi.spyOn(scroll, 'getBoundingClientRect').mockReturnValue({ left: 0, right: 230, top: 0, bottom: 300 } as DOMRect);
+      Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: (x: number) => x >= 180 ? destination : card });
+
+      await act(async () => {
+        card.dispatchEvent(pointerEvent('pointerdown', 80, 100));
+        card.dispatchEvent(pointerEvent('pointermove', 86, 130));
+      });
+      expect(document.querySelector('.board-drag-preview')).toBeNull();
+      expect(moveCard).not.toHaveBeenCalled();
+      await act(async () => { card.dispatchEvent(pointerEvent('pointerup', 86, 130)); });
+
+      await act(async () => {
+        card.dispatchEvent(pointerEvent('pointerdown', 80, 100));
+        card.dispatchEvent(pointerEvent('pointermove', 220, 108));
+      });
+      expect(document.querySelector('.board-drag-preview')).not.toBeNull();
+      expect(destination.classList.contains('is-drop-target')).toBe(true);
+      expect(scroll.scrollLeft).toBeGreaterThan(0);
+      expect(moveCard).not.toHaveBeenCalled();
+      await act(async () => { card.dispatchEvent(pointerEvent('pointerup', 220, 108)); });
+      expect(moveCard).toHaveBeenCalledExactlyOnceWith({ id: 'card', columnId: 'review' });
+      expect(document.querySelector('.board-drag-preview')).toBeNull();
+      expect(destination.classList.contains('is-drop-target')).toBe(false);
+      await act(async () => { card.click(); });
+      expect(host.querySelector('.card-drawer')).toBeNull();
+    } finally {
+      await act(async () => root.unmount());
+      if (originalElementFromPoint) Object.defineProperty(document, 'elementFromPoint', originalElementFromPoint);
+      else Reflect.deleteProperty(document, 'elementFromPoint');
+      host.remove();
+    }
+  });
+
+  it('cancels a touch drag without moving or leaving a floating card', async () => {
+    const moveCard = vi.fn();
+    Object.defineProperty(window, 'studio', { configurable: true, value: { moveCard } });
+    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    try {
+      await act(async () => root.render(<BoardView snapshot={snapshot} mutate={async <T,>(action: () => Promise<T>) => action()} />));
+      const card = host.querySelector<HTMLButtonElement>('#board-card-card')!;
+      await act(async () => {
+        card.dispatchEvent(pointerEvent('pointerdown', 80, 100));
+        card.dispatchEvent(pointerEvent('pointermove', 190, 104));
+      });
+      expect(document.querySelector('.board-drag-preview')).not.toBeNull();
+      await act(async () => { card.dispatchEvent(pointerEvent('pointercancel', 190, 104)); });
+      expect(document.querySelector('.board-drag-preview')).toBeNull();
+      expect(host.querySelector('.is-drag-origin')).toBeNull();
+      expect(moveCard).not.toHaveBeenCalled();
     } finally {
       await act(async () => root.unmount());
       host.remove();

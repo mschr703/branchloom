@@ -1,5 +1,5 @@
 import type { BrowserWindow } from 'electron';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { StudioStore } from './store';
 
@@ -94,4 +94,19 @@ export async function runChatCanvasSmoke(window: BrowserWindow, store: StudioSto
     if (board.nodes.length !== 1 || board.nodes[0].id !== nodeId) throw new Error('Whiteboard node changed after renderer reload.');
     return true;
   })()`);
+  if (process.env.BRANCHLOOM_CHAT_PREVIEW_SCREENSHOT) {
+    await window.webContents.executeJavaScript(`(async () => {
+      const nav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')]
+        .find((item) => item.querySelector('.nav-label')?.textContent?.trim() === 'Projektgespräch');
+      if (!nav) throw new Error('Project Chat navigation is missing after the canvas save.');
+      nav.click();
+      for (let attempt = 0; attempt < 60; attempt++) {
+        if (document.querySelector('.project-chat-host.page .project-chat[aria-label="Projektgespräch"]')) return true;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      throw new Error('Project Chat did not reopen for the screenshot.');
+    })()`);
+    await window.webContents.executeJavaScript('new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+    writeFileSync(process.env.BRANCHLOOM_CHAT_PREVIEW_SCREENSHOT, (await window.capturePage()).toPNG());
+  }
 }

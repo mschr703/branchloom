@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, GripVertical, MessageCircle, Plus, Send } from 'lucide-react';
+import { ArrowDownToLine, ArrowRight, GripVertical, MessageCircle, Plus, Send } from 'lucide-react';
 import type { DraftTurn } from '../../shared/task-draft';
 import type { Idea, IdeaCategory, IdeaReply } from '../../shared/ideas';
 import type { ProjectSnapshot } from '../../shared/types';
@@ -17,6 +17,7 @@ const categories: IdeaCategory[] = ['idea', 'backlog', 'roadmap'];
 const signature = (value: Draft): string => JSON.stringify(value);
 const messageOf = (error: unknown): string => error instanceof Error ? error.message : String(error);
 const IDEA_DRAG_TYPE = 'application/x-branchloom-idea';
+const NOTES_PER_PAGE = 24;
 
 /** A note can be captured in one field while the existing titled idea format stays intact. */
 export function titleFromNote(body: string): string {
@@ -41,6 +42,8 @@ export function IdeasView({ snapshot, mutate, onOpenCard, onNavigate, language }
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [baseline, setBaseline] = useState(signature(emptyDraft()));
   const [filter, setFilter] = useState<IdeaCategory | 'all'>('all');
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
   const [message, setMessage] = useState('');
   const [suggestion, setSuggestion] = useState<IdeaReply | null>(null);
   const [columnId, setColumnId] = useState(snapshot.columns.find((item) => item.name.toLocaleLowerCase('de-DE') === 'to do')?.id ?? snapshot.columns[0]?.id ?? '');
@@ -55,7 +58,14 @@ export function IdeasView({ snapshot, mutate, onOpenCard, onNavigate, language }
   const messageField = useRef<HTMLTextAreaElement>(null);
   const dirty = signature(draft) !== baseline;
   const mergedIntoIdeaId = ideas.find((item) => item.id === draft.id)?.mergedIntoIdeaId ?? null;
-  const visible = useMemo(() => filter === 'all' ? ideas : ideas.filter((item) => item.category === filter), [ideas, filter]);
+  const visible = useMemo(() => {
+    const term = query.trim().toLocaleLowerCase('de-DE');
+    return ideas.filter((item) => (filter === 'all' || item.category === filter)
+      && (!term || `${item.title} ${item.body}`.toLocaleLowerCase('de-DE').includes(term)));
+  }, [ideas, filter, query]);
+  const totalPages = Math.max(1, Math.ceil(visible.length / NOTES_PER_PAGE));
+  const currentPage = Math.min(page, totalPages);
+  const shown = visible.slice((currentPage - 1) * NOTES_PER_PAGE, currentPage * NOTES_PER_PAGE);
 
   useEffect(() => {
     let active = true;
@@ -153,7 +163,7 @@ export function IdeasView({ snapshot, mutate, onOpenCard, onNavigate, language }
 
   return <section className="ideas-page" aria-label="Ideenraum">
     <ProjectViewTabs active="ideas" onNavigate={navigateTo} disabled={busy || !onNavigate} language={language} />
-    <header className="ideas-heading"><p>Schreib den Gedanken auf oder sammle Trello-Karten. Unfertiges bleibt hier, bis du daraus eine Aufgabe machst.</p><button className="text-button" type="button" onClick={() => setShowTrelloImport(true)} disabled={busy || dirty} title={dirty ? 'Speichere die aktuelle Notiz vor dem Trello-Abgleich.' : undefined}>Trello-Karten sammeln</button></header>
+    <header className="ideas-heading"><p>Schreib den Gedanken auf oder sammle Trello-Karten. Unfertiges bleibt hier, bis du daraus eine Aufgabe machst.</p><button className="secondary-button ideas-trello-entry" type="button" onClick={() => setShowTrelloImport(true)} disabled={busy || dirty} title={dirty ? 'Speichere die aktuelle Notiz vor dem Trello-Abgleich.' : 'Trello-Board auswählen und Karten als Notizen importieren'}><ArrowDownToLine size={15} aria-hidden="true" /> Trello-Karten sammeln</button></header>
     <form className="ideas-editor" onSubmit={(event) => void save(event)}>
       <div className="ideas-editor-head"><h3>{draft.id ? 'Notiz bearbeiten' : 'Neue Notiz'}</h3><div className="ideas-editor-meta"><label>Bereich <select aria-label="Bereich der Notiz" value={draft.category} disabled={busy} onChange={(event) => setDraft((old) => ({ ...old, category: event.target.value as IdeaCategory }))}>{categories.map((category) => <option key={category} value={category}>{labels[category]}</option>)}</select></label>{draft.id ? <button className="text-button" type="button" disabled={busy} onClick={() => switchTo()}><Plus size={15} /> Neue Notiz</button> : null}</div></div>
       <label className="ideas-note-field"><span className="sr-only">Notiz</span><textarea rows={3} maxLength={8_000} value={draft.body} disabled={busy} onChange={(event) => setDraft((old) => ({ ...old, body: event.target.value }))} placeholder="Was geht dir gerade durch den Kopf?" /></label>
@@ -161,8 +171,8 @@ export function IdeasView({ snapshot, mutate, onOpenCard, onNavigate, language }
       {suggestion && (suggestion.suggestedTitle || suggestion.suggestedBody) ? <div className="ideas-suggestion"><strong>Vorschlag des Agenten</strong>{suggestion.suggestedTitle ? <p>{suggestion.suggestedTitle}</p> : null}{suggestion.suggestedBody ? <small>{suggestion.suggestedBody}</small> : null}<button className="secondary-button" type="button" disabled={busy} onClick={() => { setDraft((old) => ({ ...old, title: suggestion.suggestedTitle || old.title, body: suggestion.suggestedBody || old.body, category: suggestion.suggestedCategory ?? old.category })); setSuggestion(null); }}>Vorschlag übernehmen</button></div> : null}
     </form>
     <div className="ideas-flow">
-      <section className="ideas-shelf" aria-label="Gespeicherte Notizen"><div className="ideas-shelf-head"><h3>Notizen <span>{ideas.length}</span></h3><label>Zeigen <select value={filter} onChange={(event) => setFilter(event.target.value as IdeaCategory | 'all')}><option value="all">Alle</option>{categories.map((category) => <option key={category} value={category}>{labels[category]}</option>)}</select></label></div>
-        {loading ? <p className="ideas-muted">Notizen werden geladen…</p> : visible.length === 0 ? <p className="ideas-muted">Hier erscheinen deine gespeicherten Notizen.</p> : <div className="ideas-note-grid">{visible.map((item) => <article className={`ideas-note ${item.id === draft.id ? 'selected' : ''} ${item.id === draggingIdeaId ? 'dragging' : ''}`} draggable={!busy} onDragStart={(event) => { event.dataTransfer.setData(IDEA_DRAG_TYPE, item.id); event.dataTransfer.effectAllowed = 'copy'; setDraggingIdeaId(item.id); }} onDragEnd={() => { setDraggingIdeaId(null); setDropActive(false); }} key={item.id}><span className="ideas-note-marker" aria-hidden="true" /><div className="ideas-note-top"><span>{labels[item.category]}</span><GripVertical size={15} aria-hidden="true" /></div><button className="ideas-note-open" type="button" disabled={busy} aria-current={item.id === draft.id ? 'true' : undefined} onClick={() => switchTo(item)}><strong>{item.title}</strong>{noteExcerpt(item) ? <span>{noteExcerpt(item)}</span> : null}</button><div className="ideas-note-foot"><small>{item.cardId ? 'Im Board' : item.mergedIntoIdeaId ? 'Verbunden' : new Date(item.updatedAt).toLocaleDateString('de-DE')}</small><button className="text-button" type="button" disabled={busy} onClick={() => openDiscussion(item)}>Weiterdenken <ArrowRight size={14} /></button></div></article>)}</div>}
+      <section className="ideas-shelf" aria-label="Gespeicherte Notizen"><div className="ideas-shelf-head"><h3>Notizen <span>{ideas.length}</span></h3><div className="ideas-shelf-controls"><label className="ideas-search-label"><span className="sr-only">Notizen suchen</span><input type="search" aria-label="Notizen suchen" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Notizen suchen" /></label><label>Zeigen <select value={filter} onChange={(event) => { setFilter(event.target.value as IdeaCategory | 'all'); setPage(1); }}><option value="all">Alle</option>{categories.map((category) => <option key={category} value={category}>{labels[category]}</option>)}</select></label></div></div>
+        {loading ? <p className="ideas-muted">Notizen werden geladen…</p> : visible.length === 0 ? <p className="ideas-muted">{ideas.length ? 'Keine Notizen für diese Suche.' : 'Hier erscheinen deine gespeicherten Notizen.'}</p> : <><p className="ideas-result-count">{visible.length} Treffer · {Math.min((currentPage - 1) * NOTES_PER_PAGE + 1, visible.length)}–{Math.min(currentPage * NOTES_PER_PAGE, visible.length)} sichtbar</p><div className="ideas-note-grid">{shown.map((item) => <article className={`ideas-note ${item.id === draft.id ? 'selected' : ''} ${item.id === draggingIdeaId ? 'dragging' : ''}`} draggable={!busy} onDragStart={(event) => { event.dataTransfer.setData(IDEA_DRAG_TYPE, item.id); event.dataTransfer.effectAllowed = 'copy'; setDraggingIdeaId(item.id); }} onDragEnd={() => { setDraggingIdeaId(null); setDropActive(false); }} key={item.id}><span className="ideas-note-marker" aria-hidden="true" /><div className="ideas-note-top"><span>{labels[item.category]}</span><GripVertical size={15} aria-hidden="true" /></div><button className="ideas-note-open" type="button" disabled={busy} aria-current={item.id === draft.id ? 'true' : undefined} onClick={() => switchTo(item)}><strong>{item.title}</strong>{noteExcerpt(item) ? <span>{noteExcerpt(item)}</span> : null}</button><div className="ideas-note-foot"><small>{item.cardId ? 'Im Board' : item.mergedIntoIdeaId ? 'Verbunden' : new Date(item.updatedAt).toLocaleDateString('de-DE')}</small><button className="text-button" type="button" disabled={busy} onClick={() => openDiscussion(item)}>Weiterdenken <ArrowRight size={14} /></button></div></article>)}</div>{totalPages > 1 ? <nav className="ideas-pagination" aria-label="Notizseiten"><button className="text-button" type="button" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Zurück</button><span>Seite {currentPage} von {totalPages}</span><button className="text-button" type="button" disabled={currentPage === totalPages} onClick={() => setPage(currentPage + 1)}>Weiter</button></nav> : null}</>}
       </section>
       <section className={`ideas-conversation ${dropActive ? 'drop-active' : ''}`} aria-label="Idee besprechen" onDragOver={(event) => { if (event.dataTransfer.types.includes(IDEA_DRAG_TYPE)) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; setDropActive(true); } }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDropActive(false); }} onDrop={dropIdea}>
         <div className="ideas-conversation-head"><MessageCircle size={20} aria-hidden="true" /><h3>Weiterdenken</h3></div>
