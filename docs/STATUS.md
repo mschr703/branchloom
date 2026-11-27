@@ -1,6 +1,12 @@
 # Status
 
-Stand: 26.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
+Stand: 27.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
+
+## Design-Einstieg und CI-Nacharbeit vom 27.11.
+
+- Der erste kartenbezogene Entwurf zeigt nun eine sichtbare leere Desktop-Zeichenfläche mit Maßen und daneben drei Startwege. „Leere Fläche beginnen“ und „Fenstergerüst vorbereiten“ öffnen nach dem Klick direkt den großen Editor. Im echten Electron-Fenster bei 1268 × 714 waren Startfläche, Aktionen sowie anschließend Canvas, Ebenen und Eigenschaften sichtbar. Der Entwurf bleibt ungespeichert, bis der Nutzer speichert; die Freigabe bleibt getrennt. Der Editor ist weiterhin an eine Karte gebunden und kein vollständiges Figma-ähnliches Werkzeug. Gezielte Renderer-Tests, Typprüfung und Build bestanden.
+- Das Board benennt eine Karte ohne zugewiesenen Spaltenagenten und ohne Sitzung jetzt „Kein Agent zugewiesen“ statt „Manueller Schritt“. Der gezielte Board-Test wurde angepasst. Der Schnellaktionspfad stellt beim Öffnen einer gespeicherten Sitzung den Tastaturfokus wieder auf den Auslöser zurück.
+- Die Windows-CI von `4936163` bestand im Verify-Job, scheiterte aber in den beiden Paket-Smokes: Das Kartenmenü wird als Portal gerendert, während der Smoke noch innerhalb der Karte suchte. Weitere Smoke-Erwartungen für den neuen Board-Titel, den Design-Leerzustand und den direkten Fokusmodus wurden auf die tatsächliche Oberfläche aktualisiert. Eine spätere Theme-Diff-Prüfung wartet jetzt auf den aktualisierten Inhalt statt nur auf den Dialog. Der vollständige Quell-Electron-Smoke bestand danach. Ein grüner Paketlauf für diesen neuen Stand ist noch nicht belegt.
 
 ## Vollständiger CI-Lauf: veraltete Board-Testerwartung korrigiert
 

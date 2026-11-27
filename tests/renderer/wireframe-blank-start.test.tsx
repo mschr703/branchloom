@@ -16,13 +16,14 @@ it('starts on an empty artboard and leaves a saved layout intact on reopen', asy
   const card = { id: 'synthetic-blank-card', title: 'Synthetic blank start' } as Card;
   let saved: CardWireframe | null = null;
   let saveCalls = 0;
+  let focusRequests = 0;
   Object.defineProperty(window, 'studio', { configurable: true, value: {
     cardWireframe: async () => saved,
     listWireframeComponents: async () => [],
     saveCardWireframe: async () => { saveCalls++; throw new Error('Unexpected save'); },
   } });
   try {
-    await act(async () => { root.render(<TaskWireframeEditor projectId="synthetic-blank-project" cards={[card]} startCardId={card.id} focusMode={false} canEnterFocus onFocusModeChange={() => undefined} />); });
+    await act(async () => { root.render(<TaskWireframeEditor projectId="synthetic-blank-project" cards={[card]} startCardId={card.id} focusMode={false} canEnterFocus onFocusModeChange={(next) => { if (next) focusRequests++; }} />); });
     const start = mount.querySelector('.task-wireframe-start')!;
     const actions = [...start.querySelectorAll<HTMLButtonElement>('.task-wireframe-start-actions button')];
     expect(actions.map((button) => button.textContent)).toEqual(['Leere Fläche beginnen', 'Fenstergerüst vorbereiten']);
@@ -32,6 +33,7 @@ it('starts on an empty artboard and leaves a saved layout intact on reopen', asy
     expect(mount.querySelector('.task-wireframe-canvas-head')?.textContent).toContain('Desktop · leer');
     expect(mount.querySelector('.task-wireframe-start')).toBeNull();
     expect(saveCalls).toBe(0);
+    expect(focusRequests).toBe(1);
 
     const template = starterWireframe(card);
     saved = { projectId: 'synthetic-saved-project', cardId: card.id, ...template, interaction: null, revision: 1, approvedRevision: null, updatedAt: '2026-11-25T12:00:00.000Z' };

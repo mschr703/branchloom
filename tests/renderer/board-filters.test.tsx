@@ -95,7 +95,7 @@ describe('board filters and archive visibility', () => {
     expect(html).toContain('Dringend');
     expect(html).toContain('#active');
     expect(html).toContain('Kundenmail');
-    expect(html).toContain('Manueller Schritt');
+    expect(html).toContain('Kein Agent zugewiesen');
     expect(html).toContain('Spalte filtern');
     expect(html).toContain('role="search"');
     expect(html).toContain('aria-live="polite"');

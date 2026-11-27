@@ -410,6 +410,11 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, refe
     setNotice(unchanged ? 'Gespeicherten Stand wiederhergestellt.' : 'Ungespeicherte Änderungen.'); setError('');
   }
   function edit(next: Draft, record = true) { if (!interactionLocked.current) { if (draft && record) recordHistory(draft); retainDraft(next); } }
+  function beginDraft(next: Draft) {
+    if (interactionLocked.current) return;
+    edit(next);
+    if (canEnterFocus) onFocusModeChange(true);
+  }
   function editElement(id: string, change: Partial<WireframeElement>, record = true) {
     if (!draft || !elements) return;
     const current = elements.find((item) => item.id === id);
@@ -586,14 +591,18 @@ export function TaskWireframeEditor({ projectId, cards, startCardId = null, refe
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
     {notice && notice !== 'Ungespeicherte Änderungen.' ? <p className="task-wireframe-notice" role="status">{notice}</p> : null}
     {!card ? <p className="task-wireframe-empty">Wähle eine Karte. Der Entwurf bleibt lokal beim Projekt und startet keinen Agenten.</p> : loading ? <p role="status">Entwurf wird geladen…</p> : !draft ? <div className="task-wireframe-start">
-      <div className="task-wireframe-start-intro"><h3>Für „{card.title}“ gibt es noch keinen Wireframe.</h3><p>Beginne auf einer leeren Desktop-Zeichenfläche (960 × 600) oder nutze ein einfaches Fenstergerüst als Vorlage. Beide Wege bleiben bis zum Speichern lokal.</p></div>
-      {reference ? <div className="task-wireframe-start-reference"><img src={reference.image} alt="Gespeicherte QA-Aufnahme als Entwurfsreferenz" /><small>QA-Aufnahme vom {new Date(reference.capture.endedAt).toLocaleString('de-DE')} · {reference.capture.viewportWidth} × {reference.capture.viewportHeight}. Nur eine Ansichtsvorlage; sie wird nicht Teil des Entwurfs oder Agentenauftrags.</small></div> : null}
-      <div className="task-wireframe-start-actions" role="group" aria-label="Startpunkt für Wireframe">
-        <button type="button" className="primary-button" disabled={busy} onClick={() => edit({ title: card.title.slice(0, 100), elements: [], artboards: {}, interactions: [] })}>Leere Fläche beginnen</button>
-        <button type="button" className="secondary-button" disabled={busy} onClick={() => edit(starterWireframe(card))}>Fenstergerüst vorbereiten</button>
+      <div className="task-wireframe-start-stage">
+        <div className="task-wireframe-start-stage-label"><span>Desktop</span><span>960 × 600</span></div>
+        {reference ? <div className="task-wireframe-start-reference"><img src={reference.image} alt="Gespeicherte QA-Aufnahme als Entwurfsreferenz" /><small>QA-Aufnahme vom {new Date(reference.capture.endedAt).toLocaleString('de-DE')} · {reference.capture.viewportWidth} × {reference.capture.viewportHeight}. Nur eine Ansichtsvorlage; sie wird nicht Teil des Entwurfs oder Agentenauftrags.</small></div> : <div className="task-wireframe-start-blank" aria-hidden="true" />}
       </div>
-      <button type="button" className="task-wireframe-start-agent" disabled={busy} onClick={() => void propose()}>{busy ? 'Agent entwirft…' : 'Mit Agent vorschlagen'}</button>
-      <small>Der Agentenvorschlag nutzt den gewählten Codex-Workflow-Agenten lesend und bleibt bis zum Speichern ein Entwurf.</small>
+      <div className="task-wireframe-start-options">
+        <div className="task-wireframe-start-intro"><h3>Für „{card.title}“ gibt es noch keinen Wireframe.</h3><p>Wähle einen Startpunkt. Der Entwurf bleibt lokal, bis du ihn speicherst.</p></div>
+        <div className="task-wireframe-start-actions" role="group" aria-label="Startpunkt für Wireframe">
+          <button type="button" className="primary-button" disabled={busy} onClick={() => beginDraft({ title: card.title.slice(0, 100), elements: [], artboards: {}, interactions: [] })}>Leere Fläche beginnen</button>
+          <button type="button" className="secondary-button" disabled={busy} onClick={() => beginDraft(starterWireframe(card))}>Fenstergerüst vorbereiten</button>
+        </div>
+        <div className="task-wireframe-start-assist"><button type="button" className="task-wireframe-start-agent" disabled={busy} onClick={() => void propose()}>{busy ? 'Agent entwirft…' : 'Mit Agent vorschlagen'}</button><small>Ein lesender Vorschlag. Du prüfst und speicherst ihn selbst.</small></div>
+      </div>
     </div> : <>
       {focusMode ? <WireframeArtboardOverview elements={draft.elements} artboards={draft.artboards} active={artboard} disabled={busy} onSelect={switchArtboard} />
         : <div className="task-wireframe-artboard-switch" role="group" aria-label="Wireframe-Zeichenfläche">{(Object.keys(WIREFRAME_ARTBOARDS) as WireframeArtboard[]).map((name) => <button key={name} type="button" className={artboard === name ? 'active' : ''} aria-pressed={artboard === name} disabled={busy} onClick={() => switchArtboard(name)}>{WIREFRAME_ARTBOARDS[name].label}<small>{WIREFRAME_ARTBOARDS[name].width} × {WIREFRAME_ARTBOARDS[name].height}{name !== 'desktop' && draft.artboards[name] === undefined ? ' · fehlt' : ''}</small></button>)}</div>}

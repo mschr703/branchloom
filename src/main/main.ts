@@ -1548,24 +1548,25 @@ function createWindow(): void {
               if (!keyboardCard) throw new Error('Karten-Tastaturtest: Auslöser fehlt.');
               const quickTrigger = keyboardCard.parentElement?.querySelector('.card-quick-trigger');
               if (!(quickTrigger instanceof HTMLButtonElement)) throw new Error('Card quick-action trigger is missing.');
+              const cardActions = () => document.getElementById('card-actions-' + bulkCard.id);
               quickTrigger.click();
-              for (let attempt = 0; attempt < 100 && !keyboardCard.parentElement?.querySelector('.card-quick-actions'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              const quickActions = keyboardCard.parentElement?.querySelector('.card-quick-actions');
+              for (let attempt = 0; attempt < 100 && !cardActions(); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const quickActions = cardActions();
               const hasSavedSession = baselineSessions.some((item) => item.cardId === bulkCard.id);
               if (!quickActions?.textContent?.includes('Karten-ID kopieren') || quickActions.textContent.includes('Worktree öffnen') || quickActions.textContent.includes('Sitzung ansehen') !== hasSavedSession) throw new Error('Card quick actions have the wrong options: ' + JSON.stringify({ text: quickActions?.textContent, hasSavedSession, cardId: bulkCard.id, sessions: baselineSessions.filter((item) => item.cardId === bulkCard.id).map((item) => ({ id: item.id, worktreePath: item.worktreePath })) }));
               quickActions.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
               for (let attempt = 0; attempt < 100 && (document.querySelector('.card-quick-actions') || document.activeElement !== quickTrigger); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (document.querySelector('.card-quick-actions') || document.activeElement !== quickTrigger) throw new Error('Card quick actions did not close on Escape and restore focus.');
               quickTrigger.click();
-              for (let attempt = 0; attempt < 100 && !keyboardCard.parentElement?.querySelector('.card-quick-actions'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              const copyAction = [...(keyboardCard.parentElement?.querySelectorAll('.card-quick-actions button') ?? [])].find((item) => item.textContent?.includes('Karten-ID kopieren'));
+              for (let attempt = 0; attempt < 100 && !cardActions(); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              const copyAction = [...(cardActions()?.querySelectorAll('button') ?? [])].find((item) => item.textContent?.includes('Karten-ID kopieren'));
               copyAction?.click();
-              for (let attempt = 0; attempt < 100 && keyboardCard.parentElement?.querySelector('.card-quick-actions'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              if (keyboardCard.parentElement?.querySelector('.card-quick-actions') || document.activeElement !== quickTrigger || !document.querySelector('.board-page p.sr-only[role="status"]')?.textContent?.includes('Karten-ID')) throw new Error('Card ID was not copied or focus was not restored: ' + JSON.stringify({ open: Boolean(keyboardCard.parentElement?.querySelector('.card-quick-actions')), focus: document.activeElement?.getAttribute('aria-label'), announcement: document.querySelector('.board-page p.sr-only[role="status"]')?.textContent, error: keyboardCard.parentElement?.querySelector('.card-quick-error')?.textContent }));
+              for (let attempt = 0; attempt < 100 && (cardActions() || document.activeElement !== quickTrigger); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (cardActions() || document.activeElement !== quickTrigger || !document.querySelector('.board-page p.sr-only[role="status"]')?.textContent?.includes('Karten-ID')) throw new Error('Card ID was not copied or focus was not restored: ' + JSON.stringify({ open: Boolean(cardActions()), focus: document.activeElement?.getAttribute('aria-label'), announcement: document.querySelector('.board-page p.sr-only[role="status"]')?.textContent, error: document.querySelector('.card-quick-error')?.textContent }));
               if (hasSavedSession) {
                 quickTrigger.click();
-                for (let attempt = 0; attempt < 100 && !keyboardCard.parentElement?.querySelector('.card-quick-actions'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-                const sessionAction = [...(keyboardCard.parentElement?.querySelectorAll('.card-quick-actions button') ?? [])].find((item) => item.textContent?.includes('Sitzung ansehen'));
+                for (let attempt = 0; attempt < 100 && !cardActions(); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+                const sessionAction = [...(cardActions()?.querySelectorAll('button') ?? [])].find((item) => item.textContent?.includes('Sitzung ansehen'));
                 sessionAction?.click();
                 for (let attempt = 0; attempt < 100 && !document.querySelector('.card-drawer'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
                 if (![...document.querySelectorAll('.card-drawer .section-heading')].some((item) => item.textContent?.includes('Terminal')) || !document.querySelector('.card-drawer')?.contains(document.activeElement)) throw new Error('Quick action did not open the saved session in the card dialog.');
@@ -2565,7 +2566,7 @@ function createWindow(): void {
               if (!diffInboxButton) throw new Error('Diff-Kommentar fehlt in der Review-Inbox.');
               diffInboxButton.click();
               for (let attempt = 0; attempt < 100 && !(document.activeElement?.classList.contains('review-diff-comment') && document.activeElement?.textContent?.includes('BRANCHLOOM_DIFF_REVIEW_SMOKE')); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              if (document.querySelector('.topbar-title h1')?.textContent !== 'Board' || !document.activeElement?.classList.contains('review-diff-comment') || !document.activeElement?.textContent?.includes('BRANCHLOOM_DIFF_REVIEW_SMOKE')) throw new Error('Diff-Kommentar wurde ohne Worktree nicht geöffnet und fokussiert: ' + JSON.stringify({ view: document.querySelector('.topbar-title h1')?.textContent, active: document.activeElement?.outerHTML?.slice(0, 250), drawer: document.querySelector('.card-drawer')?.textContent?.slice(-350), review: document.querySelector('.review-diff')?.textContent?.slice(-350) }));
+              if (document.querySelector('.board-project-heading h2')?.textContent !== 'Board' || !document.activeElement?.classList.contains('review-diff-comment') || !document.activeElement?.textContent?.includes('BRANCHLOOM_DIFF_REVIEW_SMOKE')) throw new Error('Diff-Kommentar wurde ohne Worktree nicht geöffnet und fokussiert: ' + JSON.stringify({ view: document.querySelector('.board-project-heading h2')?.textContent, active: document.activeElement?.outerHTML?.slice(0, 250), drawer: document.querySelector('.card-drawer')?.textContent?.slice(-350), review: document.querySelector('.review-diff')?.textContent?.slice(-350) }));
               const decisionsNavAfterDiff = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Entscheidungen'));
               if (!decisionsNavAfterDiff) throw new Error('Rückweg zur QA-Inbox fehlt.');
               decisionsNavAfterDiff.click();
@@ -2578,7 +2579,7 @@ function createWindow(): void {
               if (!qaInboxItem?.textContent?.includes('BRANCHLOOM_QA_SMOKE_ERROR') || !qaInboxItem.textContent.includes('Route: http://127.0.0.1:')) throw new Error('Echter fehlgeschlagener Browser-QA-Bericht fehlt mit Route und Diagnose in der Inbox.');
               qaInboxItem.querySelector('button.secondary-button')?.click();
               for (let attempt = 0; attempt < 100 && document.activeElement?.id !== 'card-qa-report-' + qaReport.id; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              if (document.querySelector('.topbar-title h1')?.textContent !== 'Board' || document.activeElement?.id !== 'card-qa-report-' + qaReport.id || !document.activeElement?.textContent?.includes('BRANCHLOOM_QA_SMOKE_ERROR')) throw new Error('QA-Inbox öffnete und fokussierte den konkreten Kartenbericht nicht.');
+              if (document.querySelector('.board-project-heading h2')?.textContent !== 'Board' || document.activeElement?.id !== 'card-qa-report-' + qaReport.id || !document.activeElement?.textContent?.includes('BRANCHLOOM_QA_SMOKE_ERROR')) throw new Error('QA-Inbox öffnete und fokussierte den konkreten Kartenbericht nicht.');
               const decisionsNavAfterQa = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.includes('Entscheidungen'));
               if (!decisionsNavAfterQa) throw new Error('Rückweg zur QA-Quittierung fehlt.');
               decisionsNavAfterQa.click();
@@ -2853,9 +2854,9 @@ function createWindow(): void {
               const nav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((item) => item.textContent?.trim() === 'Design');
               if (!nav) throw new Error('Design-Navigation fehlt.');
               nav.click();
-              for (let attempt = 0; attempt < 100 && !document.querySelector('.design-overview')?.textContent?.includes('Noch kein Entwurf gespeichert'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.design-overview-first-draft')?.textContent?.includes('Der erste Entwurf beginnt hier.'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const designOverview = document.querySelector('.design-overview');
-              if (!designOverview || !designOverview.textContent?.includes('Noch kein Entwurf gespeichert')) throw new Error('Design-Projektübersicht zeigt keinen ehrlichen Leerzustand.');
+              if (!designOverview?.querySelector('.design-overview-first-draft') || !designOverview.textContent?.includes('Der erste Entwurf beginnt hier.')) throw new Error('Design-Projektübersicht zeigt keinen ehrlichen Leerzustand.');
               for (let attempt = 0; attempt < 100 && !designOverview.querySelector('.design-overview-capture img'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const projectCapture = designOverview.querySelector('.design-overview-capture img');
               if (!(projectCapture instanceof HTMLImageElement) || !projectCapture.src.startsWith('data:image/png;base64,') || !designOverview.textContent?.includes('App-Aufnahmen') || !designOverview.textContent?.includes('Smoke-Karte')) throw new Error('Gespeicherter QA-Screenshot erschien nicht als belegte Projektaufnahme im Designbereich.');
@@ -2900,7 +2901,7 @@ function createWindow(): void {
               if (!wireframe?.querySelector('.task-wireframe-canvas')) throw new Error('Fenstergerüst erschien nach dem Startklick nicht auf der Zeichenfläche. Auswahl: ' + wireframe?.querySelector('.task-wireframe-source select')?.value + '; Startknopf verbunden: ' + starter.isConnected + '; sichtbarer Zustand: ' + (wireframe?.textContent?.trim().slice(-320) ?? 'keine Wireframe-Ansicht'));
               const focusToggle = wireframe.querySelector('.task-wireframe-focus-toggle');
               if (!(focusToggle instanceof HTMLButtonElement) || focusToggle.disabled) throw new Error('Wireframe-Arbeitsmodus fehlt.');
-              focusToggle.focus(); focusToggle.click(); focusToggle.click();
+              focusToggle.focus();
               for (let attempt = 0; attempt < 100; attempt++) {
                 if (document.querySelector('.design-inspection.wireframe-focus') && document.querySelector('.design-inspection-tools[hidden]') && document.activeElement === focusToggle && wireframe.querySelector('.task-wireframe-canvas')) break;
                 await new Promise((resolve) => setTimeout(resolve, 50));
@@ -3798,11 +3799,16 @@ function createWindow(): void {
             await smokeWindow.webContents.executeJavaScript(`(async () => {
               document.querySelector('.theme-tokens-preview button[type="submit"]')?.click();
               for (let attempt = 0; attempt < 100 && (await window.studio.designInspectionState()).themePreview?.value !== '#aabbcc'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              const reviewButton = [...document.querySelectorAll('.theme-tokens-preview button')].find((button) => button.textContent?.includes('Dateiänderung prüfen'));
-              for (let attempt = 0; attempt < 100 && reviewButton?.disabled; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              reviewButton?.click();
-              for (let attempt = 0; attempt < 100 && !document.querySelector('.theme-tokens-edit-review'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              if (!document.querySelector('.theme-tokens-edit-review')?.textContent?.includes('--smoke-ink: #aabbcc')) throw new Error('CSS-Änderungsdiff fehlt.');
+              let reviewButton;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                reviewButton = [...document.querySelectorAll('.theme-tokens-preview button')].find((button) => button.textContent?.includes('Dateiänderung prüfen'));
+                if (reviewButton instanceof HTMLButtonElement && !reviewButton.disabled) break;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+              }
+              if (!(reviewButton instanceof HTMLButtonElement) || reviewButton.disabled) throw new Error('CSS-Diff-Aktion blieb nicht bereit: ' + document.querySelector('.theme-tokens .inline-error')?.textContent);
+              reviewButton.click();
+              for (let attempt = 0; attempt < 100 && !document.querySelector('.theme-tokens-edit-review')?.textContent?.includes('--smoke-ink: #aabbcc'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+              if (!document.querySelector('.theme-tokens-edit-review')?.textContent?.includes('--smoke-ink: #aabbcc')) throw new Error('CSS-Änderungsdiff fehlt: ' + document.querySelector('.theme-tokens .inline-error')?.textContent);
               return true;
             })()`);
             if (readFileSync(join(smokeDataDirectory!, 'src', 'theme.css'), 'utf8') !== ':root { --smoke-ink: #243b32; }\n') throw new Error('CSS-Datei wurde schon bei der Diff-Prüfung geschrieben.');

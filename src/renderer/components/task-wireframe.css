@@ -10,17 +10,23 @@
 .task-wireframe-empty { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 22px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 .task-wireframe-empty p { margin: 0 10px 0 0; flex-basis: 100%; }
 .task-wireframe-empty small { display: block; flex-basis: 100%; color: var(--muted); }
-.task-wireframe-start { display: grid; justify-items: start; gap: 12px; padding: 18px 0 23px; border-bottom: 1px solid var(--border); }
+.task-wireframe-start { display: grid; grid-template-columns: minmax(0, 1fr) minmax(245px, 300px); gap: 24px; min-height: 340px; padding: 10px 0 23px; border-bottom: 1px solid var(--border); }
+.task-wireframe:has(.task-wireframe-start) .task-wireframe-head p { display: none; }
+.task-wireframe-start-stage { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 10px; min-width: 0; padding: 12px 18px 20px; background: var(--surface-2); }
+.task-wireframe-start-stage-label { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.task-wireframe-start-blank { align-self: center; justify-self: center; width: min(100%, 510px); aspect-ratio: 960 / 600; background: var(--surface); box-shadow: 0 2px 11px color-mix(in srgb, var(--text) 11%, transparent); }
+.task-wireframe-start-options { display: flex; flex-direction: column; align-items: flex-start; gap: 18px; padding: 20px 0; }
 .task-wireframe-start-intro { display: grid; gap: 5px; }
-.task-wireframe-start h3 { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: -.015em; }
-.task-wireframe-start p { max-width: 68ch; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
-.task-wireframe-start-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.task-wireframe-start-actions button { min-height: 38px; }
+.task-wireframe-start h3 { margin: 0; font-size: 16px; font-weight: 650; line-height: 1.35; letter-spacing: -.015em; }
+.task-wireframe-start p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.task-wireframe-start-actions { display: grid; gap: 8px; width: 100%; }
+.task-wireframe-start-actions button { min-height: 38px; text-align: left; }
+.task-wireframe-start-assist { display: grid; gap: 3px; padding-top: 14px; border-top: 1px solid var(--border); }
+.task-wireframe-start-assist small { color: var(--muted); font-size: 12px; line-height: 1.45; }
 .task-wireframe-start-agent { padding: 2px 0; border: 0; background: none; color: var(--text); font: inherit; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .task-wireframe-start-agent:hover { color: var(--accent); }
 .task-wireframe-start-agent:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 3px; }
 .task-wireframe-start-agent:disabled { opacity: .5; cursor: default; }
-.task-wireframe-start > small { max-width: 68ch; color: var(--muted); font-size: 12px; line-height: 1.5; }
 body .design-inspection:has(.task-wireframe-start) { align-content: start; }
 .task-wireframe-notice { margin: 0; color: var(--positive); font-size: 12px; }
 .task-wireframe-artboard-switch { display: flex; flex-wrap: wrap; align-items: stretch; gap: 7px; }
@@ -118,8 +124,8 @@ body .design-workspace-draft .task-wireframe:not(.is-focused) .task-wireframe-to
 .task-wireframe-reference-controls label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
 .task-wireframe-reference-controls input[type="range"] { width: 86px; accent-color: var(--accent); }
 .task-wireframe-reference-controls input:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 2px; }
-.task-wireframe-start-reference { display: grid; gap: 6px; max-width: 440px; }
-.task-wireframe-start-reference img { display: block; max-width: 100%; max-height: 220px; object-fit: contain; border: 1px solid var(--border); background: var(--surface); }
+.task-wireframe-start-reference { display: grid; justify-items: center; align-content: center; gap: 8px; min-width: 0; }
+.task-wireframe-start-reference img { display: block; max-width: 100%; max-height: 260px; object-fit: contain; border: 1px solid var(--border); background: var(--surface); }
 .task-wireframe-start-reference small { color: var(--muted); font-size: 12px; line-height: 1.45; }
 .task-wireframe-canvas { position: relative; container-type: inline-size; width: 100%; aspect-ratio: 960 / 600; overflow: hidden; transform-origin: top left; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); box-shadow: 0 7px 20px color-mix(in srgb, var(--text) 8%, transparent); }
 .task-wireframe-reference-image { position: absolute; inset: 0; z-index: 1; display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; user-select: none; }
@@ -191,6 +197,7 @@ body .design-workspace-draft .task-wireframe:not(.is-focused) .task-wireframe-to
 @media (max-width: 1050px) { .task-wireframe.is-focused .task-wireframe-layout { grid-template-columns: 160px minmax(0, 1fr); } .task-wireframe.is-focused .task-wireframe-properties { grid-column: 1 / -1; } }
 @media (max-width: 1100px) { .task-wireframe.is-focused .task-wireframe-toolbar, .task-wireframe.is-focused .task-wireframe-actions { grid-column: 1 / -1; } }
 @media (max-width: 900px) { .task-wireframe.is-focused { grid-template-columns: 1fr; } .task-wireframe.is-focused .task-wireframe-head, .task-wireframe.is-focused .task-wireframe-source { grid-column: 1; grid-row: auto; justify-content: flex-start; } }
+@media (max-width: 900px) { .task-wireframe-start { grid-template-columns: minmax(0, 1fr); gap: 14px; } .task-wireframe-start-stage { min-height: 235px; } .task-wireframe-start-blank { max-width: 390px; } .task-wireframe-start-options { padding: 0; } }
 @media (max-width: 650px) { .task-wireframe { padding-inline: 12px; } .task-wireframe-layout { grid-template-columns: 1fr; } .task-wireframe-layers { min-height: 0; } .task-wireframe-layers ol { display: flex; overflow-x: auto; } .task-wireframe-layers li button { min-width: 110px; max-width: 160px; } .task-wireframe-properties { grid-column: auto; grid-template-columns: 1fr 1fr; min-height: 0; } .task-wireframe-properties h3, .task-wireframe-properties > label:first-of-type, .task-wireframe-properties p { grid-column: 1 / -1; } .task-wireframe-style { grid-template-columns: repeat(2, minmax(0, 1fr)); } .task-wireframe-resize { width: 30px; height: 30px; } }
 @media (max-width: 650px) { .task-wireframe.is-focused .task-wireframe-layout { grid-template-columns: 1fr; } .task-wireframe.is-focused .task-wireframe-properties { grid-column: auto; } .task-wireframe.is-focused .task-wireframe-layers, .task-wireframe.is-focused .task-wireframe-properties { max-height: none; } .task-wireframe.is-focused .task-wireframe-canvas-viewport { max-height: 62vh; } }
 @media (max-width: 650px) { .task-wireframe-overview { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; } .task-wireframe-overview-card { padding: 6px; } .task-wireframe-overview-title { display: grid; gap: 1px; } .task-wireframe.is-focused .task-wireframe-actions { position: static; } }
