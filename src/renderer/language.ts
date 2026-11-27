@@ -31,7 +31,7 @@ export function persistLanguage(language: LanguagePreference): void {
 
 const copy = {
   de: {
-    projects: 'Projekte', project: 'Projekt', projectActions: 'Projektaktionen', addFolder: 'Codeordner hinzufügen',
+    projects: 'Projekte', project: 'Projekt', projectActions: 'Projektaktionen', addFolder: 'Codeordner hinzufügen', chooseFolder: 'Codeordner auswählen',
     importPackage: 'Branchloom-Paket (.json) importieren', exportProject: 'Projekt sichern', openTeam: 'Team öffnen',
     searchProject: 'Projekt durchsuchen', searchPlaceholder: 'Projekt durchsuchen…', projectConversation: 'Projektgespräch als Seitenleiste',
     refresh: 'Aktualisieren', settings: 'Einstellungen', start: 'Start',
@@ -52,7 +52,7 @@ const copy = {
     projectPermissionsTitle: 'Projektberechtigungen',
   },
   en: {
-    projects: 'Projects', project: 'Project', projectActions: 'Project actions', addFolder: 'Add code folder',
+    projects: 'Projects', project: 'Project', projectActions: 'Project actions', addFolder: 'Add code folder', chooseFolder: 'Choose code folder',
     importPackage: 'Import Branchloom package (.json)', exportProject: 'Back up project', openTeam: 'Open team',
     searchProject: 'Search project', searchPlaceholder: 'Search project…', projectConversation: 'Project chat sidebar',
     refresh: 'Refresh', settings: 'Settings', start: 'Start',
