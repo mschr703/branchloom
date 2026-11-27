@@ -6,6 +6,13 @@
 
 *A board in the current light appearance. This image uses generated tasks and a simulated running session to show the session rail; no CLI process or user account is involved. Other screenshots below also use disposable project data.*
 
+<details>
+<summary>Board in a narrow window</summary>
+
+![The same synthetic board in a narrow Branchloom window](docs/assets/branchloom-board-narrow.png)
+
+</details>
+
 ### From an idea to a checked result
 
 1. **Capture and shape the work.** Collect an idea, discuss it in Project Chat, or create a card. The board records its current step; the Whiteboard can show related project parts and saved links.

@@ -2,6 +2,11 @@
 
 Stand: 27.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Board-Kopf nach der Figma-Referenz (lokal geprüft)
+
+- Oben steht nun eine schmale globale Leiste mit Projektpfad und Suche; darunter nennt der Board-Kopf das aktuelle Projekt genau einmal als große Überschrift. Aufgaben- und Spaltenzahl stammen aus dem Snapshot. „Sicher anhalten“ bleibt im Projektkopf erreichbar. Nur wenn tatsächlich eine Sitzung läuft, erscheint eine anklickbare Zeile mit Agent und zugehöriger Karte. Die Ansichten Board, Ideenraum und Workflows lassen sich direkt nebeneinander wechseln; die Hauptaktion und seltene Board-Aktionen bleiben rechts in derselben Zeile.
+- Das README-Boardbild wurde aus einem isolierten synthetischen Acht-Karten-Projekt neu aufgenommen. Die dort sichtbare aktive Sitzung wird allein für den Screenshot simuliert; es lief kein CLI-Agent. Die breite und die 430-Pixel-Ansicht wurden im versteckten Electron-Fenster gesichtet. Der Team-Workspace-Smoke, 18 gezielte Renderer-Tests, Typprüfung und Produktionsbuild bestanden. Die Abnahme mit dem echten Projekt und das weitere Feintuning der Karten gegenüber der Figma-Referenz stehen aus.
+
 ## Board-Gestaltung nach erneutem Referenzvergleich (lokal geprüft)
 
 - Die Karten liegen wieder auf einer klaren weißen Fläche statt in einer zusätzlichen Spaltentönung. Farbige Priorität bleibt als kleine Textinformation, nicht als weitere Kartenleiste; Labels und Agentenstatus sind ruhiger. Spalten sind breiter, die Agentenangabe im Spaltenkopf ist visuell entfernt, weil sie auf den Karten bereits steht. Marke, Projektauswahl und aktive Navigation sind flacher; der horizontale Board-Scrollbalken ist schmaler.

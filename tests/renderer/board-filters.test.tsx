@@ -21,6 +21,7 @@ describe('board filters and archive visibility', () => {
     const root = createRoot(host);
     const previousAct = Object.getOwnPropertyDescriptor(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
     const previousApi = Object.getOwnPropertyDescriptor(window, 'studio');
+    const onNavigate = vi.fn();
     Object.defineProperty(window, 'studio', { configurable: true, value: { cardRunGate: vi.fn().mockResolvedValue({ cardId: 'active', projectId: 'p', dependencies: [] }) } });
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     const snapshot = {
@@ -31,7 +32,9 @@ describe('board filters and archive visibility', () => {
       ], cards: [cards[0]!], agents: [], sessions: [], workflows: [], notes: [],
     } as ProjectSnapshot;
     try {
-      await act(async () => { root.render(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() })); });
+      await act(async () => { root.render(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action(), onNavigate })); });
+      await act(async () => { [...host.querySelectorAll<HTMLButtonElement>('.board-view-tabs button')].find((button) => button.textContent === 'Ideenraum')!.click(); });
+      expect(onNavigate).toHaveBeenCalledWith('ideas');
       await act(async () => { host.querySelector<HTMLButtonElement>('.card-quick-trigger')!.click(); });
       await act(async () => { [...document.querySelectorAll<HTMLButtonElement>('.card-quick-actions button')].find((button) => button.textContent?.includes('Verschieben'))!.click(); });
       expect(document.querySelector('.card-move-form')).not.toBeNull();
@@ -87,6 +90,12 @@ describe('board filters and archive visibility', () => {
     };
     const html = renderToStaticMarkup(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() }));
     expect(html).toContain('Aktive Suche');
+    expect(html).toContain('board-project-masthead');
+    expect(html).toContain('1 Aufgabe · 2 Spalten');
+    expect(html).toContain('board-view-tabs');
+    expect(html).toContain('Ideenraum');
+    expect(html).toContain('Workflows');
+    expect(html).not.toContain('board-live-strip');
     expect(html).not.toContain('Alte Aufgabe');
     expect(html).toContain('Archiv (1)');
     expect(html).toContain('Karten suchen');
@@ -134,6 +143,8 @@ describe('board filters and archive visibility', () => {
     snapshot.sessions = [{ id: 'run', projectId: 'p', cardId: 'active', agentId: 'gemini', state: 'running', startedAt: stamp, endedAt: null, exitCode: null, output: '', codexThreadId: null, worktreePath: null }];
     const running = renderToStaticMarkup(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() }));
     expect(running).toContain('Gemini arbeitet');
+    expect(running).toContain('1 Agent aktiv');
+    expect(running).toContain('Gemini <span aria-hidden="true">→</span> Aktive Suche');
     expect(running).not.toContain('Codex arbeitet');
 
     snapshot.sessions = [{ ...snapshot.sessions[0]!, state: 'failed', endedAt: stamp, exitCode: 1 }];
