@@ -347,7 +347,7 @@
   :root[data-theme] .board-filters .board-search { grid-column: 1 / -1; width: 100%; min-width: 0; }
   :root[data-theme] .board-filter-count { grid-column: 2; margin: 0; }
   :root[data-theme] .board-selection-toggle { grid-column: 3; }
-  :root[data-theme] .board-more-tools-content { left: 0; right: auto; }
+  :root[data-theme] .board-more-tools-content { left: auto; right: 0; }
 }
 
 /* One project header, then work status and adjacent planning views. */

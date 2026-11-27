@@ -357,6 +357,7 @@ export function App() {
   const activeView = views.find((item) => item.id === view)!;
   const ui = (key: LanguageKey) => languageText(language, key);
   const decisionStatus = decisionNavigationStatus(snapshot, projectId, decisionIndicator);
+  const currentProjectName = projectId ? projects.find((project) => project.id === projectId)?.name ?? ui('project') : null;
 
   return <div className="app-shell">
     <aside className="sidebar">
@@ -378,8 +379,8 @@ export function App() {
     </aside>
 
     <main className="main-area">
-      <header className={view === 'board' && projectId ? 'topbar topbar-board' : 'topbar'}>
-        <div className="topbar-title"><h1>{projectId && view === 'board' ? <><span>{ui('projects')}</span><span className="topbar-breadcrumb-divider" aria-hidden="true">/</span>Board</> : projectId ? viewName(view, language) : view === 'team' ? 'Team' : view === 'settings' ? ui('settings') : ui('start')}</h1></div>
+      <header className={projectId ? view === 'board' ? 'topbar topbar-board' : 'topbar topbar-context' : 'topbar'}>
+        <div className="topbar-title"><h1>{projectId && view === 'board' ? <><span>{ui('projects')}</span><span className="topbar-breadcrumb-divider" aria-hidden="true">/</span>Board</> : projectId ? <><span>{ui('projects')}</span><span className="topbar-breadcrumb-divider" aria-hidden="true">/</span><span className="topbar-project-name">{currentProjectName}</span></> : view === 'team' ? 'Team' : view === 'settings' ? ui('settings') : ui('start')}</h1></div>
         <div className="topbar-actions">
           {projectId ? <><div className={searchOpen ? 'topbar-search-slot is-open' : 'topbar-search-slot'}><button ref={searchButtonRef} className="search-trigger" type="button" title={`${ui('searchProject')} (Strg+K)`} aria-label={ui('searchProject')} aria-expanded={searchOpen} disabled={!snapshot || snapshot.project.id !== projectId} onClick={openSearch}><Search size={16} /><span>{ui('searchPlaceholder')}</span><kbd>Strg K</kbd></button>{searchOpen && snapshot?.project.id === projectId ? <SearchPalette snapshot={snapshot} onClose={closeSearch} onNavigate={navigateToResult} /> : null}</div>{view !== 'board' ? <button className="project-pause-button" type="button" aria-label={snapshot?.runPause.state === 'paused' ? ui('resumeProject') : snapshot?.runPause.state === 'requested' ? ui('pauseRequested') : ui('pauseProject')} disabled={!snapshot || snapshot.project.id !== projectId || snapshot.runPause.state === 'requested'} onClick={() => snapshot && void mutate(() => window.studio.setProjectRunPause({ projectId: snapshot.project.id, paused: snapshot.runPause.state === 'active' }))}>{snapshot?.runPause.state === 'paused' ? <Play size={15} aria-hidden="true" /> : <Pause size={15} aria-hidden="true" />}<span>{snapshot?.runPause.state === 'paused' ? ui('resumeProject') : snapshot?.runPause.state === 'requested' ? ui('pauseRequested') : ui('pauseProject')}</span></button> : null}<button className="icon-button" type="button" title={ui('projectConversation')} aria-label={ui('projectConversation')} aria-expanded={view === 'chat' || chatDockOpen} disabled={!snapshot || snapshot.project.id !== projectId} onClick={() => { if (view === 'chat') { setView('board'); setChatDockOpen(true); } else setChatDockOpen((open) => !open); }}><MessageCircle size={17} aria-hidden="true" /></button></> : null}
           <NotificationCenter language={language} onOpenItem={openGlobalItem} onOpenInbox={() => setView('decisions')} />

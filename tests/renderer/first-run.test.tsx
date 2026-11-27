@@ -67,6 +67,10 @@ it('restores project actions after a saved project loads', async () => {
     expect(mount.querySelector('.project-actions summary')?.textContent).toContain('Projektaktionen');
     expect(mount.querySelector<HTMLSelectElement>('#project-select')?.value).toBe('synthetic-project');
     expect(mount.querySelector('.project-switcher-trigger')).toBeTruthy();
+    expect(mount.querySelector('.topbar-board .topbar-title h1')?.textContent).toBe('Projekte/Board');
+    await act(async () => { mount.querySelector<HTMLButtonElement>('.topbar-actions button[aria-label="Einstellungen"]')!.click(); });
+    expect(mount.querySelector('.topbar-context .topbar-title h1')?.textContent).toBe('Projekte/Synthetic project');
+    expect(mount.querySelector('.topbar-actions button[aria-label="Einstellungen"]')?.getAttribute('aria-current')).toBe('page');
   } finally {
     await act(async () => { root.unmount(); });
     if (previousApi) Object.defineProperty(window, 'studio', previousApi);

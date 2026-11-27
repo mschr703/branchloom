@@ -82,6 +82,18 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
         const cardTop = await window.webContents.executeJavaScript(`(() => document.querySelector('.board-card-wrap')?.getBoundingClientRect().top ?? Infinity)()`);
         if (cardTop >= 760) throw new Error('Board cards are below the first narrow viewport.');
         writeFileSync(narrowBoardScreenshot, (await window.capturePage()).toPNG());
+        const moreMenuFits = await window.webContents.executeJavaScript(`(() => {
+          const actions = document.querySelector('.board-more-tools');
+          if (!(actions instanceof HTMLDetailsElement)) return false;
+          actions.querySelector('summary')?.click();
+          const menu = actions.querySelector('.board-more-tools-content');
+          const rect = menu?.getBoundingClientRect();
+          const firstAction = menu?.querySelector('button');
+          const fits = actions.open && rect && rect.left >= 0 && rect.right <= window.innerWidth && firstAction instanceof HTMLButtonElement;
+          actions.querySelector('summary')?.click();
+          return Boolean(fits);
+        })()`);
+        if (!moreMenuFits) throw new Error('Board secondary actions overflow the narrow viewport.');
         if (notificationNarrowScreenshot) {
           await window.webContents.executeJavaScript(`(() => document.querySelector('.notification-trigger')?.click())()`);
           await window.webContents.executeJavaScript('new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))');

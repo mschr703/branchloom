@@ -46,8 +46,9 @@ describe('compact workspace navigation', () => {
     expect(status).toEqual({ activeCards: 1, runningSessions: 1 });
     const html = renderToStaticMarkup(createElement(WorkspaceNavigation, { activeView: 'board', decisionCount: 0, onView: () => undefined, status }));
     expect(html).toContain('aria-label="Projektstatus"');
-    expect(html).toContain('1</strong> Agentenlauf aktiv');
-    expect(html).toContain('1</strong> aktive Karte');
+    expect(html).toContain('aria-label="Agentensitzungen öffnen: 1 aktiv"');
+    expect(html).toContain('1</strong> Lauf aktiv');
+    expect(html).toContain('1</strong> Karte');
     expect(html).not.toContain('heute erledigt');
   });
 

@@ -1,4 +1,4 @@
-import { Activity, Bot, BrainCircuit, CalendarDays, Columns3, GitBranch, GitCommitHorizontal, Globe2, History, Inbox, Lightbulb, MessageCircle, MousePointer2, Network, Settings2, TerminalSquare, UsersRound } from 'lucide-react';
+import { Activity, ArrowUpRight, Bot, BrainCircuit, CalendarDays, Columns3, GitBranch, GitCommitHorizontal, Globe2, History, Inbox, Lightbulb, MessageCircle, MousePointer2, Network, Settings2, TerminalSquare, UsersRound } from 'lucide-react';
 import type { ProjectSnapshot } from '../../shared/types';
 import type { LanguagePreference } from '../language';
 
@@ -90,8 +90,17 @@ export function WorkspaceNavigation({ activeView, language = 'de', decisionCount
         <div className="nav-other-items">{group.ids.map((id) => item(views.find((view) => view.id === id)!))}</div>
       </div>)}</div>
   </nav>{status ? <div className="sidebar-status" aria-label={language === 'en' ? 'Project status' : 'Projektstatus'}>
-    <span><strong>{status.runningSessions}</strong> {language === 'en' ? `active agent ${status.runningSessions === 1 ? 'run' : 'runs'}` : `${status.runningSessions === 1 ? 'Agentenlauf' : 'Agentenläufe'} aktiv`}</span>
+    <div className="sidebar-status-summary">
+      <button type="button" className="sidebar-sessions-link" onClick={() => onView('activity')}
+        aria-label={language === 'en' ? `Open agent sessions: ${status.runningSessions} active` : `Agentensitzungen öffnen: ${status.runningSessions} aktiv`}
+        title={language === 'en' ? 'Open agent sessions' : 'Agentensitzungen öffnen'}>
+        {status.runningSessions > 0 ? <span className="sidebar-status-live" aria-hidden="true" /> : null}
+        <strong>{status.runningSessions}</strong> {language === 'en' ? `active ${status.runningSessions === 1 ? 'run' : 'runs'}` : `${status.runningSessions === 1 ? 'Lauf' : 'Läufe'} aktiv`}
+        <ArrowUpRight size={12} aria-hidden="true" />
+      </button>
+      <span className="sidebar-status-separator" aria-hidden="true">·</span>
+      <span><strong>{status.activeCards}</strong> {language === 'en' ? `${status.activeCards === 1 ? 'card' : 'cards'}` : `${status.activeCards === 1 ? 'Karte' : 'Karten'}`}</span>
+    </div>
     {status.firstRunning && onOpenCard ? <button type="button" className="sidebar-running-card" onClick={() => onOpenCard(status.firstRunning!.cardId)} title={`${status.firstRunning.agentName}: ${status.firstRunning.cardTitle}`}><span className="sidebar-running-agent">{status.firstRunning.agentName}</span><span aria-hidden="true">→</span><span className="sidebar-running-title">{status.firstRunning.cardTitle}</span></button> : null}
-    <span><strong>{status.activeCards}</strong> {language === 'en' ? `active ${status.activeCards === 1 ? 'card' : 'cards'}` : `aktive ${status.activeCards === 1 ? 'Karte' : 'Karten'}`}</span>
   </div> : null}</>;
 }

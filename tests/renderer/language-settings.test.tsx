@@ -30,7 +30,8 @@ describe('application language', () => {
       const navigation = renderToStaticMarkup(<WorkspaceNavigation activeView="board" language="en" decisionCount={2} onView={() => undefined} status={{ activeCards: 4, runningSessions: 1 }} />);
       expect(navigation).toContain('aria-label="Ideas"');
       expect(navigation).toContain('aria-label="Decisions: 2 open"');
-      expect(navigation).toContain('1</strong> active agent run');
+      expect(navigation).toContain('aria-label="Open agent sessions: 1 active"');
+      expect(navigation).toContain('1</strong> active run');
       expect(viewName('settings', 'en')).toBe('Settings');
       const switcher = renderToStaticMarkup(<ProjectSwitcher language="en" projects={[{ id: 'project', name: 'Fixture', path: '/fixture', createdAt: '' }]} projectId="project" organization={{ groups: [], assignments: {}, sort: 'name' }} onSelect={() => undefined} onOrganizationChange={() => undefined} onError={() => undefined} />);
       expect(switcher).toContain('aria-label="Select project: Fixture"');
