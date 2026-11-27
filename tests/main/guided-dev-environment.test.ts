@@ -15,7 +15,7 @@ afterEach(() => {
   for (const runner of runners.splice(0)) runner.dispose();
   for (const store of stores.splice(0)) store.close();
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
-});
+}, 30_000);
 
 function git(cwd: string, ...args: string[]): void { execFileSync('git', args, { cwd, windowsHide: true, stdio: 'pipe' }); }
 
