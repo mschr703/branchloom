@@ -33,7 +33,7 @@ Team presence belongs to the place where work happens: a quiet count or face in 
 
 - Selection should be obvious and keyboard reachable. When an operation uses mouse drag, provide a discoverable keyboard path where practical.
 - An unsaved draft, a saved revision, an approved context, and running source code are different states. Label them plainly and never imply that a model response changed project code.
-- Motion should explain a user action, such as opening an inspector or completing a move. A subtle repeating indicator is allowed only while an observed agent run is active. Use the requested Board and Whiteboard gradients to distinguish work surfaces; avoid neon, glows, unrelated decorative effects, and vanity statistics.
+- Motion should explain a user action, such as opening an inspector or completing a move. A subtle repeating indicator is allowed only while an observed agent run is active. Keep the user-approved restrained Board gradients; Whiteboard canvas and individual shapes use flat, calm surfaces as requested on 27 November. Avoid neon, glows, unrelated decorative effects, and vanity statistics.
 - Review the actual Electron UI at 1440 × 900 and 430 × 760 with synthetic data in both themes when changing a shared visual rule. Check overflow, focus, contrast, empty/error states, and whether the main surface is visible without scrolling.
 - For the Design editor, `npm run smoke:design-preview` builds and opens a hidden Electron window with an isolated synthetic profile, checks the real editor path, and prints desktop and narrow screenshot paths. It does not activate a Windows window or use the user's mouse and keyboard. The screenshots are temporary review artifacts, not saved user designs.
 

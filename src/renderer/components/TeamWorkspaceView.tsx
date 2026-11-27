@@ -13,6 +13,10 @@ type RemoteWorkspace = { member: { displayName: string; role: string }; projects
 
 const roleNames: Record<string, string> = { owner: 'Owner', admin: 'Admin', editor: 'Mitglied', developer: 'Entwicklung', viewer: 'Ansicht' };
 const accessNames: Record<string, string> = { none: 'Kein Projektzugang', read: 'Nur lesen', edit: 'Mitarbeiten' };
+type HostedMember = HostedTeamWorkspace['members'][number];
+type MemberSort = 'role' | 'name' | 'access';
+const roleOrder: Record<HostedMember['role'], number> = { owner: 0, admin: 1, editor: 2, developer: 3, viewer: 4 };
+const memberCollator = new Intl.Collator('de', { sensitivity: 'base', numeric: true });
 
 function memberAccessLabel(member: HostedTeamWorkspace['members'][number], projectDefault: HostedTeamWorkspace['defaultMemberAccess']): string {
   const access = member.role === 'owner' ? 'edit' : member.projectAccess ?? projectDefault;
@@ -20,6 +24,19 @@ function memberAccessLabel(member: HostedTeamWorkspace['members'][number], proje
   if (member.role === 'viewer') return member.extraCapabilities.some((capability) => capability !== 'read') ? 'Zusatzrechte' : 'Nur lesen';
   if (member.role === 'developer') return member.extraCapabilities.some((capability) => capability !== 'read' && capability !== 'edit_draft') ? 'Entwurf & Zusatzrechte' : 'Entwurf bearbeiten';
   return 'Mitarbeiten';
+}
+
+function accessOrder(member: HostedMember, projectDefault: HostedTeamWorkspace['defaultMemberAccess']): number {
+  const access = memberAccessLabel(member, projectDefault);
+  return access === 'Kein Projektzugang' ? 2 : access === 'Nur lesen' ? 1 : 0;
+}
+
+export function sortTeamMembers(members: HostedMember[], sort: MemberSort, projectDefault: HostedTeamWorkspace['defaultMemberAccess']): HostedMember[] {
+  return members.filter((member) => !member.revokedAt).sort((a, b) => {
+    const rank = sort === 'role' ? roleOrder[a.role] - roleOrder[b.role]
+      : sort === 'access' ? accessOrder(a, projectDefault) - accessOrder(b, projectDefault) : 0;
+    return rank || memberCollator.compare(a.displayName, b.displayName) || a.id.localeCompare(b.id);
+  });
 }
 
 export function memberMonogram(name: string): string {
@@ -33,11 +50,13 @@ export function TeamMemberOverview({ hosted, currentMemberId, fallbackMember, on
   fallbackMember?: RemoteWorkspace['member'];
   onRefresh?: () => void;
 }) {
-  const members = hosted?.members.filter((member) => !member.revokedAt) ?? [];
+  const [sort, setSort] = useState<MemberSort>('role');
+  const members = hosted ? sortTeamMembers(hosted.members, sort, hosted.defaultMemberAccess) : [];
   return <section className="team-members-overview" aria-label="Mitglieder">
-    <div className="team-section-heading"><div><h3>Mitglieder</h3><p>{hosted ? 'Rollen und Rechte für dieses Projekt' : 'Dein Zugang in diesem Workspace'}</p></div>{hosted ? <span>{members.length}</span> : null}{hosted && onRefresh ? <button type="button" className="text-button" onClick={onRefresh}>Aktualisieren</button> : null}</div>
+    <div className="team-section-heading"><div><h3>Mitglieder</h3><p>{hosted ? `${members.length} im Workspace · Rechte für dieses Projekt` : 'Dein Zugang in diesem Workspace'}</p></div>
+      {hosted ? <div className="team-members-controls"><label>Sortieren<select aria-label="Mitglieder sortieren" value={sort} onChange={(event) => setSort(event.currentTarget.value as MemberSort)}><option value="role">Rolle</option><option value="name">Name</option><option value="access">Projektzugang</option></select></label>{onRefresh ? <button type="button" className="text-button" onClick={onRefresh}>Aktualisieren</button> : null}</div> : null}</div>
     {hosted ? <ul className="team-members-list">{members.map((member) => {
-      return <li key={member.id}><span className="team-member-avatar" aria-hidden="true">{memberMonogram(member.displayName)}</span><div className="team-member-identity"><strong>{member.displayName}</strong><small>{roleNames[member.role] ?? member.role}{member.id === currentMemberId ? ' · Du' : ''}</small></div><span className="team-member-access">{memberAccessLabel(member, hosted.defaultMemberAccess)}</span></li>;
+      return <li key={member.id}><span className="team-member-avatar" aria-hidden="true">{memberMonogram(member.displayName)}</span><div className="team-member-identity"><strong>{member.displayName}</strong>{member.id === currentMemberId ? <small>Du</small> : null}</div><span className="team-member-role">{roleNames[member.role] ?? member.role}</span><span className="team-member-access">{memberAccessLabel(member, hosted.defaultMemberAccess)}</span></li>;
     })}</ul> : fallbackMember ? <><div className="team-member-self"><span className="team-member-avatar" aria-hidden="true">{memberMonogram(fallbackMember.displayName)}</span><div className="team-member-identity"><strong>{fallbackMember.displayName}</strong><small>{roleNames[fallbackMember.role] ?? fallbackMember.role} · Du</small></div></div><p className="team-members-limitation">Die vollständige Mitgliederliste ist in dieser lokalen Vorschau nur auf dem Host sichtbar.</p></> : <p className="team-workspace-muted">Mitglieder werden geladen…</p>}
   </section>;
 }

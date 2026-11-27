@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudioStore } from '../../src/main/store';
-import { MAX_WHITEBOARD_EDGES, MAX_WHITEBOARD_NODES, createWhiteboardEdge, createWhiteboardNode, deleteWhiteboardEdge, deleteWhiteboardNode, updateWhiteboardNode, whiteboardSnapshot } from '../../src/main/whiteboard';
+import { MAX_WHITEBOARD_EDGES, MAX_WHITEBOARD_NODES, createWhiteboardEdge, createWhiteboardNode, deleteWhiteboardEdge, deleteWhiteboardNode, updateWhiteboardEdge, updateWhiteboardNode, whiteboardSnapshot } from '../../src/main/whiteboard';
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -22,6 +22,58 @@ function fixture() {
 }
 
 describe('project whiteboard', () => {
+  it('migrates saved legacy connections to neutral line styles without changing their links', () => {
+    const root = mkdtempSync(join(tmpdir(), 'branchloom-whiteboard-old-edge-'));
+    roots.push(root);
+    const file = join(root, 'legacy.sqlite');
+    const legacy = new Database(file);
+    legacy.exec(`
+      CREATE TABLE projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, path TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL);
+      CREATE TABLE whiteboard_nodes (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        title TEXT NOT NULL, description TEXT NOT NULL, x REAL NOT NULL, y REAL NOT NULL, reference_kind TEXT,
+        card_id TEXT, folder_path TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE whiteboard_edges (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        source_id TEXT NOT NULL REFERENCES whiteboard_nodes(id) ON DELETE CASCADE,
+        target_id TEXT NOT NULL REFERENCES whiteboard_nodes(id) ON DELETE CASCADE,
+        label TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(project_id, source_id, target_id));
+    `);
+    const stamp = '2026-01-01T00:00:00.000Z';
+    legacy.prepare('INSERT INTO projects VALUES (?, ?, ?, ?)').run('project', 'Old project', root, stamp);
+    const insertNode = legacy.prepare('INSERT INTO whiteboard_nodes VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    insertNode.run('one', 'project', 'One', '', 0, 0, null, null, null, stamp, stamp);
+    insertNode.run('two', 'project', 'Two', '', 200, 0, null, null, null, stamp, stamp);
+    legacy.prepare('INSERT INTO whiteboard_edges VALUES (?, ?, ?, ?, ?, ?)').run('link', 'project', 'one', 'two', 'old link', stamp);
+    legacy.close();
+    const store = new StudioStore(file);
+    expect(whiteboardSnapshot(store, 'project').edges[0]).toMatchObject({ id: 'link', sourceId: 'one', targetId: 'two', lineStyle: 'solid', endMarker: 'none', updatedAt: stamp });
+    const changed = updateWhiteboardEdge(store, { projectId: 'project', id: 'link', lineStyle: 'dashed', endMarker: 'arrow', expectedUpdatedAt: stamp });
+    expect(changed).toMatchObject({ label: 'old link', lineStyle: 'dashed', endMarker: 'arrow' });
+    store.close();
+    const reopened = new StudioStore(file);
+    expect(whiteboardSnapshot(reopened, 'project').edges[0]).toMatchObject({ id: 'link', lineStyle: 'dashed', endMarker: 'arrow' });
+    reopened.close();
+  });
+
+  it('validates connection appearance and rejects stale or cross-project edits', () => {
+    const { store, project } = fixture();
+    const otherRoot = mkdtempSync(join(tmpdir(), 'branchloom-whiteboard-other-edge-'));
+    roots.push(otherRoot);
+    const other = store.createProject({ name: 'Other project', path: otherRoot });
+    const one = createWhiteboardNode(store, { projectId: project.id, title: 'One', x: 0, y: 0 });
+    const two = createWhiteboardNode(store, { projectId: project.id, title: 'Two', x: 200, y: 0 });
+    expect(() => createWhiteboardEdge(store, { projectId: project.id, sourceId: one.id, targetId: two.id, lineStyle: 'invalid' as never })).toThrow('Linienstil');
+    expect(() => createWhiteboardEdge(store, { projectId: project.id, sourceId: one.id, targetId: two.id, endMarker: 'invalid' as never })).toThrow('Pfeilende');
+    const link = createWhiteboardEdge(store, { projectId: project.id, sourceId: one.id, targetId: two.id, lineStyle: 'dashed', endMarker: 'arrow' });
+    expect(link).toMatchObject({ lineStyle: 'dashed', endMarker: 'arrow' });
+    expect(() => updateWhiteboardEdge(store, { projectId: other.id, id: link.id, lineStyle: 'solid' })).toThrow('nicht gefunden');
+    expect(() => updateWhiteboardEdge(store, { projectId: project.id, id: link.id, lineStyle: 'invalid' as never })).toThrow('Linienstil');
+    expect(() => updateWhiteboardEdge(store, { projectId: project.id, id: link.id, endMarker: 'invalid' as never })).toThrow('Pfeilende');
+    const changed = updateWhiteboardEdge(store, { projectId: project.id, id: link.id, lineStyle: 'solid', endMarker: 'none', label: 'explains', expectedUpdatedAt: link.updatedAt });
+    expect(changed).toMatchObject({ label: 'explains', lineStyle: 'solid', endMarker: 'none' });
+    expect(() => updateWhiteboardEdge(store, { projectId: project.id, id: link.id, lineStyle: 'dashed', expectedUpdatedAt: link.updatedAt })).toThrow('seit dem Entwurf');
+    store.close();
+  });
+
   it('adds the default shape to boxes saved before the shape palette', () => {
     const root = mkdtempSync(join(tmpdir(), 'branchloom-whiteboard-old-shape-'));
     roots.push(root);
@@ -54,7 +106,45 @@ describe('project whiteboard', () => {
     expect(updateWhiteboardNode(store, { projectId: project.id, id: decision.id, shape: 'step' }).shape).toBe('step');
     store.close();
     const reopened = new StudioStore(file);
-    expect(whiteboardSnapshot(reopened, project.id).nodes.map(({ shape }) => shape)).toEqual(['step', 'card']);
+    expect(whiteboardSnapshot(reopened, project.id).nodes.map(({ shape }) => shape).sort()).toEqual(['card', 'step']);
+    reopened.close();
+  });
+
+  it('adds the asset library to databases whose old shape column rejects new values', () => {
+    const root = mkdtempSync(join(tmpdir(), 'branchloom-whiteboard-asset-migration-'));
+    roots.push(root);
+    const file = join(root, 'legacy.sqlite');
+    const legacy = new Database(file);
+    legacy.exec(`
+      CREATE TABLE projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, path TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL);
+      CREATE TABLE whiteboard_nodes (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        title TEXT NOT NULL, description TEXT NOT NULL, x REAL NOT NULL, y REAL NOT NULL,
+        shape TEXT NOT NULL DEFAULT 'card' CHECK (shape IN ('card', 'step', 'decision')),
+        reference_kind TEXT, card_id TEXT, folder_path TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+    `);
+    const stamp = '2026-01-01T00:00:00.000Z';
+    legacy.prepare('INSERT INTO projects VALUES (?, ?, ?, ?)').run('project', 'Old project', root, stamp);
+    legacy.prepare('INSERT INTO whiteboard_nodes VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run('old-step', 'project', 'Old process', '', 0, 0, 'step', null, null, null, stamp, stamp);
+    legacy.close();
+
+    const store = new StudioStore(file);
+    expect(whiteboardSnapshot(store, 'project').nodes[0]?.shape).toBe('step');
+    const shapes = ['terminator', 'document', 'data', 'note', 'text'] as const;
+    const created = shapes.map((shape, index) => createWhiteboardNode(store, { projectId: 'project', title: shape, x: index * 250, y: 0, shape }));
+    for (const item of created) {
+      const row = store.db.prepare('SELECT shape, visual_kind FROM whiteboard_nodes WHERE id = ?').get(item.id) as { shape: string; visual_kind: string };
+      expect(row).toEqual({ shape: 'card', visual_kind: item.shape });
+    }
+    expect(updateWhiteboardNode(store, { projectId: 'project', id: created[0].id, shape: 'decision' }).shape).toBe('decision');
+    expect(updateWhiteboardNode(store, { projectId: 'project', id: created[1].id, title: 'Renamed' }).shape).toBe('document');
+    store.close();
+
+    const reopened = new StudioStore(file);
+    const nodes = whiteboardSnapshot(reopened, 'project').nodes;
+    expect(nodes.find((item) => item.id === 'old-step')?.shape).toBe('step');
+    expect(nodes.find((item) => item.id === created[0].id)?.shape).toBe('decision');
+    expect(nodes.find((item) => item.id === created[1].id)).toMatchObject({ title: 'Renamed', shape: 'document' });
+    expect(new Set(nodes.map((item) => item.shape))).toEqual(new Set(['step', 'decision', 'document', 'data', 'note', 'text']));
     reopened.close();
   });
 

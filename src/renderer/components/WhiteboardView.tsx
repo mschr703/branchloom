@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ReactFlow, Background, Controls, MiniMap, Position, SelectionMode, useNodesState, type Connection, type Edge, type Node, type ReactFlowInstance } from '@xyflow/react';
-import { FileText, Folder, FolderTree, LayoutList, MousePointer2, Plus, StickyNote, Trash2 } from 'lucide-react';
-import type { ProjectSnapshot, WhiteboardNode, WhiteboardNodeShape, WhiteboardReference, WhiteboardSnapshot } from '../../shared/types';
+import { ReactFlow, Background, Controls, MiniMap, MarkerType, Position, SelectionMode, useNodesState, type Connection, type Edge, type Node, type ReactFlowInstance } from '@xyflow/react';
+import { ArrowRight, FileText, Folder, FolderTree, LayoutList, Minus, MousePointer2, Plus, StickyNote, Trash2 } from 'lucide-react';
+import type { ProjectSnapshot, WhiteboardEdge, WhiteboardEndMarker, WhiteboardLineStyle, WhiteboardNode, WhiteboardNodeShape, WhiteboardReference, WhiteboardSnapshot } from '../../shared/types';
 import type { RepoMapProposal, RepoMapImportResult } from '../../shared/repo-map';
 import type { WhiteboardDirectImporter, WhiteboardImpact } from '../../shared/whiteboard-impact';
 import type { WhiteboardDiscussionReply, WhiteboardDiscussionDraft } from '../../shared/whiteboard-discussion';
@@ -16,12 +16,29 @@ type EditDraft = { title: string; description: string; shape: WhiteboardNodeShap
 type CardDraft = { title: string; description: string; columnId: string };
 type ImpactCardDraft = CardDraft & { site: WhiteboardDirectImporter; nodeId: string; referencePath: string };
 type NewNodeDraft = EditDraft & { projectId: string; x: number; y: number };
-type NewEdgeDraft = { projectId: string; sourceId: string; targetId: string; label: string; expectedSourceUpdatedAt: string; expectedTargetUpdatedAt: string };
+type EdgeAppearanceDraft = Pick<WhiteboardEdge, 'label' | 'lineStyle' | 'endMarker'>;
+type NewEdgeDraft = EdgeAppearanceDraft & { projectId: string; sourceId: string; targetId: string; expectedSourceUpdatedAt: string; expectedTargetUpdatedAt: string };
 type MoveDraft = { projectId: string; id: string; x: number; y: number; expectedUpdatedAt: string };
 const emptyDraft = (): EditDraft => ({ title: '', description: '', shape: 'card', referenceKind: 'none', cardId: '', folderPath: '' });
-const shapeOptions: Array<{ shape: WhiteboardNodeShape; label: string }> = [
-  { shape: 'card', label: 'Box' }, { shape: 'step', label: 'Schritt' }, { shape: 'decision', label: 'Entscheidung' },
+const shapeDragType = 'application/x-branchloom-whiteboard-shape';
+const shapeOptions: Array<{ shape: WhiteboardNodeShape; label: string; group: 'Ablauf' | 'Inhalt'; title: string }> = [
+  { shape: 'card', label: 'Box', group: 'Inhalt', title: 'Neuer Bereich' },
+  { shape: 'step', label: 'Prozess', group: 'Ablauf', title: 'Neuer Prozess' },
+  { shape: 'decision', label: 'Entscheidung', group: 'Ablauf', title: 'Neue Entscheidung' },
+  { shape: 'terminator', label: 'Start / Ende', group: 'Ablauf', title: 'Start oder Ende' },
+  { shape: 'document', label: 'Dokument', group: 'Ablauf', title: 'Neues Dokument' },
+  { shape: 'data', label: 'Daten', group: 'Ablauf', title: 'Neue Daten' },
+  { shape: 'note', label: 'Notiz', group: 'Inhalt', title: 'Neue Notiz' },
+  { shape: 'text', label: 'Text', group: 'Inhalt', title: 'Neuer Text' },
 ];
+function EdgeAppearancePicker({ value, onChange, disabled = false }: { value: EdgeAppearanceDraft; onChange: (patch: Partial<EdgeAppearanceDraft>) => void; disabled?: boolean }) {
+  const lineOptions: Array<{ value: WhiteboardLineStyle; label: string }> = [{ value: 'solid', label: 'Durchgezogen' }, { value: 'dashed', label: 'Gestrichelt' }];
+  const endOptions: Array<{ value: WhiteboardEndMarker; label: string }> = [{ value: 'none', label: 'Ohne Pfeil' }, { value: 'arrow', label: 'Mit Pfeil' }];
+  return <div className="wb-edge-style-controls">
+    <div role="group" aria-label="Linienstil"><span>Linie</span><div>{lineOptions.map((option) => <button type="button" key={option.value} disabled={disabled} aria-pressed={value.lineStyle === option.value} onClick={() => onChange({ lineStyle: option.value })}><span className={`wb-line-sample is-${option.value}`} aria-hidden="true" />{option.label}</button>)}</div></div>
+    <div role="group" aria-label="Pfeilende"><span>Ende</span><div>{endOptions.map((option) => <button type="button" key={option.value} disabled={disabled} aria-pressed={value.endMarker === option.value} onClick={() => onChange({ endMarker: option.value })}>{option.value === 'arrow' ? <ArrowRight size={15} aria-hidden="true" /> : <Minus size={15} aria-hidden="true" />}{option.label}</button>)}</div></div>
+  </div>;
+}
 const message = (error: unknown): string => error instanceof Error ? error.message : String(error);
 const referenceSummary = (node: WhiteboardNode | undefined, snapshot: ProjectSnapshot): string => {
   if (!node) return 'Box fehlt';
@@ -52,6 +69,7 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
   const [draft, setDraft] = useState<EditDraft>(emptyDraft);
   const [newNodeDraft, setNewNodeDraft] = useState<NewNodeDraft | null>(null);
   const [newEdgeDraft, setNewEdgeDraft] = useState<NewEdgeDraft | null>(null);
+  const [edgeAppearance, setEdgeAppearance] = useState<EdgeAppearanceDraft>({ label: '', lineStyle: 'solid', endMarker: 'none' });
   const [moveDraft, setMoveDraft] = useState<MoveDraft | null>(null);
   const [connectTargetId, setConnectTargetId] = useState('');
   const [selectArea, setSelectArea] = useState(false);
@@ -166,7 +184,7 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
       const sourcePosition = Math.abs(sourceDy) > Math.abs(sourceDx) ? (sourceDy < 0 ? Position.Top : Position.Bottom) : sourceDx < 0 ? Position.Left : Position.Right;
       const targetPosition = Math.abs(targetDy) > Math.abs(targetDx) ? (targetDy < 0 ? Position.Top : Position.Bottom) : targetDx > 0 ? Position.Right : Position.Left;
       return { id: item.id, position: { x: item.x, y: item.y }, sourcePosition, targetPosition, data: {
-      label: <div className="wb-node-content"><span className="wb-node-kind">{item.reference?.kind === 'card' ? <LayoutList size={13} aria-hidden="true" /> : item.reference?.kind === 'folder' ? <Folder size={13} aria-hidden="true" /> : item.reference?.kind === 'file' ? <FileText size={13} aria-hidden="true" /> : <StickyNote size={13} aria-hidden="true" />}{item.reference?.kind === 'card' ? 'Board-Karte' : item.reference?.kind === 'folder' ? 'Ordner' : item.reference?.kind === 'file' ? 'Datei' : item.shape === 'step' ? 'Schritt' : item.shape === 'decision' ? 'Entscheidung' : 'Skizze'}</span><strong>{item.title}</strong>{item.description ? <span className="wb-node-description">{item.description}</span> : null}
+      label: <div className="wb-node-content"><span className="wb-node-kind">{item.reference?.kind === 'card' ? <LayoutList size={13} aria-hidden="true" /> : item.reference?.kind === 'folder' ? <Folder size={13} aria-hidden="true" /> : item.reference?.kind === 'file' ? <FileText size={13} aria-hidden="true" /> : <StickyNote size={13} aria-hidden="true" />}{item.reference?.kind === 'card' ? 'Board-Karte' : item.reference?.kind === 'folder' ? 'Ordner' : item.reference?.kind === 'file' ? 'Datei' : shapeOptions.find((option) => option.shape === item.shape)?.label ?? 'Skizze'}</span><strong>{item.title}</strong>{item.description ? <span className="wb-node-description">{item.description}</span> : null}
         {item.reference?.kind === 'card' ? <small>{snapshot.cards.find((card) => card.id === (item.reference as { kind: 'card'; cardId: string }).cardId)?.title ?? 'Karte entfernt'}</small> : null}
         {item.reference?.kind === 'folder' || item.reference?.kind === 'file' ? <small>{item.reference.path}</small> : null}</div>,
     }, className: `wb-node wb-node-${item.reference?.kind ?? 'note'} wb-shape-${item.shape}${item.reference ? ' wb-node-linked' : ''}` };
@@ -183,11 +201,16 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
     sourcePosition: Position.Right, targetPosition: Position.Left, data: { label: <div className="wb-node-content"><span className="wb-node-kind"><StickyNote size={13} aria-hidden="true" /> Entwurf</span><strong>{newNodeDraft.title || 'Neue Box'}</strong><small>Nicht gespeichert</small></div> },
     className: `wb-node wb-node-note wb-shape-${newNodeDraft.shape} wb-unsaved-node`, selectable: false }] : flowNodes, [flowNodes, newNodeDraft, showRepository]);
   const flowEdges = useMemo<Edge[]>(() => showRepository ? overview?.edges.map((item) => ({ id: `${item.sourceId}>${item.targetId}`, source: item.sourceId, target: item.targetId,
-    type: 'smoothstep', className: 'wb-proposal-edge' })) ?? [] : [...board.edges.map((item) => ({ id: item.id, source: item.sourceId, target: item.targetId, label: item.label || undefined,
-    type: 'smoothstep', pathOptions: { offset: 12, borderRadius: 8 }, className: 'wb-edge' })), ...(newEdgeDraft ? [{ id: 'whiteboard-unsaved-edge', source: newEdgeDraft.sourceId, target: newEdgeDraft.targetId,
-    label: newEdgeDraft.label || undefined, type: 'smoothstep', className: 'wb-unsaved-edge' }] : [])], [board.edges, overview, showRepository, newEdgeDraft]);
+    type: 'straight', className: 'wb-proposal-edge' })) ?? [] : [...board.edges.map((item) => ({ id: item.id, source: item.sourceId, target: item.targetId, label: item.label || undefined,
+    type: 'straight', style: { strokeDasharray: item.lineStyle === 'dashed' ? '6 4' : 'none' },
+    markerEnd: item.endMarker === 'arrow' ? { type: MarkerType.ArrowClosed, width: 16, height: 16, color: 'var(--muted)' } : undefined,
+    className: 'wb-edge' })), ...(newEdgeDraft ? [{ id: 'whiteboard-unsaved-edge', source: newEdgeDraft.sourceId, target: newEdgeDraft.targetId,
+    label: newEdgeDraft.label || undefined, type: 'straight', style: { strokeDasharray: newEdgeDraft.lineStyle === 'dashed' ? '6 4' : 'none' },
+    markerEnd: newEdgeDraft.endMarker === 'arrow' ? { type: MarkerType.ArrowClosed, width: 16, height: 16, color: 'var(--accent)' } : undefined,
+    className: 'wb-unsaved-edge' }] : [])], [board.edges, overview, showRepository, newEdgeDraft]);
   const selectedNode = board.nodes.find((item) => item.id === selected) ?? null;
   const edge = board.edges.find((item) => item.id === selectedEdge) ?? null;
+  useEffect(() => { setEdgeAppearance(edge ? { label: edge.label, lineStyle: edge.lineStyle, endMarker: edge.endMarker } : { label: '', lineStyle: 'solid', endMarker: 'none' }); }, [edge?.id, edge?.updatedAt]);
   const inspectorVisible = showRepository || Boolean(newNodeDraft || newEdgeDraft || selectedNode || edge || selectArea);
 
   function discardMoveDraft() {
@@ -254,9 +277,13 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
     finally { setBusy(false); }
   }
 
-  function addNode(shape: WhiteboardNodeShape = 'card') {
+  function addNode(shape: WhiteboardNodeShape = 'card', dropPoint?: { x: number; y: number }) {
     const index = board.nodes.length;
-    setNewNodeDraft({ ...emptyDraft(), shape, projectId, title: shape === 'step' ? 'Neuer Schritt' : shape === 'decision' ? 'Neue Entscheidung' : 'Neue Box', x: (index % 3) * 260, y: Math.floor(index / 3) * 180 });
+    const canvas = document.querySelector('.wb-canvas');
+    const rect = canvas?.getBoundingClientRect();
+    const center = flowApi.current?.screenToFlowPosition(dropPoint ?? { x: (rect?.left ?? 0) + (rect?.width ?? 0) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 0) / 2 });
+    const title = shapeOptions.find((option) => option.shape === shape)?.title ?? 'Neue Box';
+    setNewNodeDraft({ ...emptyDraft(), shape, projectId, title, x: center ? Math.round(center.x - 111) : (index % 3) * 260, y: center ? Math.round(center.y - 50) : Math.floor(index / 3) * 180 });
     discardMoveDraft(); setCanvasMode('board'); setSelected(null); setSelectedEdge(null); setCardDraft(null); setSelectArea(false); setAreaReply(null); setAreaError('');
     setAutomaticProposal(null); setAutomaticProposalProjectId(null); setSelectedProposal(null);
   }
@@ -287,7 +314,7 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
     if (!board.nodes.some((node) => node.id === connection.source) || !board.nodes.some((node) => node.id === connection.target)) return;
     const source = board.nodes.find((node) => node.id === connection.source)!;
     const target = board.nodes.find((node) => node.id === connection.target)!;
-    setNewEdgeDraft({ projectId, sourceId: source.id, targetId: target.id, label: '', expectedSourceUpdatedAt: source.updatedAt, expectedTargetUpdatedAt: target.updatedAt });
+    setNewEdgeDraft({ projectId, sourceId: source.id, targetId: target.id, label: '', lineStyle: 'solid', endMarker: 'none', expectedSourceUpdatedAt: source.updatedAt, expectedTargetUpdatedAt: target.updatedAt });
     setNewNodeDraft(null); setSelected(null); setSelectedEdge(null); setAreaIds([connection.source, connection.target]); setAreaReply(null); setAreaError('');
   }
 
@@ -306,9 +333,15 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
     const pending = newEdgeDraft;
     await run(async () => {
       const created = await window.studio.createWhiteboardEdge({ projectId, sourceId: pending.sourceId, targetId: pending.targetId,
-        label: pending.label, expectedSourceUpdatedAt: pending.expectedSourceUpdatedAt, expectedTargetUpdatedAt: pending.expectedTargetUpdatedAt });
+        label: pending.label, lineStyle: pending.lineStyle, endMarker: pending.endMarker,
+        expectedSourceUpdatedAt: pending.expectedSourceUpdatedAt, expectedTargetUpdatedAt: pending.expectedTargetUpdatedAt });
       if (latestProjectId.current === projectId) { setNewEdgeDraft(null); setSelectedEdge(created.id); setAreaIds([]); }
     });
+  }
+
+  function saveEdgeAppearance() {
+    if (!edge || busy) return;
+    void run(() => window.studio.updateWhiteboardEdge({ projectId, id: edge.id, ...edgeAppearance, expectedUpdatedAt: edge.updatedAt }));
   }
 
   async function explainArea(draft: WhiteboardDiscussionDraft | null = null) {
@@ -402,14 +435,11 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
         {!loading && !inspectorVisible && board.edges.length > 0 ? <details className="wb-connection-index"><summary>Verbindungen · {board.edges.length}</summary><div>{board.edges.map((item) => <button type="button" key={item.id} onClick={() => { setSelectedEdge(item.id); setSelected(null); setCardDraft(null); }}><span>{board.nodes.find((node) => node.id === item.sourceId)?.title ?? 'Entfernte Box'} → {board.nodes.find((node) => node.id === item.targetId)?.title ?? 'Entfernte Box'}</span></button>)}</div></details> : null}
         {board.nodes.length > 0 ? <button className="secondary-button" type="button" disabled={loading} onClick={switchCanvasMode}><FolderTree size={16} /> {canvasMode === 'repository' ? 'Arbeitsfläche ansehen' : 'Git-Struktur ansehen'}</button> : null}
         {!showRepository && board.nodes.length ? <button className={selectArea ? 'secondary-button wb-select-active' : 'secondary-button'} type="button" aria-pressed={selectArea} onClick={toggleAreaMode}><MousePointer2 size={16} /> {selectArea ? 'Auswahl beenden' : 'Bereich wählen'}</button> : null}
-        <div className="wb-shape-toolbar" role="group" aria-label="Form entwerfen">
-          {shapeOptions.map((option) => <button key={option.shape} className="wb-shape-tool" type="button" disabled={busy || loading || Boolean(newNodeDraft)} onClick={() => addNode(option.shape)} title={`${option.label} entwerfen`}><span className={`wb-shape-glyph wb-shape-glyph-${option.shape}`} aria-hidden="true" /><span>{option.label}</span></button>)}
-        </div>
       </div></div>
     {error ? <div className="error-banner" role="alert"><span>{error}</span><button type="button" aria-label="Fehler schließen" onClick={() => setError('')}>×</button></div> : null}
     {mapResult ? <p className="wb-import-result" role="status">Repo-Struktur übernommen: {mapResult.createdNodes} neue Boxen, {mapResult.reusedNodes} vorhandene Boxen, {mapResult.createdEdges} neue Verbindungen.</p> : null}
     <div className={`wb-workspace${inspectorVisible ? '' : ' wb-workspace-full'}`}>
-      <div className="wb-canvas" aria-label="Architektur-Canvas">
+      <div className={`wb-canvas${!showRepository && !selectArea && !loading ? ' wb-canvas-has-rail' : ''}`} aria-label="Architektur-Canvas" onDragOver={(event) => { if (event.dataTransfer.types.includes(shapeDragType)) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }} onDrop={(event) => { const value = event.dataTransfer.getData(shapeDragType); if (!shapeOptions.some((option) => option.shape === value) || busy || loading || newNodeDraft) return; event.preventDefault(); addNode(value as WhiteboardNodeShape, { x: event.clientX, y: event.clientY }); }}>
         {loading ? <div className="wb-loading">Whiteboard wird geladen…</div> : <ReactFlow nodes={canvasNodes} edges={flowEdges} onNodesChange={onNodesChange} onConnect={connect}
           onInit={(instance) => { flowApi.current = instance; }}
           onNodeDragStop={(_event, node) => { if (node.id === 'whiteboard-unsaved-draft') setNewNodeDraft((current) => current ? { ...current, x: node.position.x, y: node.position.y } : null);
@@ -423,6 +453,13 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
           deleteKeyCode={null} selectionKeyCode={selectArea ? null : 'Shift'} attributionPosition="bottom-left">
           <Background color="var(--border)" gap={24} size={1} /><Controls showInteractive={false} />{(overview?.nodes.length ?? board.nodes.length) > 8 ? <MiniMap pannable zoomable maskColor="var(--surface-2)" /> : null}
         </ReactFlow>}
+        {!showRepository && !selectArea && !loading ? <div className="wb-shape-rail" aria-label="Formenbibliothek">
+          <strong>Formen</strong>
+          {(['Ablauf', 'Inhalt'] as const).map((group) => <div className="wb-shape-rail-group" key={group} role="group" aria-label={group}>
+            <small>{group}</small>
+            {shapeOptions.filter((option) => option.group === group).map((option) => <button key={option.shape} type="button" aria-label={`${option.label} entwerfen`} draggable={!busy && !loading && !newNodeDraft} disabled={busy || loading || Boolean(newNodeDraft)} onDragStart={(event) => { event.dataTransfer.setData(shapeDragType, option.shape); event.dataTransfer.effectAllowed = 'copy'; }} onClick={() => addNode(option.shape)} title={`${option.label} entwerfen oder auf Arbeitsfläche ziehen`}><span className={`wb-shape-glyph wb-shape-glyph-${option.shape}`} aria-hidden="true" /><span>{option.label}</span></button>)}
+          </div>)}
+        </div> : null}
         {!loading && overview && overview.nodes.length > 0 ? <div className="wb-source-banner" role="status"><strong>Vorschau aus Git</strong><span>{overview.nodes.length} von {automaticProposal?.nodes.length} Pfaden · nicht gespeichert</span></div> : null}
         {!loading && showRepository && !overview?.nodes.length ? <div className="wb-empty"><strong>{automaticMapBusy ? 'Git-Struktur wird gelesen…' : automaticMapError ? 'Git-Struktur nicht verfügbar.' : 'Keine geeigneten Git-Pfade.'}</strong><span>{automaticMapError ? 'Die Arbeitsfläche bleibt erhalten. Du kannst zu ihr zurückkehren oder eigene Boxen anlegen.' : 'Nur versionierte Projektpfade erscheinen in dieser Vorschau. Es wird nichts gespeichert.'}</span></div> : null}
       </div>
@@ -445,8 +482,10 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
           {newNodeDraft.referenceKind === 'folder' || newNodeDraft.referenceKind === 'file' ? <label>Relativer Projektpfad<input value={newNodeDraft.folderPath} onChange={(event) => setNewNodeDraft({ ...newNodeDraft, folderPath: event.target.value })} /></label> : null}
           {discussionPanel({ kind: 'node', title: newNodeDraft.title, description: newNodeDraft.description })}
           <div className="wb-actions"><button className="primary-button" type="button" disabled={busy || !newNodeDraft.title.trim()} onClick={() => void saveNewNode()}>Box übernehmen</button><button className="text-button" type="button" onClick={() => setNewNodeDraft(null)}>Entwurf verwerfen</button></div></>
-        : newEdgeDraft ? <><h3>Verbindung · Entwurf</h3><p>{board.nodes.find((node) => node.id === newEdgeDraft.sourceId)?.title} → {board.nodes.find((node) => node.id === newEdgeDraft.targetId)?.title}. Die gestrichelte Linie ist noch nicht gespeichert.</p>
+        : newEdgeDraft ? <><h3>Verbindung · Entwurf</h3><p>{board.nodes.find((node) => node.id === newEdgeDraft.sourceId)?.title} → {board.nodes.find((node) => node.id === newEdgeDraft.targetId)?.title}. Die Linie ist noch nicht gespeichert.</p>
           <label>Bezeichnung, optional<input maxLength={120} value={newEdgeDraft.label} onChange={(event) => setNewEdgeDraft({ ...newEdgeDraft, label: event.target.value })} /></label>
+          <EdgeAppearancePicker value={newEdgeDraft} onChange={(patch) => setNewEdgeDraft((current) => current ? { ...current, ...patch } : current)} disabled={busy} />
+          <p className="wb-edge-style-note">Linienart und Pfeilrichtung beschreiben die Skizze. Sie legen keine Aufgabenabhängigkeit fest.</p>
           {discussionPanel({ kind: 'edge', sourceId: newEdgeDraft.sourceId, targetId: newEdgeDraft.targetId, label: newEdgeDraft.label })}
           <div className="wb-actions"><button className="primary-button" type="button" disabled={busy} onClick={() => void saveNewEdge()}>Verbindung übernehmen</button><button className="text-button" type="button" onClick={() => { setNewEdgeDraft(null); setAreaIds([]); }}>Entwurf verwerfen</button></div></>
         : selectArea ? <><h3>Bereich auswählen</h3><p>Ziehe auf der freien Fläche ein Rechteck um die Boxen. Die Auswahl ist noch keine Freigabe oder Änderung.</p>{discussionPanel(null)}</>
@@ -482,6 +521,10 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
           </section> : null}</>
         : edge ? <><h3>Verbindung</h3><p>{board.nodes.find((item) => item.id === edge.sourceId)?.title} → {board.nodes.find((item) => item.id === edge.targetId)?.title}</p>
           <dl className="wb-edge-refs"><div><dt>Von</dt><dd>{referenceSummary(board.nodes.find((item) => item.id === edge.sourceId), snapshot)}</dd></div><div><dt>Nach</dt><dd>{referenceSummary(board.nodes.find((item) => item.id === edge.targetId), snapshot)}</dd></div></dl>
+          <label>Bezeichnung, optional<input maxLength={120} value={edgeAppearance.label} onChange={(event) => setEdgeAppearance({ ...edgeAppearance, label: event.target.value })} /></label>
+          <EdgeAppearancePicker value={edgeAppearance} onChange={(patch) => setEdgeAppearance((current) => ({ ...current, ...patch }))} disabled={busy} />
+          <p className="wb-edge-style-note">Linienart und Pfeilrichtung sind nur Darstellung und ändern keine Aufgabe.</p>
+          <button className="secondary-button" type="button" disabled={busy || edgeAppearance.label === edge.label && edgeAppearance.lineStyle === edge.lineStyle && edgeAppearance.endMarker === edge.endMarker} onClick={saveEdgeAppearance}>Verbindung speichern</button>
           {edge.cardId ? <><p className="wb-edge-note">Diese Verbindung hat bereits eine Karte. Änderungen an der Karte bleiben im Board.</p><button className="secondary-button" type="button" onClick={() => onOpenCard(edge.cardId!)}>Karte öffnen</button></>
             : cardDraft ? <form className="wb-card-form" onSubmit={(event) => void createCard(event)}>
               <p className="wb-edge-note">Die Verbindung und ihre Boxen werden beim Anlegen geprüft. Ihre Verknüpfungen werden als Whiteboard-Bezug auf der Karte gespeichert. Ein Agent startet dadurch nicht.</p>

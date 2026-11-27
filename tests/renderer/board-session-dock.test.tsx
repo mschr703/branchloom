@@ -38,15 +38,15 @@ it('opens a newly active run and keeps the finished session visible', async () =
     expect(host.querySelector('.board-session-toggle')?.getAttribute('aria-expanded')).toBe('true');
     expect(host.textContent).toContain('Review invitation flow');
     expect(host.textContent).toContain('Codex');
-    expect(host.querySelector('.board-session-preview')).toBeNull();
+    expect(host.querySelector('.board-session-detail pre')?.textContent).toContain('Noch keine Ausgabe');
     await act(async () => { root.render(<BoardSessionDock snapshot={{ ...base, sessions: [{ ...session, output: '\u001b[32mread\u001b[0m file.ts\nedit filter\ncheck preview\n' }] }} onOpenSession={onOpenSession} />); });
-    expect(host.querySelector('.board-session-preview pre')?.textContent).toBe('read file.ts\nedit filter\ncheck preview');
-    await act(async () => { host.querySelector<HTMLButtonElement>('.board-session-row')!.click(); });
+    expect(host.querySelector('.board-session-detail pre')?.textContent).toBe('read file.ts\nedit filter\ncheck preview');
+    await act(async () => { host.querySelector<HTMLButtonElement>('.board-session-detail button')!.click(); });
     expect(onOpenSession).toHaveBeenCalledWith('card', 'run');
     await act(async () => { root.render(<BoardSessionDock snapshot={{ ...base, sessions: [{ ...session, state: 'exited' }] }} onOpenSession={onOpenSession} />); });
     expect(host.textContent).toContain('0 aktiv');
-    expect(host.querySelector('.board-session-row')?.textContent).toContain('Beendet');
-    expect(host.querySelector('.board-session-row')?.textContent).toContain('Review invitation flow');
+    expect(host.querySelector('.board-session-agent')?.textContent).toContain('Beendet');
+    expect(host.querySelector('.board-session-agent')?.textContent).toContain('Review invitation flow');
   } finally {
     await act(async () => { root.unmount(); });
     if (previousAct) Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', previousAct);
@@ -58,6 +58,43 @@ it('opens a newly active run and keeps the finished session visible', async () =
 it('limits the dock preview to the latest three readable lines', () => {
   expect(sessionOutputPreview('old\nsecond\nthird\nfourth\n')).toBe('second\nthird\nfourth');
   expect(sessionOutputPreview('x'.repeat(600))).toHaveLength(480);
+  expect(sessionOutputPreview('read file.ts\n{"type":"item.updated","private":"data"}\nedit file.ts')).toBe('read file.ts\nedit file.ts');
+});
+
+it('filters real running sessions by agent and opens the selected exact run', async () => {
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  const onOpenSession = vi.fn();
+  const previousAct = Object.getOwnPropertyDescriptor(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
+  (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  const other: Session = { ...session, id: 'other-run', agentId: 'other-agent', output: 'edit dashboard.tsx', startedAt: '2026-01-01T12:31:00.000Z' };
+  const snapshot = { ...base, sessions: [session, other], agents: [...base.agents, { ...base.agents[0]!, id: 'other-agent', name: 'Claude' }] } as ProjectSnapshot;
+  try {
+    await act(async () => { root.render(<BoardSessionDock snapshot={snapshot} onOpenSession={onOpenSession} />); });
+    expect(host.querySelectorAll('.board-session-agent')).toHaveLength(2);
+    expect(host.querySelector('.board-session-detail pre')?.textContent).toContain('edit dashboard.tsx');
+    await act(async () => { host.querySelectorAll<HTMLButtonElement>('.board-session-agent')[1]!.click(); });
+    expect(host.querySelector('.board-session-detail pre')?.textContent).toContain('Noch keine Ausgabe');
+    await act(async () => { host.querySelector<HTMLButtonElement>('.board-session-detail button')!.click(); });
+    expect(onOpenSession).toHaveBeenLastCalledWith('card', 'run');
+    const membership = [...host.querySelectorAll<HTMLButtonElement>('.board-session-scope button')];
+    expect(membership[1]?.disabled).toBe(true);
+    expect(membership[2]?.disabled).toBe(true);
+    expect(host.textContent).toContain('Mitgliedszuordnung fehlt');
+    const select = host.querySelector<HTMLSelectElement>('select[aria-label="Agent filtern"]')!;
+    await act(async () => { select.value = 'agent'; select.dispatchEvent(new Event('change', { bubbles: true })); });
+    expect(host.querySelectorAll('.board-session-agent')).toHaveLength(1);
+    expect(host.querySelector('.board-session-detail pre')?.textContent).toContain('Noch keine Ausgabe');
+    await act(async () => { host.querySelector<HTMLButtonElement>('.board-session-detail button')!.click(); });
+    expect(onOpenSession).toHaveBeenLastCalledWith('card', 'run');
+    expect(host.textContent).not.toContain('70%');
+  } finally {
+    await act(async () => { root.unmount(); });
+    if (previousAct) Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', previousAct);
+    else Reflect.deleteProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
+    host.remove();
+  }
 });
 
 it('quotes the latest observed output without treating an event payload as progress', () => {

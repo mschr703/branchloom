@@ -44,9 +44,11 @@ export interface ProjectGroup { id: string; name: string }
 export type ProjectSort = 'name' | 'newest';
 export interface ProjectOrganization { groups: ProjectGroup[]; assignments: Record<string, string>; sort: ProjectSort }
 export type WhiteboardReference = { kind: 'card'; cardId: string } | { kind: 'folder' | 'file'; path: string };
-export type WhiteboardNodeShape = 'card' | 'step' | 'decision';
+export type WhiteboardNodeShape = 'card' | 'step' | 'decision' | 'terminator' | 'document' | 'data' | 'note' | 'text';
 export interface WhiteboardNode { id: string; projectId: string; title: string; description: string; x: number; y: number; shape: WhiteboardNodeShape; reference: WhiteboardReference | null; createdAt: string; updatedAt: string }
-export interface WhiteboardEdge { id: string; projectId: string; sourceId: string; targetId: string; label: string; createdAt: string; cardId: string | null }
+export type WhiteboardLineStyle = 'solid' | 'dashed';
+export type WhiteboardEndMarker = 'none' | 'arrow';
+export interface WhiteboardEdge { id: string; projectId: string; sourceId: string; targetId: string; label: string; lineStyle: WhiteboardLineStyle; endMarker: WhiteboardEndMarker; createdAt: string; updatedAt: string; cardId: string | null }
 export interface WhiteboardSnapshot { nodes: WhiteboardNode[]; edges: WhiteboardEdge[] }
 export type ColumnTint = 'default' | 'lilac' | 'blue' | 'sand' | 'coral';
 export interface Column { id: string; projectId: string; name: string; position: number; autoStart: boolean; agentId: string | null; model: string | null; effort: ColumnEffort | null; tint?: ColumnTint }
@@ -256,7 +258,8 @@ export interface StudioAPI {
   createWhiteboardNode(input: { projectId: string; title: string; description?: string; x: number; y: number; shape?: WhiteboardNodeShape; reference?: WhiteboardReference | null }): Promise<WhiteboardNode>;
   updateWhiteboardNode(input: { projectId: string; id: string; title?: string; description?: string; x?: number; y?: number; shape?: WhiteboardNodeShape; reference?: WhiteboardReference | null; expectedUpdatedAt?: string }): Promise<WhiteboardNode>;
   deleteWhiteboardNode(input: { projectId: string; id: string }): Promise<void>;
-  createWhiteboardEdge(input: { projectId: string; sourceId: string; targetId: string; label?: string; expectedSourceUpdatedAt?: string; expectedTargetUpdatedAt?: string }): Promise<WhiteboardEdge>;
+  createWhiteboardEdge(input: { projectId: string; sourceId: string; targetId: string; label?: string; lineStyle?: WhiteboardLineStyle; endMarker?: WhiteboardEndMarker; expectedSourceUpdatedAt?: string; expectedTargetUpdatedAt?: string }): Promise<WhiteboardEdge>;
+  updateWhiteboardEdge(input: { projectId: string; id: string; label?: string; lineStyle?: WhiteboardLineStyle; endMarker?: WhiteboardEndMarker; expectedUpdatedAt?: string }): Promise<WhiteboardEdge>;
   createCardFromWhiteboardEdge(input: { projectId: string; edgeId: string; columnId: string; title: string; description: string }): Promise<Card>;
   deleteWhiteboardEdge(input: { projectId: string; id: string }): Promise<void>;
   createColumn(input: { projectId: string; name: string; autoStart?: boolean; agentId?: string | null; model?: string | null; effort?: ColumnEffort | null }): Promise<Column>;

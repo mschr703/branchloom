@@ -100,7 +100,7 @@ describe('selected Whiteboard discussion', () => {
 
   it('delivers saved card-linked Whiteboard context through a real local CLI session', async () => {
     const { store, project, card } = fixture();
-    const node = createWhiteboardNode(store, { projectId: project.id, title: 'Saved screen sketch', description: 'Navigation and detail panel', x: 0, y: 0, reference: { kind: 'card', cardId: card.id } });
+    const node = createWhiteboardNode(store, { projectId: project.id, title: 'Saved screen sketch', description: 'Navigation and detail panel', x: 0, y: 0, shape: 'note', reference: { kind: 'card', cardId: card.id } });
     const agent = store.saveAgent({ name: 'Synthetic prompt reader', kind: 'custom', command: process.execPath,
       args: ['-e', 'console.log(process.argv[1])', '{prompt}'], model: null, enabled: true });
     let finish!: () => void;
@@ -111,6 +111,7 @@ describe('selected Whiteboard discussion', () => {
       await Promise.race([finished, new Promise<void>((_, reject) => setTimeout(() => reject(new Error('Local CLI did not exit.')), 10_000))]);
       expect(store.session(session.id).state).toBe('exited');
       expect(store.session(session.id).output).toContain(`[whiteboard:${node.id}]`);
+      expect(store.session(session.id).output).toContain('[shape:note]');
       expect(store.session(session.id).output).toContain('Navigation and detail panel');
     } finally { runner.dispose(); store.close(); }
   }, 15_000);

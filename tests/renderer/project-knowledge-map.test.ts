@@ -3,7 +3,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { Card, CardContextReference, Project, ProjectSnapshot, Session } from '../../src/shared/types';
 import { knowledgeMapFileForHit, knowledgeMapPageForCard, projectKnowledgeMapPage, visibleKnowledgeCodeFiles } from '../../src/renderer/project-knowledge-map';
-import { knowledgeMapFlow, ProjectKnowledgeMap } from '../../src/renderer/components/ProjectKnowledgeMap';
+import { knowledgeMapFlow, knowledgeMapRelationships, ProjectKnowledgeMap } from '../../src/renderer/components/ProjectKnowledgeMap';
 import type { ProjectMemoryMapSources } from '../../src/shared/project-memory-index';
 
 const project: Project = { id: 'p', name: 'Project', path: 'synthetic', createdAt: '2026-01-01T00:00:00Z' };
@@ -111,6 +111,28 @@ describe('project knowledge map', () => {
       .toEqual(['task:a', 'task:b']);
     expect(flow.edges.find((edge) => edge.target === 'conversation:run-a')?.className).toContain('quiet');
     expect(knowledgeMapFlow(map.groups, [], 'missing').nodes.some((node) => node.className?.includes('quiet'))).toBe(false);
+  });
+
+  it('explains each navigable relationship using only an existing graph edge', () => {
+    const map = projectKnowledgeMapPage({ project, cards: [card('a')], sessions: [session('run-a', 'a')] }, 0,
+      [reference('1', 'a', 'src/ui.tsx')]);
+    const sources: ProjectMemoryMapSources = { gitRef: 'a'.repeat(40),
+      headCommit: { sourceId: 'a'.repeat(40), title: 'Head', updatedAt: '2026-01-02T00:00:00Z' },
+      codeFiles: [{ path: 'src/ui.tsx', sourceId: 'src/ui.tsx#1', updatedAt: '2026-01-02T00:00:00Z' }], totalCodeFiles: 1 };
+    const { edges } = knowledgeMapFlow(map.groups, [], '', sources, 'all');
+    expect(knowledgeMapRelationships('task:a', edges)).toEqual(expect.arrayContaining([
+      { id: 'conversation:run-a', group: 'Agentenläufe', reason: 'Gespeicherter Lauf dieser Aufgabe' },
+      { id: 'source:file:src/ui.tsx', group: 'Kartenkontext', reason: 'Explizit an die Karte geheftet' },
+    ]));
+    expect(knowledgeMapRelationships('source:file:src/ui.tsx', edges)).toEqual(expect.arrayContaining([
+      { id: 'task:a', group: 'Kartenkontext', reason: 'Als Kontext an diese Karte geheftet' },
+      { id: `commit:${sources.gitRef}`, group: 'Git-Quellen', reason: 'Datei aus diesem Git-Stand indexiert' },
+    ]));
+    expect(knowledgeMapRelationships('conversation:run-a', edges)).toEqual([
+      { id: 'task:a', group: 'Agentenläufe', reason: 'Dieser Aufgabe zugeordnet' },
+    ]);
+    expect(knowledgeMapRelationships('task:missing', edges)).toEqual([]);
+    expect(knowledgeMapRelationships('task:a', [{ source: 'task:a', target: 'commit:fake' }])).toEqual([]);
   });
 
   it('offers a compact network without changing the verified source graph', () => {

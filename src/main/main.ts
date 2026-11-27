@@ -72,7 +72,7 @@ import { StudioStore } from './store';
 import { apiContractOverview, bindCardApiContract, checkApiContractResponse, previewApiContract, saveApiContract } from './api-contract';
 import { ApiContractHttp } from './api-contract-http';
 import { addRequirementClaim, refreshRequirementClaim, removeRequirementClaim, requirementConflictBoard, resolveRequirementConflict } from './requirement-conflicts';
-import { createCardFromWhiteboardEdge, createWhiteboardEdge, createWhiteboardNode, deleteWhiteboardEdge, deleteWhiteboardNode, updateWhiteboardNode, whiteboardSnapshot } from './whiteboard';
+import { createCardFromWhiteboardEdge, createWhiteboardEdge, createWhiteboardNode, deleteWhiteboardEdge, deleteWhiteboardNode, updateWhiteboardEdge, updateWhiteboardNode, whiteboardSnapshot } from './whiteboard';
 import { discussWhiteboardSelection } from './whiteboard-discussion';
 import { analyzeWhiteboardImpact, createCardFromWhiteboardImpact } from './whiteboard-impact';
 import { acceptRepoMap, previewRepoMap } from './repo-map-import';
@@ -415,6 +415,7 @@ function installIpc(): void {
   bind('updateWhiteboardNode', (input: Parameters<StudioAPI['updateWhiteboardNode']>[0]) => updateWhiteboardNode(db, input));
   bind('deleteWhiteboardNode', (input: Parameters<StudioAPI['deleteWhiteboardNode']>[0]) => deleteWhiteboardNode(db, input));
   bind('createWhiteboardEdge', (input: Parameters<StudioAPI['createWhiteboardEdge']>[0]) => createWhiteboardEdge(db, input));
+  bind('updateWhiteboardEdge', (input: Parameters<StudioAPI['updateWhiteboardEdge']>[0]) => updateWhiteboardEdge(db, input));
   bind('createCardFromWhiteboardEdge', (input: Parameters<StudioAPI['createCardFromWhiteboardEdge']>[0]) => createCardFromWhiteboardEdge(db, input));
   bind('deleteWhiteboardEdge', (input: Parameters<StudioAPI['deleteWhiteboardEdge']>[0]) => deleteWhiteboardEdge(db, input));
   bind('createColumn', (input: Parameters<StudioAPI['createColumn']>[0]) => db.createColumn(input));

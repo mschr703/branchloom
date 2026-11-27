@@ -133,40 +133,72 @@
 
 /* The canvas is a working diagram: color identifies the source of a node. */
 .wb-view { gap: 14px; }
-.wb-heading { align-items: center; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.wb-heading { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
 .wb-heading h2 { font-size: 20px; letter-spacing: -.025em; }
-.wb-heading p { max-width: 58ch; line-height: 1.4; }
-.wb-workspace { border-radius: 12px; box-shadow: 0 12px 32px rgb(24 26 30 / 5%); }
+.wb-heading p { max-width: none; line-height: 1.4; }
+.wb-workspace { border-radius: 10px; box-shadow: 0 4px 18px rgb(24 26 30 / 4%); }
 .wb-canvas { background: color-mix(in srgb, var(--surface-2) 78%, var(--surface)); }
-.wb-view .react-flow__background { opacity: .54; }
+.wb-view .react-flow__background { opacity: .34; }
 .wb-view .react-flow__node-default.wb-node {
   width: 222px;
   padding: 0;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--wb-node-tone, var(--border)) 28%, var(--border)) !important;
   border-radius: 11px !important;
-  background: linear-gradient(155deg, color-mix(in srgb, var(--wb-node-tone, var(--surface)) 22%, var(--surface)) 0%, color-mix(in srgb, var(--wb-node-tone, var(--surface)) 7%, var(--surface)) 48%, var(--surface) 88%) !important;
-  box-shadow: 0 2px 3px rgb(20 20 22 / 5%), 0 11px 24px rgb(20 20 22 / 7%) !important;
+  background: var(--surface) !important;
+  box-shadow: 0 2px 7px rgb(20 20 22 / 7%) !important;
   text-align: left !important;
   transition: box-shadow 150ms ease, border-color 150ms ease;
 }
-.wb-view .react-flow__node-default.wb-node:hover { box-shadow: 0 3px 5px rgb(20 20 22 / 6%), 0 15px 30px rgb(20 20 22 / 10%) !important; }
-.wb-view .react-flow__node-default.wb-node.selected { border-color: var(--wb-node-tone, var(--accent)) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--wb-node-tone, var(--accent)) 19%, transparent), 0 12px 25px rgb(20 20 22 / 9%) !important; }
+.wb-view .react-flow__node-default.wb-node:hover { box-shadow: 0 3px 11px rgb(20 20 22 / 10%) !important; }
+.wb-view .react-flow__node-default.wb-node.selected { border-color: var(--wb-node-tone, var(--accent)) !important; box-shadow: 0 0 0 2px color-mix(in srgb, var(--wb-node-tone, var(--accent)) 24%, transparent), 0 2px 8px rgb(20 20 22 / 7%) !important; }
 .wb-node-card { --wb-node-tone: #6d72b5; }
 .wb-node-folder { --wb-node-tone: #b58a55; }
 .wb-node-file { --wb-node-tone: #4c8d92; }
 .wb-node-note { --wb-node-tone: #a37f83; }
 .wb-node-note.wb-shape-step { --wb-node-tone: #56839b; }
 .wb-node-note.wb-shape-decision { --wb-node-tone: #a77a45; }
-.wb-view .react-flow__node-default.wb-shape-step { border-radius: 26px !important; }
+.wb-node-note.wb-shape-terminator { --wb-node-tone: #648c76; }
+.wb-node-note.wb-shape-document { --wb-node-tone: #6382a7; }
+.wb-node-note.wb-shape-data { --wb-node-tone: #9375a4; }
+.wb-node-note.wb-shape-note { --wb-node-tone: #ad9168; }
+.wb-node-note.wb-shape-text { --wb-node-tone: #777885; }
+.wb-view .react-flow__node-default.wb-shape-step { border-radius: 6px !important; }
 .wb-view .react-flow__node-default.wb-shape-decision { border-radius: 5px 27px 5px 27px !important; }
-.wb-shape-toolbar { display: flex; align-items: stretch; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); }
-.wb-heading-actions .wb-shape-tool { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 32px; padding: 5px 9px; border: 0; border-radius: 6px; background: transparent; color: var(--text); font: inherit; font-size: 12px; cursor: pointer; }
-.wb-heading-actions .wb-shape-tool:hover:not(:disabled) { background: var(--surface-2); }
-.wb-heading-actions .wb-shape-tool:disabled { opacity: .45; cursor: default; }
+.wb-view .react-flow__node-default.wb-shape-terminator { border-radius: 100px !important; }
+.wb-view .react-flow__node-default.wb-shape-document { border-radius: 8px 8px 44px 13px / 8px 8px 19px 8px !important; }
+.wb-view .react-flow__node-default.wb-shape-document .wb-node-content { padding-bottom: 22px; }
+.wb-view .react-flow__node-default.wb-shape-data { position: relative; border-color: transparent !important; overflow: visible; }
+.wb-view .react-flow__node-default.wb-shape-data::before { content: ''; position: absolute; inset: 0; clip-path: polygon(10% 0, 100% 0, 90% 100%, 0 100%); background: color-mix(in srgb, var(--wb-node-tone) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--wb-node-tone) 34%, var(--border)); border-radius: 4px; pointer-events: none; }
+.wb-view .react-flow__node-default.wb-shape-data .wb-node-content { position: relative; padding-left: 30px; padding-right: 30px; }
+.wb-view .react-flow__node-default.wb-shape-note { position: relative; border-radius: 3px !important; overflow: visible; }
+.wb-view .react-flow__node-default.wb-shape-note::after { content: ''; position: absolute; top: 0; right: 0; width: 20px; height: 20px; background: color-mix(in srgb, var(--wb-node-tone) 35%, var(--surface)); border-left: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.wb-view .react-flow__node-default.wb-shape-text { border-color: transparent !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; }
+.wb-view .react-flow__node-default.wb-shape-text .wb-node-content { padding: 8px 10px; }
+.wb-view .react-flow__node-default.wb-shape-text .wb-node-kind { opacity: .65; }
+.wb-view .react-flow__node-default.wb-shape-text.selected { border-color: var(--wb-node-tone) !important; }
+.wb-canvas-has-rail { display: grid; grid-template-columns: 148px minmax(0, 1fr); }
+.wb-canvas-has-rail > .react-flow { grid-column: 2; grid-row: 1; min-width: 0; }
+.wb-shape-rail { z-index: 12; grid-column: 1; grid-row: 1; display: grid; align-content: start; gap: 9px; width: 100%; height: 100%; box-sizing: border-box; overflow-y: auto; padding: 12px 8px 10px; border-right: 1px solid var(--border); background: var(--surface); }
+.wb-shape-rail > strong { padding: 0 6px; color: var(--text); font-size: 12px; font-weight: 650; }
+.wb-shape-rail-group { display: grid; gap: 2px; }
+.wb-shape-rail-group + .wb-shape-rail-group { padding-top: 8px; border-top: 1px solid var(--border); }
+.wb-shape-rail-group > small { padding: 2px 6px 4px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
+.wb-shape-rail-group button { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 32px; padding: 5px 6px; border: 0; border-radius: 4px; background: transparent; color: var(--text); font: inherit; font-size: 11px; text-align: left; cursor: pointer; }
+.wb-shape-rail-group button[draggable="true"] { cursor: grab; }
+.wb-shape-rail-group button[draggable="true"]:active { cursor: grabbing; }
+.wb-shape-rail-group button:hover:not(:disabled), .wb-shape-rail-group button:focus-visible { background: var(--surface-2); }
+.wb-shape-rail-group button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.wb-shape-rail-group button:disabled { opacity: .45; cursor: not-allowed; }
 .wb-shape-glyph { width: 17px; height: 13px; flex: none; border: 1.5px solid currentColor; border-radius: 2px; }
 .wb-shape-glyph-step { border-radius: 8px; }
 .wb-shape-glyph-decision { width: 14px; height: 14px; border-radius: 2px; transform: rotate(45deg) scale(.8); }
+.wb-shape-glyph-terminator { border-radius: 20px; }
+.wb-shape-glyph-document { border-radius: 2px 2px 7px 2px; }
+.wb-shape-glyph-data { transform: skewX(-16deg); }
+.wb-shape-glyph-note { clip-path: polygon(0 0, 75% 0, 100% 30%, 100% 100%, 0 100%); }
+.wb-shape-glyph-text { width: 17px; height: 15px; border: 0; font-size: 15px; font-weight: 700; line-height: 15px; text-align: center; }
+.wb-shape-glyph-text::before { content: 'T'; }
 .wb-shape-picker { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 3px; border: 1px solid var(--border); border-radius: 8px; }
 .wb-shape-picker button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; min-width: 0; min-height: 54px; padding: 7px 3px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer; }
 .wb-shape-picker button:hover { background: var(--surface-2); color: var(--text); }
@@ -174,6 +206,8 @@
 .wb-view .react-flow__node-default.wb-node-linked { border-left-width: 1px !important; }
 .wb-view .react-flow__node-default.wb-unsaved-node,
 .wb-view .react-flow__node-default.wb-proposal-node { border-style: dashed !important; box-shadow: 0 2px 6px rgb(20 20 22 / 4%) !important; }
+@keyframes wb-draft-arrive { from { opacity: .55; transform: translateY(5px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.wb-view .react-flow__node-default.wb-unsaved-node .wb-node-content { animation: wb-draft-arrive 170ms ease-out both; }
 .wb-node-content { display: grid; gap: 7px; padding: 14px 15px 13px; }
 .wb-node-content .wb-node-kind { display: inline-flex; align-items: center; gap: 6px; width: fit-content; color: var(--wb-node-tone, var(--muted)); font-size: 11px; font-weight: 650; line-height: 1.2; letter-spacing: .005em; }
 .wb-node-content .wb-node-kind svg { flex: none; stroke-width: 1.9; }
@@ -184,6 +218,17 @@
 .wb-view .react-flow__edge.selected .react-flow__edge-path { stroke: var(--accent); stroke-width: 2.5; }
 .wb-view .react-flow__edge-text { fill: var(--text); font-size: 11px; font-weight: 580; }
 .wb-view .react-flow__edge-textbg { fill: var(--surface); stroke: var(--border); stroke-width: .7px; }
+.wb-edge-style-controls { display: grid; gap: 10px; }
+.wb-edge-style-controls > div { display: grid; gap: 5px; }
+.wb-edge-style-controls > div > span { color: var(--muted); font-size: 12px; font-weight: 600; }
+.wb-edge-style-controls > div > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.wb-edge-style-controls button { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 5px 9px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text); font: inherit; font-size: 12px; cursor: pointer; }
+.wb-edge-style-controls button[aria-pressed="true"] { border-color: color-mix(in srgb, var(--accent) 58%, var(--border)); background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
+.wb-edge-style-controls button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.wb-edge-style-controls button:disabled { opacity: .55; cursor: default; }
+.wb-line-sample { display: block; width: 17px; border-top: 2px solid currentColor; }
+.wb-line-sample.is-dashed { border-top-style: dashed; }
+.wb-edge-style-note { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.4; }
 .wb-view .react-flow__handle { width: 10px; height: 10px; border: 2px solid var(--surface); background: var(--wb-node-tone, var(--accent)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--wb-node-tone, var(--accent)) 55%, var(--border)); }
 .wb-view .react-flow__controls { border-radius: 8px; box-shadow: 0 4px 14px rgb(20 20 22 / 8%); }
 .wb-view .react-flow__controls-button { width: 30px; height: 30px; }
@@ -194,14 +239,20 @@
 .wb-heading-actions .wb-connection-index summary { min-height: 36px; box-sizing: border-box; padding: 8px 11px; box-shadow: none; }
 .wb-heading-actions .wb-connection-index[open] summary { border: 1px solid var(--border); }
 .wb-heading-actions .wb-connection-index > div { position: absolute; top: calc(100% + 5px); right: 0; width: min(280px, 80vw); border: 1px solid var(--border); border-radius: 7px; background: var(--surface); box-shadow: 0 12px 28px rgb(20 20 22 / 12%); }
-.wb-heading > div:first-child { flex: 1 1 auto; min-width: 0; }
-.wb-heading-actions { flex: none; flex-wrap: nowrap; }
-@media (max-width: 1200px) { .wb-heading { flex-wrap: wrap; } .wb-heading-actions { flex-wrap: wrap; } }
-.wb-canvas { background: linear-gradient(145deg, color-mix(in srgb, #7c81b7 8%, var(--surface-2)) 0%, var(--surface-2) 49%, color-mix(in srgb, #b58a55 7%, var(--surface-2)) 100%); }
-.wb-view .react-flow__node-default.wb-node { background: linear-gradient(150deg, color-mix(in srgb, var(--wb-node-tone, var(--surface)) 37%, var(--surface)) 0%, color-mix(in srgb, var(--wb-node-tone, var(--surface)) 12%, var(--surface)) 48%, var(--surface) 87%) !important; }
-@media (prefers-reduced-motion: reduce) { .wb-view .react-flow__node-default.wb-node { transition: none; } }
+.wb-heading > div:first-child { min-width: 0; }
+.wb-heading-actions { width: 100%; max-width: 100%; flex-wrap: wrap; }
+@media (max-width: 1200px) { .wb-heading { flex-wrap: wrap; } .wb-heading-actions { flex: 1 1 100%; width: 100%; max-width: 100%; flex-wrap: wrap; } }
+.wb-canvas { background: color-mix(in srgb, var(--surface-2) 78%, var(--surface)); }
+.wb-view .react-flow__node-default.wb-shape-data { background: transparent !important; }
+@media (prefers-reduced-motion: reduce) { .wb-view .react-flow__node-default.wb-node { transition: none; } .wb-view .react-flow__node-default.wb-unsaved-node .wb-node-content { animation: none; } }
 @media (max-width: 900px) { .wb-view { padding: 20px 16px; } .wb-workspace { grid-template-columns: 1fr; height: auto; min-height: 0; } .wb-canvas { height: 460px; } .wb-inspector { border-left: 0; border-top: 1px solid var(--border); } .wb-heading { flex-wrap: wrap; } }
 @media (max-width: 600px) {
+  .wb-canvas-has-rail { grid-template-columns: 58px minmax(0, 1fr); }
+  .wb-shape-rail { padding: 8px 5px; }
+  .wb-shape-rail > strong { padding: 0 2px; font-size: 10px; }
+  .wb-shape-rail-group > small { padding: 2px; font-size: 8px; }
+  .wb-shape-rail-group button { justify-content: center; min-height: 38px; padding: 5px; }
+  .wb-shape-rail-group button > span:last-child { display: none; }
   .wb-heading-actions { width: 100%; }
   .wb-heading-actions button { min-height: 44px; }
   .wb-preview-panel { width: calc(100vw - 1rem); max-height: calc(100vh - 1rem); }
