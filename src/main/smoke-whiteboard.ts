@@ -23,8 +23,8 @@ export async function runWhiteboardVisibleSmoke(window: BrowserWindow, store: St
   const project = store.createProject({ name: projectName, path: repo });
   const saved = createWhiteboardNode(store, { projectId: project.id, title: 'My saved architecture', x: 24, y: 32 });
   if (capturePath) {
-    const service = createWhiteboardNode(store, { projectId: project.id, title: 'Preview service', description: 'Synthetic preview data', x: 350, y: 32 });
-    const checks = createWhiteboardNode(store, { projectId: project.id, title: 'UI checks', description: 'Keyboard and responsive layout', x: 350, y: 245 });
+    const service = createWhiteboardNode(store, { projectId: project.id, title: 'Preview service', description: 'Synthetic preview data', x: 350, y: 32, shape: 'step' });
+    const checks = createWhiteboardNode(store, { projectId: project.id, title: 'UI checks', description: 'Keyboard and responsive layout', x: 350, y: 245, shape: 'decision' });
     createWhiteboardEdge(store, { projectId: project.id, sourceId: saved.id, targetId: service.id, label: 'renders' });
     createWhiteboardEdge(store, { projectId: project.id, sourceId: service.id, targetId: checks.id, label: 'verify' });
   }
@@ -171,7 +171,7 @@ export async function runWhiteboardVisibleSmoke(window: BrowserWindow, store: St
   })()`);
   await window.webContents.executeJavaScript(`(async () => {
     const findButton = (label) => [...document.querySelectorAll('.wb-heading-actions button, .wb-inspector button')].find((item) => item.textContent?.includes(label));
-    findButton('Box entwerfen')?.click();
+    findButton('Entscheidung')?.click();
     for (let attempt = 0; attempt < 100; attempt++) {
       if (document.querySelector('.wb-unsaved-node') && findButton('Box übernehmen')) return true;
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -183,7 +183,7 @@ export async function runWhiteboardVisibleSmoke(window: BrowserWindow, store: St
     const button = [...document.querySelectorAll('.wb-inspector button')].find((item) => item.textContent?.includes('Box übernehmen'));
     button?.click();
     for (let attempt = 0; attempt < 100; attempt++) {
-      if (!document.querySelector('.wb-unsaved-node') && [...document.querySelectorAll('.wb-node')].some((node) => node.textContent?.includes('Neue Box'))) return true;
+      if (!document.querySelector('.wb-unsaved-node') && [...document.querySelectorAll('.wb-node')].some((node) => node.textContent?.includes('Neue Entscheidung'))) return true;
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
     throw new Error('Accepted node did not appear on the canvas.');
@@ -192,6 +192,7 @@ export async function runWhiteboardVisibleSmoke(window: BrowserWindow, store: St
   if (accepted.nodes.length !== before.nodes.length + 1) throw new Error('Accepted node was not persisted.');
   const newNode = accepted.nodes.find((node) => !before.nodes.some((earlier) => earlier.id === node.id));
   if (!newNode) throw new Error('Accepted node cannot be identified.');
+  if (newNode.shape !== 'decision') throw new Error('The chosen node shape was not persisted.');
   await window.webContents.executeJavaScript(`(async () => {
     for (let attempt = 0; attempt < 100 && !document.querySelector('.wb-connect-from-node select'); attempt++)
       await new Promise((resolve) => setTimeout(resolve, 50));

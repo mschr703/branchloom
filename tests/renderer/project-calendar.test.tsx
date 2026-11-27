@@ -1,8 +1,8 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import type { Card, ProjectSnapshot } from '../../src/shared/types';
-import { calendarMonthDays, cardCalendarEvents, localDateKey } from '../../src/renderer/calendar-model';
+import type { Card, ProjectSnapshot, Session } from '../../src/shared/types';
+import { calendarMonthDays, cardCalendarEvents, localDateKey, projectAgendaEvents } from '../../src/renderer/calendar-model';
 import { ProjectCalendarView } from '../../src/renderer/components/ProjectCalendarView';
 
 const card: Card = {
@@ -27,6 +27,20 @@ describe('project calendar', () => {
     expect(days[0]).toMatchObject({ date: '2026-11-30', inMonth: false });
     expect(days.at(-1)).toMatchObject({ date: '2027-01-03', inMonth: false });
     expect(days).toHaveLength(35);
+  });
+
+  it('records only observed agent start and end events with an honest outcome', () => {
+    const session: Session = {
+      id: 'session-1', projectId: 'project', cardId: card.id, agentId: 'agent-1', state: 'exited',
+      startedAt: '2026-12-04T09:20:00.000Z', endedAt: '2026-12-04T10:10:00.000Z', exitCode: null, output: '',
+    };
+    const entries = projectAgendaEvents([card], [session], [{ id: 'agent-1', name: 'Atlas', kind: 'custom', command: 'node', args: [], model: null, enabled: true }]);
+    expect(entries.map((entry) => entry.kind)).toContain('run-started');
+    expect(entries.find((entry) => entry.id === 'session-1:started')?.detail).toBe('Atlas gestartet');
+    expect(entries.find((entry) => entry.id === 'session-1:ended')?.detail).toBe('Atlas · Ergebnis unbekannt');
+    expect(projectAgendaEvents([], [{ ...session, startedAt: 'bad', endedAt: 'bad' }], [])).toEqual([]);
+    expect(projectAgendaEvents([], [{ ...session, state: 'running', endedAt: null }], []).filter((entry) => entry.kind === 'run-ended')).toEqual([]);
+    expect(projectAgendaEvents([card], [{ ...session, exitCode: 0 }], []).find((entry) => entry.kind === 'run-ended')?.detail).toBe('Agent · Lauf beendet');
   });
 
   it('renders an accessible calendar without pretending a Done column is a completion', () => {

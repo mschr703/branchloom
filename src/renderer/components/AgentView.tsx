@@ -48,10 +48,12 @@ export function DiagnosticStatus({ item }: { item: AgentDetection }) {
 }
 
 export function agentProfileSummary(agent: AgentPreset, check?: AgentDetection): string {
-  if (!agent.enabled) return 'Im Projekt deaktiviert';
-  if (!check) return 'Im Projekt aktiviert · CLI-Prüfung läuft';
-  if (!check.available) return 'Im Projekt aktiviert · aktuell nicht startbereit';
-  return 'Im Projekt aktiviert · Anmeldung und Modellzugang ungeprüft';
+  if (!agent.enabled) return 'Profil deaktiviert';
+  if (!check) return 'Profil aktiviert · CLI noch nicht geprüft';
+  if (check.status === 'missing') return 'Profil aktiviert · CLI fehlt · Start derzeit unmöglich';
+  if (!check.available) return 'Profil aktiviert · CLI-Prüfung fehlgeschlagen · Start derzeit unmöglich';
+  if (check.status === 'found') return 'Profil aktiviert · CLI gefunden · Anmeldung ungeprüft';
+  return 'Profil aktiviert · CLI-Version geprüft · Anmeldung ungeprüft';
 }
 
 export function AgentView({ snapshot, mutate, onOpenBrowserSettings }: Props) {
@@ -135,8 +137,8 @@ export function AgentView({ snapshot, mutate, onOpenBrowserSettings }: Props) {
       </section>
       <section className="panel">
         <div className="panel-heading"><div><Bot size={18} /><h3>Gespeicherte Agenten</h3></div><span className="count-pill">{snapshot.agents.length}</span></div>
-        <p className="panel-subtitle">Ein gespeichertes Profil kann im Projekt aktiviert sein, auch wenn seine CLI auf diesem Gerät fehlt. Die Erkennung prüft weder Anmeldung noch Modellzugang.</p>
-        {snapshot.agents.length ? <div className="preset-list">{snapshot.agents.map((agent) => { const check = detections.find((item) => item.profileId === agent.id); return <button className="preset-item" type="button" key={agent.id} onClick={() => edit(agent)}><span className="preset-avatar"><Bot size={19} /></span><span><strong>{agent.name}</strong><small>{agent.kind} · {agent.command}{agent.model ? ` · ${agent.model}` : ''}</small><small className="agent-diagnostic-hint">{agentProfileSummary(agent, check)}</small>{check ? <small className="agent-diagnostic-hint">{diagnosticHint(check)}</small> : null}</span>{check ? <DiagnosticStatus item={check} /> : null}</button>; })}</div> : <div className="agent-empty"><CircleHelp size={22} /><p>Noch kein Agent gespeichert. Nutze einen erkannten CLI-Eintrag oder lege einen eigenen an.</p></div>}
+        <p className="panel-subtitle">„Profil aktiviert“ erlaubt die Auswahl für Karten und Spalten. Ob die CLI auf diesem Gerät funktioniert, zeigt die Zeile darunter. Anmeldung und Modellzugang prüft Branchloom hier nicht.</p>
+        {snapshot.agents.length ? <div className="preset-list">{snapshot.agents.map((agent) => { const check = detections.find((item) => item.profileId === agent.id); return <button className="preset-item" type="button" key={agent.id} onClick={() => edit(agent)}><span className="preset-avatar"><Bot size={19} /></span><span><strong>{agent.name}</strong><small>{agent.kind} · {agent.command}{agent.model ? ` · ${agent.model}` : ''}</small><small className="agent-diagnostic-hint">{agentProfileSummary(agent, check)}</small>{check && check.status !== 'ready' ? <small className="agent-diagnostic-hint">{diagnosticHint(check)}</small> : null}</span></button>; })}</div> : <div className="agent-empty"><CircleHelp size={22} /><p>Noch kein Agent gespeichert. Nutze einen erkannten CLI-Eintrag oder lege einen eigenen an.</p></div>}
       </section>
     </div>
     <section className="agent-metadata-policy" aria-label="Agentenrechte für Kartenmetadaten">

@@ -1,3 +1,14 @@
+.trello-import-dialog .trello-destination { display: grid; gap: 8px; padding: 12px 0 14px; border-top: 1px solid var(--border); }
+.trello-import-dialog .trello-destination > span { color: var(--text); font-size: 13px; font-weight: 600; }
+.trello-import-dialog .trello-destination > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.trello-import-dialog .trello-destination button { display: grid; gap: 2px; min-width: 165px; padding: 9px 13px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text); text-align: left; font: inherit; font-size: 13px; cursor: pointer; }
+.trello-import-dialog .trello-destination button small { color: var(--muted); font-size: 11px; }
+.trello-import-dialog .trello-destination button[aria-pressed='true'] { border-color: var(--accent); background: var(--surface-2); }
+.trello-import-dialog .trello-destination button:hover:not(:disabled) { border-color: var(--accent); }
+.trello-import-dialog .trello-destination button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.trello-import-dialog .trello-destination button:disabled { opacity: .6; cursor: default; }
+.trello-import-dialog .trello-destination p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+
 .trello-import-dialog .trello-source-tabs {
   display: flex;
   flex-wrap: wrap;

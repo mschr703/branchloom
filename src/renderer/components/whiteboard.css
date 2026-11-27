@@ -156,6 +156,21 @@
 .wb-node-folder { --wb-node-tone: #b58a55; }
 .wb-node-file { --wb-node-tone: #4c8d92; }
 .wb-node-note { --wb-node-tone: #a37f83; }
+.wb-node-note.wb-shape-step { --wb-node-tone: #56839b; }
+.wb-node-note.wb-shape-decision { --wb-node-tone: #a77a45; }
+.wb-view .react-flow__node-default.wb-shape-step { border-radius: 26px !important; }
+.wb-view .react-flow__node-default.wb-shape-decision { border-radius: 5px 27px 5px 27px !important; }
+.wb-shape-toolbar { display: flex; align-items: stretch; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); }
+.wb-heading-actions .wb-shape-tool { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 32px; padding: 5px 9px; border: 0; border-radius: 6px; background: transparent; color: var(--text); font: inherit; font-size: 12px; cursor: pointer; }
+.wb-heading-actions .wb-shape-tool:hover:not(:disabled) { background: var(--surface-2); }
+.wb-heading-actions .wb-shape-tool:disabled { opacity: .45; cursor: default; }
+.wb-shape-glyph { width: 17px; height: 13px; flex: none; border: 1.5px solid currentColor; border-radius: 2px; }
+.wb-shape-glyph-step { border-radius: 8px; }
+.wb-shape-glyph-decision { width: 14px; height: 14px; border-radius: 2px; transform: rotate(45deg) scale(.8); }
+.wb-shape-picker { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 3px; border: 1px solid var(--border); border-radius: 8px; }
+.wb-shape-picker button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; min-width: 0; min-height: 54px; padding: 7px 3px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer; }
+.wb-shape-picker button:hover { background: var(--surface-2); color: var(--text); }
+.wb-shape-picker button[aria-pressed="true"] { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: color-mix(in srgb, var(--accent) 9%, var(--surface)); color: var(--text); }
 .wb-view .react-flow__node-default.wb-node-linked { border-left-width: 1px !important; }
 .wb-view .react-flow__node-default.wb-unsaved-node,
 .wb-view .react-flow__node-default.wb-proposal-node { border-style: dashed !important; box-shadow: 0 2px 6px rgb(20 20 22 / 4%) !important; }

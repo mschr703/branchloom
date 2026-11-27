@@ -44,7 +44,8 @@ export interface ProjectGroup { id: string; name: string }
 export type ProjectSort = 'name' | 'newest';
 export interface ProjectOrganization { groups: ProjectGroup[]; assignments: Record<string, string>; sort: ProjectSort }
 export type WhiteboardReference = { kind: 'card'; cardId: string } | { kind: 'folder' | 'file'; path: string };
-export interface WhiteboardNode { id: string; projectId: string; title: string; description: string; x: number; y: number; reference: WhiteboardReference | null; createdAt: string; updatedAt: string }
+export type WhiteboardNodeShape = 'card' | 'step' | 'decision';
+export interface WhiteboardNode { id: string; projectId: string; title: string; description: string; x: number; y: number; shape: WhiteboardNodeShape; reference: WhiteboardReference | null; createdAt: string; updatedAt: string }
 export interface WhiteboardEdge { id: string; projectId: string; sourceId: string; targetId: string; label: string; createdAt: string; cardId: string | null }
 export interface WhiteboardSnapshot { nodes: WhiteboardNode[]; edges: WhiteboardEdge[] }
 export type ColumnTint = 'default' | 'lilac' | 'blue' | 'sand' | 'coral';
@@ -252,8 +253,8 @@ export interface StudioAPI {
   createCardFromWhiteboardImpact(input: { projectId: string; nodeId: string; referencePath: string; site: WhiteboardDirectImporter; columnId: string; title: string; description: string }): Promise<Card>;
   previewRepoMap(projectId: string): Promise<import('./repo-map').RepoMapProposal>;
   acceptRepoMap(input: { projectId: string; fingerprint: string; nodeIds: string[] }): Promise<import('./repo-map').RepoMapImportResult>;
-  createWhiteboardNode(input: { projectId: string; title: string; description?: string; x: number; y: number; reference?: WhiteboardReference | null }): Promise<WhiteboardNode>;
-  updateWhiteboardNode(input: { projectId: string; id: string; title?: string; description?: string; x?: number; y?: number; reference?: WhiteboardReference | null; expectedUpdatedAt?: string }): Promise<WhiteboardNode>;
+  createWhiteboardNode(input: { projectId: string; title: string; description?: string; x: number; y: number; shape?: WhiteboardNodeShape; reference?: WhiteboardReference | null }): Promise<WhiteboardNode>;
+  updateWhiteboardNode(input: { projectId: string; id: string; title?: string; description?: string; x?: number; y?: number; shape?: WhiteboardNodeShape; reference?: WhiteboardReference | null; expectedUpdatedAt?: string }): Promise<WhiteboardNode>;
   deleteWhiteboardNode(input: { projectId: string; id: string }): Promise<void>;
   createWhiteboardEdge(input: { projectId: string; sourceId: string; targetId: string; label?: string; expectedSourceUpdatedAt?: string; expectedTargetUpdatedAt?: string }): Promise<WhiteboardEdge>;
   createCardFromWhiteboardEdge(input: { projectId: string; edgeId: string; columnId: string; title: string; description: string }): Promise<Card>;

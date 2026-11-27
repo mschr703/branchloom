@@ -394,9 +394,8 @@
 :root[data-theme] .workflow-workbench > .view-header { margin-bottom: 16px; padding-bottom: 12px; }
 :root[data-theme] .workflow-workbench > .view-header h2 { font-size: 20px; line-height: 1.25; }
 :root[data-theme] .workflow-workbench > .view-header p { font-size: 12px; line-height: 1.45; }
-:root[data-theme] .board-filters { padding-top: 5px; padding-bottom: 5px; min-height: 42px; }
-/* Align the search control with the first column; the board page already owns the left gutter. */
-:root[data-theme] .board-filters { padding-left: 0; padding-bottom: 12px; }
+/* Keep the filter row distinct from both the view tabs and the card columns. */
+:root[data-theme] .board-filters { min-height: 42px; padding: 16px 29px 16px 0; }
 :root[data-theme] .board-filters .board-search:focus-within {
   border-color: color-mix(in srgb, var(--text) 46%, var(--border));
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 10%, transparent);
@@ -571,7 +570,7 @@
   :root[data-theme] .board-toolbar.board-header-actions { min-height: 41px; overflow: visible; }
   :root[data-theme] .board-view-tabs { gap: 10px; overflow: auto; scrollbar-width: none; }
   :root[data-theme] .board-view-tabs > * { font-size: 11px; }
-  :root[data-theme] .board-filters { padding-block: 5px; padding-left: 0; }
+  :root[data-theme] .board-filters { padding: 12px 16px 16px 0; }
 }
 @media (forced-colors: active) {
   :root[data-theme] .column-indicator { color: ButtonText; }

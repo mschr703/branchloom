@@ -29,9 +29,11 @@ describe('agent diagnostic messages', () => {
 
   it('keeps project activation separate from local CLI readiness', () => {
     const agent: AgentPreset = { id: 'a', name: 'Claude fixture', kind: 'claude', command: 'claude', args: [], model: null, enabled: true };
-    expect(agentProfileSummary(agent, { ...base, kind: 'claude', profileId: 'a' })).toContain('nicht startbereit');
-    expect(agentProfileSummary(agent, { ...base, kind: 'claude', profileId: 'a', status: 'ready', available: true })).toContain('Anmeldung und Modellzugang ungeprüft');
-    expect(agentProfileSummary({ ...agent, enabled: false }, { ...base, kind: 'claude', profileId: 'a' })).toBe('Im Projekt deaktiviert');
+    expect(agentProfileSummary(agent, { ...base, kind: 'claude', profileId: 'a' })).toBe('Profil aktiviert · CLI fehlt · Start derzeit unmöglich');
+    expect(agentProfileSummary(agent, { ...base, kind: 'claude', profileId: 'a', status: 'timeout' })).toContain('Start derzeit unmöglich');
+    expect(agentProfileSummary(agent, { ...base, kind: 'claude', profileId: 'a', status: 'ready', available: true })).toBe('Profil aktiviert · CLI-Version geprüft · Anmeldung ungeprüft');
+    expect(agentProfileSummary(agent)).toBe('Profil aktiviert · CLI noch nicht geprüft');
+    expect(agentProfileSummary({ ...agent, enabled: false }, { ...base, kind: 'claude', profileId: 'a' })).toBe('Profil deaktiviert');
     expect(renderToStaticMarkup(<DiagnosticStatus item={{ ...base, kind: 'claude' }} />)).toContain('CLI fehlt');
   });
 

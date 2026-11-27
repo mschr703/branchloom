@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import Database from 'better-sqlite3';
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -21,6 +22,42 @@ function fixture() {
 }
 
 describe('project whiteboard', () => {
+  it('adds the default shape to boxes saved before the shape palette', () => {
+    const root = mkdtempSync(join(tmpdir(), 'branchloom-whiteboard-old-shape-'));
+    roots.push(root);
+    const file = join(root, 'legacy.sqlite');
+    const legacy = new Database(file);
+    legacy.exec(`
+      CREATE TABLE projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, path TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL);
+      CREATE TABLE whiteboard_nodes (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        title TEXT NOT NULL, description TEXT NOT NULL, x REAL NOT NULL, y REAL NOT NULL, reference_kind TEXT,
+        card_id TEXT, folder_path TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+    `);
+    const stamp = '2026-01-01T00:00:00.000Z';
+    legacy.prepare('INSERT INTO projects VALUES (?, ?, ?, ?)').run('project', 'Old project', root, stamp);
+    legacy.prepare('INSERT INTO whiteboard_nodes VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run('old-box', 'project', 'Saved box', '', 0, 0, null, null, null, stamp, stamp);
+    legacy.close();
+    const store = new StudioStore(file);
+    expect(whiteboardSnapshot(store, 'project').nodes[0]).toMatchObject({ id: 'old-box', shape: 'card' });
+    expect(updateWhiteboardNode(store, { projectId: 'project', id: 'old-box', shape: 'decision' }).shape).toBe('decision');
+    store.close();
+  });
+
+  it('persists visual node shapes, updates them, and rejects invalid values', () => {
+    const { store, file, project } = fixture();
+    const decision = createWhiteboardNode(store, { projectId: project.id, title: 'Choose route', x: 10, y: 20, shape: 'decision' });
+    const ordinary = createWhiteboardNode(store, { projectId: project.id, title: 'Context', x: 30, y: 40 });
+    expect(decision.shape).toBe('decision');
+    expect(ordinary.shape).toBe('card');
+    expect(() => createWhiteboardNode(store, { projectId: project.id, title: 'Invalid', x: 0, y: 0, shape: 'hexagon' as never })).toThrow('Form');
+    expect(() => updateWhiteboardNode(store, { projectId: project.id, id: decision.id, shape: 'hexagon' as never })).toThrow('Form');
+    expect(updateWhiteboardNode(store, { projectId: project.id, id: decision.id, shape: 'step' }).shape).toBe('step');
+    store.close();
+    const reopened = new StudioStore(file);
+    expect(whiteboardSnapshot(reopened, project.id).nodes.map(({ shape }) => shape)).toEqual(['step', 'card']);
+    reopened.close();
+  });
+
   it('persists boxes, real folder links, card links and edges after restart', () => {
     const { store, file, project, card } = fixture();
     const folder = createWhiteboardNode(store, { projectId: project.id, title: 'Renderer', description: 'UI ownership', x: 13.1234, y: -20, reference: { kind: 'folder', path: 'src/renderer' } });

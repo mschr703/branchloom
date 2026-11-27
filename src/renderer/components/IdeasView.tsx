@@ -185,7 +185,7 @@ export function IdeasView({ snapshot, mutate, onOpenCard, onNavigate, language }
       <details className="ideas-similar"><summary>Ähnliche Einträge prüfen</summary><IdeaMatchPanel key={`matches-${draft.id}-${ideas.find((item) => item.id === draft.id)?.updatedAt ?? ''}`} projectId={projectId} ideaId={draft.id} dirty={dirty} onOpenIdea={(id) => { const item = ideas.find((entry) => entry.id === id); if (item) switchTo(item); }} onOpenCard={onOpenCard} onLinksChanged={async () => setIdeas(await window.studio.ideas(projectId))} /></details></> : null}
     {error ? <p role="alert" className="ideas-feedback error">{error}</p> : null}
     {notice ? <p role="status" className="ideas-feedback">{notice}</p> : null}
-    {showTrelloImport ? <TrelloImportPanel key={`ideas-${projectId}`} projectId={projectId} columns={snapshot.columns} mutate={mutate} destination="ideas" onIdeasImported={async () => {
+    {showTrelloImport ? <TrelloImportPanel key={`ideas-${projectId}`} projectId={projectId} columns={snapshot.columns} mutate={mutate} destination="ideas" onBoardImported={() => { setShowTrelloImport(false); onNavigate?.('board'); }} onIdeasImported={async () => {
       const refreshed = await window.studio.ideas(projectId);
       setIdeas(refreshed);
       const selected = refreshed.find((item) => item.id === draft.id);

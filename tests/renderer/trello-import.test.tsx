@@ -35,7 +35,7 @@ describe('Trello import UI', () => {
 
   it('shows connection first, keeps JSON as an explicit fallback and imports nothing before preview', () => {
     const columns: Column[] = [{ id: 'todo', projectId: 'p', name: 'To Do', position: 0, autoStart: false, agentId: null, model: null, effort: null }];
-    const html = renderToStaticMarkup(createElement(TrelloImportPanel, { projectId: 'p', columns, mutate: async <T,>(action: () => Promise<T>) => action(), onClose: () => undefined }));
+    const html = renderToStaticMarkup(createElement(TrelloImportPanel, { projectId: 'p', columns, mutate: async <T,>(action: () => Promise<T>) => action(), onClose: () => undefined, destination: 'cards' }));
     expect(html).toContain('Karten aus Trello');
     expect(html).toContain('Trello verbinden');
     expect(html).toContain('JSON-Datei');
@@ -48,9 +48,10 @@ describe('Trello import UI', () => {
     expect(html).not.toContain('Karten importieren');
     expect(html).not.toContain('type="file"');
     expect(html).toContain('nur nach deinem Klick');
-    const ideasHtml = renderToStaticMarkup(createElement(TrelloImportPanel, { projectId: 'p', columns, mutate: async <T,>(action: () => Promise<T>) => action(), onClose: () => undefined, destination: 'ideas' }));
+    const ideasHtml = renderToStaticMarkup(createElement(TrelloImportPanel, { projectId: 'p', columns, mutate: async <T,>(action: () => Promise<T>) => action(), onClose: () => undefined }));
     expect(ideasHtml).toContain('Trello-Karten als Ideen sammeln');
-    expect(ideasHtml).toContain('erst du übernimmst daraus Aufgaben ins Kanban');
+    expect(ideasHtml).toContain('Du entscheidest später, welche davon zur Board-Aufgabe werden');
+    expect(ideasHtml).toContain('aria-label="Importziel"');
     expect(ideasHtml).not.toContain('Zielspalte');
     expect(ideasHtml).not.toContain('trello-preview');
   });

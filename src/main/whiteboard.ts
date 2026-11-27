@@ -2,15 +2,16 @@ import { randomUUID } from 'node:crypto';
 import { lstatSync, realpathSync, statSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import type Database from 'better-sqlite3';
-import type { Card, WhiteboardEdge, WhiteboardNode, WhiteboardSnapshot, WhiteboardReference } from '../shared/types';
+import type { Card, WhiteboardEdge, WhiteboardNode, WhiteboardSnapshot, WhiteboardReference, WhiteboardNodeShape } from '../shared/types';
 import type { StudioStore } from './store';
 
-type NodeRow = { id: string; project_id: string; title: string; description: string; x: number; y: number; reference_kind: 'card' | 'folder' | 'file' | null; card_id: string | null; folder_path: string | null; created_at: string; updated_at: string };
+type NodeRow = { id: string; project_id: string; title: string; description: string; x: number; y: number; shape: WhiteboardNodeShape; reference_kind: 'card' | 'folder' | 'file' | null; card_id: string | null; folder_path: string | null; created_at: string; updated_at: string };
 type EdgeRow = { id: string; project_id: string; source_id: string; target_id: string; label: string; created_at: string; linked_card_id?: string | null };
 export const MAX_WHITEBOARD_NODES = 500;
 export const MAX_WHITEBOARD_EDGES = 1000;
 
 const node = (row: NodeRow): WhiteboardNode => ({ id: row.id, projectId: row.project_id, title: row.title, description: row.description, x: row.x, y: row.y,
+  shape: row.shape === 'step' || row.shape === 'decision' ? row.shape : 'card',
   reference: row.reference_kind === 'card' && row.card_id ? { kind: 'card', cardId: row.card_id } : (row.reference_kind === 'folder' || row.reference_kind === 'file') && row.folder_path ? { kind: row.reference_kind, path: row.folder_path } : null,
   createdAt: row.created_at, updatedAt: row.updated_at });
 const edge = (row: EdgeRow): WhiteboardEdge => ({ id: row.id, projectId: row.project_id, sourceId: row.source_id, targetId: row.target_id, label: row.label, createdAt: row.created_at, cardId: row.linked_card_id ?? null });
@@ -20,6 +21,7 @@ export function installWhiteboard(db: Database.Database): void {
     CREATE TABLE IF NOT EXISTS whiteboard_nodes (
       id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
       title TEXT NOT NULL, description TEXT NOT NULL, x REAL NOT NULL, y REAL NOT NULL,
+      shape TEXT NOT NULL DEFAULT 'card' CHECK (shape IN ('card', 'step', 'decision')),
       reference_kind TEXT, card_id TEXT REFERENCES cards(id) ON DELETE SET NULL,
       folder_path TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
     );
@@ -46,6 +48,9 @@ export function installWhiteboard(db: Database.Database): void {
     );
     CREATE INDEX IF NOT EXISTS whiteboard_import_cards_project ON whiteboard_import_cards(project_id);
   `);
+  const columns = db.prepare('PRAGMA table_info(whiteboard_nodes)').all() as Array<{ name: string }>;
+  if (!columns.some((column) => column.name === 'shape'))
+    db.exec("ALTER TABLE whiteboard_nodes ADD COLUMN shape TEXT NOT NULL DEFAULT 'card' CHECK (shape IN ('card', 'step', 'decision'))");
 }
 
 function label(value: unknown, field: string, max: number, allowEmpty = false): string {
@@ -58,6 +63,11 @@ function label(value: unknown, field: string, max: number, allowEmpty = false): 
 function position(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > 100_000) throw new Error('Whiteboard-Position ist ungültig.');
   return Math.round(value * 100) / 100;
+}
+
+function checkedShape(value: unknown): WhiteboardNodeShape {
+  if (value === 'card' || value === 'step' || value === 'decision') return value;
+  throw new Error('Whiteboard-Form ist ungültig.');
 }
 
 function checkedReference(store: StudioStore, projectId: string, reference: WhiteboardReference | null): WhiteboardReference | null {
@@ -98,7 +108,7 @@ export function whiteboardSnapshot(store: StudioStore, projectId: string): White
   return { nodes: nodes.map(node), edges: edges.map(edge) };
 }
 
-export function createWhiteboardNode(store: StudioStore, input: { projectId: string; title: string; description?: string; x: number; y: number; reference?: WhiteboardReference | null }): WhiteboardNode {
+export function createWhiteboardNode(store: StudioStore, input: { projectId: string; title: string; description?: string; x: number; y: number; shape?: WhiteboardNodeShape; reference?: WhiteboardReference | null }): WhiteboardNode {
   store.project(input.projectId);
   const title = label(input.title, 'Titel', 120);
   const description = label(input.description ?? '', 'Beschreibung', 2000, true);
@@ -107,20 +117,20 @@ export function createWhiteboardNode(store: StudioStore, input: { projectId: str
   if (count.count >= MAX_WHITEBOARD_NODES) throw new Error(`Maximal ${MAX_WHITEBOARD_NODES} Whiteboard-Boxen pro Projekt.`);
   const id = randomUUID();
   const stamp = new Date().toISOString();
-  store.db.prepare('INSERT INTO whiteboard_nodes (id, project_id, title, description, x, y, reference_kind, card_id, folder_path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .run(id, input.projectId, title, description, position(input.x), position(input.y), reference?.kind ?? null, reference?.kind === 'card' ? reference.cardId : null, reference?.kind === 'folder' || reference?.kind === 'file' ? reference.path : null, stamp, stamp);
+  store.db.prepare('INSERT INTO whiteboard_nodes (id, project_id, title, description, x, y, shape, reference_kind, card_id, folder_path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(id, input.projectId, title, description, position(input.x), position(input.y), checkedShape(input.shape ?? 'card'), reference?.kind ?? null, reference?.kind === 'card' ? reference.cardId : null, reference?.kind === 'folder' || reference?.kind === 'file' ? reference.path : null, stamp, stamp);
   return requiredNode(store, id);
 }
 
-export function updateWhiteboardNode(store: StudioStore, input: { projectId: string; id: string; title?: string; description?: string; x?: number; y?: number; reference?: WhiteboardReference | null; expectedUpdatedAt?: string }): WhiteboardNode {
+export function updateWhiteboardNode(store: StudioStore, input: { projectId: string; id: string; title?: string; description?: string; x?: number; y?: number; shape?: WhiteboardNodeShape; reference?: WhiteboardReference | null; expectedUpdatedAt?: string }): WhiteboardNode {
   const existing = requiredNode(store, input.id);
   if (existing.projectId !== input.projectId) throw new Error('Whiteboard-Box gehört nicht zu diesem Projekt.');
   if (input.expectedUpdatedAt !== undefined && input.expectedUpdatedAt !== existing.updatedAt) throw new Error('Whiteboard-Box wurde seit dem Entwurf geändert. Neu laden und erneut prüfen.');
   const reference = input.reference === undefined ? existing.reference : checkedReference(store, existing.projectId, input.reference);
-  store.db.prepare('UPDATE whiteboard_nodes SET title = ?, description = ?, x = ?, y = ?, reference_kind = ?, card_id = ?, folder_path = ?, updated_at = ? WHERE id = ?')
+  store.db.prepare('UPDATE whiteboard_nodes SET title = ?, description = ?, x = ?, y = ?, shape = ?, reference_kind = ?, card_id = ?, folder_path = ?, updated_at = ? WHERE id = ?')
     .run(input.title === undefined ? existing.title : label(input.title, 'Titel', 120),
       input.description === undefined ? existing.description : label(input.description, 'Beschreibung', 2000, true),
-      input.x === undefined ? existing.x : position(input.x), input.y === undefined ? existing.y : position(input.y),
+      input.x === undefined ? existing.x : position(input.x), input.y === undefined ? existing.y : position(input.y), input.shape === undefined ? existing.shape : checkedShape(input.shape),
       reference?.kind ?? null, reference?.kind === 'card' ? reference.cardId : null, reference?.kind === 'folder' || reference?.kind === 'file' ? reference.path : null,
       new Date(Math.max(Date.now(), Date.parse(existing.updatedAt) + 1)).toISOString(), input.id);
   return requiredNode(store, input.id);

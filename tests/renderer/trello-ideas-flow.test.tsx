@@ -21,19 +21,24 @@ describe('Trello Ideas import flow', () => {
     const previousAct = Object.getOwnPropertyDescriptor(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
     const acceptTrelloBoardIdeas = vi.fn().mockResolvedValue({ created: [{ id: 'idea-a' }], skippedDuplicateIds: [] });
     const previewTrelloBoardIdeas = vi.fn().mockResolvedValueOnce(preview).mockResolvedValueOnce({ ...preview, duplicates: 1, cards: [{ ...preview.cards[0]!, importedIdeaId: 'idea-a' }] });
+    const boardPreview = { ...preview, cards: [{ ...preview.cards[0]!, sourceId: 'source-b' }] };
+    const previewTrelloBoard = vi.fn().mockResolvedValue(boardPreview);
+    const acceptTrelloBoard = vi.fn().mockResolvedValue({ created: [{ id: 'card-b' }], skippedDuplicateIds: [] });
     const onIdeasImported = vi.fn().mockResolvedValue(undefined);
+    const onBoardImported = vi.fn();
     const onClose = vi.fn();
     Object.defineProperty(window, 'studio', { configurable: true, value: {
       trelloConnectionStatus: vi.fn().mockResolvedValue({ connected: true, memberName: 'Sample user' }),
       trelloSignInAvailable: vi.fn().mockResolvedValue(true),
       trelloBoards: vi.fn().mockResolvedValue([{ id: 'board-a', name: 'Synthetic Trello board' }]),
-      previewTrelloBoardIdeas, acceptTrelloBoardIdeas,
+      previewTrelloBoardIdeas, acceptTrelloBoardIdeas, previewTrelloBoard, acceptTrelloBoard,
     } });
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     try {
-      await act(async () => { root.render(<TrelloImportPanel projectId="p" columns={columns} mutate={async <T,>(action: () => Promise<T>) => action()} destination="ideas" onIdeasImported={onIdeasImported} onClose={onClose} />); });
+      await act(async () => { root.render(<TrelloImportPanel projectId="p" columns={columns} mutate={async <T,>(action: () => Promise<T>) => action()} destination="ideas" onIdeasImported={onIdeasImported} onBoardImported={onBoardImported} onClose={onClose} />); });
       expect(host.textContent).toContain('Trello-Karten als Ideen sammeln');
-      await act(async () => { [...host.querySelectorAll('button')].find((button) => button.textContent?.includes('Board prüfen'))!.click(); });
+      expect(host.querySelector<HTMLButtonElement>('.trello-destination button')?.getAttribute('aria-pressed')).toBe('true');
+      await act(async () => { [...host.querySelectorAll('button')].find((button) => button.textContent?.includes('Karten anzeigen'))!.click(); });
       expect(host.textContent).toContain('Optional: Ideen direkt einsortieren');
       expect(host.querySelector<HTMLSelectElement>('.trello-preview .trello-advanced select')?.value).toBe('idea');
       await act(async () => { [...host.querySelectorAll('button')].find((button) => button.textContent?.includes('Ideen sammeln'))!.click(); });
@@ -43,6 +48,15 @@ describe('Trello Ideas import flow', () => {
       expect(host.textContent).toContain('Bereits im Ideenraum');
       await act(async () => { [...host.querySelectorAll('button')].find((button) => button.textContent?.includes('Ideenraum ansehen'))!.click(); });
       expect(onClose).toHaveBeenCalledOnce();
+      await act(async () => { [...host.querySelectorAll('.trello-destination button')].find((button) => button.textContent?.includes('Board'))!.click(); });
+      expect(host.textContent).toContain('Direkter Import legt sofort Board-Karten an');
+      expect(host.querySelector('.trello-preview')).toBeNull();
+      await act(async () => { [...host.querySelectorAll('button')].find((button) => button.textContent?.includes('Karten anzeigen'))!.click(); });
+      expect(previewTrelloBoard).toHaveBeenCalledWith({ projectId: 'p', boardId: 'board-a' });
+      await act(async () => { [...host.querySelectorAll('button')].find((button) => button.textContent?.includes('Karten importieren'))!.click(); });
+      expect(acceptTrelloBoard).toHaveBeenCalledWith({ projectId: 'p', columnId: 'todo', boardId: 'board-a', fingerprint: 'synthetic-fingerprint', sourceIds: ['source-b'] });
+      await act(async () => { [...host.querySelectorAll('button')].find((button) => button.textContent?.includes('Board ansehen'))!.click(); });
+      expect(onBoardImported).toHaveBeenCalledOnce();
     } finally {
       await act(async () => { root.unmount(); });
       if (previousApi) Object.defineProperty(window, 'studio', previousApi); else Reflect.deleteProperty(window, 'studio');

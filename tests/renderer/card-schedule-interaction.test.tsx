@@ -46,6 +46,30 @@ describe('calendar and schedule interactions', () => {
     }
   });
 
+  it('shows observed agent work in the monthly agenda and switches to one day', async () => {
+    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const host = document.createElement('div'); document.body.append(host);
+    const root = createRoot(host);
+    const startedAt = new Date().toISOString();
+    const snapshot = {
+      cards: [baseCard], agents: [{ id: 'agent', name: 'Atlas' }],
+      sessions: [{ id: 'run', projectId: 'project', cardId: baseCard.id, agentId: 'agent', state: 'running', startedAt, endedAt: null, exitCode: null, output: '' }],
+    } as ProjectSnapshot;
+    try {
+      await act(async () => { root.render(<ProjectCalendarView snapshot={snapshot} onOpenCard={() => undefined} />); });
+      expect(host.querySelector('.project-calendar-agenda')?.textContent).toContain('Atlas gestartet');
+      expect(host.querySelector('.project-calendar-agenda-scope [aria-pressed="true"]')?.textContent).toBe('Monat');
+      const day = host.querySelector<HTMLButtonElement>('.project-calendar-day[aria-label*="1 Agentenläufe"]');
+      expect(day).not.toBeNull();
+      await act(async () => { day!.click(); });
+      expect(host.querySelector('.project-calendar-agenda-scope [aria-pressed="true"]')?.textContent).toBe('Tag');
+      expect(host.querySelector('.project-calendar-agenda')?.textContent).toContain('Synthetic task');
+    } finally {
+      await act(async () => { root.unmount(); });
+      host.remove();
+    }
+  });
+
   it('saves a planned day and records a separately marked completion in the visible history', async () => {
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     const host = document.createElement('div'); document.body.append(host);
