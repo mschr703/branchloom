@@ -87,6 +87,16 @@ export async function runWhiteboardVisibleSmoke(window: BrowserWindow, store: St
     if (libraryCapturePath) {
       window.setSize(1440, 900);
     }
+    if (process.env.BRANCHLOOM_WHITEBOARD_CAPTURE_DARK === '1') {
+      await window.webContents.executeJavaScript(`(async () => {
+        const toggle = document.querySelector('.theme-toggle');
+        if (!toggle) throw new Error('Theme toggle is missing from the Whiteboard capture.');
+        if (document.documentElement.dataset.theme !== 'dark') toggle.click();
+        for (let attempt = 0; attempt < 60 && document.documentElement.dataset.theme !== 'dark'; attempt++)
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        if (document.documentElement.dataset.theme !== 'dark') throw new Error('Dark Whiteboard theme did not activate.');
+      })()`);
+    }
     window.showInactive();
     try {
       await new Promise((resolve) => setTimeout(resolve, 750));
@@ -326,11 +336,12 @@ export async function runWhiteboardVisibleSmoke(window: BrowserWindow, store: St
     const library = document.querySelector('.wb-shape-rail');
     const dataButton = [...library.querySelectorAll('button')].find((button) => button.textContent?.trim() === 'Daten');
     const canvas = document.querySelector('.wb-canvas');
-    if (!dataButton || !canvas) throw new Error('Drag-to-place fixture is incomplete.');
+    const pane = canvas?.querySelector('.react-flow__pane');
+    if (!dataButton || !canvas || !pane) throw new Error('Drag-to-place fixture is incomplete.');
     const transfer = new DataTransfer();
     dataButton.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: transfer }));
     if (transfer.getData('application/x-branchloom-whiteboard-shape') !== 'data') throw new Error('Palette drag did not expose the selected shape.');
-    const rect = canvas.getBoundingClientRect();
+    const rect = pane.getBoundingClientRect();
     canvas.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: transfer, clientX: rect.left + 120, clientY: rect.top + 120 }));
     canvas.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer, clientX: rect.left + 120, clientY: rect.top + 120 }));
   })()`);
@@ -342,7 +353,7 @@ export async function runWhiteboardVisibleSmoke(window: BrowserWindow, store: St
     throw new Error('Drag-to-place did not create the data draft.');
   })()`);
   const dropped = await window.webContents.executeJavaScript(`(() => {
-    const canvas = document.querySelector('.wb-canvas').getBoundingClientRect();
+    const canvas = document.querySelector('.wb-canvas .react-flow__pane').getBoundingClientRect();
     const shape = document.querySelector('.wb-unsaved-node.wb-shape-data').getBoundingClientRect();
     return { x: Math.abs(shape.left + shape.width / 2 - canvas.left - 120), y: Math.abs(shape.top + shape.height / 2 - canvas.top - 120) };
   })()`);
@@ -392,7 +403,9 @@ export async function runWhiteboardVisibleSmoke(window: BrowserWindow, store: St
     document.querySelector('.react-flow__controls-fitview')?.click();
     let previous = '';
     let stableSince = Date.now();
+    let lastGeometry = null;
     for (let attempt = 0; attempt < 80; attempt++) {
+      if (attempt > 0 && attempt % 20 === 0) document.querySelector('.react-flow__controls-fitview')?.click();
       const handles = [...document.querySelectorAll('.react-flow__node[data-id=${JSON.stringify(savedDocument.id)}] .wb-resize-handle')];
       const corner = handles.map((handle) => handle.getBoundingClientRect()).sort((a, b) => b.right + b.bottom - a.right - a.bottom)[0];
       const canvas = document.querySelector('.react-flow__pane')?.getBoundingClientRect();
@@ -400,13 +413,17 @@ export async function runWhiteboardVisibleSmoke(window: BrowserWindow, store: St
       const key = corner && canvas ? JSON.stringify({ x: Math.round(corner.x), y: Math.round(corner.y), cx: Math.round(canvas.x), cy: Math.round(canvas.y) }) : '';
       if (key !== previous) stableSince = Date.now();
       previous = key;
-      if (visible && Date.now() - stableSince > 600 && corner && canvas && corner.left > canvas.left + 8 && corner.top > canvas.top + 8 && corner.right < canvas.right - 65 && corner.bottom < canvas.bottom - 45) {
+      const x = corner && Math.round(corner.left + corner.width / 2);
+      const y = corner && Math.round(corner.top + corner.height / 2);
+      const reachable = x != null && y != null && document.elementFromPoint(x, y)?.closest('.wb-resize-handle');
+      lastGeometry = { corner: corner && { x: corner.x, y: corner.y }, canvas: canvas && { x: canvas.x, y: canvas.y, right: canvas.right, bottom: canvas.bottom }, visible, reachable: Boolean(reachable), stableMs: Date.now() - stableSince };
+      if (visible && reachable && Date.now() - stableSince > 600 && corner && canvas && x > canvas.left && y > canvas.top && x < canvas.right && y < canvas.bottom) {
         const node = document.querySelector('.react-flow__node[data-id=${JSON.stringify(savedDocument.id)}]')?.getBoundingClientRect();
-        return { x: Math.round(corner.left + corner.width / 2), y: Math.round(corner.top + corner.height / 2), width: node?.width, height: node?.height };
+        return { x, y, width: node?.width, height: node?.height };
       }
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
-    throw new Error('Direct resize handle never settled inside the canvas.');
+    throw new Error('Direct resize handle never settled inside the canvas: ' + JSON.stringify(lastGeometry));
   })()`);
   window.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', x: resizeHandle.x, y: resizeHandle.y, clickCount: 1 });
   await pause(60);
