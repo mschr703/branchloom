@@ -743,6 +743,31 @@ export class StudioStore {
     return this.card(old.id);
   }
 
+  deleteCard(id: string): void {
+    this.db.transaction(() => {
+      const target = this.card(id);
+      if (this.projectQueue(target.projectId).state === 'running') throw new Error('Warteschlange vor dem Löschen pausieren.');
+      const workflows = this.db.prepare('SELECT card_ids_json FROM workflows WHERE project_id = ?').all(target.projectId) as Array<{ card_ids_json: string }>;
+      if (workflows.some((row) => parseArray<string>(row.card_ids_json).includes(id))) throw new Error('Diese Karte gehört zu einem Workflow. Archiviere sie, damit die Planung erhalten bleibt.');
+      const notes = this.db.prepare('SELECT links_json FROM notes WHERE project_id = ?').all(target.projectId) as Array<{ links_json: string }>;
+      if (notes.some((row) => parseArray<string>(row.links_json).includes(id))) throw new Error('Diese Karte ist in einer Notiz verknüpft. Archiviere sie, damit der Zusammenhang erhalten bleibt.');
+      const tables = this.db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>;
+      for (const table of tables) {
+        const tableName = `"${table.name.replaceAll('"', '""')}"`;
+        const references = this.db.prepare(`PRAGMA foreign_key_list(${tableName})`).all() as Array<{ table: string; from: string }>;
+        const columns = this.db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>;
+        const cardColumns = new Set([...references.filter((item) => item.table === 'cards').map((item) => item.from),
+          ...columns.filter((item) => /(?:^|_)card_id$/.test(item.name)).map((item) => item.name)]);
+        for (const column of cardColumns) {
+          const columnName = `"${column.replaceAll('"', '""')}"`;
+          if (this.db.prepare(`SELECT 1 FROM ${tableName} WHERE ${columnName} = ? LIMIT 1`).get(id))
+            throw new Error('Diese Karte hat bereits Verlauf oder verknüpfte Daten. Archiviere sie, damit die Arbeit erhalten bleibt.');
+        }
+      }
+      this.db.prepare('DELETE FROM cards WHERE id = ?').run(id);
+    }).immediate();
+  }
+
   cardAttachments(cardId: string): CardAttachment[] {
     this.card(cardId);
     const rows = this.db.prepare('SELECT * FROM card_attachments WHERE card_id = ? ORDER BY added_at, id').all(cardId) as AttachmentRow[];

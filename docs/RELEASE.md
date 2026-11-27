@@ -1,5 +1,7 @@
 # Windows-Paket und Start
 
+Das aktuelle öffentliche Windows-Release ist [v0.1.3](https://github.com/mschr703/branchloom/releases/tag/v0.1.3). Der [Release-Lauf 46019498210](https://github.com/mschr703/branchloom/actions/runs/46019498210) bestand einschließlich Quelltests, Installer-Smokes, Paket- und Update-Metadatenprüfung. Die Release-Seite stellt den Installer `Branchloom-Setup-0.1.3.exe` und `latest.yml` bereit. Der Installer ist weiterhin nicht signiert. Der Quellstand auf `main` kann bereits neuere, noch nicht veröffentlichte Änderungen enthalten.
+
 ## Aus Quellcode starten
 
 Windows 11, Node.js 24 und Git installieren. Im Repository:

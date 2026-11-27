@@ -17,6 +17,8 @@ describe('ideas room surface', () => {
   it('starts with one note field and keeps model transfer explicit', () => {
     const html = renderToStaticMarkup(createElement(IdeasView, { snapshot, mutate: async () => null, onOpenCard: () => undefined }));
     expect(html).toContain('Ideenraum');
+    expect(html).toContain('Trello-Karten sammeln');
+    expect(html).toContain('Unfertiges bleibt hier');
     expect(html).toContain('Notiz festhalten');
     expect(html).toContain('Kurztitel optional');
     expect(html).toContain('Bereich der Notiz');

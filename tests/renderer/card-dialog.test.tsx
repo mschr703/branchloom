@@ -21,12 +21,27 @@ describe('card dialog accessibility', () => {
     expect(html).toContain('aria-labelledby="card-dialog-title-synthetic-card"');
     expect(html).toContain('<h2 id="card-dialog-title-synthetic-card">Accessible card</h2>');
     expect(html).toContain('aria-label="Karte schließen"');
+    expect(html).toContain('Karte löschen');
+    expect(html).toContain('<summary>Planung, Kontext und Nachweise</summary>');
+    expect(html).toContain('Für diese Spalte ist kein Agent eingestellt');
     expect(html).toContain('Fehlerabläufe ansehen</button>');
     expect(html).toContain('aria-label="Gespeicherte Fehlerabläufe" tabindex="-1"');
     expect(html.indexOf('class="text-button card-replay-jump"')).toBeLessThan(html.indexOf('aria-label="Karte schließen"'));
     expect(html).toContain('aria-label="Integrationswarteschlange"');
     expect(html).toContain('Integrationsliste wird geladen');
     expect(html).not.toContain('Fast-Forward bestätigt übernehmen');
+  });
+
+  it('explains when a card run inherits its column agent and keeps changing it optional', () => {
+    const withAgent: ProjectSnapshot = {
+      ...snapshot,
+      columns: [{ ...snapshot.columns[0]!, agentId: 'agent' }],
+      agents: [{ id: 'agent', name: 'Synthetic CLI', kind: 'custom', command: 'synthetic', args: [], model: null, enabled: true }],
+    };
+    const html = renderToStaticMarkup(createElement(CardPanel, { card, snapshot: withAgent, mutate: async <T,>(action: () => Promise<T>) => action(), onClose: () => undefined, onOpenCard: () => undefined }));
+    expect(html).toContain('ist Synthetic CLI eingestellt');
+    expect(html).toContain('<summary>Agent wechseln · aktuell Synthetic CLI</summary>');
+    expect(html).toContain('Agent nur für diesen Start');
   });
 
   it('shows a reached workflow haltpoint beside the affected card session history', () => {

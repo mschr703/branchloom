@@ -49,7 +49,8 @@ describe('Trello import UI', () => {
     expect(html).not.toContain('type="file"');
     expect(html).toContain('nur nach deinem Klick');
     const ideasHtml = renderToStaticMarkup(createElement(TrelloImportPanel, { projectId: 'p', columns, mutate: async <T,>(action: () => Promise<T>) => action(), onClose: () => undefined, destination: 'ideas' }));
-    expect(ideasHtml).toContain('Trello-Ideen vormerken');
+    expect(ideasHtml).toContain('Trello-Karten als Ideen sammeln');
+    expect(ideasHtml).toContain('erst du übernimmst daraus Aufgaben ins Kanban');
     expect(ideasHtml).not.toContain('Zielspalte');
     expect(ideasHtml).not.toContain('trello-preview');
   });

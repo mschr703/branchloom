@@ -365,7 +365,7 @@ export function App() {
       <select id="project-select" hidden aria-hidden="true" tabIndex={-1} value={projectId ?? ''} onChange={(event) => { setPendingGlobalItem(null); setProjectId(event.target.value || null); }}>
         {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
       </select>
-      {projectId ? <WorkspaceNavigation activeView={view} language={language} decisionCount={decisionStatus?.count ?? null} decisionHasMore={decisionStatus?.hasMore} onView={setView} status={projectNavigationStatus(snapshot, projectId)} /> : <button type="button" className="nav-item" onClick={() => setView('team')}>{ui('openTeam')}</button>}
+      {projectId ? <WorkspaceNavigation activeView={view} language={language} decisionCount={decisionStatus?.count ?? null} decisionHasMore={decisionStatus?.hasMore} onView={setView} onOpenCard={(id) => navigateToEntity('card', id)} status={projectNavigationStatus(snapshot, projectId)} /> : <button type="button" className="nav-item" onClick={() => setView('team')}>{ui('openTeam')}</button>}
     </aside>
 
     <main className="main-area">

@@ -8,6 +8,17 @@ export function readableSessionOutput(output: string): string {
     .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '');
 }
 
+/** A short quote from real terminal output, not an estimate of agent progress. */
+export function observedSessionActivity(output: string): string | null {
+  const lines = readableSessionOutput(output).split('\n');
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index]!.replace(/\s+/g, ' ').trim();
+    if (!line || /^\{\s*"type"\s*:/.test(line)) continue;
+    return line.length > 150 ? `${line.slice(0, 147)}…` : line;
+  }
+  return null;
+}
+
 export function serializeSessionTranscript(session: Session, cardTitle: string, agentName: string): string {
   const lines = [
     'Branchloom · Agentenlauf',

@@ -205,7 +205,7 @@ export function WorkflowView({ snapshot, mutate, openWorkflow, openPlan, queueCo
 
   return <div className="standard-page workflow-workbench">
     <ProjectViewTabs active="workflows" onNavigate={(view) => onNavigate?.(view)} disabled={!onNavigate} language={language} />
-    <div className="view-header"><div><h2>Workflows</h2><p>Ein Workflow ist die Route einer Karte: Spalten in Reihenfolge, jeweils mit Agent oder manuellem Schritt. Ein Entwurf startet noch nichts.</p></div><button className="secondary-button" type="button" onClick={newDraft}><Plus size={17} /> Route selbst erstellen</button></div>
+    <div className="view-header"><div><h2>Workflows</h2><p>Ein Workflow ist die Route einer Karte: Spalten in Reihenfolge, jeweils mit Agent oder manuellem Schritt. Ein Entwurf startet noch nichts.</p></div><button className="secondary-button" type="button" onClick={newDraft}><Plus size={17} /> Neuer Workflow</button></div>
 
     <WorkflowPlanner snapshot={snapshot} mutate={mutate} openPlan={openPlan} />
 

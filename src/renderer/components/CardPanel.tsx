@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, Bot, CircleStop, Mic, MicOff, Play, Plus, RotateCcw, Send, Terminal, X } from 'lucide-react';
+import { Archive, Bot, CircleStop, Mic, MicOff, Play, Plus, RotateCcw, Send, Terminal, Trash2, X } from 'lucide-react';
 import type { Card, CardPriority, ProjectSnapshot, WorktreeReview } from '../../shared/types';
 import type { WorktreeCleanupPreview } from '../../shared/worktree-cleanup';
 import type { ConflictRadarResult } from '../../shared/conflict-radar';
@@ -31,7 +31,9 @@ import { DevAccountPanel } from './DevAccountPanel';
 import { startConflictRadarRefresh } from '../conflict-radar-schedule';
 import { parallelStartWarning } from '../parallel-run-gate';
 import { addCardLabel, labelSuggestions } from '../card-labels';
+import { observedSessionActivity } from '../activity-transcript';
 import '../card-label-editor.css';
+import './card-panel.css';
 
 const SessionTerminal = lazy(() => import('./SessionTerminal').then((module) => ({ default: module.SessionTerminal })));
 const ReviewDiffPanel = lazy(() => import('./ReviewDiffPanel').then((module) => ({ default: module.ReviewDiffPanel })));
@@ -56,6 +58,8 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
   const [voiceError, setVoiceError] = useState('');
   const [archiveError, setArchiveError] = useState('');
   const [archiveBusy, setArchiveBusy] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   const [contextAttachmentRequest, setContextAttachmentRequest] = useState<{ cardId: string; attachmentId: string; token: number } | null>(null);
   const [worktreeReview, setWorktreeReview] = useState<WorktreeReview | null | undefined>(undefined);
   const [cleanupPreview, setCleanupPreview] = useState<WorktreeCleanupPreview | null | undefined>(undefined);
@@ -78,7 +82,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
   const sessionHeadingRef = useRef<HTMLDivElement | null>(null);
   const bugReplayRef = useRef<HTMLElement | null>(null);
 
-  useEffect(() => { cleanupRequest.current += 1; setTitle(card.title); setDescription(card.description); setPriority(card.priority); setLabels(card.labels); setLabelDraft(''); setMetadataError(''); setPrompt(''); setMessage(''); setUseWorktree(false); setWorktreeReview(undefined); setCleanupPreview(undefined); setWorktreeBusy(false); setWorktreeError(''); setShowDiffReview(false); setCriterionQaFocus(null); setCriterionReviewFocus(null); setConflictRadar(null); setConflictError(''); }, [card.id]);
+  useEffect(() => { cleanupRequest.current += 1; setTitle(card.title); setDescription(card.description); setPriority(card.priority); setLabels(card.labels); setLabelDraft(''); setMetadataError(''); setAgentId(''); setPrompt(''); setMessage(''); setUseWorktree(false); setDeleteError(''); setWorktreeReview(undefined); setCleanupPreview(undefined); setWorktreeBusy(false); setWorktreeError(''); setShowDiffReview(false); setCriterionQaFocus(null); setCriterionReviewFocus(null); setConflictRadar(null); setConflictError(''); }, [card.id]);
   useEffect(() => { setSessionChoice(focusSessionId ?? null); }, [card.id, focusSessionId]);
   useEffect(() => {
     if (focusSession && sessionHeadingRef.current) {
@@ -113,7 +117,9 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
   }, [card.id, session?.id, session?.state]);
   const sessionAgent = session ? snapshot.agents.find((item) => item.id === session.agentId) : null;
   const enabledAgents = snapshot.agents.filter((item) => item.enabled);
-  const defaultAgentId = snapshot.columns.find((column) => column.id === card.columnId)?.agentId ?? enabledAgents[0]?.id ?? '';
+  const cardColumn = snapshot.columns.find((column) => column.id === card.columnId);
+  const columnAgent = enabledAgents.find((item) => item.id === cardColumn?.agentId);
+  const defaultAgentId = columnAgent?.id ?? '';
   const chosenAgentId = agentId || defaultAgentId;
   const acceptRunGate = useCallback((next: CardRunGate | null) => setRunGate(next), []);
   const parallelWarning = parallelStartWarning(runGate, useWorktree);
@@ -197,6 +203,17 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
     if (changed) onClose();
   }
 
+  async function deleteUnusedCard() {
+    if (!window.confirm(`„${card.title}“ endgültig löschen? Nur Karten ohne Lauf, Workflow oder verknüpfte Daten können gelöscht werden. Dieser Schritt lässt sich nicht rückgängig machen.`)) return;
+    setDeleteBusy(true); setDeleteError('');
+    const deleted = await mutate(async () => {
+      try { await window.studio.deleteCard(card.id); return true; }
+      catch (reason) { setDeleteError(reason instanceof Error ? reason.message : String(reason)); throw reason; }
+    });
+    setDeleteBusy(false);
+    if (deleted) onClose();
+  }
+
   async function send(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!session || !message.trim()) return;
@@ -258,15 +275,18 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
         <form className="stacked-form" onSubmit={(event) => void saveCard(event)}><fieldset className="archive-fieldset" disabled={Boolean(card.archivedAt)}>
           <label>Titel<input value={title} required maxLength={160} onChange={(event) => setTitle(event.target.value)} /></label>
           <label>Beschreibung<textarea rows={5} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Ziel, Kontext und gewünschtes Ergebnis…" /></label>
-          <div className="card-metadata-fields">
+          <details className="card-detail-group card-metadata-group"><summary>Priorität, Labels und Spalte</summary><div className="card-detail-group-content"><div className="card-metadata-fields">
             <label>Priorität<select value={priority} onChange={(event) => setPriority(event.target.value as CardPriority)}>{CARD_PRIORITIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
             <div className="card-label-editor"><label htmlFor={`card-label-input-${card.id}`}>Labels</label><div className="card-label-editor-list">{labels.map((label) => <span className="card-label-editor-chip" key={label}>{label}<button type="button" aria-label={`Label ${label} entfernen`} onClick={() => setLabels((current) => current.filter((item) => item !== label))}><X size={12} aria-hidden="true" /></button></span>)}</div><div className="card-label-editor-add"><input id={`card-label-input-${card.id}`} aria-label="Neues Label" list={`card-label-suggestions-${card.id}`} value={labelDraft} maxLength={32} onChange={(event) => { setLabelDraft(event.target.value); setMetadataError(''); }} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addLabel(); } }} placeholder="Label anlegen oder auswählen" /><button className="secondary-button small" type="button" disabled={!labelDraft.trim() || labels.length >= 12 && !labels.some((item) => item.toLocaleLowerCase('de-DE') === labelDraft.trim().toLocaleLowerCase('de-DE'))} onClick={addLabel}><Plus size={14} /> Hinzufügen</button></div><datalist id={`card-label-suggestions-${card.id}`}>{labelSuggestions(snapshot.cards, labels).map((label) => <option key={label} value={label} />)}</datalist><small>Bis zu 12 Labels pro Karte. Vorhandene Labels im Projekt werden vorgeschlagen.</small>{metadataError ? <small role="alert" className="card-label-error">{metadataError}</small> : null}</div>
           </div>
-          <div className="form-row"><label>Spalte<select value={card.columnId} onChange={(event) => void mutate(() => window.studio.moveCard({ id: card.id, columnId: event.target.value }))}>{[...snapshot.columns].sort((a, b) => a.position - b.position).map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select></label><button className="secondary-button" type="submit">Karte speichern</button></div>
+          <label>Spalte<select value={card.columnId} onChange={(event) => void mutate(() => window.studio.moveCard({ id: card.id, columnId: event.target.value }))}>{[...snapshot.columns].sort((a, b) => a.position - b.position).map((column) => <option key={column.id} value={column.id}>{column.name}</option>)}</select></label></div></details>
+          <div className="form-row"><button className="secondary-button" type="submit">Karte speichern</button></div>
         </fieldset></form>
-        <TaskRevisionPanel card={card} session={session} mutate={mutate} />
-        <div className="archive-controls">{card.archivedAt ? <><p>Archiviert am {new Date(card.archivedAt).toLocaleString('de-DE')}. Verlauf und Daten bleiben erhalten.</p><button className="secondary-button" type="button" disabled={archiveBusy} onClick={() => void changeArchive(false)}><RotateCcw size={15} /> Wiederherstellen</button></> : <button className="text-button archive-action" type="button" disabled={archiveBusy} onClick={() => void changeArchive(true)}><Archive size={15} /> Karte archivieren</button>}</div>
+        <div className="archive-controls">{card.archivedAt ? <><p>Archiviert am {new Date(card.archivedAt).toLocaleString('de-DE')}. Verlauf und Daten bleiben erhalten.</p><button className="secondary-button" type="button" disabled={archiveBusy} onClick={() => void changeArchive(false)}><RotateCcw size={15} /> Wiederherstellen</button></> : <button className="text-button archive-action" type="button" disabled={archiveBusy} onClick={() => void changeArchive(true)}><Archive size={15} /> Karte archivieren</button>}<button className="text-button card-delete-action" type="button" disabled={deleteBusy} onClick={() => void deleteUnusedCard()}><Trash2 size={15} /> Karte löschen</button></div>
         {archiveError ? <p className="inline-error" role="alert">{archiveError}</p> : null}
+        {deleteError ? <p className="inline-error" role="alert">{deleteError}</p> : null}
+        <details className="card-detail-group"><summary>Planung, Kontext und Nachweise</summary><div className="card-detail-group-content">
+        <TaskRevisionPanel card={card} session={session} mutate={mutate} />
         <label className="field-label"><span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" style={{ width: 'auto' }} checked={card.wireframeRequired} disabled={Boolean(card.archivedAt) || session?.state === 'running'} onChange={(event) => void mutate(() => window.studio.updateCard({ id: card.id, wireframeRequired: event.target.checked }))} /> Wireframe vor Agentenstart prüfen</span></label>
         <p className="field-help">Wenn aktiviert, starten Karten-Agenten und Workflow-Schritte erst mit einem gespeicherten, aktuell freigegebenen Entwurf. Die Freigabe startet keinen Agenten.</p>
         {onOpenDesign ? <button type="button" className="secondary-button" onClick={() => { onClose(); onOpenDesign(card.id); }}>Wireframe in Design öffnen</button> : null}
@@ -281,10 +301,10 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
         <CardRequirementStatus projectId={card.projectId} cardId={card.id} onOpenCard={onOpenCard} />
         <div className="drawer-divider" />
         <CardSplitPanel key={`split-${card.id}`} card={card} columns={snapshot.columns} queue={snapshot.queue} mutate={mutate} onOpenCard={onOpenCard} />
-        <div className="drawer-divider" />
+        </div></details>
         <div className="section-heading"><Bot size={19} /><h3>Agent</h3></div>
-        <p className="section-copy">{card.archivedAt ? 'Diese Karte ist archiviert. Stelle sie wieder her, bevor ein Agent weiterarbeitet.' : 'Starte einen CLI-Agenten im Projektordner. Seine Dateizugriffe folgen den Rechten deines Benutzerkontos.'}</p>
-        <label className="field-label">Agent auswählen<select value={chosenAgentId} disabled={Boolean(card.archivedAt)} onChange={(event) => setAgentId(event.target.value)}><option value="">Agent wählen</option>{enabledAgents.map((item) => <option key={item.id} value={item.id}>{item.name}{item.model ? ` · ${item.model}` : ''}</option>)}</select></label>
+        <p className="section-copy">{card.archivedAt ? 'Diese Karte ist archiviert. Stelle sie wieder her, bevor ein Agent weiterarbeitet.' : columnAgent ? `Für „${cardColumn?.name}“ ist ${columnAgent.name} eingestellt. Dieser Start verwendet den Spaltenagenten, sofern du ihn hier nicht wechselst.` : cardColumn?.agentId ? 'Der Spaltenagent ist deaktiviert oder nicht mehr verfügbar. Wähle einen anderen Agenten für diesen Start.' : 'Für diese Spalte ist kein Agent eingestellt. Wähle einen Agenten nur, wenn du diese Karte bewusst starten möchtest.'}</p>
+        {columnAgent ? <details className="card-agent-choice"><summary>{agentId ? `Agent für diesen Start: ${snapshot.agents.find((item) => item.id === agentId)?.name ?? 'Agent wechseln'}` : `Agent wechseln · aktuell ${columnAgent.name}`}</summary><label className="field-label">Agent nur für diesen Start<select value={chosenAgentId} disabled={Boolean(card.archivedAt)} onChange={(event) => setAgentId(event.target.value)}>{enabledAgents.map((item) => <option key={item.id} value={item.id}>{item.name}{item.model ? ` · ${item.model}` : ''}</option>)}</select></label></details> : <label className="field-label">Agent für diesen Start<select value={chosenAgentId} disabled={Boolean(card.archivedAt)} onChange={(event) => setAgentId(event.target.value)}><option value="">Agent wählen</option>{enabledAgents.map((item) => <option key={item.id} value={item.id}>{item.name}{item.model ? ` · ${item.model}` : ''}</option>)}</select></label>}
         <label className="field-label">Auftrag<textarea rows={4} value={prompt} disabled={Boolean(card.archivedAt)} onChange={(event) => setPrompt(event.target.value)} placeholder="Was soll der Agent an dieser Karte tun?" /></label>
         <label className="field-label"><span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" style={{ width: 'auto' }} checked={useWorktree} disabled={Boolean(card.archivedAt)} onChange={(event) => setUseWorktree(event.target.checked)} /> Isolierten Git-Worktree für diese Sitzung verwenden</span></label>
         <ParallelRunPanel key={card.id} card={card} cards={snapshot.cards} mutate={mutate} onGate={acceptRunGate} />
@@ -295,6 +315,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
         {enabledAgents.length === 0 ? <p className="inline-note">Noch kein Agent eingerichtet. Unter „Agenten“ kannst du installierte CLIs erkennen und einen Startbefehl speichern.</p> : null}
         <div className="drawer-divider" />
         <div ref={sessionHeadingRef} className="section-heading" tabIndex={-1}><Terminal size={19} /><h3>Terminal</h3><span className={session?.state === 'running' ? 'session-state running' : 'session-state'}>{session?.state === 'running' ? 'Läuft' : session?.state === 'failed' ? 'Fehlgeschlagen' : session?.state === 'exited' ? 'Beendet' : session?.state === 'stopped' ? 'Gestoppt' : 'Kein Lauf'}</span></div>
+        {session && observedSessionActivity(session.output) ? <p className="card-observed-activity">Zuletzt ausgegeben: {observedSessionActivity(session.output)}</p> : null}
         {sessions.length > 1 ? <label className="field-label">Sitzung auswählen<select aria-label="Sitzung auswählen" value={session?.id ?? ''} onChange={(event) => setSessionChoice(event.target.value)}>{sessions.map((item) => <option key={item.id} value={item.id}>{snapshot.agents.find((agent) => agent.id === item.agentId)?.name ?? 'Agent unbekannt'} · {new Date(item.startedAt).toLocaleString('de-DE')} · {item.state === 'running' ? 'Läuft' : item.state === 'failed' ? 'Fehlgeschlagen' : item.state === 'stopped' ? 'Gestoppt' : 'Beendet'}</option>)}</select></label> : null}
         {workflowHaltpoints.map((flow) => <p className="section-copy" role="status" key={flow.id}><strong>{flow.name}:</strong> Haltepunkt nach Schritt {flow.haltpoint!.afterStepIndex + 1} {flow.haltpoint!.state === 'reached' ? 'erreicht. Der nächste Agentenlauf wartet auf Fortsetzung.' : 'angefordert. Dieser Schritt kann noch laufen.'}</p>)}
         {session ? <>

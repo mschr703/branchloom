@@ -48,28 +48,35 @@ interface Props {
   decisionCount: number | null;
   decisionHasMore?: boolean;
   onView: (view: View) => void;
+  onOpenCard?: (cardId: string) => void;
   status?: ProjectNavigationStatus | null;
 }
 
-export interface ProjectNavigationStatus { activeCards: number; runningSessions: number }
+export interface ProjectNavigationStatus { activeCards: number; runningSessions: number; firstRunning?: { cardId: string; cardTitle: string; agentName: string } }
 
 export function projectNavigationStatus(snapshot: ProjectSnapshot | null, projectId: string | null): ProjectNavigationStatus | null {
   if (!snapshot || !projectId || snapshot.project.id !== projectId) return null;
+  const running = snapshot.sessions.filter((session) => session.state === 'running');
+  const first = running.find((session) => Boolean(session.cardId) && snapshot.cards.some((card) => Boolean(card.id) && card.id === session.cardId));
+  const card = snapshot.cards.find((item) => item.id === first?.cardId);
   return {
     activeCards: snapshot.cards.filter((card) => !card.archivedAt).length,
-    runningSessions: snapshot.sessions.filter((session) => session.state === 'running').length,
+    runningSessions: running.length,
+    ...(first && card ? { firstRunning: { cardId: card.id, cardTitle: card.title, agentName: snapshot.agents?.find((agent) => agent.id === first.agentId)?.name ?? 'Agent' } } : {}),
   };
 }
 
 /** Project context stays above this compact, fully labelled navigation. */
-export function WorkspaceNavigation({ activeView, language = 'de', decisionCount, decisionHasMore = false, onView, status }: Props) {
+export function WorkspaceNavigation({ activeView, language = 'de', decisionCount, decisionHasMore = false, onView, onOpenCard, status }: Props) {
   const item = ({ id, icon: Icon }: typeof views[number]) => {
     const name = viewName(id, language);
+    const runningOnBoard = id === 'board' && Boolean(status?.runningSessions);
     return (
     <button key={id} type="button" className={activeView === id ? 'nav-item active' : 'nav-item'}
       onClick={() => onView(id)} aria-current={activeView === id ? 'page' : undefined}
-      aria-label={id === 'decisions' && decisionCount === null ? `${name}: ${language === 'en' ? 'checking open items' : 'offene Einträge werden geprüft'}` : id === 'decisions' && decisionCount ? `${name}: ${decisionHasMore ? language === 'en' ? 'at least ' : 'mindestens ' : ''}${decisionCount} ${language === 'en' ? 'open' : 'offen'}` : name} title={name}>
+      aria-label={id === 'decisions' && decisionCount === null ? `${name}: ${language === 'en' ? 'checking open items' : 'offene Einträge werden geprüft'}` : id === 'decisions' && decisionCount ? `${name}: ${decisionHasMore ? language === 'en' ? 'at least ' : 'mindestens ' : ''}${decisionCount} ${language === 'en' ? 'open' : 'offen'}` : runningOnBoard ? `${name}: ${status!.runningSessions} ${language === 'en' ? 'active agent runs' : 'aktive Agentenläufe'}` : name} title={name}>
       <Icon size={18} aria-hidden="true" /><span className="nav-label">{name}</span>
+      {runningOnBoard ? <span className="nav-running-indicator" aria-hidden="true" /> : null}
       {id === 'decisions' && decisionCount === null ? <span className="nav-count" aria-hidden="true">…</span> : null}
       {id === 'decisions' && Boolean(decisionCount) ? <span className="nav-count" aria-hidden="true">{decisionCount}{decisionHasMore ? '+' : ''}</span> : null}
     </button>);
@@ -83,6 +90,7 @@ export function WorkspaceNavigation({ activeView, language = 'de', decisionCount
       </div>)}</div>
   </nav>{status ? <div className="sidebar-status" aria-label={language === 'en' ? 'Project status' : 'Projektstatus'}>
     <span><strong>{status.runningSessions}</strong> {language === 'en' ? `active agent ${status.runningSessions === 1 ? 'run' : 'runs'}` : `${status.runningSessions === 1 ? 'Agentenlauf' : 'Agentenläufe'} aktiv`}</span>
+    {status.firstRunning && onOpenCard ? <button type="button" className="sidebar-running-card" onClick={() => onOpenCard(status.firstRunning!.cardId)} title={`${status.firstRunning.agentName}: ${status.firstRunning.cardTitle}`}><span className="sidebar-running-agent">{status.firstRunning.agentName}</span><span aria-hidden="true">→</span><span className="sidebar-running-title">{status.firstRunning.cardTitle}</span></button> : null}
     <span><strong>{status.activeCards}</strong> {language === 'en' ? `active ${status.activeCards === 1 ? 'card' : 'cards'}` : `aktive ${status.activeCards === 1 ? 'Karte' : 'Karten'}`}</span>
   </div> : null}</>;
 }

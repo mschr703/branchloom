@@ -50,4 +50,19 @@ describe('compact workspace navigation', () => {
     expect(html).toContain('1</strong> aktive Karte');
     expect(html).not.toContain('heute erledigt');
   });
+
+  it('links observed running work from navigation without inventing a teammate or progress', () => {
+    const snapshot = {
+      project: { id: 'p' }, cards: [{ id: 'c1', title: 'Synthetic task', archivedAt: null }],
+      agents: [{ id: 'a1', name: 'Codex fixture' }], sessions: [{ id: 's1', state: 'running', cardId: 'c1', agentId: 'a1' }],
+    } as ProjectSnapshot;
+    const status = projectNavigationStatus(snapshot, 'p');
+    expect(status?.firstRunning).toEqual({ cardId: 'c1', cardTitle: 'Synthetic task', agentName: 'Codex fixture' });
+    const html = renderToStaticMarkup(createElement(WorkspaceNavigation, { activeView: 'board', decisionCount: 0, onView: () => undefined, onOpenCard: () => undefined, status }));
+    expect(html).toContain('aria-label="Board: 1 aktive Agentenläufe"');
+    expect(html).toContain('class="nav-running-indicator"');
+    expect(html).toContain('Codex fixture');
+    expect(html).toContain('Synthetic task');
+    expect(html).not.toContain('70%');
+  });
 });

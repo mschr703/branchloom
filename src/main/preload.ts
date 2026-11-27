@@ -173,6 +173,7 @@ const studio: StudioAPI = {
   bulkUpdateCards: (input) => invoke('bulkUpdateCards', input),
   reorderCard: (input) => invoke('reorderCard', input),
   setCardArchived: (input) => invoke('setCardArchived', input),
+  deleteCard: (id) => invoke('deleteCard', id),
   copyCardId: (input) => invoke('copyCardId', input),
   cardAttachments: (cardId) => invoke('cardAttachments', cardId),
   chooseCardAttachments: (cardId) => invoke('chooseCardAttachments', cardId),

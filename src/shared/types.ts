@@ -283,6 +283,7 @@ export interface StudioAPI {
   bulkUpdateCards(input: BulkCardAction): Promise<Card[]>;
   reorderCard(input: { id: string; direction: 'up' | 'down' }): Promise<Card>;
   setCardArchived(input: { id: string; archived: boolean }): Promise<Card>;
+  deleteCard(id: string): Promise<void>;
   copyCardId(input: { projectId: string; cardId: string }): Promise<void>;
   cardAttachments(cardId: string): Promise<CardAttachment[]>;
   chooseCardAttachments(cardId: string): Promise<CardAttachment[] | null>;

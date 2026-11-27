@@ -21,6 +21,7 @@ describe('planning view navigation', () => {
   it('marks only the current view and keeps the others as native buttons', () => {
     const html = renderToStaticMarkup(createElement(ProjectViewTabs, { active: 'workflows', onNavigate: () => undefined }));
     expect(html).toContain('aria-label="Projektansichten"');
+    expect(html).toContain('data-planning-view="workflows"');
     expect(html).toContain('<span class="is-active" aria-current="page">Workflows</span>');
     expect(html).toContain('>Board</button>');
     expect(html).toContain('>Ideenraum</button>');
@@ -32,7 +33,7 @@ describe('planning view navigation', () => {
   it('keeps the project switcher visible above the workflow controls', () => {
     const html = renderToStaticMarkup(<WorkflowView snapshot={snapshot} mutate={async <T,>(action: () => Promise<T>) => action()} onNavigate={() => undefined} />);
     expect(html).toContain('<span class="is-active" aria-current="page">Workflows</span>');
-    expect(html.indexOf('aria-label="Projektansichten"')).toBeLessThan(html.indexOf('Route selbst erstellen'));
+    expect(html.indexOf('aria-label="Projektansichten"')).toBeLessThan(html.indexOf('Neuer Workflow'));
     expect(html).toContain('>Board</button>');
   });
 
@@ -50,6 +51,7 @@ describe('planning view navigation', () => {
       const boardButton = [...host.querySelectorAll<HTMLButtonElement>('.project-view-tabs button')].find((button) => button.textContent === 'Board')!;
       expect(boardButton).toBeDefined();
       expect(host.querySelector('.project-view-tabs [aria-current="page"]')?.textContent).toBe('Ideenraum');
+      expect(host.querySelector('.project-view-tabs')?.getAttribute('data-planning-view')).toBe('ideas');
       await act(async () => { boardButton.click(); });
       expect(navigate).toHaveBeenCalledWith('board');
 

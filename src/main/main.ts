@@ -506,6 +506,11 @@ function installIpc(): void {
     queueEngine.onBoardChanged(card.projectId);
     return card;
   });
+  bind('deleteCard', (id: string) => {
+    const projectId = db.card(id).projectId;
+    db.deleteCard(id);
+    queueEngine.onBoardChanged(projectId);
+  });
   bind('copyCardId', async (input: { projectId: string; cardId: string }) => {
     const card = db.card(input.cardId);
     if (card.projectId !== input.projectId) throw new Error('Die Karte gehört nicht zum gewählten Projekt.');

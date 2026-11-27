@@ -36,6 +36,9 @@
 .trello-import-dialog .trello-advanced { border-top: 1px solid var(--border); padding-top: 10px; margin-top: 4px; }
 .trello-import-dialog .trello-advanced > summary { cursor: pointer; color: var(--muted); font-size: 13px; }
 .trello-import-dialog .trello-advanced > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+.trello-preview .trello-advanced > label { display: grid; gap: 6px; max-width: 280px; margin-top: 12px; }
+.trello-preview .trello-advanced > .field-help { margin: 8px 0 0; }
+.trello-import-result { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
 .trello-import-dialog .trello-advanced-body { display: grid; gap: 12px; padding-top: 16px; }
 .trello-import-dialog .trello-advanced-body > label { display: grid; gap: 6px; max-width: 520px; }
 .trello-import-dialog .trello-advanced-body > button { justify-self: start; }

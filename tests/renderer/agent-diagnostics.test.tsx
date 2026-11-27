@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { AgentCapabilityRows, AgentView, DiagnosticStatus, diagnosticHint } from '../../src/renderer/components/AgentView';
+import { AgentCapabilityRows, AgentView, DiagnosticStatus, agentProfileSummary, diagnosticHint } from '../../src/renderer/components/AgentView';
 import type { AgentDetection, AgentPreset, ProjectSnapshot } from '../../src/shared/types';
 
 const base: AgentDetection = { kind: 'codex', command: 'codex', available: false, version: null, status: 'missing' };
@@ -24,7 +24,15 @@ describe('agent diagnostic messages', () => {
     expect(diagnosticHint({ ...base, kind: 'antigravity', status: 'timeout' })).toContain('20 Sekunden');
     expect(diagnosticHint({ ...base, status: 'ready', available: true })).toContain('Anmeldung');
     expect(renderToStaticMarkup(<DiagnosticStatus item={{ ...base, status: 'timeout' }} />)).toContain('Zeitlimit');
-    expect(renderToStaticMarkup(<DiagnosticStatus item={{ ...base, status: 'found', available: true }} />)).toContain('Gefunden');
+    expect(renderToStaticMarkup(<DiagnosticStatus item={{ ...base, status: 'found', available: true }} />)).toContain('CLI gefunden');
+  });
+
+  it('keeps project activation separate from local CLI readiness', () => {
+    const agent: AgentPreset = { id: 'a', name: 'Claude fixture', kind: 'claude', command: 'claude', args: [], model: null, enabled: true };
+    expect(agentProfileSummary(agent, { ...base, kind: 'claude', profileId: 'a' })).toContain('nicht startbereit');
+    expect(agentProfileSummary(agent, { ...base, kind: 'claude', profileId: 'a', status: 'ready', available: true })).toContain('Anmeldung und Modellzugang ungeprüft');
+    expect(agentProfileSummary({ ...agent, enabled: false }, { ...base, kind: 'claude', profileId: 'a' })).toBe('Im Projekt deaktiviert');
+    expect(renderToStaticMarkup(<DiagnosticStatus item={{ ...base, kind: 'claude' }} />)).toContain('CLI fehlt');
   });
 
   it('states what a session proved without implying model access or a restored conversation', () => {

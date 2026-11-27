@@ -16,7 +16,7 @@ export function ProjectViewTabs({ active, onNavigate, disabled = false, language
   language?: LanguagePreference;
 }) {
   return <div className="planning-view-tabs-row">
-    <nav className="board-view-tabs project-view-tabs" aria-label={language === 'en' ? 'Project views' : 'Projektansichten'}>
+    <nav className="board-view-tabs project-view-tabs" data-planning-view={active} aria-label={language === 'en' ? 'Project views' : 'Projektansichten'}>
       {views.map((view) => view.id === active
         ? <span className="is-active" aria-current="page" key={view.id}>{view.label[language]}</span>
         : <button type="button" key={view.id} disabled={disabled} onClick={() => onNavigate(view.id)}>{view.label[language]}</button>)}

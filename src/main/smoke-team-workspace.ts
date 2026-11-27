@@ -49,7 +49,7 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
       title: 'Inspect agent changes', description: 'Compare the diff with the card acceptance notes.', labels: ['Review'] });
     if (columns[4]) store.createCard({ projectId: project.id, columnId: columns[4].id,
       title: 'Check release notes', description: 'Confirm that the visible changes are documented.', labels: ['Docs'] });
-    await window.webContents.executeJavaScript(`(async () => {
+    const boardReady = await window.webContents.executeJavaScript(`(async () => {
       const select = document.querySelector('#project-select');
       if (!(select instanceof HTMLSelectElement)) throw new Error('Synthetic board selector is missing.');
       const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
@@ -60,7 +60,8 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
       throw new Error('Synthetic board did not settle for screenshot.');
-    })()`);
+    })().catch((error) => ({ smokeError: String(error?.stack ?? error) }))`);
+    if (boardReady && typeof boardReady === 'object' && 'smokeError' in boardReady) throw new Error(String(boardReady.smokeError));
     if (window.isVisible()) throw new Error('Board screenshot must not take over the active desktop.');
     const originalSize = window.getSize();
     try {
@@ -123,7 +124,7 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
         const filters = document.querySelector('.board-filter-options');
         if (!(actions instanceof HTMLDetailsElement) || !(filters instanceof HTMLDetailsElement)) throw new Error('Board menus are missing.');
         actions.querySelector('summary')?.click();
-        if (!actions.open || !actions.textContent?.includes('Trello importieren') || !actions.textContent?.includes('UI-Prüfung')) throw new Error('Board actions did not open.');
+        if (!actions.open || !actions.textContent?.includes('Trello-Ideen sammeln') || !actions.textContent?.includes('UI-Prüfung')) throw new Error('Board actions did not open.');
         actions.querySelector('summary')?.click();
         filters.querySelector('summary')?.click();
         if (!filters.open || filters.querySelectorAll('select').length !== 4) throw new Error('Board filters did not open.');

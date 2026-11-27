@@ -21,7 +21,7 @@ describe('workflow planner', () => {
       mutate: async <T,>(action: () => Promise<T>) => action(),
     }));
     expect(html).toContain('Ein Workflow ist die Route einer Karte');
-    expect(html).toContain('Route selbst erstellen');
+    expect(html).toContain('Neuer Workflow');
     expect(html).toContain('Route mit einem Agenten entwerfen');
     expect(html).toContain('Automatische Warteschlange');
     expect(html).toContain('Branchloom nimmt dann freie To-Do-Karten nacheinander auf');

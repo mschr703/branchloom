@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it, vi } from 'vitest';
 import { BoardSessionDock, sessionOutputPreview } from '../../src/renderer/components/BoardSessionDock';
+import { observedSessionActivity } from '../../src/renderer/activity-transcript';
 import { CardPanel } from '../../src/renderer/components/CardPanel';
 import type { ProjectSnapshot, Session } from '../../src/shared/types';
 
@@ -57,6 +58,12 @@ it('opens a newly active run and keeps the finished session visible', async () =
 it('limits the dock preview to the latest three readable lines', () => {
   expect(sessionOutputPreview('old\nsecond\nthird\nfourth\n')).toBe('second\nthird\nfourth');
   expect(sessionOutputPreview('x'.repeat(600))).toHaveLength(480);
+});
+
+it('quotes the latest observed output without treating an event payload as progress', () => {
+  expect(observedSessionActivity('\u001b[32m> npm test\u001b[0m\r\n')).toBe('> npm test');
+  expect(observedSessionActivity('{"type":"item.updated","private":"data"}\n')).toBeNull();
+  expect(observedSessionActivity('  \r\n')).toBeNull();
 });
 
 it('shows the selected run when a card has multiple saved sessions', () => {

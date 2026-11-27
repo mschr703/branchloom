@@ -5,7 +5,7 @@
 .sidebar-projects .side-section-title { display: block; margin: 0 0 6px; padding: 0 3px; font-size: 11px; }
 .sidebar-projects .project-select { min-height: 36px; padding: 6px 9px; font-size: 13px; }
 .project-actions { position: relative; margin-top: 4px; }
-.project-actions summary { display: flex; align-items: center; gap: 6px; min-height: 30px; padding: 4px 3px; list-style: none; color: var(--muted); font-size: 11px; cursor: pointer; }
+.project-actions summary { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 4px 9px; list-style: none; color: var(--muted); font-size: 11px; cursor: pointer; }
 .project-actions summary::-webkit-details-marker { display: none; }
 .project-actions summary:hover, .project-actions[open] summary { color: var(--text); }
 .project-actions summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
@@ -26,9 +26,17 @@
 :root[data-theme] .nav-item { border-color: transparent; border-radius: 6px; }
 :root[data-theme] .nav-item.active { background: var(--surface-2); border-color: var(--border); box-shadow: none; color: var(--accent); }
 .nav-count { margin-left: auto; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.nav-running-indicator { flex: none; width: 6px; height: 6px; margin-left: auto; border-radius: 50%; background: #7180a1; }
+:root[data-theme='dark'] .nav-running-indicator { background: #afc0e0; }
 .nav-other .nav-count { position: absolute; top: 2px; right: 4px; margin: 0; }
 .sidebar-status { flex: none; display: grid; gap: 3px; padding: 9px 5px 2px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; line-height: 1.3; font-variant-numeric: tabular-nums; }
 .sidebar-status strong { color: var(--text); font-weight: 650; }
+.sidebar-running-card { display: flex; align-items: center; gap: 4px; width: 100%; min-width: 0; padding: 2px 0; border: 0; background: transparent; color: var(--text); text-align: left; font: inherit; cursor: pointer; }
+.sidebar-running-card:hover { text-decoration: underline; }
+.sidebar-running-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.sidebar-running-agent, .sidebar-running-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-running-agent { flex: none; max-width: 42%; font-weight: 600; }
+.sidebar-running-title { flex: 1; }
 .topbar-title { display: flex; align-items: center; min-width: 0; }
 .topbar-title h1 { margin: 0; }
 

@@ -18,3 +18,10 @@
   cursor: default;
   opacity: .5;
 }
+
+:root[data-theme] .board-view-tabs[data-planning-view='board'] > .is-active::after { background: #596983; }
+:root[data-theme] .board-view-tabs[data-planning-view='ideas'] > .is-active::after { background: #a17442; }
+:root[data-theme] .board-view-tabs[data-planning-view='workflows'] > .is-active::after { background: #806a99; }
+:root[data-theme='dark'] .board-view-tabs[data-planning-view='board'] > .is-active::after { background: #a8b7d0; }
+:root[data-theme='dark'] .board-view-tabs[data-planning-view='ideas'] > .is-active::after { background: #d6b37b; }
+:root[data-theme='dark'] .board-view-tabs[data-planning-view='workflows'] > .is-active::after { background: #c0abd6; }
