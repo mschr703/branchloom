@@ -16,11 +16,12 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
   const boardScreenshot = process.env.BRANCHLOOM_TEAM_BOARD_OVERVIEW_SCREENSHOT;
   const narrowBoardScreenshot = process.env.BRANCHLOOM_TEAM_BOARD_NARROW_SCREENSHOT;
   const darkBoardScreenshot = process.env.BRANCHLOOM_TEAM_BOARD_DARK_SCREENSHOT;
-  const projectName = boardScreenshot ? 'Atlas sample' : 'Synthetic team project';
+  const projectName = boardScreenshot ? 'Fieldnotes' : 'Synthetic team project';
   const project = store.createProject({ name: projectName, path: projectPath });
   const card = store.createCard({ projectId: project.id, columnId: store.snapshot(project.id).columns[0]!.id,
-    title: 'Shared planning card', description: 'Accepted source description',
-    ...(boardScreenshot ? { priority: 'high' as const, labels: ['Planning'] } : {}) });
+    title: boardScreenshot ? 'Plan workspace permissions' : 'Shared planning card',
+    description: boardScreenshot ? 'Decide who can approve plans and invite reviewers.' : 'Accepted source description',
+    ...(boardScreenshot ? { priority: 'high' as const, labels: ['Team'] } : {}) });
   await new Promise<void>((resolve, reject) => {
     window.webContents.once('did-finish-load', () => resolve());
     window.webContents.once('did-fail-load', (_event, _code, detail) => reject(new Error(detail)));
@@ -32,11 +33,19 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
     if (columns[1]) store.updateColumn({ id: columns[1].id, agentId: sampleAgent.id });
     if (columns[2]) store.updateColumn({ id: columns[2].id, agentId: sampleAgent.id });
     store.createCard({ projectId: project.id, columnId: columns[0]!.id,
-      title: 'Define workspace access', description: 'Agree on roles and project permissions.', priority: 'medium', labels: ['Team'] });
+      title: 'Clarify the first project step', description: 'Show what a local folder import will index.', priority: 'medium', labels: ['Onboarding'] });
     store.createCard({ projectId: project.id, columnId: columns[1]?.id ?? columns[0]!.id,
-      title: 'Review the shared plan', description: 'Check the proposed work before an agent starts.', priority: 'medium', labels: ['Review'] });
+      title: 'Review invitation flow', description: 'Keep project and team permissions distinct.', priority: 'medium', labels: ['Review'] });
     store.createCard({ projectId: project.id, columnId: columns[2]?.id ?? columns[0]!.id,
-      title: 'Verify the result', description: 'Inspect the diff, tests, and visible app behavior.', labels: ['QA'] });
+      title: 'Make board filters keyboard friendly', description: 'Keep search and filter state in view.', labels: ['Board'] });
+    store.createCard({ projectId: project.id, columnId: columns[1]?.id ?? columns[0]!.id,
+      title: 'Sketch project navigation', description: 'Compare the first route with the approved draft.', labels: ['Design'] });
+    store.createCard({ projectId: project.id, columnId: columns[2]?.id ?? columns[0]!.id,
+      title: 'Recover interrupted agent runs', description: 'Keep the last session and worktree available.', priority: 'high', labels: ['Agents'] });
+    if (columns[3]) store.createCard({ projectId: project.id, columnId: columns[3].id,
+      title: 'Inspect agent changes', description: 'Compare the diff with the card acceptance notes.', labels: ['Review'] });
+    if (columns[4]) store.createCard({ projectId: project.id, columnId: columns[4].id,
+      title: 'Check release notes', description: 'Confirm that the visible changes are documented.', labels: ['Docs'] });
     await window.webContents.executeJavaScript(`(async () => {
       const select = document.querySelector('#project-select');
       if (!(select instanceof HTMLSelectElement)) throw new Error('Synthetic board selector is missing.');
@@ -44,7 +53,7 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
       setter.call(select, ${JSON.stringify(project.id)});
       select.dispatchEvent(new Event('change', { bubbles: true }));
       for (let attempt = 0; attempt < 120; attempt += 1) {
-        if (document.querySelector('.board-columns')?.textContent?.includes('Verify the result')) return true;
+        if (document.querySelector('.board-columns')?.textContent?.includes('Make board filters keyboard friendly')) return true;
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
       throw new Error('Synthetic board did not settle for screenshot.');
@@ -232,7 +241,7 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
     if (!team) throw new Error('Team view is unavailable.');
     team.click();
     const board = await wait(() => document.querySelector('.team-workspace-board'), 'shared board');
-    if (!board.textContent.includes('Shared planning card')) throw new Error('Team card is absent from shared board.');
+    if (!board.textContent.includes(${JSON.stringify(card.title)})) throw new Error('Team card is absent from shared board.');
     board.querySelector('.team-workspace-card').click();
     const editor = await wait(() => document.querySelector('.team-card-draft textarea:not(:disabled)'), 'draft editor');
     const priority = await wait(() => document.querySelector('select[aria-label="Teamkarten-Priorität"]'), 'priority control');
@@ -278,7 +287,7 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
     }
     throw new Error('Guest draft edit did not reach the visible owner editor.');
   })()`);
-  if (store.snapshot(project.id).cards.find((item) => item.id === card.id)?.description !== 'Accepted source description') {
+  if (store.snapshot(project.id).cards.find((item) => item.id === card.id)?.description !== card.description) {
     throw new Error('A draft edit changed the accepted card description.');
   }
   const ownerConnection = await new TeamConnectionStore(app.getPath('userData'), safeStorage).get(result.workspaceId);

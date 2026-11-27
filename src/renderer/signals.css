@@ -182,7 +182,7 @@
 /* Card hierarchy: a quiet identity line, readable task, then real work state. */
 :root[data-theme] .board-scroll { padding-bottom: 0; }
 :root[data-theme] .board-columns { height: 100%; min-height: 0; align-items: stretch; gap: 10px; padding-bottom: 10px; }
-:root[data-theme] .board-column { width: 244px; min-width: 244px; height: 100%; min-height: 0; max-height: none; }
+:root[data-theme] .board-column { width: 276px; min-width: 276px; height: 100%; min-height: 0; max-height: none; }
 :root[data-theme] .board-column .column-body { flex: 1 1 auto; min-height: 0; }
 :root[data-theme] .board-card-wrap > .task-card {
   display: flex;
@@ -190,15 +190,15 @@
   gap: 0;
   min-height: 114px;
   padding: 10px 34px 0 12px;
-  border-color: color-mix(in srgb, var(--border) 80%, var(--text) 20%);
-  border-top: 2px solid var(--column-edge, var(--border));
-  border-radius: 5px;
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 5%, transparent);
+  border-color: var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 1px 1px color-mix(in srgb, var(--text) 4%, transparent);
 }
 :root[data-theme] .board-card-wrap:not(.is-selecting) > .task-card { padding-left: 12px; }
 :root[data-theme] .board-card-wrap > .task-card.is-running,
 :root[data-theme] .board-card-wrap > .task-card[data-priority='urgent'],
-:root[data-theme] .board-card-wrap > .task-card[data-priority='high']:not(.is-running) { padding-left: 10px; }
+:root[data-theme] .board-card-wrap > .task-card[data-priority='high']:not(.is-running) { padding-left: 12px; border-left: 1px solid var(--border); }
 :root[data-theme] .task-card-kicker { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 7px; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
 :root[data-theme] .task-card-priority-text { font-weight: 650; }
 :root[data-theme] .task-card-priority-text.priority-urgent { color: var(--danger); }
@@ -206,10 +206,7 @@
 :root[data-theme] .board-card-wrap > .task-card strong { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 14px; line-height: 1.35; }
 :root[data-theme] .board-card-wrap > .task-card .task-card-description { margin-top: 5px; font-size: 12px; line-height: 1.35; }
 :root[data-theme] .board-card-wrap > .task-card .task-card-metadata { order: 3; margin-top: 9px; }
-:root[data-theme] .board-card-wrap > .task-card .task-card-footer { order: 4; margin: auto -34px 0 -12px; min-height: 31px; padding: 7px 34px 6px 12px; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 88%, var(--column-wash, var(--surface-2))); font-size: 11px; }
-:root[data-theme] .board-card-wrap > .task-card.is-running .task-card-footer,
-:root[data-theme] .board-card-wrap > .task-card[data-priority='urgent'] .task-card-footer,
-:root[data-theme] .board-card-wrap > .task-card[data-priority='high'] .task-card-footer { margin-left: -10px; padding-left: 10px; }
+:root[data-theme] .board-card-wrap > .task-card .task-card-footer { order: 4; margin: auto -34px 0 -12px; min-height: 31px; padding: 7px 34px 6px 12px; border-top: 1px solid var(--border); background: var(--surface); font-size: 11px; }
 :root[data-theme] .board-session-dock { border-top: 1px solid var(--border); background: var(--surface); }
 :root[data-theme] .board-session-toggle { min-height: 42px; padding-inline: 10px; font-weight: 600; }
 :root[data-theme] .board-session-toggle > strong { color: var(--text); }
@@ -219,7 +216,7 @@
 :root[data-theme] .board-session-running.state-stopped { background: var(--warning); }
 :root[data-theme] .board-session-running.state-failed { background: var(--danger); }
 @media (max-width: 600px) {
-  :root[data-theme] .board-column { width: min(244px, calc(100vw - 42px)); min-width: min(244px, calc(100vw - 42px)); }
+  :root[data-theme] .board-column { width: min(276px, calc(100vw - 42px)); min-width: min(276px, calc(100vw - 42px)); }
 }
 
 /* The board is the primary surface: keep its header quiet and the session rail compact when idle. */
@@ -285,18 +282,18 @@
 :root[data-theme] .board-filter-fields { width: min(360px, calc(100vw - 40px)); }
 :root[data-theme] .board-filter-fields label > span:not(.sr-only) { display: block; margin-bottom: 4px; color: var(--muted); font-size: 11px; }
 /* Cards keep the reference's information rhythm while using only persisted card and run data. */
-:root[data-theme] .board-card-wrap > .task-card { border-radius: 7px; padding-top: 11px; background: color-mix(in srgb, var(--surface) 55%, var(--column-wash, var(--surface-2))); }
+:root[data-theme] .board-card-wrap > .task-card { border-radius: 6px; padding-top: 11px; background: var(--surface); }
 :root[data-theme] .board-card-wrap > .task-card .task-card-kicker { min-height: 17px; margin-bottom: 6px; font-size: 11px; letter-spacing: .01em; }
 :root[data-theme] .task-card-priority-text { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; }
-:root[data-theme] .board-card-wrap > .task-card strong { font-weight: 660; letter-spacing: -.015em; }
+:root[data-theme] .board-card-wrap > .task-card strong { font-weight: 620; letter-spacing: -.015em; }
 :root[data-theme] .board-card-wrap > .task-card .task-card-description { margin-top: 4px; color: var(--muted); line-height: 1.42; }
 :root[data-theme] .board-card-wrap > .task-card .task-card-metadata { gap: 4px; margin: 8px 0 8px; }
 :root[data-theme] .board-card-wrap > .task-card .task-card-metadata .card-label {
-  padding: 2px 6px;
-  border: 1px solid var(--border);
+  padding: 2px 5px;
+  border: 0;
   border-radius: 3px;
-  background: var(--surface-2);
-  color: var(--text);
+  background: color-mix(in srgb, var(--column-wash, var(--surface-2)) 72%, var(--surface));
+  color: var(--muted);
   font-size: 10px;
   font-weight: 500;
 }
@@ -306,10 +303,32 @@
   border-bottom: 1px solid var(--border);
   font-size: 10px;
 }
-:root[data-theme] .board-card-wrap > .task-card .task-card-footer { min-height: 32px; background: color-mix(in srgb, var(--surface) 30%, var(--column-wash, var(--surface-2))); color: var(--muted); }
+:root[data-theme] .board-card-wrap > .task-card .task-card-footer { min-height: 32px; background: var(--surface); color: var(--muted); }
+:root[data-theme] .board-column .column-run-summary { display: none; }
+:root[data-theme] .board-column .column-header { min-height: 43px; align-items: center; }
 :root[data-theme] .board-card-wrap > .task-card[data-run-state='failed'] .task-card-footer { color: var(--danger); }
 :root[data-theme] .board-card-wrap > .task-card[data-run-state='stopped'] .task-card-footer { color: var(--warning); }
+:root[data-theme] .board-scroll::-webkit-scrollbar { width: 7px; height: 7px; }
+:root[data-theme] .board-scroll::-webkit-scrollbar-thumb { border-radius: 8px; background: color-mix(in srgb, var(--muted) 48%, transparent); }
+:root[data-theme] .board-scroll::-webkit-scrollbar-track { background: transparent; }
+:root[data-theme] .brand-mark { border: 0; background: transparent; }
+:root[data-theme] .brand { padding-bottom: 18px; }
+:root[data-theme] .brand strong { font-size: 15px; font-weight: 650; }
+:root[data-theme] .nav-item.active { border-color: transparent; background: color-mix(in srgb, var(--surface) 62%, var(--sidebar)); color: var(--text); }
+:root[data-theme] .sidebar-projects .project-switcher-trigger { border-color: transparent; background: transparent; }
+:root[data-theme] .sidebar-projects .project-switcher-trigger:hover,
+:root[data-theme] .sidebar-projects .project-switcher-trigger[aria-expanded='true'] { background: color-mix(in srgb, var(--surface) 62%, var(--sidebar)); }
 @media (max-width: 600px) {
+  :root[data-theme] .sidebar { height: 52px; }
+  :root[data-theme] .side-nav { scrollbar-width: none; }
+  :root[data-theme] .side-nav::-webkit-scrollbar { display: none; }
+  :root[data-theme] .topbar { min-height: 54px; padding-block: 5px; }
+  :root[data-theme] .mobile-workspace { padding-block: 5px; }
+  :root[data-theme] .board-page { padding-top: 8px; }
+  :root[data-theme] .board-toolbar.board-header-actions { flex-direction: row; align-items: center; gap: 8px; padding-right: 16px; }
+  :root[data-theme] .board-header-tools { flex-wrap: nowrap; margin-left: auto; gap: 4px; }
+  :root[data-theme] .board-more-tools > summary { justify-content: center; width: 35px; min-width: 35px; overflow: hidden; font-size: 0; }
+  :root[data-theme] .board-scroll::-webkit-scrollbar { display: none; }
   :root[data-theme] .board-filters { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; }
   :root[data-theme] .board-filters .board-search { grid-column: 1 / -1; width: 100%; min-width: 0; }
   :root[data-theme] .board-filter-count { grid-column: 2; margin: 0; }
