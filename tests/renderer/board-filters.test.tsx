@@ -33,6 +33,9 @@ describe('board filters and archive visibility', () => {
     } as ProjectSnapshot;
     try {
       await act(async () => { root.render(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action(), decisionCount: 2, onNavigate })); });
+      await act(async () => { host.querySelector<HTMLButtonElement>('.column-header-add')!.click(); });
+      expect(host.querySelector<HTMLInputElement>('.new-card-form input')?.getAttribute('aria-label')).toBe('Neue Karte');
+      await act(async () => { host.querySelector<HTMLButtonElement>('.new-card-form button[aria-label="Abbrechen"]')!.click(); });
       await act(async () => { [...host.querySelectorAll<HTMLButtonElement>('.board-view-tabs button')].find((button) => button.textContent === 'Ideenraum')!.click(); });
       expect(onNavigate).toHaveBeenCalledWith('ideas');
       await act(async () => { host.querySelector<HTMLButtonElement>('.board-decision-link')!.click(); });

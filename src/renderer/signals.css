@@ -309,6 +309,10 @@
 :root[data-theme] .board-card-wrap > .task-card .task-card-footer { min-height: 32px; background: var(--surface); color: var(--muted); }
 :root[data-theme] .board-column .column-run-summary { display: none; }
 :root[data-theme] .board-column .column-header { min-height: 43px; align-items: center; }
+:root[data-theme] .column-header-actions { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; }
+:root[data-theme] .column-header-add { display: inline-grid; place-items: center; width: 27px; height: 27px; padding: 0; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
+:root[data-theme] .column-header-add:hover { border-color: var(--border); background: var(--surface); color: var(--text); }
+:root[data-theme] .column-header-add:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 :root[data-theme] .board-column .column-title h3 { font-size: 12px; font-weight: 620; }
 :root[data-theme] .board-card-wrap > .task-card[data-run-state='failed'] .task-card-footer { color: var(--danger); }
 :root[data-theme] .board-card-wrap > .task-card[data-run-state='stopped'] .task-card-footer { color: var(--warning); }
