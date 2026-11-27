@@ -2,6 +2,10 @@
 
 Stand: 27.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Design-Fokus ohne Übernahme des Nutzerfensters
+
+- Der vergrößerte Wireframe-Editor nutzt mehr Fensterbreite für die Zeichenfläche. Ebenen und Eigenschaften stehen als schmale, durchgehende Seitenleisten daneben; die Artboard-Auswahl ist flacher. Auf schmalen Fenstern rückt die Zeichenfläche nach vorn, während Speichern und Freigeben weiterhin sichtbar und getrennt bleiben. `npm run smoke:design-preview` startet eine versteckte, isolierte Electron-Testinstanz, öffnet einen synthetischen Entwurf und erzeugt Desktop- und 430-Pixel-Aufnahmen, ohne Maus, Tastatur oder das normale Branchloom-Profil zu verwenden. Der fokussierte Test und sechs gezielte Renderer-Tests bestanden; beide Bilder wurden gesichtet. Build und Typprüfung bestanden; der Produktions-Audit hatte keine Funde, der vollständige Audit nur sechs moderate Meldungen aus Build-Abhängigkeiten. Ein früherer Gesamtsmoke scheiterte später im unabhängigen F08-Login-Pfad beziehungsweise an einem fehlenden nativen Design-Smoke-Status; der neue fokussierte Test deckt diese Pfade nicht ab. Dieser Schritt erweitert keine Wireframe-Funktionen und macht aus QA-Aufnahmen keine editierbaren Entwürfe.
+
 ## Design-Einstieg und CI-Nacharbeit vom 27.11.
 
 - Der erste kartenbezogene Entwurf zeigt nun eine sichtbare leere Desktop-Zeichenfläche mit Maßen und daneben drei Startwege. „Leere Fläche beginnen“ und „Fenstergerüst vorbereiten“ öffnen nach dem Klick direkt den großen Editor. Im echten Electron-Fenster bei 1268 × 714 waren Startfläche, Aktionen sowie anschließend Canvas, Ebenen und Eigenschaften sichtbar. Der Entwurf bleibt ungespeichert, bis der Nutzer speichert; die Freigabe bleibt getrennt. Der Editor ist weiterhin an eine Karte gebunden und kein vollständiges Figma-ähnliches Werkzeug. Gezielte Renderer-Tests, Typprüfung und Build bestanden.

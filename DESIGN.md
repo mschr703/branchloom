@@ -35,5 +35,6 @@ Team presence belongs to the place where work happens: a quiet count or face in 
 - An unsaved draft, a saved revision, an approved context, and running source code are different states. Label them plainly and never imply that a model response changed project code.
 - Motion should explain a user action, such as opening an inspector or completing a move. Avoid ambient animation, decorative gradients, glows, and vanity statistics.
 - Review the actual Electron UI at 1440 × 900 and 430 × 760 with synthetic data in both themes when changing a shared visual rule. Check overflow, focus, contrast, empty/error states, and whether the main surface is visible without scrolling.
+- For the Design editor, `npm run smoke:design-preview` builds and opens a hidden Electron window with an isolated synthetic profile, checks the real editor path, and prints desktop and narrow screenshot paths. It does not activate a Windows window or use the user's mouse and keyboard. The screenshots are temporary review artifacts, not saved user designs.
 
 This direction draws on the user's screenshots and feedback, the local `anti-slop-design` and `frontend-design` skills, and [Impeccable's design-context workflow](https://impeccable.style/docs/context/). No Impeccable source code is included in Branchloom.

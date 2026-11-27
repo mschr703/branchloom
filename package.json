@@ -13,6 +13,7 @@
     "make:win": "node scripts/prepare-trello-public-app.mjs && npm run build && electron-forge make --platform=win32",
     "make:installer": "node scripts/prepare-trello-public-app.mjs && npm run build && electron-builder --win nsis --publish never",
     "smoke:source": "npm run build && node scripts/smoke-electron.mjs",
+    "smoke:design-preview": "npm run build && node scripts/smoke-electron.mjs --design-preview --timeout-ms 180000",
     "smoke:f01": "npm run build && node scripts/smoke-electron.mjs --f01 --timeout-ms 180000",
     "smoke:f03": "npm run build && node scripts/smoke-electron.mjs --f03 --timeout-ms 180000",
     "smoke:f06": "npm run build && node scripts/smoke-electron.mjs --f06 --timeout-ms 120000",

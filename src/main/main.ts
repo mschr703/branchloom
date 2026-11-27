@@ -153,7 +153,8 @@ const smokeChangelog = process.argv.includes('--studio-smoke-changelog');
 const smokeWhiteboard = process.argv.includes('--studio-smoke-whiteboard');
 const smokeChatCanvas = process.argv.includes('--studio-smoke-chat-canvas');
 const smokeTeamWorkspace = process.argv.includes('--studio-smoke-team-workspace');
-const smoke = process.argv.includes('--studio-smoke') || smokeF01 || smokeF03 || smokeF06 || g02Smoke || smokeG02Auto || smokeUsage || smokeChangelog || smokeWhiteboard || smokeChatCanvas || smokeTeamWorkspace;
+const smokeDesignPreview = process.argv.includes('--studio-smoke-design-preview');
+const smoke = process.argv.includes('--studio-smoke') || smokeF01 || smokeF03 || smokeF06 || g02Smoke || smokeG02Auto || smokeUsage || smokeChangelog || smokeWhiteboard || smokeChatCanvas || smokeTeamWorkspace || smokeDesignPreview;
 const smokeDataDirectory = smoke ? mkdtempSync(join(tmpdir(), 'branchloom-smoke-')) : null;
 const devDataDirectory = !app.isPackaged ? process.env.BRANCHLOOM_DEV_USER_DATA : undefined;
 if (smokeDataDirectory) {
@@ -1111,6 +1112,58 @@ async function runF06VisibleSmoke(smokeWindow: BrowserWindow, smokeStore: Studio
   })()`);
 }
 
+async function runDesignPreviewSmoke(smokeWindow: BrowserWindow, smokeStore: StudioStore, projectPath: string): Promise<void> {
+  const desktopScreenshot = process.env.BRANCHLOOM_DESIGN_PREVIEW_SCREENSHOT;
+  const narrowScreenshot = process.env.BRANCHLOOM_DESIGN_PREVIEW_MOBILE_SCREENSHOT;
+  if (!desktopScreenshot || !narrowScreenshot) throw new Error('Design preview requires desktop and narrow screenshot destinations.');
+  const project = smokeStore.createProject({ name: 'Design sample', path: projectPath });
+  const column = smokeStore.snapshot(project.id).columns[0];
+  if (!column) throw new Error('Synthetic design project has no board column.');
+  const card = smokeStore.createCard({ projectId: project.id, columnId: column.id,
+    title: 'Workspace navigation', description: 'A synthetic card for visual review.' });
+  await new Promise<void>((resolve, reject) => {
+    smokeWindow.webContents.once('did-finish-load', () => resolve());
+    smokeWindow.webContents.once('did-fail-load', (_event, _code, detail) => reject(new Error(detail)));
+    smokeWindow.webContents.reload();
+  });
+  await smokeWindow.webContents.executeJavaScript(`(async () => {
+    const wait = async (predicate, label) => {
+      for (let attempt = 0; attempt < 120; attempt += 1) { const found = predicate(); if (found) return found; await new Promise((resolve) => setTimeout(resolve, 50)); }
+      throw new Error('Design preview timed out: ' + label);
+    };
+    const select = await wait(() => document.querySelector('#project-select'), 'project selector');
+    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+    if (!(select instanceof HTMLSelectElement) || !setter) throw new Error('Project selector is unavailable.');
+    setter.call(select, ${JSON.stringify(project.id)});
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    const nav = await wait(() => [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((button) => button.querySelector('.nav-label')?.textContent?.trim() === 'Design'), 'Design navigation');
+    nav.click();
+    const cardButton = await wait(() => [...document.querySelectorAll('.design-overview-start-cards button')].find((button) => button.textContent?.includes(${JSON.stringify(card.title)})), 'synthetic card in Design overview');
+    cardButton.click();
+    const starter = await wait(() => [...document.querySelectorAll('.task-wireframe-start-actions button')].find((button) => button.textContent?.includes('Fenstergerüst vorbereiten') && !button.disabled), 'starter wireframe');
+    starter.click();
+    await wait(() => document.querySelector('.design-inspection.wireframe-focus .task-wireframe-canvas'), 'focused artboard');
+    const firstLayer = await wait(() => document.querySelector('.task-wireframe-layers li button'), 'editable layer');
+    firstLayer.click();
+    await wait(() => document.querySelector('.task-wireframe-geometry'), 'selected properties');
+    document.querySelector('.design-inspection.wireframe-focus')?.scrollTo(0, 0);
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    return true;
+  })()`);
+  const originalSize = smokeWindow.getSize();
+  try {
+    smokeWindow.setSize(1440, 900);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    writeFileSync(desktopScreenshot, (await smokeWindow.capturePage()).toPNG());
+    smokeWindow.setSize(430, 760);
+    await smokeWindow.webContents.executeJavaScript(`(() => { document.querySelector('.design-inspection.wireframe-focus')?.scrollTo(0, 0); return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))); })()`);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    writeFileSync(narrowScreenshot, (await smokeWindow.capturePage()).toPNG());
+  } finally {
+    smokeWindow.setSize(originalSize[0]!, originalSize[1]!);
+  }
+}
+
 function createWindow(): void {
   window = new BrowserWindow({
     width: 1500,
@@ -1145,7 +1198,14 @@ function createWindow(): void {
   // source modes, so it cannot decide this on its own.
   if (!app.isPackaged && process.env.JARVIS_STUDIO_DEV_SERVER === '1') void window.loadURL('http://127.0.0.1:5181');
   else void window.loadFile(join(__dirname, '../../dist/renderer/index.html'));
-  if (smokeTeamWorkspace) {
+  if (smokeDesignPreview) {
+    window.webContents.once('did-finish-load', () => {
+      void runDesignPreviewSmoke(window!, mustStore(), smokeDataDirectory!).then(() => {
+        process.stdout.write('STUDIO_SMOKE_DESIGN_PREVIEW_OK\n');
+        app.quit();
+      }).catch((error: unknown) => { console.error('STUDIO_SMOKE_DESIGN_PREVIEW_FAILED', error); app.exit(1); });
+    });
+  } else if (smokeTeamWorkspace) {
     window.webContents.once('did-finish-load', () => {
       void runTeamWorkspaceVisibleSmoke(window!, mustStore(), smokeDataDirectory!, teamLocalService!).then(() => {
         process.stdout.write('STUDIO_SMOKE_TEAM_WORKSPACE_OK\n');

@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const require = createRequire(import.meta.url);
@@ -25,17 +26,22 @@ const changelog = process.argv.includes('--changelog');
 const whiteboard = process.argv.includes('--whiteboard');
 const chatCanvas = process.argv.includes('--chat-canvas');
 const teamWorkspace = process.argv.includes('--team-workspace');
-if (Number(f01) + Number(f03) + Number(f06) + Number(g02) + Number(g02Auto) + Number(usage) + Number(changelog) + Number(whiteboard) + Number(chatCanvas) + Number(teamWorkspace) > 1) throw new Error('Choose one focused smoke mode.');
+const designPreview = process.argv.includes('--design-preview');
+if (Number(f01) + Number(f03) + Number(f06) + Number(g02) + Number(g02Auto) + Number(usage) + Number(changelog) + Number(whiteboard) + Number(chatCanvas) + Number(teamWorkspace) + Number(designPreview) > 1) throw new Error('Choose one focused smoke mode.');
+const previewDirectory = designPreview ? mkdtempSync(join(tmpdir(), 'branchloom-design-preview-')) : null;
+const desktopPreview = designPreview ? process.env.BRANCHLOOM_DESIGN_PREVIEW_SCREENSHOT ?? join(previewDirectory, 'desktop.png') : null;
+const mobilePreview = designPreview ? process.env.BRANCHLOOM_DESIGN_PREVIEW_MOBILE_SCREENSHOT ?? join(previewDirectory, 'narrow.png') : null;
 const executable = explicitExecutable ?? (packaged
   ? join(process.cwd(), 'out', 'Branchloom-win32-x64', 'Branchloom.exe')
   : require('electron'));
 if (!existsSync(executable)) throw new Error(`Electron-Binary fehlt: ${executable}`);
 const smokeFlag = f01 ? '--studio-smoke-f01' : f03 ? '--studio-smoke-f03' : f06 ? '--studio-smoke-f06' : g02 ? '--studio-smoke-g02'
   : g02Auto ? '--studio-smoke-g02-auto' : usage ? '--studio-smoke-usage' : changelog ? '--studio-smoke-changelog' : whiteboard ? '--studio-smoke-whiteboard' : chatCanvas ? '--studio-smoke-chat-canvas' : teamWorkspace ? '--studio-smoke-team-workspace' : '--studio-smoke';
-const args = packaged ? [smokeFlag] : ['.', smokeFlag];
+const selectedSmokeFlag = designPreview ? '--studio-smoke-design-preview' : smokeFlag;
+const args = packaged ? [selectedSmokeFlag] : ['.', selectedSmokeFlag];
 const child = spawn(executable, args, {
   cwd: process.cwd(), windowsHide: true,
-  env: { ...process.env, JARVIS_STUDIO_DEV_SERVER: '0' },
+  env: { ...process.env, JARVIS_STUDIO_DEV_SERVER: '0', ...(designPreview ? { BRANCHLOOM_DESIGN_PREVIEW_SCREENSHOT: desktopPreview, BRANCHLOOM_DESIGN_PREVIEW_MOBILE_SCREENSHOT: mobilePreview } : {}) },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 let stdout = '';
@@ -53,7 +59,12 @@ child.on('exit', (code) => {
   clearTimeout(timeout);
   const expectedMarker = f01 ? 'STUDIO_SMOKE_F01_OK' : f03 ? 'STUDIO_SMOKE_F03_OK' : f06 ? 'STUDIO_SMOKE_F06_OK' : g02 ? 'G02_SMOKE_OK'
     : g02Auto ? 'G02_AUTO_SMOKE_OK' : usage ? 'STUDIO_SMOKE_USAGE_OK' : changelog ? 'STUDIO_SMOKE_CHANGELOG_OK' : whiteboard ? 'STUDIO_SMOKE_WHITEBOARD_OK' : chatCanvas ? 'STUDIO_SMOKE_CHAT_CANVAS_OK' : teamWorkspace ? 'STUDIO_SMOKE_TEAM_WORKSPACE_OK' : 'STUDIO_SMOKE_OK';
-  if (code === 0 && stdout.includes(expectedMarker)) {
+  const marker = designPreview ? 'STUDIO_SMOKE_DESIGN_PREVIEW_OK' : expectedMarker;
+  if (code === 0 && stdout.includes(marker) && (!designPreview || (existsSync(desktopPreview) && existsSync(mobilePreview)))) {
+    if (designPreview) {
+      console.log(`Hidden design preview passed. Desktop: ${desktopPreview} · Narrow: ${mobilePreview}`);
+      return;
+    }
     console.log(f01 ? `${packaged ? 'Paket' : 'Quellbuild'}: F01 saved project profile, two visible card previews with distinct live worktree versions, browser tabs, logs, independent stop and reload passed.`
       : f03 ? `${packaged ? 'Paket' : 'Quellbuild'}: F03-Kartenansicht, bewusst gespeicherte Revision, Dreifachvergleich, Konfliktwahl, Wiederöffnen und veraltete Zieldatei erfolgreich.`
       : f06 ? `${packaged ? 'Paket' : 'Quellbuild'}: F06 board revision, live CLI delivery, source cleanup evidence, reload and stopped-session guard passed.`
