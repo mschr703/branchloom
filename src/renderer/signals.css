@@ -15,9 +15,9 @@
 :root[data-theme] .board-column[data-run-mode='automatic'] .column-header::before { background: #667bb5; }
 :root[data-theme] .column-title { gap: 8px; }
 :root[data-theme] .column-title h3 { font-size: 13px; font-weight: 650; }
-:root[data-theme] .column-indicator { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
-:root[data-theme] .board-column[data-run-mode='manual-agent'] .column-indicator { background: #7c879c; }
-:root[data-theme] .board-column[data-run-mode='automatic'] .column-indicator { background: #667bb5; }
+:root[data-theme] .column-indicator { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--muted); }
+:root[data-theme] .board-column[data-run-mode='manual-agent'] .column-indicator { color: #687489; }
+:root[data-theme] .board-column[data-run-mode='automatic'] .column-indicator { color: #526dad; }
 :root[data-theme] .count-pill { padding: 1px 5px; border-radius: 5px; font-size: 10px; font-variant-numeric: tabular-nums; }
 :root[data-theme] .column-body { gap: 7px; padding: 9px; min-height: 70px; }
 :root[data-theme] .board-card-wrap > .task-card { padding: 10px 33px 9px 36px; border-radius: 6px; border-color: var(--border); background: var(--surface); color: var(--text); box-shadow: none; transform: none; }
@@ -344,18 +344,18 @@
 }
 
 /* One project header, then work status and adjacent planning views. */
-:root[data-theme] .topbar-board { min-height: 52px; padding-block: 5px; }
+:root[data-theme] .topbar-board { min-height: 46px; padding-block: 3px; }
 :root[data-theme] .topbar-board .topbar-title h1 { display: flex; align-items: center; gap: 9px; font-size: 12px; font-weight: 600; letter-spacing: 0; }
 :root[data-theme] .topbar-board .topbar-title h1 > span:first-child,
 :root[data-theme] .topbar-breadcrumb-divider { color: var(--muted); font-weight: 450; }
 :root[data-theme] .board-page { padding-top: 0; }
-:root[data-theme] .board-project-masthead { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 72px; padding: 12px 29px 10px 0; }
+:root[data-theme] .board-project-masthead { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 62px; padding: 9px 29px 8px 0; }
 :root[data-theme] .board-project-identity { min-width: 0; }
 :root[data-theme] .board-project-identity h2 { overflow: hidden; margin: 0; color: var(--text); font-size: 20px; font-weight: 680; letter-spacing: -.035em; text-overflow: ellipsis; white-space: nowrap; }
 :root[data-theme] .board-project-identity > span { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 :root[data-theme] .board-project-masthead .project-pause-button { border-color: transparent; background: transparent; color: var(--muted); }
 :root[data-theme] .board-project-masthead .project-pause-button:hover:not(:disabled) { border-color: var(--border); background: var(--surface); color: var(--text); }
-:root[data-theme] .board-live-strip { display: flex; align-items: center; gap: 9px; min-height: 30px; padding: 0 29px 0 0; overflow: hidden; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 11px; white-space: nowrap; }
+:root[data-theme] .board-live-strip { display: flex; align-items: center; gap: 9px; min-height: 28px; padding: 0 29px 0 0; overflow: hidden; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 11px; white-space: nowrap; }
 :root[data-theme] .board-live-summary { display: inline-flex; align-items: center; gap: 6px; flex: none; color: var(--text); font-weight: 600; }
 :root[data-theme] .board-live-summary i { width: 6px; height: 6px; border-radius: 50%; background: #75957c; }
 :root[data-theme] .board-live-divider { width: 1px; height: 12px; flex: none; background: var(--border); }
@@ -363,18 +363,19 @@
 :root[data-theme] .board-live-strip button:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
 :root[data-theme] .board-live-strip .board-decision-link { display: inline-flex; align-items: center; gap: 4px; flex: none; max-width: none; margin-left: auto; color: var(--text); font-weight: 600; }
 :root[data-theme] .board-decision-short { display: none; }
-:root[data-theme] .board-toolbar.board-header-actions { align-items: center; min-height: 43px; padding: 0 29px 0 0; border-bottom: 1px solid var(--border); }
+:root[data-theme] .board-toolbar.board-header-actions { align-items: center; min-height: 40px; padding: 0 29px 0 0; border-bottom: 1px solid var(--border); }
 :root[data-theme] .board-view-tabs { display: flex; align-self: stretch; align-items: stretch; gap: 17px; min-width: 0; }
 :root[data-theme] .board-view-tabs > * { display: inline-flex; align-items: center; position: relative; flex: none; padding: 0 1px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: 540; white-space: nowrap; }
 :root[data-theme] .board-view-tabs > button { cursor: pointer; }
 :root[data-theme] .board-view-tabs > button:hover { color: var(--text); }
 :root[data-theme] .board-view-tabs > .is-active { color: var(--text); font-weight: 660; }
 :root[data-theme] .board-view-tabs > .is-active::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: var(--accent); content: ''; }
-:root[data-theme] .board-filters { padding-top: 7px; min-height: 48px; }
+:root[data-theme] .board-filters { padding-top: 5px; padding-bottom: 5px; min-height: 42px; }
 @media (max-width: 1200px) {
   :root[data-theme] .board-toolbar.board-header-actions { flex-direction: row; align-items: center; }
 }
 @media (max-width: 600px) {
+  :root[data-theme] .topbar-board { min-height: 46px; padding-block: 3px; }
   :root[data-theme] .board-project-masthead { min-height: 42px; padding: 5px 16px 5px 0; }
   :root[data-theme] .board-project-identity h2 { display: none; }
   :root[data-theme] .board-project-identity > span { margin-top: 0; font-size: 12px; }
@@ -387,4 +388,5 @@
   :root[data-theme] .board-toolbar.board-header-actions { min-height: 41px; overflow: visible; }
   :root[data-theme] .board-view-tabs { gap: 10px; overflow: auto; scrollbar-width: none; }
   :root[data-theme] .board-view-tabs > * { font-size: 11px; }
+  :root[data-theme] .board-filters { padding-block: 5px; }
 }

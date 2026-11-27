@@ -86,9 +86,9 @@ describe('board filters and archive visibility', () => {
       project: { id: 'p', name: 'Synthetic', path: 'C:\\test', createdAt: stamp },
       columns: [
         { id: 'todo', projectId: 'p', name: 'To Do', position: 0, autoStart: false, agentId: null, model: null, effort: null },
-        { id: 'done', projectId: 'p', name: 'Done', position: 1, autoStart: false, agentId: null, model: null, effort: null },
+        { id: 'done', projectId: 'p', name: 'Done', position: 1, autoStart: true, agentId: 'agent', model: null, effort: null },
       ],
-      cards, agents: [], sessions: [], workflows: [], notes: [],
+      cards, agents: [{ id: 'agent', name: 'Atlas', kind: 'custom', command: 'node', args: [], model: null, enabled: true }], sessions: [], workflows: [], notes: [],
       queue: { projectId: 'p', state: 'off', templateWorkflowId: null, activeWorkflowId: null, pauseReason: null, completedCount: 0, updatedAt: null },
     };
     const html = renderToStaticMarkup(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() }));
@@ -96,6 +96,8 @@ describe('board filters and archive visibility', () => {
     expect(html).toContain('board-project-masthead');
     expect(html).toContain('1 Aufgabe · 2 Spalten');
     expect(html).toContain('board-view-tabs');
+    expect(html).toContain('aria-label="Ohne Spaltenagent"');
+    expect(html).toContain('aria-label="Agent startet automatisch"');
     expect(html).toContain('Ideenraum');
     expect(html).toContain('Workflows');
     expect(html).not.toContain('board-live-strip');
