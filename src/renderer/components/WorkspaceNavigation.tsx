@@ -1,5 +1,6 @@
 import { Activity, Bot, BrainCircuit, Columns3, GitBranch, GitCommitHorizontal, Globe2, History, Inbox, Lightbulb, MessageCircle, MousePointer2, Network, Settings2, TerminalSquare, UsersRound } from 'lucide-react';
 import type { ProjectSnapshot } from '../../shared/types';
+import type { LanguagePreference } from '../language';
 
 export type View = 'board' | 'ideas' | 'chat' | 'activity' | 'workflows' | 'team' | 'decisions' | 'whiteboard' | 'memory' | 'milestones' | 'agents' | 'terminal' | 'browser' | 'design' | 'changelog' | 'settings';
 
@@ -22,6 +23,17 @@ export const views: { id: View; name: string; icon: typeof Columns3 }[] = [
   { id: 'settings', name: 'Einstellungen', icon: Settings2 },
 ];
 
+const englishViewNames: Record<View, string> = {
+  board: 'Board', ideas: 'Ideas', chat: 'Project chat', activity: 'Activity', workflows: 'Workflows',
+  team: 'Team', decisions: 'Decisions', whiteboard: 'Whiteboard', memory: 'Memory',
+  milestones: 'Timeline', agents: 'Agents', terminal: 'Terminal', browser: 'Web preview',
+  design: 'Design', changelog: 'Changelog', settings: 'Settings',
+};
+
+export function viewName(view: View, language: LanguagePreference): string {
+  return language === 'en' ? englishViewNames[view] : views.find((item) => item.id === view)?.name ?? view;
+}
+
 const primaryViewIds: View[] = ['board', 'ideas', 'chat', 'workflows', 'team'];
 const primaryViews = primaryViewIds.map((id) => views.find((item) => item.id === id)!);
 const secondaryGroups: { name: string; ids: View[] }[] = [
@@ -32,6 +44,7 @@ const secondaryGroups: { name: string; ids: View[] }[] = [
 
 interface Props {
   activeView: View;
+  language?: LanguagePreference;
   decisionCount: number | null;
   decisionHasMore?: boolean;
   onView: (view: View) => void;
@@ -49,24 +62,27 @@ export function projectNavigationStatus(snapshot: ProjectSnapshot | null, projec
 }
 
 /** Project context stays above this compact, fully labelled navigation. */
-export function WorkspaceNavigation({ activeView, decisionCount, decisionHasMore = false, onView, status }: Props) {
-  const item = ({ id, name, icon: Icon }: typeof views[number]) =>
+export function WorkspaceNavigation({ activeView, language = 'de', decisionCount, decisionHasMore = false, onView, status }: Props) {
+  const item = ({ id, icon: Icon }: typeof views[number]) => {
+    const name = viewName(id, language);
+    return (
     <button key={id} type="button" className={activeView === id ? 'nav-item active' : 'nav-item'}
       onClick={() => onView(id)} aria-current={activeView === id ? 'page' : undefined}
-      aria-label={id === 'decisions' && decisionCount === null ? `${name}: offene Einträge werden geprüft` : id === 'decisions' && decisionCount ? `${name}: ${decisionHasMore ? 'mindestens ' : ''}${decisionCount} offen` : name} title={name}>
+      aria-label={id === 'decisions' && decisionCount === null ? `${name}: ${language === 'en' ? 'checking open items' : 'offene Einträge werden geprüft'}` : id === 'decisions' && decisionCount ? `${name}: ${decisionHasMore ? language === 'en' ? 'at least ' : 'mindestens ' : ''}${decisionCount} ${language === 'en' ? 'open' : 'offen'}` : name} title={name}>
       <Icon size={18} aria-hidden="true" /><span className="nav-label">{name}</span>
       {id === 'decisions' && decisionCount === null ? <span className="nav-count" aria-hidden="true">…</span> : null}
       {id === 'decisions' && Boolean(decisionCount) ? <span className="nav-count" aria-hidden="true">{decisionCount}{decisionHasMore ? '+' : ''}</span> : null}
-    </button>;
-  return <><nav className="side-nav" aria-label="Hauptnavigation">
-    <div className="nav-primary" role="group" aria-label="Planung">{primaryViews.map(item)}</div>
-    <div className="nav-other" role="group" aria-label="Weitere Ansichten">{secondaryGroups.map((group) =>
-      <div key={group.name} className="nav-other-group" role="group" aria-label={group.name}>
-        <span className="nav-other-title" aria-hidden="true">{group.name}</span>
+    </button>);
+  };
+  return <><nav className="side-nav" aria-label={language === 'en' ? 'Main navigation' : 'Hauptnavigation'}>
+    <div className="nav-primary" role="group" aria-label={language === 'en' ? 'Planning' : 'Planung'}>{primaryViews.map(item)}</div>
+    <div className="nav-other" role="group" aria-label={language === 'en' ? 'More views' : 'Weitere Ansichten'}>{secondaryGroups.map((group, index) =>
+      <div key={group.name} className="nav-other-group" role="group" aria-label={language === 'en' ? ['Design & knowledge', 'Review', 'Tools'][index] : group.name}>
+        <span className="nav-other-title" aria-hidden="true">{language === 'en' ? ['Design & knowledge', 'Review', 'Tools'][index] : group.name}</span>
         <div className="nav-other-items">{group.ids.map((id) => item(views.find((view) => view.id === id)!))}</div>
       </div>)}</div>
-  </nav>{status ? <div className="sidebar-status" aria-label="Projektstatus">
-    <span><strong>{status.runningSessions}</strong> {status.runningSessions === 1 ? 'Agentenlauf' : 'Agentenläufe'} aktiv</span>
-    <span><strong>{status.activeCards}</strong> aktive {status.activeCards === 1 ? 'Karte' : 'Karten'}</span>
+  </nav>{status ? <div className="sidebar-status" aria-label={language === 'en' ? 'Project status' : 'Projektstatus'}>
+    <span><strong>{status.runningSessions}</strong> {language === 'en' ? `active agent ${status.runningSessions === 1 ? 'run' : 'runs'}` : `${status.runningSessions === 1 ? 'Agentenlauf' : 'Agentenläufe'} aktiv`}</span>
+    <span><strong>{status.activeCards}</strong> {language === 'en' ? `active ${status.activeCards === 1 ? 'card' : 'cards'}` : `aktive ${status.activeCards === 1 ? 'Karte' : 'Karten'}`}</span>
   </div> : null}</>;
 }

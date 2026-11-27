@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Download, MessageCircle, Moon, MoreHorizontal, Pause, Play, Plus, RefreshCw, Search, Sun, Upload, X } from 'lucide-react';
+import { Download, MessageCircle, Moon, MoreHorizontal, Pause, Play, Plus, RefreshCw, Search, Settings2, Sun, Upload, X } from 'lucide-react';
 import type { Project, ProjectOrganization, ProjectPackagePreview, ProjectSnapshot, Session } from '../shared/types';
 import { BoardView } from './components/BoardView';
 import { IdeasView } from './components/IdeasView';
@@ -17,13 +17,14 @@ import { ProjectFolderField } from './components/ProjectFolderField';
 import { BranchloomMark } from './components/BranchloomMark';
 import { sessionMemoryDraft } from './activity-transcript';
 import { viewForSearchKind, type ProjectSearchResult, type SearchKind } from './project-search';
-import { currentTheme, persistTheme, themeToggleLabel, type ThemePreference } from './theme';
+import { currentTheme, persistTheme, type ThemePreference } from './theme';
+import { currentLanguage, languageText, persistLanguage, type LanguageKey, type LanguagePreference } from './language';
 import { decisionNavigationStatus, useDecisionInboxIndicator } from './decision-navigation';
 import type { ProjectConflictRadarResult } from '../shared/conflict-radar';
 import type { GlobalInboxItem } from '../shared/global-inbox';
 import { ProjectConflictBanner } from './components/ProjectConflictBanner';
 import { ProjectSwitcher } from './components/ProjectSwitcher';
-import { projectNavigationStatus, WorkspaceNavigation, views, type View } from './components/WorkspaceNavigation';
+import { projectNavigationStatus, viewName, WorkspaceNavigation, views, type View } from './components/WorkspaceNavigation';
 import { startConflictRadarRefresh } from './conflict-radar-schedule';
 import { savePreparedChatCanvasNode } from './project-chat-canvas';
 import './theme.css';
@@ -69,6 +70,7 @@ export function App() {
   const [queueNavigationToken, setQueueNavigationToken] = useState(0);
   const [queueCommand, setQueueCommand] = useState<{ text: string; token: number } | null>(null);
   const [theme, setTheme] = useState<ThemePreference>(currentTheme);
+  const [language, setLanguage] = useState<LanguagePreference>(currentLanguage);
   const [projectRadar, setProjectRadar] = useState<ProjectConflictRadarResult | null>(null);
   const [projectRadarBusy, setProjectRadarBusy] = useState(false);
   const radarGeneration = useRef(0);
@@ -82,6 +84,11 @@ export function App() {
     document.documentElement.style.colorScheme = theme;
     persistTheme(theme);
   }, [theme]);
+
+  useLayoutEffect(() => {
+    document.documentElement.lang = language;
+    persistLanguage(language);
+  }, [language]);
 
   useLayoutEffect(() => {
     if (viewAreaRef.current) viewAreaRef.current.scrollTop = 0;
@@ -339,41 +346,43 @@ export function App() {
   }
 
   const activeView = views.find((item) => item.id === view)!;
+  const ui = (key: LanguageKey) => languageText(language, key);
   const decisionStatus = decisionNavigationStatus(snapshot, projectId, decisionIndicator);
 
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><span className="brand-mark"><BranchloomMark /></span><strong>Branchloom</strong></div>
       {projects.length ? <div className="sidebar-projects">
-        <span className="side-section-title">Projekt</span>
-        <ProjectSwitcher projects={projects} projectId={projectId} organization={projectOrganization} onSelect={(id) => { setPendingGlobalItem(null); setProjectId(id); }} onOrganizationChange={setProjectOrganization} onError={setError} />
-        <details className="project-actions" ref={projectMenuRef}><summary><MoreHorizontal size={17} aria-hidden="true" /> Projektaktionen</summary><div className="project-actions-menu">
-          <button type="button" onClick={() => { if (projectMenuRef.current) projectMenuRef.current.open = false; setCreatingProject(true); }}><Plus size={15} aria-hidden="true" /> Codeordner hinzufügen</button>
-          <button type="button" onClick={() => { if (projectMenuRef.current) projectMenuRef.current.open = false; void previewProjectPackage(); }}><Upload size={15} aria-hidden="true" /> Branchloom-Paket (.json) importieren</button>
-          <button type="button" disabled={!projectId} onClick={() => { if (projectMenuRef.current) projectMenuRef.current.open = false; void exportProjectPackage(); }}><Download size={15} aria-hidden="true" /> Projekt sichern</button>
+        <span className="side-section-title">{ui('project')}</span>
+        <ProjectSwitcher projects={projects} projectId={projectId} organization={projectOrganization} language={language} onSelect={(id) => { setPendingGlobalItem(null); setProjectId(id); }} onOrganizationChange={setProjectOrganization} onError={setError} />
+        <details className="project-actions" ref={projectMenuRef}><summary><MoreHorizontal size={17} aria-hidden="true" /> {ui('projectActions')}</summary><div className="project-actions-menu">
+          <button type="button" onClick={() => { if (projectMenuRef.current) projectMenuRef.current.open = false; setCreatingProject(true); }}><Plus size={15} aria-hidden="true" /> {ui('addFolder')}</button>
+          <button type="button" onClick={() => { if (projectMenuRef.current) projectMenuRef.current.open = false; void previewProjectPackage(); }}><Upload size={15} aria-hidden="true" /> {ui('importPackage')}</button>
+          <button type="button" disabled={!projectId} onClick={() => { if (projectMenuRef.current) projectMenuRef.current.open = false; void exportProjectPackage(); }}><Download size={15} aria-hidden="true" /> {ui('exportProject')}</button>
         </div></details>
       </div> : null}
       {/* The source Electron smoke still drives this non-interactive selector while its UI scripts migrate. */}
       <select id="project-select" hidden aria-hidden="true" tabIndex={-1} value={projectId ?? ''} onChange={(event) => { setPendingGlobalItem(null); setProjectId(event.target.value || null); }}>
         {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
       </select>
-      {projectId ? <WorkspaceNavigation activeView={view} decisionCount={decisionStatus?.count ?? null} decisionHasMore={decisionStatus?.hasMore} onView={setView} status={projectNavigationStatus(snapshot, projectId)} /> : <button type="button" className="nav-item" onClick={() => setView('team')}>Team öffnen</button>}
+      {projectId ? <WorkspaceNavigation activeView={view} language={language} decisionCount={decisionStatus?.count ?? null} decisionHasMore={decisionStatus?.hasMore} onView={setView} status={projectNavigationStatus(snapshot, projectId)} /> : <button type="button" className="nav-item" onClick={() => setView('team')}>{ui('openTeam')}</button>}
     </aside>
 
     <main className="main-area">
       <header className={view === 'board' && projectId ? 'topbar topbar-board' : 'topbar'}>
-        <div className="topbar-title"><h1>{projectId && view === 'board' ? <><span>Projekte</span><span className="topbar-breadcrumb-divider" aria-hidden="true">/</span>Board</> : projectId ? activeView.name : view === 'team' ? 'Team' : 'Start'}</h1></div>
+        <div className="topbar-title"><h1>{projectId && view === 'board' ? <><span>{ui('projects')}</span><span className="topbar-breadcrumb-divider" aria-hidden="true">/</span>Board</> : projectId ? viewName(view, language) : view === 'team' ? 'Team' : view === 'settings' ? ui('settings') : ui('start')}</h1></div>
         <div className="topbar-actions">
-          {projectId ? <><div className={searchOpen ? 'topbar-search-slot is-open' : 'topbar-search-slot'}><button ref={searchButtonRef} className="search-trigger" type="button" title="Projekt durchsuchen (Strg+K)" aria-label="Projekt durchsuchen" aria-expanded={searchOpen} disabled={!snapshot || snapshot.project.id !== projectId} onClick={openSearch}><Search size={16} /><span>Projekt durchsuchen…</span><kbd>Strg K</kbd></button>{searchOpen && snapshot?.project.id === projectId ? <SearchPalette snapshot={snapshot} onClose={closeSearch} onNavigate={navigateToResult} /> : null}</div>{view !== 'board' ? <button className="project-pause-button" type="button" aria-label={snapshot?.runPause.state === 'paused' ? 'Projekt fortsetzen' : snapshot?.runPause.state === 'requested' ? 'Anhalten angefordert' : 'Sicher anhalten'} disabled={!snapshot || snapshot.project.id !== projectId || snapshot.runPause.state === 'requested'} onClick={() => snapshot && void mutate(() => window.studio.setProjectRunPause({ projectId: snapshot.project.id, paused: snapshot.runPause.state === 'active' }))}>{snapshot?.runPause.state === 'paused' ? <Play size={15} aria-hidden="true" /> : <Pause size={15} aria-hidden="true" />}<span>{snapshot?.runPause.state === 'paused' ? 'Projekt fortsetzen' : snapshot?.runPause.state === 'requested' ? 'Anhalten angefordert' : 'Sicher anhalten'}</span></button> : null}<button className="icon-button" type="button" title="Projektgespräch als Seitenleiste" aria-label="Projektgespräch als Seitenleiste" aria-expanded={view === 'chat' || chatDockOpen} disabled={!snapshot || snapshot.project.id !== projectId} onClick={() => { if (view === 'chat') { setView('board'); setChatDockOpen(true); } else setChatDockOpen((open) => !open); }}><MessageCircle size={17} aria-hidden="true" /></button></> : null}
-          <button className="icon-button theme-toggle" type="button" title={themeToggleLabel(theme)} aria-label={themeToggleLabel(theme)} onClick={() => setTheme((previous) => previous === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}</button>
-          {projectId ? <button className="icon-button" type="button" title="Aktualisieren" aria-label="Aktualisieren" onClick={() => void refresh()}><RefreshCw size={17} /></button> : null}
+          {projectId ? <><div className={searchOpen ? 'topbar-search-slot is-open' : 'topbar-search-slot'}><button ref={searchButtonRef} className="search-trigger" type="button" title={`${ui('searchProject')} (Strg+K)`} aria-label={ui('searchProject')} aria-expanded={searchOpen} disabled={!snapshot || snapshot.project.id !== projectId} onClick={openSearch}><Search size={16} /><span>{ui('searchPlaceholder')}</span><kbd>Strg K</kbd></button>{searchOpen && snapshot?.project.id === projectId ? <SearchPalette snapshot={snapshot} onClose={closeSearch} onNavigate={navigateToResult} /> : null}</div>{view !== 'board' ? <button className="project-pause-button" type="button" aria-label={snapshot?.runPause.state === 'paused' ? ui('resumeProject') : snapshot?.runPause.state === 'requested' ? ui('pauseRequested') : ui('pauseProject')} disabled={!snapshot || snapshot.project.id !== projectId || snapshot.runPause.state === 'requested'} onClick={() => snapshot && void mutate(() => window.studio.setProjectRunPause({ projectId: snapshot.project.id, paused: snapshot.runPause.state === 'active' }))}>{snapshot?.runPause.state === 'paused' ? <Play size={15} aria-hidden="true" /> : <Pause size={15} aria-hidden="true" />}<span>{snapshot?.runPause.state === 'paused' ? ui('resumeProject') : snapshot?.runPause.state === 'requested' ? ui('pauseRequested') : ui('pauseProject')}</span></button> : null}<button className="icon-button" type="button" title={ui('projectConversation')} aria-label={ui('projectConversation')} aria-expanded={view === 'chat' || chatDockOpen} disabled={!snapshot || snapshot.project.id !== projectId} onClick={() => { if (view === 'chat') { setView('board'); setChatDockOpen(true); } else setChatDockOpen((open) => !open); }}><MessageCircle size={17} aria-hidden="true" /></button></> : null}
+          <button className="icon-button" type="button" title={ui('settings')} aria-label={ui('settings')} aria-current={view === 'settings' ? 'page' : undefined} onClick={() => setView('settings')}><Settings2 size={17} aria-hidden="true" /></button>
+          <button className="icon-button theme-toggle" type="button" title={ui(theme === 'dark' ? 'lightMode' : 'darkMode')} aria-label={ui(theme === 'dark' ? 'lightMode' : 'darkMode')} onClick={() => setTheme((previous) => previous === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}</button>
+          {projectId ? <button className="icon-button" type="button" title={ui('refresh')} aria-label={ui('refresh')} onClick={() => void refresh()}><RefreshCw size={17} /></button> : null}
         </div>
       </header>
       {projectId ? <div className="mobile-workspace">
-        <ProjectSwitcher compact projects={projects} projectId={projectId} organization={projectOrganization} onSelect={(id) => { setPendingGlobalItem(null); setProjectId(id); }} onOrganizationChange={setProjectOrganization} onError={setError} />
-        <button className="icon-button" type="button" onClick={() => setCreatingProject(true)} aria-label="Codeordner hinzufügen" title="Codeordner hinzufügen"><Plus size={18} /></button>
-        <button className="icon-button" type="button" onClick={() => void previewProjectPackage()} aria-label="Branchloom-Paket (.json) importieren" title="Branchloom-Paket (.json) importieren"><Upload size={18} /></button>
-        <button className="icon-button" type="button" disabled={!projectId} onClick={() => void exportProjectPackage()} aria-label="Projekt sichern" title="Projekt sichern"><Download size={18} /></button>
+        <ProjectSwitcher compact projects={projects} projectId={projectId} organization={projectOrganization} language={language} onSelect={(id) => { setPendingGlobalItem(null); setProjectId(id); }} onOrganizationChange={setProjectOrganization} onError={setError} />
+        <button className="icon-button" type="button" onClick={() => setCreatingProject(true)} aria-label={ui('addFolder')} title={ui('addFolder')}><Plus size={18} /></button>
+        <button className="icon-button" type="button" onClick={() => void previewProjectPackage()} aria-label={ui('importPackage')} title={ui('importPackage')}><Upload size={18} /></button>
+        <button className="icon-button" type="button" disabled={!projectId} onClick={() => void exportProjectPackage()} aria-label={ui('exportProject')} title={ui('exportProject')}><Download size={18} /></button>
       </div> : null}
 
       {snapshot?.project.id === projectId && snapshot.runPause.state !== 'active' ? <div className="project-pause-status" role="status">
@@ -385,20 +394,20 @@ export function App() {
         onRefresh={() => void checkProjectRadar()} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
       {error ? <div className="error-banner" role="alert"><span>{error}</span><button type="button" onClick={() => setError('')} aria-label="Fehler schließen">×</button></div> : null}
       {notice ? <div className="package-notice" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Hinweis schließen">×</button></div> : null}
-      {loading ? <div className="content-message">Projekte werden geladen…</div> : view === 'team' ? <div className="view-area" ref={viewAreaRef}><TeamWorkspaceView projectId={projectId ?? undefined} /></div> : view === 'browser' ? <div className="view-area" ref={viewAreaRef}><Suspense fallback={<div className="content-message" role="status">Browser wird geladen…</div>}><BrowserView active={!creatingProject && !searchOpen} snapshot={snapshot?.project.id === projectId ? snapshot : null} onOpenCard={async (id) => { await refresh(); navigateToEntity('card', id); }} onOpenSettings={snapshot?.project.id === projectId ? () => setView('settings') : undefined} /></Suspense></div> : !projectId ? <div className="empty-intro"><h2>Dein Projekt beginnt mit einem Ordner.</h2><p>Branchloom hilft dir, Ideen als Aufgaben zu planen, einen Coding-Agenten arbeiten zu lassen und seine Änderungen vor der Übernahme zu prüfen. Wähle dafür den Ordner deiner App oder Website.</p><button className="primary-button" type="button" onClick={() => setCreatingProject(true)}><Plus size={17} /> Codeordner auswählen</button><p className="first-run-detail">Für parallele Agentenläufe kann Branchloom getrennte Git-Arbeitskopien anlegen. Dafür muss der Ordner ein Git-Repository sein.</p><button className="first-run-import" type="button" onClick={() => void previewProjectPackage()}>Vorhandenes Branchloom-Paket importieren</button></div> : !snapshot ? <div className="content-message">Workspace wird geladen…</div> : <div className="view-area" ref={viewAreaRef}>
-        <Suspense fallback={<div className="content-message" role="status">{activeView.name} wird geladen…</div>}>
-        {view === 'board' ? <BoardView snapshot={snapshot} mutate={mutate} openCard={navigationTarget?.kind === 'card' ? navigationTarget : null} decisionCount={decisionStatus?.count ?? null} decisionHasMore={decisionStatus?.hasMore} onNavigate={setView} onOpenDesign={(cardId) => { setDesignCardId(cardId); setView('design'); }} onOpenBrowser={() => setView('browser')} onOpenQaReport={navigateToQaReport} /> : null}
-        {view === 'ideas' ? <IdeasView key={snapshot.project.id} snapshot={snapshot} mutate={mutate} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
+      {loading ? <div className="content-message">{ui('loadingProjects')}</div> : view === 'team' ? <div className="view-area" ref={viewAreaRef}><TeamWorkspaceView projectId={projectId ?? undefined} /></div> : view === 'browser' ? <div className="view-area" ref={viewAreaRef}><Suspense fallback={<div className="content-message" role="status">Browser wird geladen…</div>}><BrowserView active={!creatingProject && !searchOpen} snapshot={snapshot?.project.id === projectId ? snapshot : null} onOpenCard={async (id) => { await refresh(); navigateToEntity('card', id); }} onOpenSettings={snapshot?.project.id === projectId ? () => setView('settings') : undefined} /></Suspense></div> : !projectId && view === 'settings' ? <div className="view-area" ref={viewAreaRef}><div className="first-run-settings-back"><button className="secondary-button" type="button" onClick={() => setView('board')}>{ui('backToStart')}</button></div><ProjectSettingsView language={language} onLanguageChange={setLanguage} /></div> : !projectId ? <div className="empty-intro"><h2>{ui('firstRunTitle')}</h2><p>{ui('firstRunText')}</p><button className="primary-button" type="button" onClick={() => setCreatingProject(true)}><Plus size={17} /> {ui('addFolder')}</button><p className="first-run-detail">{ui('firstRunDetail')}</p><button className="first-run-import" type="button" onClick={() => void previewProjectPackage()}>{ui('firstRunImport')}</button></div> : !snapshot ? <div className="content-message">{ui('loadingWorkspace')}</div> : <div className="view-area" ref={viewAreaRef}>
+        <Suspense fallback={<div className="content-message" role="status">{viewName(activeView.id, language)} {language === 'en' ? 'is loading…' : 'wird geladen…'}</div>}>
+        {view === 'board' ? <BoardView snapshot={snapshot} mutate={mutate} openCard={navigationTarget?.kind === 'card' ? navigationTarget : null} decisionCount={decisionStatus?.count ?? null} decisionHasMore={decisionStatus?.hasMore} onNavigate={setView} onOpenDesign={(cardId) => { setDesignCardId(cardId); setView('design'); }} onOpenBrowser={() => setView('browser')} onOpenQaReport={navigateToQaReport} language={language} /> : null}
+        {view === 'ideas' ? <IdeasView key={snapshot.project.id} snapshot={snapshot} mutate={mutate} onOpenCard={(id) => navigateToEntity('card', id)} onNavigate={setView} language={language} /> : null}
         {view === 'activity' ? <ActivityView snapshot={snapshot} openSession={navigationTarget?.kind === 'session' ? navigationTarget : null} onSessionClosed={() => setNavigationTarget((old) => old?.kind === 'session' ? null : old)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onSaveSessionAsNote={saveSessionAsNote} /> : null}
         {view === 'changelog' ? <ChangelogView key={snapshot.project.id} projectId={snapshot.project.id}
           onOpenCard={(id) => navigateToEntity('card', id)} onOpenQaReport={navigateToQaReport} /> : null}
-        {view === 'workflows' ? <WorkflowView snapshot={snapshot} mutate={mutate} openWorkflow={navigationTarget?.kind === 'workflow' ? navigationTarget : null} openPlan={openPlan} queueCommand={queueCommand} onQueueCommandHandled={() => setQueueCommand(null)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenSession={(id) => void openSessionFromMemory(id)} /> : null}
+        {view === 'workflows' ? <WorkflowView snapshot={snapshot} mutate={mutate} openWorkflow={navigationTarget?.kind === 'workflow' ? navigationTarget : null} openPlan={openPlan} queueCommand={queueCommand} onQueueCommandHandled={() => setQueueCommand(null)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenSession={(id) => void openSessionFromMemory(id)} onNavigate={setView} language={language} /> : null}
         {view === 'decisions' ? <DecisionInbox snapshot={snapshot} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onOpenQueue={navigateToQueue} onOpenSession={(id) => void openSessionFromMemory(id)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenDiffComment={navigateToDiffComment} onOpenQaReport={navigateToQaReport} onOpenPlan={(id) => { setOpenPlan((old) => ({ id, token: (old?.token ?? 0) + 1 })); setView('workflows'); }} onAcknowledgeSession={(id) => void acknowledgeInterruptedSession(id)} onOpenGlobalItem={openGlobalItem} /> : null}
         {view === 'whiteboard' ? <WhiteboardView snapshot={snapshot} mutate={mutate} openNodeId={whiteboardOpenNodeId} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
         {view === 'memory' ? <MemoryView snapshot={snapshot} mutate={mutate} openNote={navigationTarget?.kind === 'note' ? navigationTarget : null} onOpenSession={(id) => void openSessionFromMemory(id)} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
         {view === 'milestones' ? <MilestonesView key={snapshot.project.id} projectId={snapshot.project.id} /> : null}
         {view === 'agents' ? <AgentView snapshot={snapshot} mutate={mutate} onOpenBrowserSettings={() => setView('settings')} /> : null}
-        {view === 'settings' ? <ProjectSettingsView project={snapshot.project} /> : null}
+        {view === 'settings' ? <ProjectSettingsView project={snapshot.project} language={language} onLanguageChange={setLanguage} /> : null}
         {view === 'terminal' ? <CommandTerminalView key={snapshot.project.id} projectId={snapshot.project.id} columns={snapshot.columns} onOpenCard={async (card) => { await refresh(); navigateToEntity('card', card.id); }} /> : null}
         {view === 'design' ? <DesignInspectionView key={snapshot.project.id} projectId={snapshot.project.id} active={!creatingProject && !searchOpen} cards={snapshot.cards} startCardId={designCardId} columns={snapshot.columns} queueState={snapshot.queue.state} onOpenCard={async (id) => { await refresh(); navigateToEntity('card', id); }} onCreated={refresh} /> : null}
         </Suspense>
@@ -424,7 +433,7 @@ export function App() {
       </div> : null}
     </main>
 
-    {creatingProject ? <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setCreatingProject(false); }}><form className="dialog" onSubmit={(event) => void createProject(event)}><div className="dialog-heading"><div><small>Projekt</small><h2>Codeordner hinzufügen</h2></div><button type="button" className="icon-button" onClick={() => setCreatingProject(false)} aria-label="Schließen">×</button></div><p className="field-help">Wähle einen vorhandenen Ordner mit deiner App oder Website. Branchloom kopiert und verändert beim Hinzufügen keine Dateien.</p><label>Projektname<input autoFocus required maxLength={80} value={newProject.name} onChange={(event) => setNewProject((old) => ({ ...old, name: event.target.value }))} placeholder="Mein Projekt" /></label><ProjectFolderField id="new-project-folder" value={newProject.path} onChange={(path) => setNewProject((old) => ({ ...old, path }))} onSelected={(path) => setNewProject((old) => ({ path, name: old.name || path.split(/[\\/]/).filter(Boolean).at(-1)?.slice(0, 80) || '' }))} onError={setError} /><p className="field-help">Agenten dürfen später in diesem Ordner Dateien ändern, aber erst wenn du einen Lauf ausdrücklich startest. Für getrennte Git-Arbeitskopien muss der Ordner ein Git-Repository sein.</p><div className="dialog-actions"><button type="button" className="secondary-button" onClick={() => setCreatingProject(false)}>Abbrechen</button><button type="submit" className="primary-button">Projekt verbinden</button></div></form></div> : null}
+    {creatingProject ? <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setCreatingProject(false); }}><form className="dialog" onSubmit={(event) => void createProject(event)}><div className="dialog-heading"><div><small>{ui('project')}</small><h2>{ui('addFolder')}</h2></div><button type="button" className="icon-button" onClick={() => setCreatingProject(false)} aria-label={ui('close')}>×</button></div><p className="field-help">{ui('folderHelp')}</p><label>{ui('projectName')}<input autoFocus required maxLength={80} value={newProject.name} onChange={(event) => setNewProject((old) => ({ ...old, name: event.target.value }))} placeholder={ui('projectNamePlaceholder')} /></label><ProjectFolderField id="new-project-folder" value={newProject.path} onChange={(path) => setNewProject((old) => ({ ...old, path }))} onSelected={(path) => setNewProject((old) => ({ path, name: old.name || path.split(/[\\/]/).filter(Boolean).at(-1)?.slice(0, 80) || '' }))} onError={setError} /><p className="field-help">{ui('agentFolderHelp')}</p><div className="dialog-actions"><button type="button" className="secondary-button" onClick={() => setCreatingProject(false)}>{ui('cancel')}</button><button type="submit" className="primary-button">{ui('connectProject')}</button></div></form></div> : null}
     {importPreview ? <ProjectPackageDialog preview={importPreview} target={importTarget} onTarget={setImportTarget} onClose={() => setImportPreview(null)} onImport={(event) => void importProjectPackage(event)} onError={setError} /> : null}
   </div>;
 }

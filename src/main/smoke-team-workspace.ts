@@ -16,6 +16,7 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
   const boardScreenshot = process.env.BRANCHLOOM_TEAM_BOARD_OVERVIEW_SCREENSHOT;
   const narrowBoardScreenshot = process.env.BRANCHLOOM_TEAM_BOARD_NARROW_SCREENSHOT;
   const darkBoardScreenshot = process.env.BRANCHLOOM_TEAM_BOARD_DARK_SCREENSHOT;
+  const dragBoardScreenshot = process.env.BRANCHLOOM_TEAM_BOARD_DRAG_SCREENSHOT;
   const projectName = boardScreenshot ? 'Fieldnotes' : 'Synthetic team project';
   const project = store.createProject({ name: projectName, path: projectPath });
   const card = store.createCard({ projectId: project.id, columnId: store.snapshot(project.id).columns[0]!.id,
@@ -86,6 +87,36 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
         await new Promise((resolve) => setTimeout(resolve, 180));
         writeFileSync(darkBoardScreenshot, (await window.capturePage()).toPNG());
         await window.webContents.executeJavaScript(`(() => document.querySelector('.theme-toggle')?.click())()`);
+      }
+      if (dragBoardScreenshot) {
+        window.setSize(1440, 900);
+        await window.webContents.executeJavaScript(`(() => {
+          const card = document.querySelector('.board-card-wrap .task-card');
+          const columns = [...document.querySelectorAll('.board-column')];
+          if (!(card instanceof HTMLButtonElement) || columns.length < 2) throw new Error('Draggable synthetic board card is missing.');
+          const start = card.getBoundingClientRect();
+          const target = columns[1].getBoundingClientRect();
+          const transfer = new DataTransfer();
+          card.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: transfer, clientX: start.left + 32, clientY: start.top + 24 }));
+          window.__syntheticDragTransfer = transfer;
+          window.__syntheticDragTarget = { x: target.left + 80, y: target.top + 110 };
+          return true;
+        })()`);
+        await window.webContents.executeJavaScript(`new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
+        const previewReady = await window.webContents.executeJavaScript(`(() => {
+          const target = document.querySelectorAll('.board-column')[1];
+          target?.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: window.__syntheticDragTransfer, clientX: window.__syntheticDragTarget.x, clientY: window.__syntheticDragTarget.y }));
+          return Boolean(document.querySelector('.board-drag-preview'));
+        })()`);
+        await window.webContents.executeJavaScript(`new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
+        const targetReady = await window.webContents.executeJavaScript(`(() => Boolean(document.querySelector('.board-column.is-drop-target')))()`);
+        if (!previewReady || !targetReady) throw new Error(`Synthetic drag feedback is incomplete (preview: ${previewReady}, target: ${targetReady}).`);
+        writeFileSync(dragBoardScreenshot, (await window.capturePage()).toPNG());
+        await window.webContents.executeJavaScript(`(() => {
+          document.querySelector('.board-card-wrap .task-card')?.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: window.__syntheticDragTransfer }));
+          delete window.__syntheticDragTransfer;
+          delete window.__syntheticDragTarget;
+        })()`);
       }
       await window.webContents.executeJavaScript(`(() => {
         const actions = document.querySelector('.board-more-tools');

@@ -2,6 +2,12 @@
 
 Stand: 27.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Direkte Board-Bedienung und Sprache (lokal geprüft)
+
+- Beim Ziehen einer aktiven Karte folgt eine leicht geneigte Kopie dem Mauszeiger; die Ursprungskarte bleibt als blasser Platzhalter stehen, und die Zielspalte zeigt den tatsächlichen Ablagebereich am Ende ihrer Kartenliste. Nahe dem linken oder rechten Board-Rand scrollt die Spaltenfläche mit. Nach erfolgreichem Verschieben bewegt sich die neue Karte kurz vom Abgabepunkt an ihre gespeicherte Position. Reduzierte Bewegung entfernt Neigung und Einrastanimation; das bestehende Verschieben per Tastatur und Kartenmenü bleibt. Ein gezielter Renderer-Test prüft Start, Ziel, Drop, gespeicherten Move-Aufruf, Einrastanimation und Abbruch. Ein versteckter Electron-Smoke mit synthetischen Karten bestätigte sichtbare Kopie und Zielbereich; das README zeigt diesen Zustand. Das native Drag-Verhalten auf Touchgeräten wurde nicht geprüft. Innerhalb einer Spalte sortiert man weiterhin über die vorhandenen Aktionen, nicht durch freies Dragging.
+- Die Ansichten Board, Ideenraum und Workflows behalten nun dieselbe direkte Navigation, statt nur auf dem Board Tabs anzubieten. Ein ungespeicherter Ideenentwurf wird beim Wechsel nicht stillschweigend verworfen. Gezielte Navigationstests bestanden.
+- Der obere Einstellungsbutton ist auch ohne verbundenes Projekt erreichbar. Deutsch und Englisch sind in den Einstellungen wählbar; die Wahl bleibt im lokalen App-Profil gespeichert und wird beim nächsten Start geladen. Navigation, Projektwahl, Ersteinrichtung und der allgemeine Einstellungsbereich wechseln die Sprache. Fachansichten, Berechtigungs-Unteransichten und große Teile der Dokumentation sind noch Deutsch; die Einstellung weist darauf hin und ist keine Behauptung vollständiger Übersetzung.
+
 ## Windows-Paketprüfung nach neuem Board-Kopf
 
 - Für Commit `9d76f0f` bestand der vollständige Windows-Verify-Job, während beide Paketjobs an derselben veralteten Smoke-Annahme scheiterten: Der Test suchte „Board“ noch im entfernten alten Kopftitel. Tatsächlich war der gespeicherte Diff-Kommentar geöffnet und fokussiert. Die beiden Prüfungen für Diff- und QA-Inbox suchen jetzt den aktiven Board-Tab. Der vollständige lokale Quell-Electron-Smoke bestand danach einschließlich der Navigation aus der Inbox. Der korrigierte Folgelauf `45996380040` bestand einschließlich beider Windows-Paketjobs.

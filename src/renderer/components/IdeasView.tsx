@@ -3,9 +3,11 @@ import { ArrowRight, GripVertical, MessageCircle, Plus, Send } from 'lucide-reac
 import type { DraftTurn } from '../../shared/task-draft';
 import type { Idea, IdeaCategory, IdeaReply } from '../../shared/ideas';
 import type { ProjectSnapshot } from '../../shared/types';
+import type { LanguagePreference } from '../language';
 import type { Mutate } from './shared';
 import { TrelloImportPanel } from './TrelloImportPanel';
 import { IdeaMatchPanel } from './IdeaMatchPanel';
+import { ProjectViewTabs, type PlanningView } from './ProjectViewTabs';
 import './ideas.css';
 
 type Draft = Pick<Idea, 'id' | 'title' | 'body' | 'category' | 'turns' | 'cardId'>;
@@ -31,9 +33,9 @@ export function ideaFromDrop(ideas: Idea[], projectId: string, id: string): Idea
   return ideas.find((item) => item.id === id && item.projectId === projectId) ?? null;
 }
 
-interface Props { snapshot: ProjectSnapshot; mutate: Mutate; onOpenCard: (id: string) => void }
+interface Props { snapshot: ProjectSnapshot; mutate: Mutate; onOpenCard: (id: string) => void; onNavigate?: (view: PlanningView) => void; language?: LanguagePreference }
 
-export function IdeasView({ snapshot, mutate, onOpenCard }: Props) {
+export function IdeasView({ snapshot, mutate, onOpenCard, onNavigate, language }: Props) {
   const projectId = snapshot.project.id;
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
@@ -77,6 +79,12 @@ export function IdeasView({ snapshot, mutate, onOpenCard }: Props) {
     setNotice('');
     setDiscussionIdeaId(null);
     return true;
+  }
+
+  function navigateTo(view: PlanningView) {
+    if (busy || !onNavigate) return;
+    if (dirty && !window.confirm('Nicht gespeicherte Änderungen an dieser Idee verwerfen?')) return;
+    onNavigate(view);
   }
 
   function openDiscussion(item: Idea) {
@@ -144,6 +152,7 @@ export function IdeasView({ snapshot, mutate, onOpenCard }: Props) {
   }
 
   return <section className="ideas-page" aria-label="Ideenraum">
+    <ProjectViewTabs active="ideas" onNavigate={navigateTo} disabled={busy || !onNavigate} language={language} />
     <header className="ideas-heading"><p>Schreib den Gedanken auf. Was daraus wird, entscheidest du später.</p><button className="text-button" type="button" onClick={() => setShowTrelloImport(true)} disabled={busy || dirty} title={dirty ? 'Speichere die aktuelle Notiz vor dem Trello-Abgleich.' : undefined}>Aus Trello vormerken</button></header>
     <form className="ideas-editor" onSubmit={(event) => void save(event)}>
       <div className="ideas-editor-head"><h3>{draft.id ? 'Notiz bearbeiten' : 'Neue Notiz'}</h3><div className="ideas-editor-meta"><label>Bereich <select aria-label="Bereich der Notiz" value={draft.category} disabled={busy} onChange={(event) => setDraft((old) => ({ ...old, category: event.target.value as IdeaCategory }))}>{categories.map((category) => <option key={category} value={category}>{labels[category]}</option>)}</select></label>{draft.id ? <button className="text-button" type="button" disabled={busy} onClick={() => switchTo()}><Plus size={15} /> Neue Notiz</button> : null}</div></div>

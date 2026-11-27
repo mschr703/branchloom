@@ -1,4 +1,6 @@
 /* Workflows read as one ordered work surface instead of cards inside cards. */
+:root[data-theme] .workflow-workbench { padding-top: 0; }
+:root[data-theme] .workflow-workbench > .planning-view-tabs-row { margin-bottom: 20px; }
 :root[data-theme] .workflow-workbench > .view-header { padding-bottom: 20px; border-bottom: 1px solid var(--border); }
 :root[data-theme] .workflow-workbench > .view-header p { max-width: 72ch; font-size: 14px; line-height: 1.55; }
 :root[data-theme] .workflow-workbench .workflow-planner,

@@ -16,14 +16,16 @@ import { BoardSessionDock } from './BoardSessionDock';
 import { BoardWorkflowMarkers } from './BoardWorkflowMarkers';
 import { cardWorkflowSignal, type BoardWorkflowSignal } from '../board-workflow-signals';
 import { filterBoardCards, type BoardVisibility } from '../board-filters';
+import type { LanguagePreference } from '../language';
 import '../board-metadata.css';
 import '../board-bulk.css';
 import '../column-order.css';
 import '../column-settings.css';
 import '../board-refine.css';
 import '../board-card-actions.css';
+import '../board-drag.css';
 
-interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openCard?: { id: string; token: number; reviewCommentId?: string; qaReportId?: string } | null; decisionCount?: number | null; decisionHasMore?: boolean; onNavigate?: (view: 'ideas' | 'workflows' | 'decisions') => void; onOpenDesign?: (cardId: string) => void; onOpenBrowser?: () => void; onOpenQaReport?: (cardId: string, reportId: string) => void }
+interface Props { snapshot: ProjectSnapshot; mutate: Mutate; language?: LanguagePreference; openCard?: { id: string; token: number; reviewCommentId?: string; qaReportId?: string } | null; decisionCount?: number | null; decisionHasMore?: boolean; onNavigate?: (view: 'ideas' | 'workflows' | 'decisions') => void; onOpenDesign?: (cardId: string) => void; onOpenBrowser?: () => void; onOpenQaReport?: (cardId: string, reportId: string) => void }
 
 export function isMoveShortcut(event: Pick<React.KeyboardEvent, 'key' | 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey'>): boolean {
   return event.key.toLocaleLowerCase() === 'm' && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
@@ -39,7 +41,7 @@ export function boardEmptyMessage(index: number, hasActiveCards: boolean, filter
   return index === 0 ? 'Erstelle unten deine erste Aufgabe. Verschiebe sie später zwischen den Spalten.' : null;
 }
 
-export function BoardView({ snapshot, mutate, openCard, decisionCount, decisionHasMore, onNavigate, onOpenDesign, onOpenBrowser, onOpenQaReport }: Props) {
+export function BoardView({ snapshot, mutate, language = 'de', openCard, decisionCount, decisionHasMore, onNavigate, onOpenDesign, onOpenBrowser, onOpenQaReport }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focusSession, setFocusSession] = useState(false);
   const [focusSessionId, setFocusSessionId] = useState<string | null>(null);
@@ -63,6 +65,14 @@ export function BoardView({ snapshot, mutate, openCard, decisionCount, decisionH
   const [confirmBulkArchive, setConfirmBulkArchive] = useState(false);
   const [confirmBulkPriority, setConfirmBulkPriority] = useState<{ cardIds: string[]; priority: CardPriority; changeCount: number } | null>(null);
   const [focusMoved, setFocusMoved] = useState<{ cardId: string; columnId: string } | null>(null);
+  const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
+  const [dropTargetColumnId, setDropTargetColumnId] = useState<string | null>(null);
+  const dragPreview = useRef<HTMLElement | null>(null);
+  const dragOffset = useRef({ x: 0, y: 0 });
+  const dragLastPointerX = useRef(0);
+  const dragSourceColumnId = useRef<string | null>(null);
+  const boardScroll = useRef<HTMLDivElement>(null);
+  const landingFrom = useRef<{ cardId: string; columnId: string; left: number; top: number } | null>(null);
   const [workflowEvidence, setWorkflowEvidence] = useState<Record<string, WorkflowRunEvidence>>({});
   const [workflowEvidenceError, setWorkflowEvidenceError] = useState(false);
   const [workflowEvidenceRetry, setWorkflowEvidenceRetry] = useState(0);
@@ -123,6 +133,45 @@ export function BoardView({ snapshot, mutate, openCard, decisionCount, decisionH
     const button = document.getElementById(`board-card-${focusMoved.cardId}`);
     if (button) { button.focus(); setFocusMoved(null); }
   }, [focusMoved, snapshot.cards, visibleCards, filterColumnId]);
+  useEffect(() => {
+    const landing = landingFrom.current;
+    if (!landing || snapshot.cards.find((card) => card.id === landing.cardId)?.columnId !== landing.columnId) return;
+    landingFrom.current = null;
+    const card = document.getElementById(`board-card-${landing.cardId}`);
+    if (!card || !card.animate || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    const rect = card.getBoundingClientRect();
+    card.animate([
+      { transform: `translate(${landing.left - rect.left}px, ${landing.top - rect.top}px) rotate(-2deg) scale(1.025)`, opacity: 0.78 },
+      { transform: 'translate(0, 0) rotate(0) scale(1)', opacity: 1 },
+    ], { duration: 390, easing: 'cubic-bezier(.2, .85, .28, 1)' });
+  }, [snapshot.cards]);
+  useEffect(() => () => { dragPreview.current?.remove(); }, []);
+  useEffect(() => {
+    if (!draggingCardId) return;
+    const followDrag = (event: DragEvent) => {
+      const preview = dragPreview.current;
+      if (preview && (event.clientX || event.clientY)) {
+        preview.style.left = `${event.clientX - dragOffset.current.x}px`;
+        preview.style.top = `${event.clientY - dragOffset.current.y}px`;
+        const tilt = Math.max(-3, Math.min(3, (event.clientX - dragLastPointerX.current) * .12));
+        preview.style.setProperty('--drag-tilt', `${tilt}deg`);
+        dragLastPointerX.current = event.clientX;
+        const scroll = boardScroll.current;
+        if (scroll) {
+          const bounds = scroll.getBoundingClientRect();
+          if (event.clientY >= bounds.top && event.clientY <= bounds.bottom) {
+            if (event.clientX >= bounds.right - 46 && event.clientX <= bounds.right) scroll.scrollLeft += 22;
+            else if (event.clientX >= bounds.left && event.clientX <= bounds.left + 46) scroll.scrollLeft -= 22;
+          }
+        }
+      }
+      const column = event.target instanceof Element ? event.target.closest<HTMLElement>('.board-column[data-column-id]') : null;
+      const nextId = column?.dataset.columnId;
+      setDropTargetColumnId(nextId && nextId !== dragSourceColumnId.current ? nextId : null);
+    };
+    document.addEventListener('dragover', followDrag);
+    return () => document.removeEventListener('dragover', followDrag);
+  }, [draggingCardId]);
 
   async function addCard(event: React.FormEvent<HTMLFormElement>, columnId: string) {
     event.preventDefault();
@@ -184,11 +233,52 @@ export function BoardView({ snapshot, mutate, openCard, decisionCount, decisionH
       : `Die Reihenfolge von „${column.name}“ konnte nicht geändert werden.`);
   }
 
-  function onDrop(event: React.DragEvent<HTMLElement>, columnId: string) {
+  function finishCardDrag() {
+    dragPreview.current?.remove();
+    dragPreview.current = null;
+    dragSourceColumnId.current = null;
+    setDraggingCardId(null);
+    setDropTargetColumnId(null);
+  }
+
+  function beginCardDrag(event: React.DragEvent<HTMLButtonElement>, card: Card) {
+    if (card.archivedAt) return;
+    const source = event.currentTarget.closest<HTMLElement>('.board-card-wrap');
+    const rect = source?.getBoundingClientRect();
+    event.dataTransfer.setData('text/card-id', card.id);
+    event.dataTransfer.effectAllowed = 'move';
+    if (!source || !rect) return;
+    const preview = source.cloneNode(true) as HTMLElement;
+    preview.classList.add('board-drag-preview');
+    preview.removeAttribute('data-card-id');
+    preview.setAttribute('aria-hidden', 'true');
+    preview.querySelectorAll('[id]').forEach((element) => element.removeAttribute('id'));
+    preview.querySelectorAll('button, input').forEach((element) => element.setAttribute('tabindex', '-1'));
+    preview.style.width = `${rect.width}px`;
+    dragOffset.current = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    dragLastPointerX.current = event.clientX;
+    dragSourceColumnId.current = card.columnId;
+    preview.style.left = `${rect.left}px`;
+    preview.style.top = `${rect.top}px`;
+    document.body.append(preview);
+    dragPreview.current = preview;
+    const transparentImage = document.createElement('canvas');
+    transparentImage.width = 1;
+    transparentImage.height = 1;
+    event.dataTransfer.setDragImage?.(transparentImage, 0, 0);
+    setDraggingCardId(card.id);
+  }
+
+  async function onDrop(event: React.DragEvent<HTMLElement>, columnId: string) {
+    if (!event.dataTransfer.types.includes('text/card-id')) return;
     event.preventDefault();
     const id = event.dataTransfer.getData('text/card-id');
     const card = snapshot.cards.find((item) => item.id === id);
-    if (card && !card.archivedAt && card.columnId !== columnId) void moveCard(card, columnId);
+    if (!card || card.archivedAt || card.columnId === columnId) { finishCardDrag(); return; }
+    const previewRect = dragPreview.current?.getBoundingClientRect();
+    landingFrom.current = { cardId: id, columnId, left: previewRect?.left ?? event.clientX, top: previewRect?.top ?? event.clientY };
+    finishCardDrag();
+    if (!await moveCard(card, columnId)) landingFrom.current = null;
   }
 
   function toggleBulk(id: string) {
@@ -242,7 +332,7 @@ export function BoardView({ snapshot, mutate, openCard, decisionCount, decisionH
     </div>
     {runningSessions.length > 0 || Boolean(decisionCount) ? <div className="board-live-strip" role="status">{runningSessions.length > 0 ? <><span className="board-live-summary"><i aria-hidden="true" />{runningSessions.length} {runningSessions.length === 1 ? 'Agent aktiv' : 'Agenten aktiv'}</span><span className="board-live-divider" aria-hidden="true" />{runningSessions.slice(0, 2).map((session) => { const card = snapshot.cards.find((item) => item.id === session.cardId); const agent = snapshot.agents.find((item) => item.id === session.agentId); return <button key={session.id} type="button" onClick={() => openBoardCard(session.cardId, true, session.id)} title={`${agent?.name ?? 'Agent'}: ${card?.title ?? 'Aufgabe'} öffnen`}>{agent?.name ?? 'Agent'} <span aria-hidden="true">→</span> {card?.title ?? 'Aufgabe'}</button>; })}{runningSessions.length > 2 ? <span>+{runningSessions.length - 2} weitere</span> : null}</> : null}{decisionCount ? <button className="board-decision-link" type="button" aria-label={openDecisionLabel} onClick={() => onNavigate?.('decisions')}><span className="board-decision-full">{openDecisionLabel}</span><span className="board-decision-short" aria-hidden="true">{decisionCount}{decisionHasMore ? '+' : ''} offen</span><ArrowRight size={13} aria-hidden="true" /></button> : null}</div> : null}
     <div className="board-toolbar board-header-actions">
-      <nav className="board-view-tabs" aria-label="Projektansichten"><span className="is-active" aria-current="page">Board</span><button type="button" onClick={() => onNavigate?.('ideas')}>Ideenraum</button><button type="button" onClick={() => onNavigate?.('workflows')}>Workflows</button></nav>
+      <nav className="board-view-tabs" aria-label={language === 'en' ? 'Project views' : 'Projektansichten'}><span className="is-active" aria-current="page">Board</span><button type="button" onClick={() => onNavigate?.('ideas')}>{language === 'en' ? 'Ideas' : 'Ideenraum'}</button><button type="button" onClick={() => onNavigate?.('workflows')}>Workflows</button></nav>
       <div className="board-header-tools"><details className="board-more-tools"><summary><MoreHorizontal size={17} aria-hidden="true" /> Weitere Aktionen</summary><div className="board-more-tools-content"><button className="secondary-button" type="button" onClick={(event) => { event.currentTarget.closest('details')!.open = false; setShowTaskDraft(true); }} title="Mit einem Agenten aus einer Idee eine überprüfbare Aufgabe formulieren"><MessageCircle size={16} /> Aufgabe vorbereiten</button><button className="secondary-button" type="button" onClick={(event) => { event.currentTarget.closest('details')!.open = false; setShowImport(true); }}><FileJson2 size={16} /> Trello importieren</button><QaCoveragePanel key={snapshot.project.id} snapshot={snapshot} onOpenQaReport={onOpenQaReport ?? ((cardId) => openBoardCard(cardId))} /></div></details>{visibility !== 'archived' && columns[0] ? <button className="board-new-task primary-button" type="button" onClick={() => { setCreatingIn(columns[0]!.id); setTitle(''); }}><Plus size={16} aria-hidden="true" />Neue Aufgabe</button> : null}</div>
     </div>
     <div className="board-filters" role="search" aria-label="Board-Filter">
@@ -288,8 +378,8 @@ export function BoardView({ snapshot, mutate, openCard, decisionCount, decisionH
     {confirmBulkPriority ? <BulkPriorityConfirmation selectedCount={confirmBulkPriority.cardIds.length} changeCount={confirmBulkPriority.changeCount} priorityLabel={CARD_PRIORITIES.find((item) => item.value === confirmBulkPriority.priority)?.label ?? confirmBulkPriority.priority} busy={bulkBusy} onConfirm={() => void applyBulkPriority()} onCancel={() => setConfirmBulkPriority(null)} /> : null}
     {bulkNotice ? <p className="board-bulk-result" role="status">{bulkNotice}</p> : null}
     <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
-    <div className="board-scroll"><div className="board-columns">
-      {visibleColumns.map((column, index) => <BoardColumn key={column.id} column={column} columns={columns} cards={visibleCards.filter((card) => card.columnId === column.id).sort(compareCardOrder)} snapshot={snapshot} workflowEvidence={workflowEvidence} emptyMessage={boardEmptyMessage(index, hasActiveCards, filtersActive)} onSelect={openBoardCard} onOpenSession={(id) => openBoardCard(id, true)} onAnnounce={setAnnouncement} onMove={moveCard} onReorder={reorderCard} onReorderColumn={reorderColumn} onDrop={onDrop} onCreate={() => { setCreatingIn(column.id); setTitle(''); }} canCreate={visibility !== 'archived'} mutate={mutate} bulkMode={bulkMode} bulkIds={bulkIds} onToggleBulk={toggleBulk}>
+    <div className="board-scroll" ref={boardScroll}><div className="board-columns">
+      {visibleColumns.map((column, index) => <BoardColumn key={column.id} column={column} columns={columns} cards={visibleCards.filter((card) => card.columnId === column.id).sort(compareCardOrder)} snapshot={snapshot} workflowEvidence={workflowEvidence} emptyMessage={boardEmptyMessage(index, hasActiveCards, filtersActive)} onSelect={openBoardCard} onOpenSession={(id) => openBoardCard(id, true)} onAnnounce={setAnnouncement} onMove={moveCard} onReorder={reorderCard} onReorderColumn={reorderColumn} onDrop={onDrop} onCardDragStart={beginCardDrag} onCardDragEnd={finishCardDrag} draggingCardId={draggingCardId} isDropTarget={dropTargetColumnId === column.id} onCreate={() => { setCreatingIn(column.id); setTitle(''); }} canCreate={visibility !== 'archived'} mutate={mutate} bulkMode={bulkMode} bulkIds={bulkIds} onToggleBulk={toggleBulk}>
         {creatingIn === column.id && visibility !== 'archived' ? <form className="new-card-form" onSubmit={(event) => void addCard(event, column.id)}><input autoFocus required maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Aufgabe benennen…" aria-label="Neue Karte" /><div className="inline-actions"><button className="primary-button small" type="submit">Hinzufügen</button><button className="icon-button" type="button" onClick={() => setCreatingIn(null)} aria-label="Abbrechen"><X size={15} /></button></div></form> : null}
       </BoardColumn>)}
       {visibility !== 'archived' && !filterColumnId ? <form className="new-column-form" onSubmit={(event) => void addColumn(event)}><span><Plus size={17} /> Spalte hinzufügen</span><input value={newColumn} onChange={(event) => setNewColumn(event.target.value)} placeholder="Spaltenname" aria-label="Neue Spalte" maxLength={80} required /><button className="secondary-button small" type="submit">Erstellen</button></form> : null}
@@ -319,12 +409,15 @@ function compareCardOrder(a: Card, b: Card): number {
   return a.position - b.position || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
 }
 
-function BoardColumn({ column, columns, cards, snapshot, workflowEvidence, emptyMessage, onSelect, onOpenSession, onAnnounce, onMove, onReorder, onReorderColumn, onDrop, onCreate, canCreate, mutate, bulkMode, bulkIds, onToggleBulk, children }: {
+function BoardColumn({ column, columns, cards, snapshot, workflowEvidence, emptyMessage, onSelect, onOpenSession, onAnnounce, onMove, onReorder, onReorderColumn, onDrop, onCardDragStart, onCardDragEnd, draggingCardId, isDropTarget, onCreate, canCreate, mutate, bulkMode, bulkIds, onToggleBulk, children }: {
   column: Column; columns: Column[]; cards: Card[]; snapshot: ProjectSnapshot; workflowEvidence: Record<string, WorkflowRunEvidence>; emptyMessage: string | null; onSelect: (id: string) => void; onOpenSession: (id: string) => void; onAnnounce: (message: string) => void;
   onMove: (card: Card, columnId: string) => Promise<boolean>;
   onReorder: (card: Card, direction: 'up' | 'down') => Promise<void>;
   onReorderColumn: (column: Column, direction: 'left' | 'right') => Promise<void>;
   onDrop: (event: React.DragEvent<HTMLElement>, columnId: string) => void;
+  onCardDragStart: (event: React.DragEvent<HTMLButtonElement>, card: Card) => void;
+  onCardDragEnd: () => void;
+  draggingCardId: string | null; isDropTarget: boolean;
   onCreate: () => void; canCreate: boolean; mutate: Mutate; bulkMode: boolean; bulkIds: Set<string>; onToggleBulk: (id: string) => void; children: React.ReactNode;
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -339,12 +432,12 @@ function BoardColumn({ column, columns, cards, snapshot, workflowEvidence, empty
   }
   const activeOrder = snapshot.cards.filter((card) => card.columnId === column.id && !card.archivedAt).sort(compareCardOrder);
   const columnAgent = snapshot.agents.find((item) => item.id === column.agentId);
-  return <section className="board-column" data-tint={column.tint ?? 'default'} data-run-mode={column.agentId ? column.autoStart ? 'automatic' : 'manual-agent' : 'manual'} onDragOver={(event) => event.preventDefault()} onDrop={(event) => onDrop(event, column.id)} aria-label={`Spalte ${column.name}`}>
+  return <section className={`board-column${isDropTarget ? ' is-drop-target' : ''}`} data-column-id={column.id} data-tint={column.tint ?? 'default'} data-run-mode={column.agentId ? column.autoStart ? 'automatic' : 'manual-agent' : 'manual'} onDragOver={(event) => { if (event.dataTransfer.types.includes('text/card-id')) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; } }} onDrop={(event) => onDrop(event, column.id)} aria-label={`Spalte ${column.name}`}>
     <header className="column-header"><div className="column-heading"><div className="column-title"><span className="column-indicator" role="img" aria-label={columnAgent ? column.autoStart ? 'Agent startet automatisch' : 'Agent startet auf Anfrage' : 'Ohne Spaltenagent'} title={columnAgent ? column.autoStart ? 'Agent startet automatisch' : 'Agent startet auf Anfrage' : 'Ohne Spaltenagent'}>{columnAgent ? column.autoStart ? <Play size={13} aria-hidden="true" /> : <Terminal size={14} aria-hidden="true" /> : <Layers2 size={14} aria-hidden="true" />}</span><h3>{column.name}</h3><span className="count-pill">{cards.length}</span></div>{columnAgent ? <span className="column-run-summary">{columnAgent.name} · {column.autoStart ? 'Start beim Verschieben' : 'Start auf Anfrage'}</span> : null}</div><button ref={settingsTrigger} className="column-settings-trigger" type="button" aria-label={`Spalte ${column.name} einstellen`} aria-haspopup="dialog" aria-expanded={settingsOpen} title="Spalte einstellen" onClick={() => setSettingsOpen(true)}><Pencil size={16} aria-hidden="true" /></button></header>
     <div className="column-body">
       {cards.map((card) => {
         const index = activeOrder.findIndex((item) => item.id === card.id);
-        return <BoardCard key={card.id} card={card} column={column} columns={columns} snapshot={snapshot} workflowSignal={cardWorkflowSignal(card.id, snapshot.workflows, workflowEvidence)} onSelect={onSelect} onOpenSession={onOpenSession} onAnnounce={onAnnounce} onMove={onMove} onReorder={onReorder} bulkMode={bulkMode} bulkSelected={bulkIds.has(card.id)} onToggleBulk={onToggleBulk} previousTitle={index > 0 ? activeOrder[index - 1]?.title : undefined} nextTitle={index >= 0 ? activeOrder[index + 1]?.title : undefined} />;
+        return <BoardCard key={card.id} card={card} column={column} columns={columns} snapshot={snapshot} workflowSignal={cardWorkflowSignal(card.id, snapshot.workflows, workflowEvidence)} onSelect={onSelect} onOpenSession={onOpenSession} onAnnounce={onAnnounce} onMove={onMove} onReorder={onReorder} onCardDragStart={onCardDragStart} onCardDragEnd={onCardDragEnd} isDragOrigin={draggingCardId === card.id} bulkMode={bulkMode} bulkSelected={bulkIds.has(card.id)} onToggleBulk={onToggleBulk} previousTitle={index > 0 ? activeOrder[index - 1]?.title : undefined} nextTitle={index >= 0 ? activeOrder[index + 1]?.title : undefined} />;
       })}
       {children}
       {cards.length === 0 && !children && emptyMessage ? <p className="empty-column">{emptyMessage}</p> : null}
@@ -378,10 +471,12 @@ export function ColumnAgentSettings({ column, agents, mutate }: { column: Column
   </form>;
 }
 
-function BoardCard({ card, column, columns, snapshot, workflowSignal, onSelect, onOpenSession, onAnnounce, onMove, onReorder, bulkMode, bulkSelected, onToggleBulk, previousTitle, nextTitle }: {
+function BoardCard({ card, column, columns, snapshot, workflowSignal, onSelect, onOpenSession, onAnnounce, onMove, onReorder, onCardDragStart, onCardDragEnd, isDragOrigin, bulkMode, bulkSelected, onToggleBulk, previousTitle, nextTitle }: {
   card: Card; column: Column; columns: Column[]; snapshot: ProjectSnapshot; workflowSignal: BoardWorkflowSignal | null;
   onSelect: (id: string) => void; onOpenSession: (id: string) => void; onAnnounce: (message: string) => void; onMove: (card: Card, columnId: string) => Promise<boolean>;
   onReorder: (card: Card, direction: 'up' | 'down') => Promise<void>;
+  onCardDragStart: (event: React.DragEvent<HTMLButtonElement>, card: Card) => void;
+  onCardDragEnd: () => void; isDragOrigin: boolean;
   bulkMode: boolean; bulkSelected: boolean; onToggleBulk: (id: string) => void;
   previousTitle?: string; nextTitle?: string;
 }) {
@@ -496,9 +591,9 @@ function BoardCard({ card, column, columns, snapshot, workflowSignal, onSelect, 
     } finally { setActionBusy(false); }
   }
 
-  return <div className={`board-card-wrap${bulkMode ? ' is-selecting' : ''}`} data-card-id={card.id}>
+  return <div className={`board-card-wrap${bulkMode ? ' is-selecting' : ''}${isDragOrigin ? ' is-drag-origin' : ''}`} data-card-id={card.id}>
     {!card.archivedAt && bulkMode ? <label className="board-bulk-card-select"><input type="checkbox" checked={bulkSelected} onChange={() => onToggleBulk(card.id)} aria-label={`„${card.title}“ für Sammelaktion auswählen`} /><span className="sr-only">Auswählen</span></label> : null}
-    <button ref={cardButton} id={`board-card-${card.id}`} type="button" draggable={!card.archivedAt} onDragStart={(event) => { if (!card.archivedAt) event.dataTransfer.setData('text/card-id', card.id); }} className={`task-card${card.archivedAt ? ' archived' : ''}${active ? ' is-running' : ''}`} data-priority={card.priority} data-run-state={latestSession?.state ?? 'none'} aria-label={`Karte „${card.title}“ in „${column.name}“ öffnen${card.archivedAt ? ', archiviert' : ''}${active ? ', Agent läuft' : ''}`} aria-describedby={[card.description ? `board-card-description-${card.id}` : null, workflowSignal ? `board-card-workflow-${card.id}` : null].filter(Boolean).join(' ') || undefined} aria-keyshortcuts={destinations.length ? 'M' : undefined} onKeyDown={(event) => { if (destinations.length && isMoveShortcut(event)) { event.preventDefault(); openMove(); } }} onClick={() => onSelect(card.id)}>
+    <button ref={cardButton} id={`board-card-${card.id}`} type="button" draggable={!card.archivedAt} onDragStart={(event) => onCardDragStart(event, card)} onDragEnd={onCardDragEnd} className={`task-card${card.archivedAt ? ' archived' : ''}${active ? ' is-running' : ''}`} data-priority={card.priority} data-run-state={latestSession?.state ?? 'none'} aria-label={`Karte „${card.title}“ in „${column.name}“ öffnen${card.archivedAt ? ', archiviert' : ''}${active ? ', Agent läuft' : ''}`} aria-describedby={[card.description ? `board-card-description-${card.id}` : null, workflowSignal ? `board-card-workflow-${card.id}` : null].filter(Boolean).join(' ') || undefined} aria-keyshortcuts={destinations.length ? 'M' : undefined} onKeyDown={(event) => { if (destinations.length && isMoveShortcut(event)) { event.preventDefault(); openMove(); } }} onClick={() => onSelect(card.id)}>
       <span className="task-card-grip" aria-hidden="true">{card.archivedAt ? <Archive size={15} /> : <GripVertical size={15} />}</span>
       {workflowSignal ? <BoardWorkflowMarkers cardId={card.id} signal={workflowSignal} /> : null}
       <span className="task-card-kicker"><span title={`Karten-ID: ${card.id}`}>#{card.id.slice(0, 6)}</span>{card.priority !== 'none' ? <span className={`task-card-priority-text priority-${card.priority}`}>{card.priority === 'low' ? <ArrowDown size={12} aria-hidden="true" /> : card.priority === 'medium' ? null : <ArrowUp size={12} aria-hidden="true" />}{priority?.label ?? card.priority}</span> : null}</span>

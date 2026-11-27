@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowRight, GitBranch, Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react';
 import type { Card, Column, ColumnEffort, ProjectSnapshot, Workflow, WorkflowStep } from '../../shared/types';
 import type { QueueResults } from '../../shared/queue-results';
+import type { LanguagePreference } from '../language';
 import type { Mutate } from './shared';
 import { WorkflowPlanner } from './WorkflowPlanner';
 import { WorkflowStepRows } from './WorkflowStepRows';
@@ -9,11 +10,12 @@ import { WorkflowRunEvidencePanel } from './WorkflowRunEvidencePanel';
 import { WorkflowStepHaltpointControl } from './WorkflowStepHaltpointControl';
 import { QueueResultsPanel } from './QueueResultsPanel';
 import { QueueStartPreview } from './QueueStartPreview';
+import { ProjectViewTabs, type PlanningView } from './ProjectViewTabs';
 import { parseQueueDeadline } from '../../shared/queue-deadline';
 import '../queue-preview.css';
 import './workflow-workbench.css';
 
-interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openWorkflow?: { id: string; token: number } | null; openPlan?: { id: string; token: number } | null; queueCommand?: { text: string; token: number } | null; onQueueCommandHandled?: () => void; onOpenCard?: (cardId: string) => void; onOpenSession?: (sessionId: string) => void }
+interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openWorkflow?: { id: string; token: number } | null; openPlan?: { id: string; token: number } | null; queueCommand?: { text: string; token: number } | null; onQueueCommandHandled?: () => void; onOpenCard?: (cardId: string) => void; onOpenSession?: (sessionId: string) => void; onNavigate?: (view: PlanningView) => void; language?: LanguagePreference }
 
 export function workflowPauseCopy(reason: Workflow['pauseReason']): { description: string; action: string } {
   if (reason === 'haltpoint') return { description: 'Der gewählte Haltepunkt wurde nach dem abgeschlossenen Schritt erreicht. Der nächste Schritt wartet auf deine Fortsetzung.', action: 'Nach Haltepunkt fortsetzen' };
@@ -75,7 +77,7 @@ export function stepsFromForm(
   }));
 }
 
-export function WorkflowView({ snapshot, mutate, openWorkflow, openPlan, queueCommand, onQueueCommandHandled, onOpenCard, onOpenSession }: Props) {
+export function WorkflowView({ snapshot, mutate, openWorkflow, openPlan, queueCommand, onQueueCommandHandled, onOpenCard, onOpenSession, onNavigate, language }: Props) {
   const columns = useMemo(() => [...snapshot.columns].sort((a, b) => a.position - b.position), [snapshot.columns]);
   const hasTodoColumn = columns.some((column) => column.name.trim().toLocaleLowerCase('de-DE') === 'to do');
   const [showForm, setShowForm] = useState(false);
@@ -202,6 +204,7 @@ export function WorkflowView({ snapshot, mutate, openWorkflow, openPlan, queueCo
   }
 
   return <div className="standard-page workflow-workbench">
+    <ProjectViewTabs active="workflows" onNavigate={(view) => onNavigate?.(view)} disabled={!onNavigate} language={language} />
     <div className="view-header"><div><h2>Workflows</h2><p>Ein Workflow ist die Route einer Karte: Spalten in Reihenfolge, jeweils mit Agent oder manuellem Schritt. Ein Entwurf startet noch nichts.</p></div><button className="secondary-button" type="button" onClick={newDraft}><Plus size={17} /> Route selbst erstellen</button></div>
 
     <WorkflowPlanner snapshot={snapshot} mutate={mutate} openPlan={openPlan} />

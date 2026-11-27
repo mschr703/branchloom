@@ -1,0 +1,20 @@
+:root[data-theme] .planning-view-tabs-row {
+  display: flex;
+  min-height: 40px;
+  border-bottom: 1px solid var(--border);
+}
+
+:root[data-theme] .planning-view-tabs-row .project-view-tabs {
+  min-height: 40px;
+}
+
+:root[data-theme] .project-view-tabs > button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+:root[data-theme] .project-view-tabs > button:disabled {
+  cursor: default;
+  opacity: .5;
+}

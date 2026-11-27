@@ -13,19 +13,28 @@
 
 </details>
 
+<details>
+<summary>Moving a card between columns</summary>
+
+![A synthetic card being dragged toward a highlighted destination column](docs/assets/branchloom-board-drag.png)
+
+*The lifted card, original slot, and destination placeholder are visible during a drag. This is a synthetic UI capture; the move is saved only when the card is dropped.*
+
+</details>
+
 ### From an idea to a checked result
 
 1. **Capture and shape the work.** Collect an idea, discuss it in Project Chat, or create a card. The board records its current step; the Whiteboard can show related project parts and saved links.
 2. **Choose how it runs.** Assign an installed CLI assistant to a task or workflow. Independent tasks can run in separate Git worktrees, which are Git-managed copies of the project.
 3. **Stay in control.** See active sessions, answer agent questions, pause new work, and inspect the proposed changes and recorded checks. You decide when code is integrated.
 
-Branchloom is an early Windows preview. The interface and detailed feature docs are currently mostly in German. The [product vision](docs/PRODUCT_VISION.md) describes the destination; [current status](docs/STATUS.md) and the [parity list](docs/PARITY.md) distinguish working paths from planned ones. Jarvis, the personal assistant, is a separate project.
+Branchloom is an early Windows preview. Settings offers German and English for the app navigation, project picker, first-run flow, and settings. Most detailed feature screens and docs are still in German. The [product vision](docs/PRODUCT_VISION.md) describes the destination; [current status](docs/STATUS.md) and the [parity list](docs/PARITY.md) distinguish working paths from planned ones. Jarvis, the personal assistant, is a separate project.
 
 ## What works today
 
 | Area | Current path |
 | --- | --- |
-| **Plan work** | Import an existing local Git project, capture ideas, create and filter board cards, set priorities and labels, and configure columns and workflows. Active or paused workflows can show recorded per-card step progress on the board. The official Windows installer includes Trello sign-in; a custom package needs its own [Trello app setup](docs/IMPORT.md). |
+| **Plan work** | Import an existing local Git project, capture ideas, create and filter board cards, set priorities and labels, and configure columns and workflows. Board, Ideas, and Workflows keep a shared view switcher; dragging a card gives lift and destination feedback, while the keyboard move path remains available. Active or paused workflows can show recorded per-card step progress on the board. The official Windows installer includes Trello sign-in; a custom package needs its own [Trello app setup](docs/IMPORT.md). |
 | **Run agents** | Assign an installed CLI agent to a column or task. Branchloom starts local sessions, records their output, shows active runs under the board, and can run independent cards in separate Git worktrees. Agent availability and model access depend on the CLI installed and signed in on your machine. |
 | **Keep context** | Search locally indexed tasks, completed runs, Git commits, and code passages. The Memory graph opens at a source with saved links and lets you inspect one or two relationship steps or the full current excerpt; it does not infer semantic links from prose. Project Chat can answer from indexed sources and prepare editable card or Whiteboard drafts. Saving either draft requires a click. |
 | **Shape the UI** | Open a project Design overview of saved wireframes, local QA screenshots, and captured app elements. QA images are dated evidence from earlier browser checks, not editable drafts. Edit a card wireframe across desktop, tablet, and mobile artboards, with layers, properties, and explicit save and approval. A separate view inspects an explicitly opened local dev page and collects element, CSS, component, and token references. A saved wireframe reaches an agent only after separate approval. |
