@@ -284,6 +284,31 @@
 }
 :root[data-theme] .board-filter-fields { width: min(360px, calc(100vw - 40px)); }
 :root[data-theme] .board-filter-fields label > span:not(.sr-only) { display: block; margin-bottom: 4px; color: var(--muted); font-size: 11px; }
+/* Cards keep the reference's information rhythm while using only persisted card and run data. */
+:root[data-theme] .board-card-wrap > .task-card { border-radius: 7px; padding-top: 11px; background: color-mix(in srgb, var(--surface) 55%, var(--column-wash, var(--surface-2))); }
+:root[data-theme] .board-card-wrap > .task-card .task-card-kicker { min-height: 17px; margin-bottom: 6px; font-size: 11px; letter-spacing: .01em; }
+:root[data-theme] .task-card-priority-text { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; }
+:root[data-theme] .board-card-wrap > .task-card strong { font-weight: 660; letter-spacing: -.015em; }
+:root[data-theme] .board-card-wrap > .task-card .task-card-description { margin-top: 4px; color: var(--muted); line-height: 1.42; }
+:root[data-theme] .board-card-wrap > .task-card .task-card-metadata { gap: 4px; margin: 8px 0 8px; }
+:root[data-theme] .board-card-wrap > .task-card .task-card-metadata .card-label {
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 500;
+}
+:root[data-theme] .board-card-wrap > .task-card .board-workflow-signal {
+  margin: 0 0 8px;
+  padding: 0 0 7px;
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+}
+:root[data-theme] .board-card-wrap > .task-card .task-card-footer { min-height: 32px; background: color-mix(in srgb, var(--surface) 30%, var(--column-wash, var(--surface-2))); color: var(--muted); }
+:root[data-theme] .board-card-wrap > .task-card[data-run-state='failed'] .task-card-footer { color: var(--danger); }
+:root[data-theme] .board-card-wrap > .task-card[data-run-state='stopped'] .task-card-footer { color: var(--warning); }
 @media (max-width: 600px) {
   :root[data-theme] .board-filters { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; }
   :root[data-theme] .board-filters .board-search { grid-column: 1 / -1; width: 100%; min-width: 0; }

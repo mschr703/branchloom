@@ -2,6 +2,11 @@
 
 Stand: 27.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Kanban-Karten: Datenhierarchie und belegter Laufzustand (lokal geprüft)
+
+- Auf Karten stehen vorhandene Workflow-Schrittbelege jetzt vor der Aufgabenkennung; bestätigte Priorität, Titel, Kurzbeschreibung, Labels und der tatsächliche Agenten-/Laufzustand folgen in einer klareren Reihenfolge. Ein letzter fehlgeschlagener oder gestoppter Lauf wird nicht mehr als bloß „beendet“ dargestellt. Die Kartenfläche nimmt die gespeicherte Spaltenfarbe zurückhaltend auf; Prioritäts- und Fehlerfarben bleiben an reale Daten gebunden.
+- Die README-Aufnahme zeigt ein isoliertes synthetisches Projekt mit Prioritäten, Labels und einem konfigurierten Beispielagenten, nicht einen echten Nutzerlauf. Der versteckte Electron-Smoke und 13 gezielte Board-/Workflow-Tests bestanden; 1440 × 900 im hellen und dunklen Theme wurde gesichtet. Echtes Team-Ownership, Kommentare und Prozentfortschritt stehen nicht im aktuellen Karten-Datenmodell; die Figma-Referenz darf dafür keine erfundenen Avatare oder Fortschrittswerte erzeugen.
+
 ## Kanban-Hauptansicht: kompaktere Bedienung (lokal geprüft)
 
 - Die Hauptfläche beginnt früher. Seltener genutzte Aktionen (Aufgabe vorbereiten, Trello-Import, UI-Prüfung) liegen in einem zugänglichen Menü; Priorität, Label, Spalte und Archivstatus in einem gemeinsamen Filter. Neue Aufgabe bleibt direkt sichtbar. Ohne laufende Sitzung ist die untere Sitzungsleiste nur eine schmale Kopfzeile; beim Start einer neuen Sitzung öffnet sie sich weiterhin selbst. Karten haben einen ruhigeren Rahmen, und die doppelte Aktivitätszahl im Boardkopf entfällt.

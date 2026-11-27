@@ -1179,7 +1179,7 @@ function createWindow(): void {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
-      backgroundThrottling: !smokeWhiteboard,
+      backgroundThrottling: !(smokeWhiteboard || smokeTeamWorkspace),
     },
   });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));

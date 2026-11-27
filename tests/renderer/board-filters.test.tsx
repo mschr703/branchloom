@@ -135,6 +135,16 @@ describe('board filters and archive visibility', () => {
     const running = renderToStaticMarkup(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() }));
     expect(running).toContain('Gemini arbeitet');
     expect(running).not.toContain('Codex arbeitet');
+
+    snapshot.sessions = [{ ...snapshot.sessions[0]!, state: 'failed', endedAt: stamp, exitCode: 1 }];
+    const failed = renderToStaticMarkup(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() }));
+    expect(failed).toContain('Gemini · Lauf fehlgeschlagen');
+    expect(failed).toContain('data-run-state="failed"');
+    expect(failed).not.toContain('Gemini arbeitet');
+
+    snapshot.sessions = [{ ...snapshot.sessions[0]!, state: 'stopped', exitCode: null }];
+    const stopped = renderToStaticMarkup(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action() }));
+    expect(stopped).toContain('Gemini · Lauf gestoppt');
   });
 
   it('keeps session controls in the card drawer instead of claiming a universal resume action', () => {

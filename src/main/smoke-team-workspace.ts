@@ -15,10 +15,12 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
   projectPath: string, host: TeamLocalService): Promise<void> {
   const boardScreenshot = process.env.BRANCHLOOM_TEAM_BOARD_OVERVIEW_SCREENSHOT;
   const narrowBoardScreenshot = process.env.BRANCHLOOM_TEAM_BOARD_NARROW_SCREENSHOT;
+  const darkBoardScreenshot = process.env.BRANCHLOOM_TEAM_BOARD_DARK_SCREENSHOT;
   const projectName = boardScreenshot ? 'Atlas sample' : 'Synthetic team project';
   const project = store.createProject({ name: projectName, path: projectPath });
   const card = store.createCard({ projectId: project.id, columnId: store.snapshot(project.id).columns[0]!.id,
-    title: 'Shared planning card', description: 'Accepted source description' });
+    title: 'Shared planning card', description: 'Accepted source description',
+    ...(boardScreenshot ? { priority: 'high' as const, labels: ['Planning'] } : {}) });
   await new Promise<void>((resolve, reject) => {
     window.webContents.once('did-finish-load', () => resolve());
     window.webContents.once('did-fail-load', (_event, _code, detail) => reject(new Error(detail)));
@@ -26,12 +28,15 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
   });
   if (boardScreenshot) {
     const columns = store.snapshot(project.id).columns;
+    const sampleAgent = store.saveAgent({ name: 'Atlas', kind: 'custom', command: 'node', args: [], model: null, enabled: true });
+    if (columns[1]) store.updateColumn({ id: columns[1].id, agentId: sampleAgent.id });
+    if (columns[2]) store.updateColumn({ id: columns[2].id, agentId: sampleAgent.id });
     store.createCard({ projectId: project.id, columnId: columns[0]!.id,
-      title: 'Define workspace access', description: 'Agree on roles and project permissions.' });
+      title: 'Define workspace access', description: 'Agree on roles and project permissions.', priority: 'medium', labels: ['Team'] });
     store.createCard({ projectId: project.id, columnId: columns[1]?.id ?? columns[0]!.id,
-      title: 'Review the shared plan', description: 'Check the proposed work before an agent starts.' });
+      title: 'Review the shared plan', description: 'Check the proposed work before an agent starts.', priority: 'medium', labels: ['Review'] });
     store.createCard({ projectId: project.id, columnId: columns[2]?.id ?? columns[0]!.id,
-      title: 'Verify the result', description: 'Inspect the diff, tests, and visible app behavior.' });
+      title: 'Verify the result', description: 'Inspect the diff, tests, and visible app behavior.', labels: ['QA'] });
     await window.webContents.executeJavaScript(`(async () => {
       const select = document.querySelector('#project-select');
       if (!(select instanceof HTMLSelectElement)) throw new Error('Synthetic board selector is missing.');
@@ -56,6 +61,20 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
         const cardTop = await window.webContents.executeJavaScript(`(() => document.querySelector('.board-card-wrap')?.getBoundingClientRect().top ?? Infinity)()`);
         if (cardTop >= 760) throw new Error('Board cards are below the first narrow viewport.');
         writeFileSync(narrowBoardScreenshot, (await window.capturePage()).toPNG());
+      }
+      if (darkBoardScreenshot) {
+        window.setSize(1440, 900);
+        await window.webContents.executeJavaScript(`(async () => {
+          const toggle = document.querySelector('.theme-toggle');
+          if (!(toggle instanceof HTMLButtonElement)) throw new Error('Theme toggle is missing.');
+          toggle.click();
+          for (let attempt = 0; attempt < 30 && document.documentElement.dataset.theme !== 'dark'; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 20));
+          if (document.documentElement.dataset.theme !== 'dark') throw new Error('Dark board theme did not activate.');
+          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        })()`);
+        await new Promise((resolve) => setTimeout(resolve, 180));
+        writeFileSync(darkBoardScreenshot, (await window.capturePage()).toPNG());
+        await window.webContents.executeJavaScript(`(() => document.querySelector('.theme-toggle')?.click())()`);
       }
       await window.webContents.executeJavaScript(`(() => {
         const actions = document.querySelector('.board-more-tools');
