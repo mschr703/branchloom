@@ -50,27 +50,54 @@ const entries = objects.split(/\r?\n/).filter(Boolean).map((line) => {
   return { hash: separator < 0 ? line : line.slice(0, separator), path: separator < 0 ? '' : line.slice(separator + 1) };
 });
 if (entries.length) {
-  const batch = execFileSync('git', ['cat-file', '--batch'], {
-    input: Buffer.from(entries.map((entry) => entry.hash).join('\n') + '\n'), maxBuffer: 200 * 1024 * 1024,
-  });
-  let offset = 0;
-  for (const entry of entries) {
-    const lineEnd = batch.indexOf(10, offset);
-    if (lineEnd < 0) throw new Error('Incomplete Git object header');
-    const header = batch.toString('ascii', offset, lineEnd);
-    const match = header.match(/^[a-f0-9]+ (\w+) (\d+)$/);
-    if (!match) throw new Error('Invalid Git object header');
-    const size = Number(match[2]);
-    offset = lineEnd + 1;
-    if (match[1] === 'blob') {
-      const label = entry.path || entry.hash.slice(0, 12);
-      const historical = `${label} [history ${entry.hash.slice(0, 12)}]`;
-      if (forbiddenPath.test(label.replaceAll('\\', '/'))) failures.push(`${historical}: forbidden historical path`);
-      if (size > 10 * 1024 * 1024) failures.push(`${historical}: blob exceeds 10 MiB`);
-      else checkContent(historical, batch.toString('utf8', offset, offset + size));
-    }
-    offset += size + 1;
+  const headers = execFileSync('git', ['cat-file', '--batch-check=%(objectname) %(objecttype) %(objectsize)'], {
+    input: entries.map((entry) => entry.hash).join('\n') + '\n', encoding: 'utf8', maxBuffer: 2 * 1024 * 1024,
+  }).trimEnd().split('\n');
+  if (headers.length !== entries.length) throw new Error('Incomplete Git object inventory');
+  const blobs = [];
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index];
+    const match = headers[index].match(/^([a-f0-9]+) (\w+) (\d+)$/);
+    if (!match || match[1] !== entry.hash) throw new Error('Invalid Git object inventory');
+    if (match[2] !== 'blob') continue;
+    const size = Number(match[3]);
+    const label = entry.path || entry.hash.slice(0, 12);
+    const historical = `${label} [history ${entry.hash.slice(0, 12)}]`;
+    if (forbiddenPath.test(label.replaceAll('\\', '/'))) failures.push(`${historical}: forbidden historical path`);
+    if (size > 10 * 1024 * 1024) failures.push(`${historical}: blob exceeds 10 MiB`);
+    else blobs.push({ hash: entry.hash, historical, size });
   }
+
+  function checkBatch(items) {
+    if (!items.length) return;
+    const batch = execFileSync('git', ['cat-file', '--batch'], {
+      input: items.map((item) => item.hash).join('\n') + '\n', maxBuffer: 12 * 1024 * 1024,
+    });
+    let offset = 0;
+    for (const item of items) {
+      const lineEnd = batch.indexOf(10, offset);
+      if (lineEnd < 0) throw new Error('Incomplete Git object header');
+      const match = batch.toString('ascii', offset, lineEnd).match(/^([a-f0-9]+) blob (\d+)$/);
+      if (!match || match[1] !== item.hash || Number(match[2]) !== item.size) throw new Error('Invalid Git object header');
+      offset = lineEnd + 1;
+      checkContent(item.historical, batch.toString('utf8', offset, offset + item.size));
+      offset += item.size + 1;
+    }
+    if (offset !== batch.length) throw new Error('Unexpected trailing Git object data');
+  }
+
+  let batch = [];
+  let batchBytes = 0;
+  for (const blob of blobs) {
+    if (batchBytes + blob.size > 10 * 1024 * 1024) {
+      checkBatch(batch);
+      batch = [];
+      batchBytes = 0;
+    }
+    batch.push(blob);
+    batchBytes += blob.size;
+  }
+  checkBatch(batch);
 }
 if (failures.length) {
   for (const failure of failures) console.error(failure);

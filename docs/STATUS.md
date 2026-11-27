@@ -5,6 +5,7 @@ Stand: 27.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollst�
 ## Windows-Paketprüfung nach neuem Board-Kopf
 
 - Für Commit `9d76f0f` bestand der vollständige Windows-Verify-Job, während beide Paketjobs an derselben veralteten Smoke-Annahme scheiterten: Der Test suchte „Board“ noch im entfernten alten Kopftitel. Tatsächlich war der gespeicherte Diff-Kommentar geöffnet und fokussiert. Die beiden Prüfungen für Diff- und QA-Inbox suchen jetzt den aktiven Board-Tab. Der vollständige lokale Quell-Electron-Smoke bestand danach einschließlich der Navigation aus der Inbox. Der erneute Windows-Paketlauf für diese Korrektur steht noch aus; das bisherige Desktop-Paket ist nicht auf den neuen Commit aktualisiert.
+- Beim Push der Testkorrektur überschritt der Public-Guard seinen bisherigen 200-MB-Puffer für die gesamte erreichbare Historie und stoppte den Push. Er fragt Git-Objektarten und -größen jetzt zuerst kompakt ab und liest nur zulässige Blobs in begrenzten Batches; historische Pfade, Größenlimit und Secret-Prüfung bleiben erhalten. Fünf gezielte Guard-Tests und der vollständige Scan der inzwischen über 8500 erreichbaren Repo-Objekte bestanden. Ein neuer Push und Paketlauf stehen noch aus.
 
 ## Board-Kopf nach der Figma-Referenz (lokal geprüft)
 
