@@ -4,7 +4,7 @@
 
 ![Branchloom board with synthetic sample tasks](docs/assets/branchloom-board.png)
 
-*A board in the current light appearance. Every screenshot below comes from a disposable project with generated tasks; no user projects or accounts are shown.*
+*A board in the current light appearance. This image uses generated tasks and a simulated running session to show the session rail; no CLI process or user account is involved. Other screenshots below also use disposable project data.*
 
 ### From an idea to a checked result
 

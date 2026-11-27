@@ -36,8 +36,9 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
       title: 'Clarify the first project step', description: 'Show what a local folder import will index.', priority: 'medium', labels: ['Onboarding'] });
     store.createCard({ projectId: project.id, columnId: columns[1]?.id ?? columns[0]!.id,
       title: 'Review invitation flow', description: 'Keep project and team permissions distinct.', priority: 'medium', labels: ['Review'] });
-    store.createCard({ projectId: project.id, columnId: columns[2]?.id ?? columns[0]!.id,
+    const runningPreviewCard = store.createCard({ projectId: project.id, columnId: columns[2]?.id ?? columns[0]!.id,
       title: 'Make board filters keyboard friendly', description: 'Keep search and filter state in view.', labels: ['Board'] });
+    const runningPreview = store.createSession({ cardId: runningPreviewCard.id, agentId: sampleAgent.id });
     store.createCard({ projectId: project.id, columnId: columns[1]?.id ?? columns[0]!.id,
       title: 'Sketch project navigation', description: 'Compare the first route with the approved draft.', labels: ['Design'] });
     store.createCard({ projectId: project.id, columnId: columns[2]?.id ?? columns[0]!.id,
@@ -97,7 +98,10 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
         filters.querySelector('summary')?.click();
         return true;
       })()`);
-    } finally { window.setSize(originalSize[0]!, originalSize[1]!); }
+    } finally {
+      store.finishSession(runningPreview.id, 'stopped', null);
+      window.setSize(originalSize[0]!, originalSize[1]!);
+    }
   }
   const result = await window.webContents.executeJavaScript(`(async () => {
     const wait = async (predicate, label) => {
