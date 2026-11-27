@@ -31,7 +31,7 @@ function selectedSources(store: StudioStore, input: WhiteboardDiscussionInput) {
     const linkedCardId = node.reference?.kind === 'card' ? node.reference.cardId : null;
     const card = linkedCardId ? snapshot.cards.find((item) => item.id === linkedCardId) : null;
     const column = card ? snapshot.columns.find((item) => item.id === card.columnId) : null;
-    return { id: node.id, title: node.title, description: node.description.slice(0, 600), updatedAt: node.updatedAt,
+    return { id: node.id, shape: node.shape, title: node.title, description: node.description.slice(0, 600), updatedAt: node.updatedAt,
       reference: node.reference?.kind === 'card' ? `card:${node.reference.cardId}` : node.reference?.kind === 'file' || node.reference?.kind === 'folder' ? `${node.reference.kind}:${node.reference.path}` : null,
       cardStatus: card ? `${column?.name ?? 'Unknown column'}${card.archivedAt ? ' · archived' : ''}` : null };
   });

@@ -1,26 +1,46 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ReactFlow, Background, Controls, MiniMap, MarkerType, Position, SelectionMode, useNodesState, type Connection, type Edge, type Node, type ReactFlowInstance } from '@xyflow/react';
+import { ReactFlow, Background, Controls, MiniMap, MarkerType, NodeResizer, Position, SelectionMode, useNodesState, type Connection, type Edge, type Node, type ReactFlowInstance } from '@xyflow/react';
 import { ArrowRight, FileText, Folder, FolderTree, LayoutList, Minus, MousePointer2, Plus, StickyNote, Trash2 } from 'lucide-react';
-import type { ProjectSnapshot, WhiteboardEdge, WhiteboardEndMarker, WhiteboardLineStyle, WhiteboardNode, WhiteboardNodeShape, WhiteboardReference, WhiteboardSnapshot } from '../../shared/types';
+import type { ProjectSnapshot, WhiteboardEdge, WhiteboardEndMarker, WhiteboardFreeLine, WhiteboardLineStyle, WhiteboardNode, WhiteboardNodeShape, WhiteboardReference, WhiteboardSnapshot } from '../../shared/types';
 import type { RepoMapProposal, RepoMapImportResult } from '../../shared/repo-map';
 import type { WhiteboardDirectImporter, WhiteboardImpact } from '../../shared/whiteboard-impact';
 import type { WhiteboardDiscussionReply, WhiteboardDiscussionDraft } from '../../shared/whiteboard-discussion';
 import type { Mutate } from './shared';
+import { WHITEBOARD_MAX_HEIGHT, WHITEBOARD_MAX_WIDTH, WHITEBOARD_MIN_HEIGHT, WHITEBOARD_MIN_WIDTH } from '../../shared/whiteboard-geometry';
 import { RepoMapPreview } from './RepoMapPreview';
 import { repoMapOverview } from '../repo-map-overview';
 import { WhiteboardImpactResult } from './WhiteboardImpactResult';
+import { WhiteboardFreeLineLayer, type WhiteboardFreeLineDraftView } from './WhiteboardFreeLineLayer';
+import { MAX_WHITEBOARD_FREE_LINE_LENGTH } from '../../shared/whiteboard-free-line';
 import '@xyflow/react/dist/style.css';
 import './whiteboard.css';
 
 type EditDraft = { title: string; description: string; shape: WhiteboardNodeShape; referenceKind: 'none' | 'card' | 'folder' | 'file'; cardId: string; folderPath: string };
 type CardDraft = { title: string; description: string; columnId: string };
 type ImpactCardDraft = CardDraft & { site: WhiteboardDirectImporter; nodeId: string; referencePath: string };
-type NewNodeDraft = EditDraft & { projectId: string; x: number; y: number };
+type NewNodeDraft = EditDraft & { projectId: string; x: number; y: number; widthText: string; heightText: string };
 type EdgeAppearanceDraft = Pick<WhiteboardEdge, 'label' | 'lineStyle' | 'endMarker'>;
 type NewEdgeDraft = EdgeAppearanceDraft & { projectId: string; sourceId: string; targetId: string; expectedSourceUpdatedAt: string; expectedTargetUpdatedAt: string };
 type MoveDraft = { projectId: string; id: string; x: number; y: number; expectedUpdatedAt: string };
 const emptyDraft = (): EditDraft => ({ title: '', description: '', shape: 'card', referenceKind: 'none', cardId: '', folderPath: '' });
+const dimensionText = (value: number | null): string => value === null ? '' : String(value);
+const parsedDimension = (value: string, min: number, max: number): number | null | undefined => {
+  if (value.trim() === '') return null;
+  const number = Number(value);
+  return Number.isInteger(number) && number >= min && number <= max ? number : undefined;
+};
+const draftSizeStyle = (widthText: string, heightText: string): { width?: number; height?: number } => {
+  const width = parsedDimension(widthText, WHITEBOARD_MIN_WIDTH, WHITEBOARD_MAX_WIDTH);
+  const height = parsedDimension(heightText, WHITEBOARD_MIN_HEIGHT, WHITEBOARD_MAX_HEIGHT);
+  return { ...(width !== null && width !== undefined ? { width } : {}),
+    ...(height !== null && height !== undefined ? { height } : {}) };
+};
 const shapeDragType = 'application/x-branchloom-whiteboard-shape';
+const validFreeLine = (line: WhiteboardFreeLineDraftView): boolean => {
+  const values = [line.x1, line.y1, line.x2, line.y2];
+  const length = Math.hypot(line.x2 - line.x1, line.y2 - line.y1);
+  return values.every((value) => Number.isFinite(value) && Math.abs(value) <= 100000) && length >= 8 && length <= MAX_WHITEBOARD_FREE_LINE_LENGTH;
+};
 const shapeOptions: Array<{ shape: WhiteboardNodeShape; label: string; group: 'Ablauf' | 'Inhalt'; title: string }> = [
   { shape: 'card', label: 'Box', group: 'Inhalt', title: 'Neuer Bereich' },
   { shape: 'step', label: 'Prozess', group: 'Ablauf', title: 'Neuer Prozess' },
@@ -62,6 +82,11 @@ function referenceOf(draft: EditDraft): WhiteboardReference | null {
 export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { snapshot: ProjectSnapshot; mutate: Mutate; onOpenCard: (id: string) => void; openNodeId?: string | null }) {
   const projectId = snapshot.project.id;
   const [board, setBoard] = useState<WhiteboardSnapshot>({ nodes: [], edges: [] });
+  const [freeLines, setFreeLines] = useState<WhiteboardFreeLine[]>([]);
+  const [lineMode, setLineMode] = useState(false);
+  const [freeLineDraft, setFreeLineDraft] = useState<WhiteboardFreeLineDraftView | null>(null);
+  const [selectedFreeLineId, setSelectedFreeLineId] = useState<string | null>(null);
+  const [freeLineEdit, setFreeLineEdit] = useState<WhiteboardFreeLineDraftView | null>(null);
   const [flowNodes, setFlowNodes, onNodesChange] = useNodesState<Node>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
@@ -71,6 +96,7 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
   const [newEdgeDraft, setNewEdgeDraft] = useState<NewEdgeDraft | null>(null);
   const [edgeAppearance, setEdgeAppearance] = useState<EdgeAppearanceDraft>({ label: '', lineStyle: 'solid', endMarker: 'none' });
   const [moveDraft, setMoveDraft] = useState<MoveDraft | null>(null);
+  const [sizeFields, setSizeFields] = useState({ width: '', height: '' });
   const [connectTargetId, setConnectTargetId] = useState('');
   const [selectArea, setSelectArea] = useState(false);
   const [areaIds, setAreaIds] = useState<string[]>([]);
@@ -105,6 +131,7 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
   const impactTitleRef = useRef<HTMLInputElement | null>(null);
   const impactReturnFocus = useRef<HTMLButtonElement | null>(null);
   const flowApi = useRef<ReactFlowInstance<Node, Edge> | null>(null);
+  const linePointer = useRef<number | null>(null);
   const latestProjectId = useRef(projectId);
   latestProjectId.current = projectId;
 
@@ -112,14 +139,15 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
     [areaQuestion, newNodeDraft?.title, newNodeDraft?.description, newEdgeDraft?.label]);
 
   const reload = useCallback(async () => {
-    const next = await window.studio.whiteboard(projectId);
-    if (latestProjectId.current === projectId) { setBoard(next); areaRequest.current++; setAreaReply(null); }
+    const [next, lines] = await Promise.all([window.studio.whiteboard(projectId), window.studio.whiteboardFreeLines(projectId)]);
+    if (latestProjectId.current === projectId) { setBoard(next); setFreeLines(lines); areaRequest.current++; setAreaReply(null); }
   }, [projectId]);
 
   useEffect(() => {
     let live = true;
     setLoading(true);
     setSelected(null);
+    setFreeLines([]); setFreeLineDraft(null); setSelectedFreeLineId(null); setFreeLineEdit(null); setLineMode(false); linePointer.current = null;
     setSelectedEdge(null);
     setCardDraft(null);
     setNewNodeDraft(null); setNewEdgeDraft(null); setMoveDraft(null); setSelectArea(false); setAreaIds([]); setAreaOmitted(0); setAreaFilter(''); setAreaReply(null); setAreaError(''); setAreaBusy(false); areaRequest.current++; activeAreaRequest.current = null; areaSelectionKey.current = '';
@@ -129,7 +157,7 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
     setRepoRevision(0);
     setAutomaticProposal(null); setAutomaticProposalProjectId(null); setAutomaticMapError(''); setAutomaticMapBusy(false); setSelectedProposal(null);
     impactRequest.current++; setImpact(null); setImpactError(''); setImpactBusy(false); setImpactCardDraft(null);
-    window.studio.whiteboard(projectId).then((next) => { if (live) setBoard(next); })
+    Promise.all([window.studio.whiteboard(projectId), window.studio.whiteboardFreeLines(projectId)]).then(([next, lines]) => { if (live) { setBoard(next); setFreeLines(lines); } })
       .catch((reason: unknown) => { if (live) setError(message(reason)); })
       .finally(() => { if (live) setLoading(false); });
     return () => { live = false; };
@@ -152,7 +180,7 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
   }, [projectId, openNodeId]);
 
   useEffect(() => {
-    if (loading || (board.nodes.length > 0 && canvasMode !== 'repository') || automaticProposal || automaticMapBusy || automaticMapError) return;
+    if (loading || ((board.nodes.length > 0 || freeLines.length > 0) && canvasMode !== 'repository') || automaticProposal || automaticMapBusy || automaticMapError) return;
     let live = true;
     setAutomaticMapBusy(true);
     void window.studio.previewRepoMap(projectId)
@@ -160,9 +188,9 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
       .catch((reason: unknown) => { if (live) setAutomaticMapError(message(reason)); })
       .finally(() => { if (live) setAutomaticMapBusy(false); });
     return () => { live = false; };
-  }, [projectId, loading, board.nodes.length, canvasMode, repoRevision]);
+  }, [projectId, loading, board.nodes.length, freeLines.length, canvasMode, repoRevision]);
 
-  const showRepository = canvasMode === 'repository' || (board.nodes.length === 0 && !newNodeDraft);
+  const showRepository = canvasMode === 'repository' || (board.nodes.length === 0 && freeLines.length === 0 && !newNodeDraft && !freeLineDraft && !lineMode);
   const overview = useMemo(() => showRepository && automaticProposalProjectId === projectId && automaticProposal ? repoMapOverview(automaticProposal) : null,
     [showRepository, automaticProposalProjectId, projectId, automaticProposal]);
   const previewNode = overview?.nodes.find((node) => node.id === selectedProposal) ?? null;
@@ -183,13 +211,22 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
       const targetDy = incoming.reduce((sum, node) => sum + node.y - item.y, 0);
       const sourcePosition = Math.abs(sourceDy) > Math.abs(sourceDx) ? (sourceDy < 0 ? Position.Top : Position.Bottom) : sourceDx < 0 ? Position.Left : Position.Right;
       const targetPosition = Math.abs(targetDy) > Math.abs(targetDx) ? (targetDy < 0 ? Position.Top : Position.Bottom) : targetDx > 0 ? Position.Right : Position.Left;
-      return { id: item.id, position: { x: item.x, y: item.y }, sourcePosition, targetPosition, data: {
-      label: <div className="wb-node-content"><span className="wb-node-kind">{item.reference?.kind === 'card' ? <LayoutList size={13} aria-hidden="true" /> : item.reference?.kind === 'folder' ? <Folder size={13} aria-hidden="true" /> : item.reference?.kind === 'file' ? <FileText size={13} aria-hidden="true" /> : <StickyNote size={13} aria-hidden="true" />}{item.reference?.kind === 'card' ? 'Board-Karte' : item.reference?.kind === 'folder' ? 'Ordner' : item.reference?.kind === 'file' ? 'Datei' : shapeOptions.find((option) => option.shape === item.shape)?.label ?? 'Skizze'}</span><strong>{item.title}</strong>{item.description ? <span className="wb-node-description">{item.description}</span> : null}
+      return { id: item.id, position: { x: item.x, y: item.y }, sourcePosition, targetPosition,
+        style: { ...(item.width !== null ? { width: item.width } : {}), ...(item.height !== null ? { height: item.height } : {}) },
+        selected: selected === item.id, data: {
+      label: <><NodeResizer nodeId={item.id} isVisible={selected === item.id && !busy && !selectArea} minWidth={WHITEBOARD_MIN_WIDTH} maxWidth={WHITEBOARD_MAX_WIDTH} minHeight={WHITEBOARD_MIN_HEIGHT} maxHeight={WHITEBOARD_MAX_HEIGHT}
+        handleClassName="wb-resize-handle" lineClassName="wb-resize-outline" onResizeEnd={(_event, params) => {
+          const width = Math.round(params.width); const height = Math.round(params.height);
+          setMoveDraft({ projectId, id: item.id, x: params.x, y: params.y, expectedUpdatedAt: item.updatedAt });
+          setSizeFields({ width: String(width), height: String(height) });
+          setFlowNodes((nodes) => nodes.map((node) => node.id === item.id ? { ...node, position: { x: params.x, y: params.y }, width, height,
+            style: { ...node.style, width, height } } : node));
+        }} /><div className="wb-node-content"><span className="wb-node-kind">{item.reference?.kind === 'card' ? <LayoutList size={13} aria-hidden="true" /> : item.reference?.kind === 'folder' ? <Folder size={13} aria-hidden="true" /> : item.reference?.kind === 'file' ? <FileText size={13} aria-hidden="true" /> : <StickyNote size={13} aria-hidden="true" />}{item.reference?.kind === 'card' ? 'Board-Karte' : item.reference?.kind === 'folder' ? 'Ordner' : item.reference?.kind === 'file' ? 'Datei' : shapeOptions.find((option) => option.shape === item.shape)?.label ?? 'Skizze'}</span><strong>{item.title}</strong>{item.description ? <span className="wb-node-description">{item.description}</span> : null}
         {item.reference?.kind === 'card' ? <small>{snapshot.cards.find((card) => card.id === (item.reference as { kind: 'card'; cardId: string }).cardId)?.title ?? 'Karte entfernt'}</small> : null}
-        {item.reference?.kind === 'folder' || item.reference?.kind === 'file' ? <small>{item.reference.path}</small> : null}</div>,
+        {item.reference?.kind === 'folder' || item.reference?.kind === 'file' ? <small>{item.reference.path}</small> : null}</div></>,
     }, className: `wb-node wb-node-${item.reference?.kind ?? 'note'} wb-shape-${item.shape}${item.reference ? ' wb-node-linked' : ''}` };
     }));
-  }, [board.nodes, board.edges, overview, showRepository, snapshot.cards]);
+  }, [board.nodes, board.edges, overview, showRepository, snapshot.cards, selected, busy, selectArea]);
 
   useEffect(() => {
     if (!flowNodes.length) return;
@@ -198,6 +235,7 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
   }, [projectId, flowNodes.length]);
 
   const canvasNodes = useMemo<Node[]>(() => newNodeDraft && !showRepository ? [...flowNodes, { id: 'whiteboard-unsaved-draft', position: { x: newNodeDraft.x, y: newNodeDraft.y },
+    style: draftSizeStyle(newNodeDraft.widthText, newNodeDraft.heightText),
     sourcePosition: Position.Right, targetPosition: Position.Left, data: { label: <div className="wb-node-content"><span className="wb-node-kind"><StickyNote size={13} aria-hidden="true" /> Entwurf</span><strong>{newNodeDraft.title || 'Neue Box'}</strong><small>Nicht gespeichert</small></div> },
     className: `wb-node wb-node-note wb-shape-${newNodeDraft.shape} wb-unsaved-node`, selectable: false }] : flowNodes, [flowNodes, newNodeDraft, showRepository]);
   const flowEdges = useMemo<Edge[]>(() => showRepository ? overview?.edges.map((item) => ({ id: `${item.sourceId}>${item.targetId}`, source: item.sourceId, target: item.targetId,
@@ -209,18 +247,46 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
     markerEnd: newEdgeDraft.endMarker === 'arrow' ? { type: MarkerType.ArrowClosed, width: 16, height: 16, color: 'var(--accent)' } : undefined,
     className: 'wb-unsaved-edge' }] : [])], [board.edges, overview, showRepository, newEdgeDraft]);
   const selectedNode = board.nodes.find((item) => item.id === selected) ?? null;
+  const widthValue = parsedDimension(sizeFields.width, WHITEBOARD_MIN_WIDTH, WHITEBOARD_MAX_WIDTH);
+  const heightValue = parsedDimension(sizeFields.height, WHITEBOARD_MIN_HEIGHT, WHITEBOARD_MAX_HEIGHT);
+  const sizeDirty = Boolean(selectedNode && (sizeFields.width !== dimensionText(selectedNode.width) || sizeFields.height !== dimensionText(selectedNode.height)));
+  const geometryPending = Boolean(selectedNode && (moveDraft?.id === selectedNode.id || sizeDirty));
   const edge = board.edges.find((item) => item.id === selectedEdge) ?? null;
+  const selectedFreeLine = freeLines.find((item) => item.id === selectedFreeLineId) ?? null;
+  useEffect(() => { setFreeLineEdit(selectedFreeLine ? { x1: selectedFreeLine.x1, y1: selectedFreeLine.y1, x2: selectedFreeLine.x2, y2: selectedFreeLine.y2,
+    lineStyle: selectedFreeLine.lineStyle, endMarker: selectedFreeLine.endMarker, label: selectedFreeLine.label } : null); }, [selectedFreeLine?.id, selectedFreeLine?.updatedAt]);
   useEffect(() => { setEdgeAppearance(edge ? { label: edge.label, lineStyle: edge.lineStyle, endMarker: edge.endMarker } : { label: '', lineStyle: 'solid', endMarker: 'none' }); }, [edge?.id, edge?.updatedAt]);
-  const inspectorVisible = showRepository || Boolean(newNodeDraft || newEdgeDraft || selectedNode || edge || selectArea);
+  const inspectorVisible = showRepository || Boolean(newNodeDraft || newEdgeDraft || selectedNode || edge || selectArea || lineMode || freeLineDraft || selectedFreeLine);
 
   function discardMoveDraft() {
-    if (!moveDraft) return;
-    const original = board.nodes.find((item) => item.id === moveDraft.id);
-    if (original) setFlowNodes((nodes) => nodes.map((node) => node.id === original.id ? { ...node, position: { x: original.x, y: original.y } } : node));
+    if (!moveDraft && !sizeDirty) return;
+    const original = board.nodes.find((item) => item.id === (moveDraft?.id ?? selected));
+    if (original) {
+      setFlowNodes((nodes) => nodes.map((node) => node.id === original.id ? { ...node,
+        position: { x: original.x, y: original.y },
+        width: original.width ?? undefined, height: original.height ?? undefined,
+        style: { ...(original.width !== null ? { width: original.width } : {}), ...(original.height !== null ? { height: original.height } : {}) } } : node));
+      setSizeFields({ width: dimensionText(original.width), height: dimensionText(original.height) });
+    }
     setMoveDraft(null);
   }
 
-  useEffect(() => { setDraft(selectedNode ? draftOf(selectedNode) : emptyDraft()); }, [selectedNode?.id]);
+  useEffect(() => {
+    setDraft(selectedNode ? draftOf(selectedNode) : emptyDraft());
+    setSizeFields({ width: dimensionText(selectedNode?.width ?? null), height: dimensionText(selectedNode?.height ?? null) });
+  }, [selectedNode?.id, selectedNode?.updatedAt]);
+
+  function editSize(axis: 'width' | 'height', value: string) {
+    const next = { ...sizeFields, [axis]: value };
+    setSizeFields(next);
+    if (!selectedNode) return;
+    const width = parsedDimension(next.width, WHITEBOARD_MIN_WIDTH, WHITEBOARD_MAX_WIDTH);
+    const height = parsedDimension(next.height, WHITEBOARD_MIN_HEIGHT, WHITEBOARD_MAX_HEIGHT);
+    if (width === undefined || height === undefined) return;
+    setFlowNodes((nodes) => nodes.map((node) => node.id === selectedNode.id ? { ...node,
+      width: width ?? undefined, height: height ?? undefined,
+      style: { ...(width !== null ? { width } : {}), ...(height !== null ? { height } : {}) } } : node));
+  }
   useEffect(() => {
     impactRequest.current++;
     setImpact(null); setImpactError(''); setImpactBusy(false); setImpactCardDraft(null);
@@ -283,9 +349,89 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
     const rect = canvas?.getBoundingClientRect();
     const center = flowApi.current?.screenToFlowPosition(dropPoint ?? { x: (rect?.left ?? 0) + (rect?.width ?? 0) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 0) / 2 });
     const title = shapeOptions.find((option) => option.shape === shape)?.title ?? 'Neue Box';
-    setNewNodeDraft({ ...emptyDraft(), shape, projectId, title, x: center ? Math.round(center.x - 111) : (index % 3) * 260, y: center ? Math.round(center.y - 50) : Math.floor(index / 3) * 180 });
-    discardMoveDraft(); setCanvasMode('board'); setSelected(null); setSelectedEdge(null); setCardDraft(null); setSelectArea(false); setAreaReply(null); setAreaError('');
+    setNewNodeDraft({ ...emptyDraft(), shape, projectId, title, x: center ? Math.round(center.x - 111) : (index % 3) * 260, y: center ? Math.round(center.y - 50) : Math.floor(index / 3) * 180,
+      widthText: '', heightText: '' });
+    discardMoveDraft(); setCanvasMode('board'); setSelected(null); setSelectedEdge(null); setSelectedFreeLineId(null); setLineMode(false); setCardDraft(null); setSelectArea(false); setAreaReply(null); setAreaError('');
     setAutomaticProposal(null); setAutomaticProposalProjectId(null); setSelectedProposal(null);
+  }
+
+  function toggleLineMode() {
+    if (busy || newNodeDraft || newEdgeDraft || freeLineDraft) return;
+    discardMoveDraft();
+    setCanvasMode('board'); setLineMode((value) => !value);
+    setSelected(null); setSelectedEdge(null); setSelectedFreeLineId(null); setSelectArea(false); setCardDraft(null); setError('');
+  }
+
+  function startKeyboardLine() {
+    const rect = document.querySelector('.wb-canvas .react-flow')?.getBoundingClientRect();
+    const center = flowApi.current?.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 400) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 300) / 2 });
+    const x = Math.round(center?.x ?? 0);
+    const y = Math.round(center?.y ?? 0);
+    setFreeLineDraft({ x1: x - 70, y1: y, x2: x + 70, y2: y, lineStyle: 'solid', endMarker: 'none', label: '' });
+    setLineMode(false);
+  }
+
+  function linePoint(event: React.PointerEvent<HTMLDivElement>) {
+    return flowApi.current?.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+  }
+
+  function startLinePointer(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0 || busy) return;
+    const point = linePoint(event);
+    if (!point) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    linePointer.current = event.pointerId;
+    setFreeLineDraft({ x1: point.x, y1: point.y, x2: point.x, y2: point.y, lineStyle: 'solid', endMarker: 'none', label: '' });
+  }
+
+  function moveLinePointer(event: React.PointerEvent<HTMLDivElement>) {
+    if (linePointer.current !== event.pointerId) return;
+    const point = linePoint(event);
+    if (point) setFreeLineDraft((current) => current ? { ...current, x2: point.x, y2: point.y } : null);
+  }
+
+  function endLinePointer(event: React.PointerEvent<HTMLDivElement>) {
+    if (linePointer.current !== event.pointerId) return;
+    linePointer.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    const point = linePoint(event);
+    const next = freeLineDraft && point ? { ...freeLineDraft, x2: point.x, y2: point.y } : null;
+    if (!next || !validFreeLine(next)) { setFreeLineDraft(null); setError(`Linie zu kurz oder zu lang. Erlaubt sind 8–${MAX_WHITEBOARD_FREE_LINE_LENGTH} px.`); return; }
+    setFreeLineDraft(next); setLineMode(false); setError('');
+  }
+
+  async function saveFreeLine() {
+    if (!freeLineDraft || !validFreeLine(freeLineDraft) || busy) return;
+    const pending = freeLineDraft;
+    await run(async () => {
+      const created = await window.studio.createWhiteboardFreeLine({ projectId, ...pending });
+      if (latestProjectId.current === projectId) { setFreeLineDraft(null); setSelectedFreeLineId(created.id); }
+    });
+  }
+
+  async function updateFreeLine() {
+    if (!selectedFreeLine || !freeLineEdit || !validFreeLine(freeLineEdit) || busy) return;
+    const id = selectedFreeLine.id;
+    const expectedUpdatedAt = selectedFreeLine.updatedAt;
+    setBusy(true); setError('');
+    try { await window.studio.updateWhiteboardFreeLine({ projectId, id, expectedUpdatedAt, ...freeLineEdit }); await reload(); }
+    catch (reason) { setError(message(reason)); if (message(reason).includes('changed since the draft')) { try { await reload(); } catch { /* Keep the original error visible. */ } } }
+    finally { if (latestProjectId.current === projectId) setBusy(false); }
+  }
+
+  async function deleteFreeLine() {
+    if (!selectedFreeLine || busy || !window.confirm('Freie Linie entfernen?')) return;
+    const id = selectedFreeLine.id;
+    const expectedUpdatedAt = selectedFreeLine.updatedAt;
+    setBusy(true); setError('');
+    try { await window.studio.deleteWhiteboardFreeLine({ projectId, id, expectedUpdatedAt }); setSelectedFreeLineId(null); await reload(); }
+    catch (reason) { setError(message(reason)); if (message(reason).includes('changed since the draft')) { try { await reload(); } catch { /* Keep the original error visible. */ } } }
+    finally { if (latestProjectId.current === projectId) setBusy(false); }
+  }
+
+  function freeLineCoordinates(value: WhiteboardFreeLineDraftView, onChange: (next: WhiteboardFreeLineDraftView) => void) {
+    return <div className="wb-line-coordinates" role="group" aria-label="Linienkoordinaten">{(['x1', 'y1', 'x2', 'y2'] as const).map((key) => <label key={key}>{key.toUpperCase()}<input type="number" min={-100000} max={100000} step="1" value={value[key]} onChange={(event) => onChange({ ...value, [key]: Number(event.target.value) })} /></label>)}</div>;
   }
 
   function clearAreaSelection() {
@@ -296,16 +442,17 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
   }
 
   function switchCanvasMode() {
+    if (freeLineDraft || lineMode) return;
     discardMoveDraft();
     setCanvasMode(canvasMode === 'repository' ? 'board' : 'repository');
-    setSelected(null); setSelectedEdge(null); setSelectedProposal(null); setSelectArea(false);
+    setSelected(null); setSelectedEdge(null); setSelectedFreeLineId(null); setLineMode(false); setSelectedProposal(null); setSelectArea(false);
     clearAreaSelection();
   }
 
   function toggleAreaMode() {
     discardMoveDraft();
     setSelectArea((value) => !value);
-    setSelected(null); setSelectedEdge(null);
+    setSelected(null); setSelectedEdge(null); setSelectedFreeLineId(null); setLineMode(false);
     clearAreaSelection();
   }
 
@@ -315,15 +462,18 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
     const source = board.nodes.find((node) => node.id === connection.source)!;
     const target = board.nodes.find((node) => node.id === connection.target)!;
     setNewEdgeDraft({ projectId, sourceId: source.id, targetId: target.id, label: '', lineStyle: 'solid', endMarker: 'none', expectedSourceUpdatedAt: source.updatedAt, expectedTargetUpdatedAt: target.updatedAt });
-    setNewNodeDraft(null); setSelected(null); setSelectedEdge(null); setAreaIds([connection.source, connection.target]); setAreaReply(null); setAreaError('');
+    setNewNodeDraft(null); setSelected(null); setSelectedEdge(null); setSelectedFreeLineId(null); setAreaIds([connection.source, connection.target]); setAreaReply(null); setAreaError('');
   }
 
   async function saveNewNode() {
     if (!newNodeDraft || newNodeDraft.projectId !== projectId || busy) return;
     const pending = newNodeDraft;
+    const width = parsedDimension(pending.widthText, WHITEBOARD_MIN_WIDTH, WHITEBOARD_MAX_WIDTH);
+    const height = parsedDimension(pending.heightText, WHITEBOARD_MIN_HEIGHT, WHITEBOARD_MAX_HEIGHT);
+    if (width === undefined || height === undefined) return;
     await run(async () => {
       const created = await window.studio.createWhiteboardNode({ projectId, title: pending.title, description: pending.description,
-        x: pending.x, y: pending.y, shape: pending.shape, reference: referenceOf(pending) });
+        x: pending.x, y: pending.y, width, height, shape: pending.shape, reference: referenceOf(pending) });
       if (latestProjectId.current === projectId) { setNewNodeDraft(null); setSelected(created.id); }
     });
   }
@@ -368,6 +518,17 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
   function saveNode() {
     if (!selectedNode) return;
     void run(() => window.studio.updateWhiteboardNode({ projectId, id: selectedNode.id, title: draft.title, description: draft.description, shape: draft.shape, reference: referenceOf(draft), expectedUpdatedAt: selectedNode.updatedAt }));
+  }
+
+  function saveGeometry() {
+    if (!selectedNode || !geometryPending || widthValue === undefined || heightValue === undefined) return;
+    const pending = moveDraft?.id === selectedNode.id ? moveDraft : null;
+    void run(async () => {
+      await window.studio.updateWhiteboardNode({ projectId, id: selectedNode.id, x: pending?.x, y: pending?.y,
+        width: sizeDirty ? widthValue : undefined, height: sizeDirty ? heightValue : undefined,
+        expectedUpdatedAt: pending?.expectedUpdatedAt ?? selectedNode.updatedAt });
+      setMoveDraft(null);
+    });
   }
 
   function deleteNode() {
@@ -433,32 +594,34 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
     <div className="view-header wb-heading"><div><h2>Architektur</h2><p>Skizze bearbeiten, Bereich besprechen, gespeicherte Bezüge in Kartenläufe mitnehmen.</p></div>
       <div className="wb-heading-actions">
         {!loading && !inspectorVisible && board.edges.length > 0 ? <details className="wb-connection-index"><summary>Verbindungen · {board.edges.length}</summary><div>{board.edges.map((item) => <button type="button" key={item.id} onClick={() => { setSelectedEdge(item.id); setSelected(null); setCardDraft(null); }}><span>{board.nodes.find((node) => node.id === item.sourceId)?.title ?? 'Entfernte Box'} → {board.nodes.find((node) => node.id === item.targetId)?.title ?? 'Entfernte Box'}</span></button>)}</div></details> : null}
-        {board.nodes.length > 0 ? <button className="secondary-button" type="button" disabled={loading} onClick={switchCanvasMode}><FolderTree size={16} /> {canvasMode === 'repository' ? 'Arbeitsfläche ansehen' : 'Git-Struktur ansehen'}</button> : null}
+        {board.nodes.length > 0 || freeLines.length > 0 ? <button className="secondary-button" type="button" disabled={loading || Boolean(freeLineDraft) || lineMode} onClick={switchCanvasMode}><FolderTree size={16} /> {canvasMode === 'repository' ? 'Arbeitsfläche ansehen' : 'Git-Struktur ansehen'}</button> : null}
         {!showRepository && board.nodes.length ? <button className={selectArea ? 'secondary-button wb-select-active' : 'secondary-button'} type="button" aria-pressed={selectArea} onClick={toggleAreaMode}><MousePointer2 size={16} /> {selectArea ? 'Auswahl beenden' : 'Bereich wählen'}</button> : null}
       </div></div>
     {error ? <div className="error-banner" role="alert"><span>{error}</span><button type="button" aria-label="Fehler schließen" onClick={() => setError('')}>×</button></div> : null}
     {mapResult ? <p className="wb-import-result" role="status">Repo-Struktur übernommen: {mapResult.createdNodes} neue Boxen, {mapResult.reusedNodes} vorhandene Boxen, {mapResult.createdEdges} neue Verbindungen.</p> : null}
     <div className={`wb-workspace${inspectorVisible ? '' : ' wb-workspace-full'}`}>
-      <div className={`wb-canvas${!showRepository && !selectArea && !loading ? ' wb-canvas-has-rail' : ''}`} aria-label="Architektur-Canvas" onDragOver={(event) => { if (event.dataTransfer.types.includes(shapeDragType)) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }} onDrop={(event) => { const value = event.dataTransfer.getData(shapeDragType); if (!shapeOptions.some((option) => option.shape === value) || busy || loading || newNodeDraft) return; event.preventDefault(); addNode(value as WhiteboardNodeShape, { x: event.clientX, y: event.clientY }); }}>
+      <div className={`wb-canvas${canvasMode !== 'repository' && !selectArea && !loading ? ' wb-canvas-has-rail' : ''}`} aria-label="Architektur-Canvas" onDragOver={(event) => { if (event.dataTransfer.types.includes(shapeDragType)) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }} onDrop={(event) => { const value = event.dataTransfer.getData(shapeDragType); if (!shapeOptions.some((option) => option.shape === value) || busy || loading || newNodeDraft) return; event.preventDefault(); addNode(value as WhiteboardNodeShape, { x: event.clientX, y: event.clientY }); }}>
         {loading ? <div className="wb-loading">Whiteboard wird geladen…</div> : <ReactFlow nodes={canvasNodes} edges={flowEdges} onNodesChange={onNodesChange} onConnect={connect}
           onInit={(instance) => { flowApi.current = instance; }}
           onNodeDragStop={(_event, node) => { if (node.id === 'whiteboard-unsaved-draft') setNewNodeDraft((current) => current ? { ...current, x: node.position.x, y: node.position.y } : null);
             else if (!showRepository) { const original = board.nodes.find((item) => item.id === node.id); if (original) { if (moveDraft?.id !== node.id) discardMoveDraft(); setSelected(node.id); setMoveDraft({ projectId, id: node.id, x: node.position.x, y: node.position.y, expectedUpdatedAt: original.updatedAt }); } } }}
-          onNodeClick={(_event, node) => { if (overview) setSelectedProposal(node.id); else if (node.id !== 'whiteboard-unsaved-draft' && !selectArea) { if (moveDraft?.id !== node.id) discardMoveDraft(); setSelected(node.id); } setSelectedEdge(null); setCardDraft(null); }}
-          onEdgeClick={(_event, clicked) => { if (overview) return; discardMoveDraft(); setSelectedEdge(clicked.id); setSelected(null); setCardDraft(null); }}
-          onPaneClick={() => { if (!selectArea) { discardMoveDraft(); setSelected(null); setSelectedEdge(null); setSelectedProposal(null); setCardDraft(null); } }}
+          onNodeClick={(_event, node) => { if (overview) setSelectedProposal(node.id); else if (node.id !== 'whiteboard-unsaved-draft' && !selectArea) { if (moveDraft?.id !== node.id) discardMoveDraft(); setSelected(node.id); } setSelectedEdge(null); setSelectedFreeLineId(null); setCardDraft(null); }}
+          onEdgeClick={(_event, clicked) => { if (overview) return; discardMoveDraft(); setSelectedEdge(clicked.id); setSelected(null); setSelectedFreeLineId(null); setCardDraft(null); }}
+          onPaneClick={() => { if (!selectArea) { discardMoveDraft(); setSelected(null); setSelectedEdge(null); setSelectedFreeLineId(null); setSelectedProposal(null); setCardDraft(null); } }}
           onSelectionChange={({ nodes }) => { if (!selectArea || showRepository) return; const saved = nodes.map((node) => node.id).filter((id) => id !== 'whiteboard-unsaved-draft'); const ids = saved.slice(0, 12); const omitted = saved.length - ids.length; const key = `${[...ids].sort().join('|')}+${omitted}`; if (key === areaSelectionKey.current) return; areaSelectionKey.current = key; areaRequest.current++; setAreaIds(ids); setAreaOmitted(omitted); setAreaReply(null); setAreaError(''); }}
           nodesConnectable={!busy && !showRepository && !selectArea} nodesDraggable={!busy && !showRepository && !selectArea} fitView fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
           selectionOnDrag={selectArea} selectionMode={SelectionMode.Partial} panOnDrag={selectArea ? [1, 2] : true}
           deleteKeyCode={null} selectionKeyCode={selectArea ? null : 'Shift'} attributionPosition="bottom-left">
-          <Background color="var(--border)" gap={24} size={1} /><Controls showInteractive={false} />{(overview?.nodes.length ?? board.nodes.length) > 8 ? <MiniMap pannable zoomable maskColor="var(--surface-2)" /> : null}
+          <Background color="var(--border)" gap={24} size={1} /><Controls showInteractive={false} />{!showRepository ? <WhiteboardFreeLineLayer lines={freeLines} draft={freeLineDraft} selectedId={selectedFreeLineId} onSelect={(id) => { discardMoveDraft(); setSelectedFreeLineId(id); setSelected(null); setSelectedEdge(null); setCardDraft(null); }} /> : null}{(overview?.nodes.length ?? board.nodes.length) > 8 ? <MiniMap pannable zoomable maskColor="var(--surface-2)" /> : null}
         </ReactFlow>}
-        {!showRepository && !selectArea && !loading ? <div className="wb-shape-rail" aria-label="Formenbibliothek">
+        {lineMode && !loading ? <div className="wb-line-draw-surface" aria-label="Linie auf der Arbeitsfläche zeichnen" onPointerDown={startLinePointer} onPointerMove={moveLinePointer} onPointerUp={endLinePointer} onPointerCancel={(event) => { if (linePointer.current === event.pointerId) { linePointer.current = null; setFreeLineDraft(null); } }} /> : null}
+        {canvasMode !== 'repository' && !selectArea && !loading ? <div className="wb-shape-rail" aria-label="Formenbibliothek">
           <strong>Formen</strong>
           {(['Ablauf', 'Inhalt'] as const).map((group) => <div className="wb-shape-rail-group" key={group} role="group" aria-label={group}>
             <small>{group}</small>
-            {shapeOptions.filter((option) => option.group === group).map((option) => <button key={option.shape} type="button" aria-label={`${option.label} entwerfen`} draggable={!busy && !loading && !newNodeDraft} disabled={busy || loading || Boolean(newNodeDraft)} onDragStart={(event) => { event.dataTransfer.setData(shapeDragType, option.shape); event.dataTransfer.effectAllowed = 'copy'; }} onClick={() => addNode(option.shape)} title={`${option.label} entwerfen oder auf Arbeitsfläche ziehen`}><span className={`wb-shape-glyph wb-shape-glyph-${option.shape}`} aria-hidden="true" /><span>{option.label}</span></button>)}
+            {shapeOptions.filter((option) => option.group === group).map((option) => <button key={option.shape} type="button" aria-label={`${option.label} entwerfen`} draggable={!busy && !loading && !newNodeDraft && !freeLineDraft && !lineMode} disabled={busy || loading || Boolean(newNodeDraft || freeLineDraft || lineMode)} onDragStart={(event) => { event.dataTransfer.setData(shapeDragType, option.shape); event.dataTransfer.effectAllowed = 'copy'; }} onClick={() => addNode(option.shape)} title={`${option.label} entwerfen oder auf Arbeitsfläche ziehen`}><span className={`wb-shape-glyph wb-shape-glyph-${option.shape}`} aria-hidden="true" /><span>{option.label}</span></button>)}
           </div>)}
+          <div className="wb-shape-rail-group" role="group" aria-label="Zeichnen"><small>Zeichnen</small><button type="button" className={lineMode ? 'is-active' : ''} aria-pressed={lineMode} disabled={busy || Boolean(newNodeDraft || newEdgeDraft || freeLineDraft)} onClick={toggleLineMode} title="Freie gerade Linie auf der Arbeitsfläche ziehen"><Minus size={18} aria-hidden="true" /><span>Linie</span></button></div>
         </div> : null}
         {!loading && overview && overview.nodes.length > 0 ? <div className="wb-source-banner" role="status"><strong>Vorschau aus Git</strong><span>{overview.nodes.length} von {automaticProposal?.nodes.length} Pfaden · nicht gespeichert</span></div> : null}
         {!loading && showRepository && !overview?.nodes.length ? <div className="wb-empty"><strong>{automaticMapBusy ? 'Git-Struktur wird gelesen…' : automaticMapError ? 'Git-Struktur nicht verfügbar.' : 'Keine geeigneten Git-Pfade.'}</strong><span>{automaticMapError ? 'Die Arbeitsfläche bleibt erhalten. Du kannst zu ihr zurückkehren oder eigene Boxen anlegen.' : 'Nur versionierte Projektpfade erscheinen in dieser Vorschau. Es wird nichts gespeichert.'}</span></div> : null}
@@ -473,15 +636,28 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
             <button className="primary-button" type="button" disabled={mapBusy} onClick={() => setMapProposal(automaticProposal)}>Struktur prüfen und übernehmen</button></> : null}
           <button className="secondary-button" type="button" disabled={automaticMapBusy} onClick={() => { setAutomaticProposal(null); setAutomaticProposalProjectId(null); setAutomaticMapError(''); setSelectedProposal(null); setRepoRevision((value) => value + 1); }}>Git-Stand neu lesen</button>
           <p>Erst nach deiner Auswahl wird ein Vorschlag lokal gespeichert.</p></section>
+        : lineMode ? <><h3>Linie zeichnen</h3><p>Ziehe eine gerade Linie auf der Arbeitsfläche. Die Linie bleibt Entwurf, bis du sie übernimmst. Für die Tastatur kannst du eine Linie in der Mitte anlegen und ihre Koordinaten anpassen.</p><button type="button" className="secondary-button" onClick={startKeyboardLine}>Linie in der Mitte entwerfen</button><button type="button" className="text-button" onClick={() => { setLineMode(false); setFreeLineDraft(null); }}>Zeichnen beenden</button></>
+        : freeLineDraft ? <><h3>Freie Linie · Entwurf</h3><p>Nur auf dieser Arbeitsfläche sichtbar, noch nicht gespeichert. Eine freie Linie erzeugt keine Aufgabenabhängigkeit.</p>
+          {freeLineCoordinates(freeLineDraft, setFreeLineDraft)}
+          <label>Bezeichnung, optional<input maxLength={120} value={freeLineDraft.label} onChange={(event) => setFreeLineDraft({ ...freeLineDraft, label: event.target.value })} /></label>
+          <EdgeAppearancePicker value={freeLineDraft} onChange={(patch) => setFreeLineDraft((current) => current ? { ...current, ...patch } : null)} disabled={busy} />
+          <div className="wb-actions"><button className="primary-button" type="button" disabled={busy || !validFreeLine(freeLineDraft)} onClick={() => void saveFreeLine()}>Linie übernehmen</button><button className="text-button" type="button" onClick={() => setFreeLineDraft(null)}>Entwurf verwerfen</button></div></>
+        : selectedFreeLine && freeLineEdit ? <><h3>Freie Linie</h3><p>Unabhängige Skizzenlinie. Sie verknüpft keine Boxen oder Board-Karten.</p>
+          {freeLineCoordinates(freeLineEdit, setFreeLineEdit)}
+          <label>Bezeichnung, optional<input maxLength={120} value={freeLineEdit.label} onChange={(event) => setFreeLineEdit({ ...freeLineEdit, label: event.target.value })} /></label>
+          <EdgeAppearancePicker value={freeLineEdit} onChange={(patch) => setFreeLineEdit((current) => current ? { ...current, ...patch } : null)} disabled={busy} />
+          <div className="wb-actions"><button className="primary-button" type="button" disabled={busy || !validFreeLine(freeLineEdit)} onClick={() => void updateFreeLine()}>Änderung speichern</button><button className="secondary-button wb-danger" type="button" disabled={busy} onClick={() => void deleteFreeLine()}><Trash2 size={14} /> Linie entfernen</button></div></>
         : newNodeDraft ? <><h3>Neue Box · Entwurf</h3><p>Dieser Entwurf ist nur hier sichtbar. Erst „Box übernehmen“ speichert ihn.</p>
           <div className="wb-shape-picker" role="group" aria-label="Form wählen">{shapeOptions.map((option) => <button key={option.shape} type="button" aria-pressed={newNodeDraft.shape === option.shape} onClick={() => setNewNodeDraft({ ...newNodeDraft, shape: option.shape })}><span className={`wb-shape-glyph wb-shape-glyph-${option.shape}`} aria-hidden="true" />{option.label}</button>)}</div>
+          <div className="wb-size-fields" role="group" aria-label="Größe des Entwurfs"><label>Breite<input type="number" min={WHITEBOARD_MIN_WIDTH} max={WHITEBOARD_MAX_WIDTH} step="1" value={newNodeDraft.widthText} placeholder="Automatisch" onChange={(event) => setNewNodeDraft({ ...newNodeDraft, widthText: event.target.value })} /></label><label>Höhe<input type="number" min={WHITEBOARD_MIN_HEIGHT} max={WHITEBOARD_MAX_HEIGHT} step="1" value={newNodeDraft.heightText} placeholder="Automatisch" onChange={(event) => setNewNodeDraft({ ...newNodeDraft, heightText: event.target.value })} /></label></div>
+          <small className="wb-size-hint">Leer lassen für automatische Größe. Breite {WHITEBOARD_MIN_WIDTH}–{WHITEBOARD_MAX_WIDTH} px, Höhe {WHITEBOARD_MIN_HEIGHT}–{WHITEBOARD_MAX_HEIGHT} px.</small>
           <label>Titel<input maxLength={120} value={newNodeDraft.title} onChange={(event) => setNewNodeDraft({ ...newNodeDraft, title: event.target.value })} /></label>
           <label>Beschreibung<textarea maxLength={2000} rows={4} value={newNodeDraft.description} onChange={(event) => setNewNodeDraft({ ...newNodeDraft, description: event.target.value })} /></label>
           <label>Verknüpfung<select value={newNodeDraft.referenceKind} onChange={(event) => setNewNodeDraft({ ...newNodeDraft, referenceKind: event.target.value as EditDraft['referenceKind'] })}><option value="none">Keine</option><option value="card">Karte</option><option value="folder">Projektordner</option><option value="file">Projektdatei</option></select></label>
           {newNodeDraft.referenceKind === 'card' ? <label>Karte<select value={newNodeDraft.cardId} onChange={(event) => setNewNodeDraft({ ...newNodeDraft, cardId: event.target.value })}><option value="">Karte auswählen</option>{snapshot.cards.map((card) => <option key={card.id} value={card.id}>{card.title}</option>)}</select></label> : null}
           {newNodeDraft.referenceKind === 'folder' || newNodeDraft.referenceKind === 'file' ? <label>Relativer Projektpfad<input value={newNodeDraft.folderPath} onChange={(event) => setNewNodeDraft({ ...newNodeDraft, folderPath: event.target.value })} /></label> : null}
           {discussionPanel({ kind: 'node', title: newNodeDraft.title, description: newNodeDraft.description })}
-          <div className="wb-actions"><button className="primary-button" type="button" disabled={busy || !newNodeDraft.title.trim()} onClick={() => void saveNewNode()}>Box übernehmen</button><button className="text-button" type="button" onClick={() => setNewNodeDraft(null)}>Entwurf verwerfen</button></div></>
+          <div className="wb-actions"><button className="primary-button" type="button" disabled={busy || !newNodeDraft.title.trim() || parsedDimension(newNodeDraft.widthText, WHITEBOARD_MIN_WIDTH, WHITEBOARD_MAX_WIDTH) === undefined || parsedDimension(newNodeDraft.heightText, WHITEBOARD_MIN_HEIGHT, WHITEBOARD_MAX_HEIGHT) === undefined} onClick={() => void saveNewNode()}>Box übernehmen</button><button className="text-button" type="button" onClick={() => setNewNodeDraft(null)}>Entwurf verwerfen</button></div></>
         : newEdgeDraft ? <><h3>Verbindung · Entwurf</h3><p>{board.nodes.find((node) => node.id === newEdgeDraft.sourceId)?.title} → {board.nodes.find((node) => node.id === newEdgeDraft.targetId)?.title}. Die Linie ist noch nicht gespeichert.</p>
           <label>Bezeichnung, optional<input maxLength={120} value={newEdgeDraft.label} onChange={(event) => setNewEdgeDraft({ ...newEdgeDraft, label: event.target.value })} /></label>
           <EdgeAppearancePicker value={newEdgeDraft} onChange={(patch) => setNewEdgeDraft((current) => current ? { ...current, ...patch } : current)} disabled={busy} />
@@ -489,14 +665,17 @@ export function WhiteboardView({ snapshot, mutate, onOpenCard, openNodeId }: { s
           {discussionPanel({ kind: 'edge', sourceId: newEdgeDraft.sourceId, targetId: newEdgeDraft.targetId, label: newEdgeDraft.label })}
           <div className="wb-actions"><button className="primary-button" type="button" disabled={busy} onClick={() => void saveNewEdge()}>Verbindung übernehmen</button><button className="text-button" type="button" onClick={() => { setNewEdgeDraft(null); setAreaIds([]); }}>Entwurf verwerfen</button></div></>
         : selectArea ? <><h3>Bereich auswählen</h3><p>Ziehe auf der freien Fläche ein Rechteck um die Boxen. Die Auswahl ist noch keine Freigabe oder Änderung.</p>{discussionPanel(null)}</>
-        : selectedNode ? <><h3>Box bearbeiten</h3>{moveDraft?.id === selectedNode.id ? <div className="wb-move-draft" role="status"><p>Neue Position ist ein Entwurf. Erst übernehmen speichert sie.</p><div className="wb-actions"><button className="secondary-button" type="button" disabled={busy || moveDraft.projectId !== projectId} onClick={() => void run(async () => { await window.studio.updateWhiteboardNode({ projectId, id: moveDraft.id, x: moveDraft.x, y: moveDraft.y, expectedUpdatedAt: moveDraft.expectedUpdatedAt }); setMoveDraft(null); })}>Position übernehmen</button><button className="text-button" type="button" onClick={discardMoveDraft}>Verwerfen</button></div></div> : null}
+        : selectedNode ? <><h3>Box bearbeiten</h3>
+          <div className="wb-size-fields" role="group" aria-label="Boxgröße"><label>Breite<input type="number" min={WHITEBOARD_MIN_WIDTH} max={WHITEBOARD_MAX_WIDTH} step="1" value={sizeFields.width} placeholder="Automatisch" onChange={(event) => editSize('width', event.target.value)} /></label><label>Höhe<input type="number" min={WHITEBOARD_MIN_HEIGHT} max={WHITEBOARD_MAX_HEIGHT} step="1" value={sizeFields.height} placeholder="Automatisch" onChange={(event) => editSize('height', event.target.value)} /></label></div>
+          <small className="wb-size-hint">Leer = automatische Größe. Ziehe an den Ecken der ausgewählten Form oder nutze diese Felder.</small>
+          {geometryPending ? <div className="wb-move-draft" role="status"><p>Position und Größe sind noch ein Entwurf.</p><div className="wb-actions"><button className="secondary-button" type="button" disabled={busy || widthValue === undefined || heightValue === undefined} onClick={saveGeometry}>Größe und Position übernehmen</button><button className="text-button" type="button" onClick={discardMoveDraft}>Verwerfen</button></div></div> : null}
           <div className="wb-shape-picker" role="group" aria-label="Form wählen">{shapeOptions.map((option) => <button key={option.shape} type="button" aria-pressed={draft.shape === option.shape} onClick={() => setDraft({ ...draft, shape: option.shape })}><span className={`wb-shape-glyph wb-shape-glyph-${option.shape}`} aria-hidden="true" />{option.label}</button>)}</div>
           <label>Titel<input maxLength={120} value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label>
           <label>Beschreibung<textarea maxLength={2000} rows={4} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
           <label>Verknüpfung<select value={draft.referenceKind} onChange={(event) => setDraft({ ...draft, referenceKind: event.target.value as EditDraft['referenceKind'] })}><option value="none">Keine</option><option value="card">Karte</option><option value="folder">Projektordner</option><option value="file">Projektdatei</option></select></label>
           {draft.referenceKind === 'card' ? <label>Karte<select value={draft.cardId} onChange={(event) => setDraft({ ...draft, cardId: event.target.value })}><option value="">Karte auswählen</option>{snapshot.cards.map((card) => <option key={card.id} value={card.id}>{card.title}</option>)}</select></label> : null}
           {draft.referenceKind === 'folder' || draft.referenceKind === 'file' ? <label>Relativer {draft.referenceKind === 'file' ? 'Datei' : 'Ordner'}pfad<input value={draft.folderPath} onChange={(event) => setDraft({ ...draft, folderPath: event.target.value })} placeholder={draft.referenceKind === 'file' ? 'src/renderer/App.tsx' : 'src/renderer'} /></label> : null}
-          <div className="wb-actions"><button className="primary-button" type="button" disabled={busy || !draft.title.trim() || moveDraft?.id === selectedNode.id} onClick={saveNode}>Speichern</button>
+          <div className="wb-actions"><button className="primary-button" type="button" disabled={busy || !draft.title.trim() || geometryPending} onClick={saveNode}>Speichern</button>
             {selectedNode.reference?.kind === 'card' && snapshot.cards.some((card) => card.id === (selectedNode.reference as { kind: 'card'; cardId: string }).cardId) ? <button className="secondary-button" type="button" onClick={() => onOpenCard((selectedNode.reference as { kind: 'card'; cardId: string }).cardId)}>Karte öffnen</button> : null}
             <button className="secondary-button wb-danger" type="button" disabled={busy} onClick={deleteNode}><Trash2 size={14} /> Entfernen</button></div>
           <div className="wb-connect-from-node"><label>Mit Box verbinden<select value={connectTargetId} onChange={(event) => setConnectTargetId(event.target.value)}><option value="">Zielbox wählen</option>{board.nodes.filter((item) => item.id !== selectedNode.id).map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>

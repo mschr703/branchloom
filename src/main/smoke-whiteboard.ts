@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type { BrowserWindow } from 'electron';
 import type { StudioStore } from './store';
 import { createWhiteboardEdge, createWhiteboardNode, whiteboardSnapshot } from './whiteboard';
+import { createWhiteboardFreeLine, whiteboardFreeLines } from './whiteboard-lines';
 
 function git(cwd: string, args: string[]): void {
   execFileSync('git', ['-C', cwd, ...args], { windowsHide: true });
@@ -32,12 +33,11 @@ export async function runWhiteboardVisibleSmoke(window: BrowserWindow, store: St
       createWhiteboardNode(store, { projectId: project.id, title: 'Start / Finish', x: 24, y: 245, shape: 'terminator' });
       createWhiteboardNode(store, { projectId: project.id, title: 'Design brief', x: 680, y: 32, shape: 'document' });
       createWhiteboardNode(store, { projectId: project.id, title: 'Input data', x: 680, y: 245, shape: 'data' });
-      createWhiteboardNode(store, { projectId: project.id, title: 'Review note', x: 24, y: 455, shape: 'note' });
-      createWhiteboardNode(store, { projectId: project.id, title: 'Free annotation', x: 350, y: 455, shape: 'text' });
+      createWhiteboardFreeLine(store, { projectId: project.id, x1: 610, y1: 425, x2: 840, y2: 425, label: 'handoff', endMarker: 'arrow' });
     }
   }
   const before = whiteboardSnapshot(store, project.id);
-  if (!before.nodes.some((node) => node.id === saved.id) || before.nodes.length !== (libraryCapturePath ? 8 : capturePath ? 3 : 1)) throw new Error('Saved board fixture is missing.');
+  if (!before.nodes.some((node) => node.id === saved.id) || before.nodes.length !== (libraryCapturePath ? 6 : capturePath ? 3 : 1)) throw new Error('Saved board fixture is missing.');
 
   await new Promise<void>((resolve) => { window.webContents.once('did-finish-load', () => resolve()); window.webContents.reload(); });
   await window.webContents.executeJavaScript(`(async () => {
@@ -79,7 +79,7 @@ export async function runWhiteboardVisibleSmoke(window: BrowserWindow, store: St
   if (capturePath) {
     await window.webContents.executeJavaScript(`(async () => {
       for (let attempt = 0; attempt < 100; attempt++) {
-        if (document.querySelectorAll('.wb-node').length === ${libraryCapturePath ? 8 : 3} && !document.querySelector('.wb-loading')) return true;
+        if (document.querySelectorAll('.wb-node').length === ${libraryCapturePath ? 6 : 3} && !document.querySelector('.wb-loading')) return true;
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
       throw new Error('Synthetic Whiteboard did not settle for screenshot.');
@@ -348,4 +348,312 @@ export async function runWhiteboardVisibleSmoke(window: BrowserWindow, store: St
   })()`);
   if (dropped.x > 40 || dropped.y > 40) throw new Error('Dragged shape did not appear near its drop point: ' + JSON.stringify(dropped));
   if (whiteboardSnapshot(store, project.id).nodes.length !== libraryCount + 1) throw new Error('Dragged data draft wrote before acceptance.');
+  await window.webContents.executeJavaScript(`(async () => {
+    const wait = async (predicate, label) => {
+      for (let attempt = 0; attempt < 80; attempt++) {
+        const value = predicate();
+        if (value) return value;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      throw new Error('Whiteboard resize timeout: ' + label);
+    };
+    [...document.querySelectorAll('.wb-inspector button')].find((button) => button.textContent?.includes('Entwurf verwerfen'))?.click();
+    const savedNode = await wait(() => document.querySelector('.react-flow__node[data-id=${JSON.stringify(savedDocument.id)}]'), 'saved document');
+    savedNode.click();
+    await wait(() => document.querySelectorAll('.wb-resize-handle').length >= 4, 'direct resize handles');
+    const fields = [...document.querySelectorAll('.wb-inspector [role="group"][aria-label="Boxgröße"] input')];
+    if (fields.length !== 2 || fields.some((input) => input.tabIndex < 0)) throw new Error('Keyboard geometry fields are missing.');
+    const setNumber = (input, value) => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      setter.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    setNumber(fields[0], '320');
+    setNumber(fields[1], '160');
+    await wait(() => [...document.querySelectorAll('.wb-inspector button')].some((button) => button.textContent?.includes('Größe und Position übernehmen') && !button.disabled), 'unsaved size draft');
+    return true;
+  })()`);
+  if (whiteboardSnapshot(store, project.id).nodes.find((node) => node.id === savedDocument.id)?.width !== null)
+    throw new Error('Editing geometry wrote before explicit acceptance.');
+  await window.webContents.executeJavaScript(`(async () => {
+    const save = [...document.querySelectorAll('.wb-inspector button')].find((button) => button.textContent?.includes('Größe und Position übernehmen'));
+    if (!save || save.disabled) throw new Error('Geometry draft cannot be accepted.');
+    save.click();
+    for (let attempt = 0; attempt < 80; attempt++) {
+      if (![...document.querySelectorAll('.wb-inspector button')].some((button) => button.textContent?.includes('Größe und Position übernehmen'))) return true;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('Geometry save did not finish.');
+  })()`);
+  const resized = whiteboardSnapshot(store, project.id).nodes.find((node) => node.id === savedDocument.id);
+  if (resized?.width !== 320 || resized.height !== 160) throw new Error('Accepted geometry was not persisted.');
+  window.setSize(1280, 900);
+  const resizeHandle = await window.webContents.executeJavaScript(`(async () => {
+    document.querySelector('.react-flow__controls-fitview')?.click();
+    let previous = '';
+    let stableSince = Date.now();
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const handles = [...document.querySelectorAll('.react-flow__node[data-id=${JSON.stringify(savedDocument.id)}] .wb-resize-handle')];
+      const corner = handles.map((handle) => handle.getBoundingClientRect()).sort((a, b) => b.right + b.bottom - a.right - a.bottom)[0];
+      const canvas = document.querySelector('.react-flow__pane')?.getBoundingClientRect();
+      const visible = handles.some((handle) => getComputedStyle(handle).visibility === 'visible');
+      const key = corner && canvas ? JSON.stringify({ x: Math.round(corner.x), y: Math.round(corner.y), cx: Math.round(canvas.x), cy: Math.round(canvas.y) }) : '';
+      if (key !== previous) stableSince = Date.now();
+      previous = key;
+      if (visible && Date.now() - stableSince > 600 && corner && canvas && corner.left > canvas.left + 8 && corner.top > canvas.top + 8 && corner.right < canvas.right - 65 && corner.bottom < canvas.bottom - 45) {
+        const node = document.querySelector('.react-flow__node[data-id=${JSON.stringify(savedDocument.id)}]')?.getBoundingClientRect();
+        return { x: Math.round(corner.left + corner.width / 2), y: Math.round(corner.top + corner.height / 2), width: node?.width, height: node?.height };
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('Direct resize handle never settled inside the canvas.');
+  })()`);
+  window.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', x: resizeHandle.x, y: resizeHandle.y, clickCount: 1 });
+  await pause(60);
+  for (let step = 1; step <= 6; step++) {
+    const x = resizeHandle.x + step * 8;
+    const y = resizeHandle.y + step * 5;
+    window.webContents.sendInputEvent({ type: 'mouseMove', x, y, movementX: 8, movementY: 5 });
+    await pause(35);
+  }
+  window.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', x: resizeHandle.x + 48, y: resizeHandle.y + 30, clickCount: 1 });
+  await pause(180);
+  await window.webContents.executeJavaScript(`(async () => {
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const inputs = [...document.querySelectorAll('.wb-inspector [role="group"][aria-label="Boxgröße"] input')];
+      const accept = [...document.querySelectorAll('.wb-inspector button')].find((button) => button.textContent?.includes('Größe und Position übernehmen'));
+      const discard = [...document.querySelectorAll('.wb-inspector button')].find((button) => button.textContent?.trim() === 'Verwerfen');
+      if (inputs.length === 2 && Number(inputs[0].value) > 320 && Number(inputs[1].value) > 160 && accept && !accept.disabled && discard) {
+        discard.click();
+        for (let followup = 0; followup < 40; followup++) {
+          const restored = [...document.querySelectorAll('.wb-inspector [role="group"][aria-label="Boxgröße"] input')];
+          if (restored[0]?.value === '320' && restored[1]?.value === '160'
+            && ![...document.querySelectorAll('.wb-inspector button')].some((button) => button.textContent?.includes('Größe und Position übernehmen'))) {
+            const box = document.querySelector('.react-flow__node[data-id=${JSON.stringify(savedDocument.id)}]')?.getBoundingClientRect();
+            if (!box || Math.abs(box.width - ${resizeHandle.width}) > 2 || Math.abs(box.height - ${resizeHandle.height}) > 2)
+              throw new Error('Discarding resize did not restore rendered node dimensions: ' + JSON.stringify({ current: box && [box.width, box.height], before: [${resizeHandle.width}, ${resizeHandle.height}] }));
+            return true;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        throw new Error('Discarding direct resize did not restore saved geometry: ' + JSON.stringify({
+          values: [...document.querySelectorAll('.wb-inspector [role="group"][aria-label="Boxgröße"] input')].map((input) => input.value),
+          pending: [...document.querySelectorAll('.wb-inspector button')].some((button) => button.textContent?.includes('Größe und Position übernehmen')) }));
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('Dragging the resize handle did not produce an unsaved geometry draft.');
+  })()`);
+  if (whiteboardSnapshot(store, project.id).nodes.find((node) => node.id === savedDocument.id)?.width !== 320)
+    throw new Error('Direct resize persisted before acceptance.');
+  const secondHandle = await window.webContents.executeJavaScript(`(() => {
+    const handles = [...document.querySelectorAll('.react-flow__node[data-id=${JSON.stringify(savedDocument.id)}] .wb-resize-handle')];
+    const corner = handles.map((handle) => handle.getBoundingClientRect()).sort((a, b) => b.right + b.bottom - a.right - a.bottom)[0];
+    if (!corner || document.elementFromPoint(corner.left + corner.width / 2, corner.top + corner.height / 2)?.classList.contains('wb-resize-handle') !== true)
+      throw new Error('Saved box has no reachable direct resize handle.');
+    return { x: Math.round(corner.left + corner.width / 2), y: Math.round(corner.top + corner.height / 2) };
+  })()`);
+  window.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', x: secondHandle.x, y: secondHandle.y, clickCount: 1 });
+  await pause(60);
+  for (let step = 1; step <= 5; step++) {
+    const x = secondHandle.x + step * 8;
+    const y = secondHandle.y + step * 5;
+    window.webContents.sendInputEvent({ type: 'mouseMove', x, y, movementX: 8, movementY: 5 });
+    await pause(35);
+  }
+  window.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', x: secondHandle.x + 40, y: secondHandle.y + 25, clickCount: 1 });
+  await pause(180);
+  await window.webContents.executeJavaScript(`(async () => {
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const inputs = [...document.querySelectorAll('.wb-inspector [role="group"][aria-label="Boxgröße"] input')];
+      const accept = [...document.querySelectorAll('.wb-inspector button')].find((button) => button.textContent?.includes('Größe und Position übernehmen'));
+      if (inputs.length === 2 && Number(inputs[0].value) > 320 && Number(inputs[1].value) > 160 && accept && !accept.disabled) {
+        accept.click();
+        return true;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('Second direct resize did not reach its save action.');
+  })()`);
+  let handleSaved = whiteboardSnapshot(store, project.id).nodes.find((node) => node.id === savedDocument.id);
+  for (let attempt = 0; attempt < 80 && (handleSaved?.width ?? 0) <= 320; attempt++) {
+    await pause(50);
+    handleSaved = whiteboardSnapshot(store, project.id).nodes.find((node) => node.id === savedDocument.id);
+  }
+  if (!handleSaved || (handleSaved.width ?? 0) <= 320 || (handleSaved.height ?? 0) <= 160)
+    throw new Error('Direct resize was not persisted after acceptance.');
+  await new Promise<void>((resolve) => { window.webContents.once('did-finish-load', () => resolve()); window.webContents.reload(); });
+  await window.webContents.executeJavaScript(`(async () => {
+    const wait = async (predicate, label) => {
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const value = predicate();
+        if (value) return value;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      throw new Error('Whiteboard reload timeout: ' + label);
+    };
+    const picker = await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger:not(.is-compact)'), 'project picker');
+    picker.click();
+    const choice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project > button:first-child')]
+      .find((item) => item.getAttribute('aria-label') === ${JSON.stringify(`${projectName} auswählen`)}), 'project choice');
+    choice.click();
+    const nav = await wait(() => [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')]
+      .find((item) => item.querySelector('.nav-label')?.textContent?.trim() === 'Whiteboard'), 'whiteboard navigation');
+    nav.click();
+    const resized = await wait(() => document.querySelector('.react-flow__node[data-id=${JSON.stringify(savedDocument.id)}]'), 'persisted resized node');
+    if (Math.round(parseFloat(resized.style.width)) !== ${handleSaved.width} || Math.round(parseFloat(resized.style.height)) !== ${handleSaved.height})
+      throw new Error('Direct resize dimensions were not rendered after app reload.');
+    return true;
+  })()`);
+
+  // Draw a free annotation on the real Flow canvas. It must remain local until accepted.
+  const freeLineDrag = await window.webContents.executeJavaScript(`(async () => {
+    const wait = async (predicate, label) => {
+      for (let attempt = 0; attempt < 80; attempt++) {
+        const value = predicate();
+        if (value) return value;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      throw new Error('Free-line UI timeout: ' + label);
+    };
+    const tool = await wait(() => [...document.querySelectorAll('.wb-shape-rail button')].find((button) => button.textContent?.trim() === 'Linie'), 'line tool');
+    if (tool.disabled || tool.tabIndex < 0) throw new Error('Line tool has no keyboard route.');
+    tool.click();
+    const overlay = await wait(() => document.querySelector('.wb-line-draw-surface'), 'drawing surface');
+    const box = overlay.getBoundingClientRect();
+    return { x1: Math.round(box.left + box.width * .25), y1: Math.round(box.top + box.height * .37),
+      x2: Math.round(box.left + box.width * .60), y2: Math.round(box.top + box.height * .55) };
+  })()`);
+  if (whiteboardFreeLines(store, project.id).length) throw new Error('Entering line mode wrote to the database.');
+  window.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', x: freeLineDrag.x1, y: freeLineDrag.y1, clickCount: 1 });
+  await pause(70);
+  for (let step = 1; step <= 6; step++) {
+    const x = Math.round(freeLineDrag.x1 + (freeLineDrag.x2 - freeLineDrag.x1) * step / 6);
+    const y = Math.round(freeLineDrag.y1 + (freeLineDrag.y2 - freeLineDrag.y1) * step / 6);
+    window.webContents.sendInputEvent({ type: 'mouseMove', x, y, movementX: x - freeLineDrag.x1, movementY: y - freeLineDrag.y1 });
+    await pause(35);
+  }
+  window.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', x: freeLineDrag.x2, y: freeLineDrag.y2, clickCount: 1 });
+  const draftBounds = await window.webContents.executeJavaScript(`(async () => {
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const draft = document.querySelector('.wb-free-line.is-draft .wb-free-line-stroke');
+      const save = [...document.querySelectorAll('.wb-inspector button')].find((button) => button.textContent?.includes('Linie übernehmen'));
+      if (draft && save && !save.disabled) {
+        if (!/^M[^MLCQZ]+L[^MLCQZ]+$/i.test(draft.getAttribute('d') ?? '')) throw new Error('Free line is not straight.');
+        const box = draft.getBoundingClientRect();
+        return { left: box.left, top: box.top, right: box.right, bottom: box.bottom };
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('Pointer drag did not produce a free-line draft: ' + document.querySelector('.wb-inspector')?.textContent?.slice(0, 300));
+  })()`);
+  if (Math.abs(draftBounds.left - freeLineDrag.x1) > 18 || Math.abs(draftBounds.top - freeLineDrag.y1) > 18
+    || Math.abs(draftBounds.right - freeLineDrag.x2) > 18 || Math.abs(draftBounds.bottom - freeLineDrag.y2) > 18)
+    throw new Error('Free-line draft is not aligned with the pointer path: ' + JSON.stringify({ draftBounds, freeLineDrag }));
+  if (whiteboardFreeLines(store, project.id).length) throw new Error('Free-line drag wrote before acceptance.');
+  await window.webContents.executeJavaScript(`(async () => {
+    const group = (name) => document.querySelector('.wb-inspector [role="group"][aria-label="' + name + '"]');
+    [...group('Linienstil').querySelectorAll('button')].find((button) => button.textContent?.includes('Gestrichelt'))?.click();
+    [...group('Pfeilende').querySelectorAll('button')].find((button) => button.textContent?.includes('Mit Pfeil'))?.click();
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const dashed = [...group('Linienstil').querySelectorAll('button')].find((button) => button.textContent?.includes('Gestrichelt'));
+      const arrow = [...group('Pfeilende').querySelectorAll('button')].find((button) => button.textContent?.includes('Mit Pfeil'));
+      if (dashed?.getAttribute('aria-pressed') === 'true' && arrow?.getAttribute('aria-pressed') === 'true') break;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    const save = [...document.querySelectorAll('.wb-inspector button')].find((button) => button.textContent?.includes('Linie übernehmen'));
+    save?.click();
+    for (let attempt = 0; attempt < 80; attempt++) {
+      if (!document.querySelector('.wb-free-line.is-draft') && document.querySelector('.wb-free-line-hit')) return true;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('Free-line save did not finish.');
+  })()`);
+  const savedFreeLines = whiteboardFreeLines(store, project.id);
+  if (savedFreeLines.length !== 1 || savedFreeLines[0]?.lineStyle !== 'dashed' || savedFreeLines[0]?.endMarker !== 'arrow')
+    throw new Error('Free line style did not persist.');
+  await new Promise<void>((resolve) => { window.webContents.once('did-finish-load', () => resolve()); window.webContents.reload(); });
+  await window.webContents.executeJavaScript(`(async () => {
+    const wait = async (predicate, label) => {
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const value = predicate();
+        if (value) return value;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      throw new Error('Free-line reload timeout: ' + label);
+    };
+    const picker = await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger:not(.is-compact)'), 'project picker');
+    picker.click();
+    const choice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project > button:first-child')]
+      .find((item) => item.getAttribute('aria-label') === ${JSON.stringify(`${projectName} auswählen`)}), 'project choice');
+    choice.click();
+    const nav = await wait(() => [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')]
+      .find((item) => item.querySelector('.nav-label')?.textContent?.trim() === 'Whiteboard'), 'whiteboard navigation');
+    nav.click();
+    const hit = await wait(() => document.querySelector('.wb-free-line-hit'), 'persisted line');
+    hit.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await wait(() => document.querySelector('.wb-inspector h3')?.textContent === 'Freie Linie', 'line inspector');
+    const group = document.querySelector('.wb-inspector [role="group"][aria-label="Linienstil"]');
+    [...group.querySelectorAll('button')].find((button) => button.textContent?.includes('Durchgezogen'))?.click();
+    await wait(() => [...group.querySelectorAll('button')].find((button) => button.textContent?.includes('Durchgezogen'))?.getAttribute('aria-pressed') === 'true', 'solid line selection');
+    const update = [...document.querySelectorAll('.wb-inspector button')].find((button) => button.textContent?.includes('Änderung speichern'));
+    update?.click();
+    await wait(() => document.querySelector('.wb-free-line-stroke')?.getAttribute('stroke-dasharray') !== '6 4', 'updated line style');
+    return true;
+  })()`);
+  for (let attempt = 0; attempt < 80 && whiteboardFreeLines(store, project.id)[0]?.lineStyle !== 'solid'; attempt++) await pause(50);
+  if (whiteboardFreeLines(store, project.id)[0]?.lineStyle !== 'solid') throw new Error('Free-line update did not persist.');
+  await window.webContents.executeJavaScript(`(async () => {
+    window.confirm = () => true;
+    const remove = [...document.querySelectorAll('.wb-inspector button')].find((button) => button.textContent?.includes('Linie entfernen'));
+    if (!remove) throw new Error('Free-line deletion action missing.');
+    remove.click();
+    for (let attempt = 0; attempt < 80; attempt++) {
+      if (!document.querySelector('.wb-free-line-hit')) return true;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('Free-line deletion did not update the canvas.');
+  })()`);
+  if (whiteboardFreeLines(store, project.id).length) throw new Error('Free-line deletion did not persist.');
+
+  const standaloneRepo = join(root, 'standalone-line-repo');
+  mkdirSync(standaloneRepo, { recursive: true });
+  git(standaloneRepo, ['init', '-q']);
+  const standaloneProject = store.createProject({ name: 'Standalone line board', path: standaloneRepo });
+  createWhiteboardFreeLine(store, { projectId: standaloneProject.id, x1: 20, y1: 30, x2: 200, y2: 30 });
+  await new Promise<void>((resolve) => { window.webContents.once('did-finish-load', () => resolve()); window.webContents.reload(); });
+  await window.webContents.executeJavaScript(`(async () => {
+    let picker;
+    for (let attempt = 0; attempt < 80; attempt++) {
+      picker = document.querySelector('.sidebar-projects .project-switcher-trigger:not(.is-compact)');
+      if (picker) break;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    if (!picker) throw new Error('Standalone project picker is missing.');
+    picker.click();
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const choice = [...document.querySelectorAll('.project-switcher-panel .project-switcher-project > button:first-child')]
+        .find((button) => button.getAttribute('aria-label') === 'Standalone line board auswählen');
+      if (choice) { choice.click(); break; }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    for (let attempt = 0; attempt < 80 && !document.querySelector('.sidebar-projects .project-switcher-trigger')?.textContent?.includes('Standalone line board'); attempt++)
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const nav = [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')]
+        .find((button) => button.querySelector('.nav-label')?.textContent?.trim() === 'Whiteboard');
+      if (nav) { nav.click(); break; }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    for (let attempt = 0; attempt < 80; attempt++) {
+      if (document.querySelector('.wb-free-line-hit') && document.querySelector('.wb-shape-rail') && !document.querySelector('.wb-proposal-node')) return true;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('A board containing only a free line fell back to the repository preview: ' + JSON.stringify({
+      project: document.querySelector('.sidebar-projects .project-switcher-trigger')?.textContent?.trim(),
+      view: document.querySelector('.wb-view')?.textContent?.slice(0, 260),
+      line: Boolean(document.querySelector('.wb-free-line-hit')),
+      rail: Boolean(document.querySelector('.wb-shape-rail')),
+      repo: Boolean(document.querySelector('.wb-proposal-node')) }));
+  })()`);
 }

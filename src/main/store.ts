@@ -34,6 +34,7 @@ import { installDevEnvironments } from './dev-environment';
 import { installDevAccounts } from './dev-account';
 import { attachmentAvailable, canOpenAttachment, checkedAttachmentPath, MAX_CARD_ATTACHMENTS } from './card-attachments';
 import { installWhiteboard } from './whiteboard';
+import { installWhiteboardFreeLines } from './whiteboard-lines';
 import { installReviewComments } from './diff-review';
 import { installCardAcceptance } from './card-acceptance';
 import { installCardSplits } from './card-split';
@@ -191,6 +192,7 @@ export class StudioStore {
     if (!columnColumns.some((item) => item.name === 'effort')) this.db.exec('ALTER TABLE columns ADD COLUMN effort TEXT');
     if (!columnColumns.some((item) => item.name === 'tint')) this.db.exec("ALTER TABLE columns ADD COLUMN tint TEXT NOT NULL DEFAULT 'default'");
     installWhiteboard(this.db);
+    installWhiteboardFreeLines(this.db);
     installReviewComments(this.db);
     installIdeas(this.db);
     installIdeaMatches(this.db);

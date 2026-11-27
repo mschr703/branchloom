@@ -45,10 +45,11 @@ export type ProjectSort = 'name' | 'newest';
 export interface ProjectOrganization { groups: ProjectGroup[]; assignments: Record<string, string>; sort: ProjectSort }
 export type WhiteboardReference = { kind: 'card'; cardId: string } | { kind: 'folder' | 'file'; path: string };
 export type WhiteboardNodeShape = 'card' | 'step' | 'decision' | 'terminator' | 'document' | 'data' | 'note' | 'text';
-export interface WhiteboardNode { id: string; projectId: string; title: string; description: string; x: number; y: number; shape: WhiteboardNodeShape; reference: WhiteboardReference | null; createdAt: string; updatedAt: string }
+export interface WhiteboardNode { id: string; projectId: string; title: string; description: string; x: number; y: number; width: number | null; height: number | null; shape: WhiteboardNodeShape; reference: WhiteboardReference | null; createdAt: string; updatedAt: string }
 export type WhiteboardLineStyle = 'solid' | 'dashed';
 export type WhiteboardEndMarker = 'none' | 'arrow';
 export interface WhiteboardEdge { id: string; projectId: string; sourceId: string; targetId: string; label: string; lineStyle: WhiteboardLineStyle; endMarker: WhiteboardEndMarker; createdAt: string; updatedAt: string; cardId: string | null }
+export interface WhiteboardFreeLine { id: string; projectId: string; x1: number; y1: number; x2: number; y2: number; lineStyle: WhiteboardLineStyle; endMarker: WhiteboardEndMarker; label: string; createdAt: string; updatedAt: string }
 export interface WhiteboardSnapshot { nodes: WhiteboardNode[]; edges: WhiteboardEdge[] }
 export type ColumnTint = 'default' | 'lilac' | 'blue' | 'sand' | 'coral';
 export interface Column { id: string; projectId: string; name: string; position: number; autoStart: boolean; agentId: string | null; model: string | null; effort: ColumnEffort | null; tint?: ColumnTint }
@@ -247,6 +248,10 @@ export interface StudioAPI {
   compareTrelloBoardIdea(input: { projectId: string; boardId: string; sourceId: string }): Promise<TrelloIdeaComparison>;
   applyTrelloBoardIdeaSource(input: { projectId: string; boardId: string; sourceId: string; fingerprint: string; localSignature: string; copyTitle: boolean; copyBody: boolean }): Promise<TrelloIdeaComparison>;
   whiteboard(projectId: string): Promise<WhiteboardSnapshot>;
+  whiteboardFreeLines(projectId: string): Promise<WhiteboardFreeLine[]>;
+  createWhiteboardFreeLine(input: { projectId: string; x1: number; y1: number; x2: number; y2: number; lineStyle?: WhiteboardLineStyle; endMarker?: WhiteboardEndMarker; label?: string }): Promise<WhiteboardFreeLine>;
+  updateWhiteboardFreeLine(input: { projectId: string; id: string; expectedUpdatedAt: string; x1?: number; y1?: number; x2?: number; y2?: number; lineStyle?: WhiteboardLineStyle; endMarker?: WhiteboardEndMarker; label?: string }): Promise<WhiteboardFreeLine>;
+  deleteWhiteboardFreeLine(input: { projectId: string; id: string; expectedUpdatedAt: string }): Promise<void>;
   discussWhiteboardSelection(input: WhiteboardDiscussionInput): Promise<WhiteboardDiscussionReply>;
   themeTokens(projectId: string): Promise<ThemeTokenInventory>;
   previewThemeTokenEdit(input: { projectId: string; token: ThemeTokenDefinition; value: string }): Promise<ThemeTokenEditPreview>;
@@ -255,8 +260,8 @@ export interface StudioAPI {
   createCardFromWhiteboardImpact(input: { projectId: string; nodeId: string; referencePath: string; site: WhiteboardDirectImporter; columnId: string; title: string; description: string }): Promise<Card>;
   previewRepoMap(projectId: string): Promise<import('./repo-map').RepoMapProposal>;
   acceptRepoMap(input: { projectId: string; fingerprint: string; nodeIds: string[] }): Promise<import('./repo-map').RepoMapImportResult>;
-  createWhiteboardNode(input: { projectId: string; title: string; description?: string; x: number; y: number; shape?: WhiteboardNodeShape; reference?: WhiteboardReference | null }): Promise<WhiteboardNode>;
-  updateWhiteboardNode(input: { projectId: string; id: string; title?: string; description?: string; x?: number; y?: number; shape?: WhiteboardNodeShape; reference?: WhiteboardReference | null; expectedUpdatedAt?: string }): Promise<WhiteboardNode>;
+  createWhiteboardNode(input: { projectId: string; title: string; description?: string; x: number; y: number; width?: number | null; height?: number | null; shape?: WhiteboardNodeShape; reference?: WhiteboardReference | null }): Promise<WhiteboardNode>;
+  updateWhiteboardNode(input: { projectId: string; id: string; title?: string; description?: string; x?: number; y?: number; width?: number | null; height?: number | null; shape?: WhiteboardNodeShape; reference?: WhiteboardReference | null; expectedUpdatedAt?: string }): Promise<WhiteboardNode>;
   deleteWhiteboardNode(input: { projectId: string; id: string }): Promise<void>;
   createWhiteboardEdge(input: { projectId: string; sourceId: string; targetId: string; label?: string; lineStyle?: WhiteboardLineStyle; endMarker?: WhiteboardEndMarker; expectedSourceUpdatedAt?: string; expectedTargetUpdatedAt?: string }): Promise<WhiteboardEdge>;
   updateWhiteboardEdge(input: { projectId: string; id: string; label?: string; lineStyle?: WhiteboardLineStyle; endMarker?: WhiteboardEndMarker; expectedUpdatedAt?: string }): Promise<WhiteboardEdge>;

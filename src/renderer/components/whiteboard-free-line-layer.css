@@ -1,0 +1,11 @@
+.wb-free-line-layer { position: absolute; inset: 0; pointer-events: none; }
+.wb-free-line { position: absolute; overflow: visible; color: var(--muted); pointer-events: none; }
+.wb-free-line.is-selected { color: var(--accent); }
+.wb-free-line.is-draft { opacity: .65; animation: wb-free-line-arrive 150ms ease-out both; }
+.wb-free-line-stroke { fill: none; stroke: currentColor; stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }
+.wb-free-line-arrow { fill: currentColor; stroke: none; pointer-events: none; }
+.wb-free-line-label { fill: var(--text); stroke: var(--surface); stroke-width: 4; paint-order: stroke fill; font: 11px IBM Plex Sans, sans-serif; pointer-events: none; }
+.wb-free-line-hit { fill: none; stroke: transparent; pointer-events: stroke; cursor: pointer; vector-effect: non-scaling-stroke; }
+.wb-free-line-hit:focus-visible { stroke: var(--focus); stroke-opacity: .25; outline: none; }
+@keyframes wb-free-line-arrive { from { opacity: 0; } to { opacity: .65; } }
+@media (prefers-reduced-motion: reduce) { .wb-free-line.is-draft { animation: none; } }

@@ -73,6 +73,7 @@ import { apiContractOverview, bindCardApiContract, checkApiContractResponse, pre
 import { ApiContractHttp } from './api-contract-http';
 import { addRequirementClaim, refreshRequirementClaim, removeRequirementClaim, requirementConflictBoard, resolveRequirementConflict } from './requirement-conflicts';
 import { createCardFromWhiteboardEdge, createWhiteboardEdge, createWhiteboardNode, deleteWhiteboardEdge, deleteWhiteboardNode, updateWhiteboardEdge, updateWhiteboardNode, whiteboardSnapshot } from './whiteboard';
+import { createWhiteboardFreeLine, deleteWhiteboardFreeLine, updateWhiteboardFreeLine, whiteboardFreeLines } from './whiteboard-lines';
 import { discussWhiteboardSelection } from './whiteboard-discussion';
 import { analyzeWhiteboardImpact, createCardFromWhiteboardImpact } from './whiteboard-impact';
 import { acceptRepoMap, previewRepoMap } from './repo-map-import';
@@ -403,6 +404,10 @@ function installIpc(): void {
   bind('compareTrelloIdea', (input: Parameters<StudioAPI['compareTrelloIdea']>[0]) => compareTrelloIdea(db, input));
   bind('applyTrelloIdeaSource', (input: Parameters<StudioAPI['applyTrelloIdeaSource']>[0]) => applyTrelloIdeaSource(db, input));
   bind('whiteboard', (projectId: string) => whiteboardSnapshot(db, projectId));
+  bind('whiteboardFreeLines', (projectId: string) => whiteboardFreeLines(db, projectId));
+  bind('createWhiteboardFreeLine', (input: Parameters<StudioAPI['createWhiteboardFreeLine']>[0]) => createWhiteboardFreeLine(db, input));
+  bind('updateWhiteboardFreeLine', (input: Parameters<StudioAPI['updateWhiteboardFreeLine']>[0]) => updateWhiteboardFreeLine(db, input));
+  bind('deleteWhiteboardFreeLine', (input: Parameters<StudioAPI['deleteWhiteboardFreeLine']>[0]) => deleteWhiteboardFreeLine(db, input));
   bind('discussWhiteboardSelection', (input: Parameters<StudioAPI['discussWhiteboardSelection']>[0]) => discussWhiteboardSelection(db, input));
   bind('themeTokens', (projectId: string) => scanThemeTokens(db, projectId));
   bind('previewThemeTokenEdit', (input: Parameters<StudioAPI['previewThemeTokenEdit']>[0]) => previewThemeTokenEdit(db, input));

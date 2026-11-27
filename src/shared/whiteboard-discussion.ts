@@ -1,3 +1,5 @@
+import type { WhiteboardNodeShape } from './types';
+
 export type WhiteboardDiscussionDraft =
   | { kind: 'node'; title: string; description: string }
   | { kind: 'edge'; sourceId: string; targetId: string; label: string };
@@ -11,6 +13,7 @@ export interface WhiteboardDiscussionInput {
 
 export interface WhiteboardDiscussionSource {
   id: string;
+  shape: WhiteboardNodeShape;
   title: string;
   description: string;
   reference: string | null;

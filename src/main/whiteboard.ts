@@ -3,14 +3,15 @@ import { lstatSync, realpathSync, statSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import type Database from 'better-sqlite3';
 import type { Card, WhiteboardEdge, WhiteboardNode, WhiteboardSnapshot, WhiteboardReference, WhiteboardNodeShape, WhiteboardLineStyle, WhiteboardEndMarker } from '../shared/types';
+import { WHITEBOARD_MAX_HEIGHT, WHITEBOARD_MAX_WIDTH, WHITEBOARD_MIN_HEIGHT, WHITEBOARD_MIN_WIDTH } from '../shared/whiteboard-geometry';
 import type { StudioStore } from './store';
 
-type NodeRow = { id: string; project_id: string; title: string; description: string; x: number; y: number; shape: 'card' | 'step' | 'decision'; visual_kind: string | null; reference_kind: 'card' | 'folder' | 'file' | null; card_id: string | null; folder_path: string | null; created_at: string; updated_at: string };
+type NodeRow = { id: string; project_id: string; title: string; description: string; x: number; y: number; width: number | null; height: number | null; shape: 'card' | 'step' | 'decision'; visual_kind: string | null; reference_kind: 'card' | 'folder' | 'file' | null; card_id: string | null; folder_path: string | null; created_at: string; updated_at: string };
 type EdgeRow = { id: string; project_id: string; source_id: string; target_id: string; label: string; line_style: WhiteboardLineStyle; end_marker: WhiteboardEndMarker; created_at: string; updated_at: string; linked_card_id?: string | null };
 export const MAX_WHITEBOARD_NODES = 500;
 export const MAX_WHITEBOARD_EDGES = 1000;
 
-const node = (row: NodeRow): WhiteboardNode => ({ id: row.id, projectId: row.project_id, title: row.title, description: row.description, x: row.x, y: row.y,
+const node = (row: NodeRow): WhiteboardNode => ({ id: row.id, projectId: row.project_id, title: row.title, description: row.description, x: row.x, y: row.y, width: row.width, height: row.height,
   shape: isShape(row.visual_kind) ? row.visual_kind : row.shape === 'step' || row.shape === 'decision' ? row.shape : 'card',
   reference: row.reference_kind === 'card' && row.card_id ? { kind: 'card', cardId: row.card_id } : (row.reference_kind === 'folder' || row.reference_kind === 'file') && row.folder_path ? { kind: row.reference_kind, path: row.folder_path } : null,
   createdAt: row.created_at, updatedAt: row.updated_at });
@@ -23,6 +24,7 @@ export function installWhiteboard(db: Database.Database): void {
     CREATE TABLE IF NOT EXISTS whiteboard_nodes (
       id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
       title TEXT NOT NULL, description TEXT NOT NULL, x REAL NOT NULL, y REAL NOT NULL,
+      width INTEGER CHECK (width BETWEEN 140 AND 1000), height INTEGER CHECK (height BETWEEN 72 AND 700),
       shape TEXT NOT NULL DEFAULT 'card' CHECK (shape IN ('card', 'step', 'decision')),
       visual_kind TEXT CHECK (visual_kind IN ('card', 'step', 'decision', 'terminator', 'document', 'data', 'note', 'text')),
       reference_kind TEXT, card_id TEXT REFERENCES cards(id) ON DELETE SET NULL,
@@ -58,6 +60,10 @@ export function installWhiteboard(db: Database.Database): void {
     db.exec("ALTER TABLE whiteboard_nodes ADD COLUMN shape TEXT NOT NULL DEFAULT 'card' CHECK (shape IN ('card', 'step', 'decision'))");
   if (!columns.some((column) => column.name === 'visual_kind'))
     db.exec("ALTER TABLE whiteboard_nodes ADD COLUMN visual_kind TEXT CHECK (visual_kind IN ('card', 'step', 'decision', 'terminator', 'document', 'data', 'note', 'text'))");
+  if (!columns.some((column) => column.name === 'width'))
+    db.exec('ALTER TABLE whiteboard_nodes ADD COLUMN width INTEGER CHECK (width BETWEEN 140 AND 1000)');
+  if (!columns.some((column) => column.name === 'height'))
+    db.exec('ALTER TABLE whiteboard_nodes ADD COLUMN height INTEGER CHECK (height BETWEEN 72 AND 700)');
   const edgeColumns = db.prepare('PRAGMA table_info(whiteboard_edges)').all() as Array<{ name: string }>;
   if (!edgeColumns.some((column) => column.name === 'line_style'))
     db.exec("ALTER TABLE whiteboard_edges ADD COLUMN line_style TEXT NOT NULL DEFAULT 'solid' CHECK (line_style IN ('solid', 'dashed'))");
@@ -78,6 +84,13 @@ function label(value: unknown, field: string, max: number, allowEmpty = false): 
 function position(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > 100_000) throw new Error('Whiteboard-Position ist ungültig.');
   return Math.round(value * 100) / 100;
+}
+
+function dimension(value: unknown, min: number, max: number): number | null {
+  if (value === null) return null;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > max)
+    throw new Error(`Whiteboard-Größe muss eine ganze Zahl zwischen ${min} und ${max} sein.`);
+  return value;
 }
 
 function isShape(value: unknown): value is WhiteboardNodeShape {
@@ -142,7 +155,7 @@ export function whiteboardSnapshot(store: StudioStore, projectId: string): White
   return { nodes: nodes.map(node), edges: edges.map(edge) };
 }
 
-export function createWhiteboardNode(store: StudioStore, input: { projectId: string; title: string; description?: string; x: number; y: number; shape?: WhiteboardNodeShape; reference?: WhiteboardReference | null }): WhiteboardNode {
+export function createWhiteboardNode(store: StudioStore, input: { projectId: string; title: string; description?: string; x: number; y: number; width?: number | null; height?: number | null; shape?: WhiteboardNodeShape; reference?: WhiteboardReference | null }): WhiteboardNode {
   store.project(input.projectId);
   const title = label(input.title, 'Titel', 120);
   const description = label(input.description ?? '', 'Beschreibung', 2000, true);
@@ -152,21 +165,23 @@ export function createWhiteboardNode(store: StudioStore, input: { projectId: str
   const id = randomUUID();
   const stamp = new Date().toISOString();
   const shape = checkedShape(input.shape ?? 'card');
-  store.db.prepare('INSERT INTO whiteboard_nodes (id, project_id, title, description, x, y, shape, visual_kind, reference_kind, card_id, folder_path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .run(id, input.projectId, title, description, position(input.x), position(input.y), legacyShape(shape), shape, reference?.kind ?? null, reference?.kind === 'card' ? reference.cardId : null, reference?.kind === 'folder' || reference?.kind === 'file' ? reference.path : null, stamp, stamp);
+  store.db.prepare('INSERT INTO whiteboard_nodes (id, project_id, title, description, x, y, width, height, shape, visual_kind, reference_kind, card_id, folder_path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(id, input.projectId, title, description, position(input.x), position(input.y), dimension(input.width ?? null, WHITEBOARD_MIN_WIDTH, WHITEBOARD_MAX_WIDTH), dimension(input.height ?? null, WHITEBOARD_MIN_HEIGHT, WHITEBOARD_MAX_HEIGHT), legacyShape(shape), shape, reference?.kind ?? null, reference?.kind === 'card' ? reference.cardId : null, reference?.kind === 'folder' || reference?.kind === 'file' ? reference.path : null, stamp, stamp);
   return requiredNode(store, id);
 }
 
-export function updateWhiteboardNode(store: StudioStore, input: { projectId: string; id: string; title?: string; description?: string; x?: number; y?: number; shape?: WhiteboardNodeShape; reference?: WhiteboardReference | null; expectedUpdatedAt?: string }): WhiteboardNode {
+export function updateWhiteboardNode(store: StudioStore, input: { projectId: string; id: string; title?: string; description?: string; x?: number; y?: number; width?: number | null; height?: number | null; shape?: WhiteboardNodeShape; reference?: WhiteboardReference | null; expectedUpdatedAt?: string }): WhiteboardNode {
   const existing = requiredNode(store, input.id);
   if (existing.projectId !== input.projectId) throw new Error('Whiteboard-Box gehört nicht zu diesem Projekt.');
   if (input.expectedUpdatedAt !== undefined && input.expectedUpdatedAt !== existing.updatedAt) throw new Error('Whiteboard-Box wurde seit dem Entwurf geändert. Neu laden und erneut prüfen.');
   const reference = input.reference === undefined ? existing.reference : checkedReference(store, existing.projectId, input.reference);
   const shape = checkedShape(input.shape ?? existing.shape);
-  store.db.prepare('UPDATE whiteboard_nodes SET title = ?, description = ?, x = ?, y = ?, shape = ?, visual_kind = ?, reference_kind = ?, card_id = ?, folder_path = ?, updated_at = ? WHERE id = ?')
+  store.db.prepare('UPDATE whiteboard_nodes SET title = ?, description = ?, x = ?, y = ?, width = ?, height = ?, shape = ?, visual_kind = ?, reference_kind = ?, card_id = ?, folder_path = ?, updated_at = ? WHERE id = ?')
     .run(input.title === undefined ? existing.title : label(input.title, 'Titel', 120),
       input.description === undefined ? existing.description : label(input.description, 'Beschreibung', 2000, true),
-      input.x === undefined ? existing.x : position(input.x), input.y === undefined ? existing.y : position(input.y), legacyShape(shape), shape,
+      input.x === undefined ? existing.x : position(input.x), input.y === undefined ? existing.y : position(input.y),
+      input.width === undefined ? existing.width : dimension(input.width, WHITEBOARD_MIN_WIDTH, WHITEBOARD_MAX_WIDTH),
+      input.height === undefined ? existing.height : dimension(input.height, WHITEBOARD_MIN_HEIGHT, WHITEBOARD_MAX_HEIGHT), legacyShape(shape), shape,
       reference?.kind ?? null, reference?.kind === 'card' ? reference.cardId : null, reference?.kind === 'folder' || reference?.kind === 'file' ? reference.path : null,
       new Date(Math.max(Date.now(), Date.parse(existing.updatedAt) + 1)).toISOString(), input.id);
   return requiredNode(store, input.id);

@@ -90,7 +90,7 @@ describe('project whiteboard', () => {
     legacy.prepare('INSERT INTO whiteboard_nodes VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run('old-box', 'project', 'Saved box', '', 0, 0, null, null, null, stamp, stamp);
     legacy.close();
     const store = new StudioStore(file);
-    expect(whiteboardSnapshot(store, 'project').nodes[0]).toMatchObject({ id: 'old-box', shape: 'card' });
+    expect(whiteboardSnapshot(store, 'project').nodes[0]).toMatchObject({ id: 'old-box', shape: 'card', width: null, height: null });
     expect(updateWhiteboardNode(store, { projectId: 'project', id: 'old-box', shape: 'decision' }).shape).toBe('decision');
     store.close();
   });
@@ -107,6 +107,23 @@ describe('project whiteboard', () => {
     store.close();
     const reopened = new StudioStore(file);
     expect(whiteboardSnapshot(reopened, project.id).nodes.map(({ shape }) => shape).sort()).toEqual(['card', 'step']);
+    reopened.close();
+  });
+
+  it('keeps legacy auto-size and persists bounded geometry only after an explicit update', () => {
+    const { store, file, project } = fixture();
+    const node = createWhiteboardNode(store, { projectId: project.id, title: 'Resizable', x: 20, y: 30 });
+    expect(node).toMatchObject({ width: null, height: null });
+    expect(() => updateWhiteboardNode(store, { projectId: project.id, id: node.id, width: 50, expectedUpdatedAt: node.updatedAt })).toThrow('Größe');
+    expect(() => updateWhiteboardNode(store, { projectId: project.id, id: node.id, height: 701, expectedUpdatedAt: node.updatedAt })).toThrow('Größe');
+    expect(whiteboardSnapshot(store, project.id).nodes[0]).toMatchObject({ width: null, height: null });
+    const sized = updateWhiteboardNode(store, { projectId: project.id, id: node.id, x: 25, y: 35, width: 320, height: 160, expectedUpdatedAt: node.updatedAt });
+    expect(sized).toMatchObject({ x: 25, y: 35, width: 320, height: 160 });
+    expect(() => updateWhiteboardNode(store, { projectId: project.id, id: node.id, width: 400, expectedUpdatedAt: node.updatedAt })).toThrow('seit dem Entwurf');
+    store.close();
+    const reopened = new StudioStore(file);
+    expect(whiteboardSnapshot(reopened, project.id).nodes[0]).toMatchObject({ width: 320, height: 160 });
+    expect(updateWhiteboardNode(reopened, { projectId: project.id, id: node.id, width: null }).width).toBeNull();
     reopened.close();
   });
 

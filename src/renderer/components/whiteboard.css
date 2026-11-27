@@ -142,7 +142,7 @@
 .wb-view .react-flow__node-default.wb-node {
   width: 222px;
   padding: 0;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid color-mix(in srgb, var(--wb-node-tone, var(--border)) 28%, var(--border)) !important;
   border-radius: 11px !important;
   background: var(--surface) !important;
@@ -152,6 +152,13 @@
 }
 .wb-view .react-flow__node-default.wb-node:hover { box-shadow: 0 3px 11px rgb(20 20 22 / 10%) !important; }
 .wb-view .react-flow__node-default.wb-node.selected { border-color: var(--wb-node-tone, var(--accent)) !important; box-shadow: 0 0 0 2px color-mix(in srgb, var(--wb-node-tone, var(--accent)) 24%, transparent), 0 2px 8px rgb(20 20 22 / 7%) !important; }
+.wb-view .wb-resize-outline { border-color: var(--wb-node-tone, var(--accent)); }
+.wb-view .wb-resize-handle { z-index: 4; width: 16px; height: 16px; border: 0; background: transparent; pointer-events: auto; }
+.wb-view .wb-resize-handle::after { content: ''; position: absolute; inset: 4px; border: 1px solid var(--surface); border-radius: 2px; background: var(--wb-node-tone, var(--accent)); box-shadow: 0 0 0 1px var(--wb-node-tone, var(--accent)); pointer-events: none; }
+.wb-view .wb-resize-handle:hover::after { inset: 3px; }
+.wb-size-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.wb-size-fields input { width: 100%; box-sizing: border-box; }
+.wb-size-hint { display: block; margin: 4px 0 12px; color: var(--muted); line-height: 1.35; }
 .wb-node-card { --wb-node-tone: #6d72b5; }
 .wb-node-folder { --wb-node-tone: #b58a55; }
 .wb-node-file { --wb-node-tone: #4c8d92; }
@@ -190,6 +197,10 @@
 .wb-shape-rail-group button:hover:not(:disabled), .wb-shape-rail-group button:focus-visible { background: var(--surface-2); }
 .wb-shape-rail-group button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .wb-shape-rail-group button:disabled { opacity: .45; cursor: not-allowed; }
+.wb-shape-rail-group button.is-active { background: var(--surface-2); box-shadow: inset 2px 0 var(--accent); }
+.wb-line-draw-surface { z-index: 11; grid-column: 2; grid-row: 1; cursor: crosshair; touch-action: none; }
+.wb-line-coordinates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.wb-line-coordinates input { font-variant-numeric: tabular-nums; }
 .wb-shape-glyph { width: 17px; height: 13px; flex: none; border: 1.5px solid currentColor; border-radius: 2px; }
 .wb-shape-glyph-step { border-radius: 8px; }
 .wb-shape-glyph-decision { width: 14px; height: 14px; border-radius: 2px; transform: rotate(45deg) scale(.8); }

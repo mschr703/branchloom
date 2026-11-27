@@ -78,11 +78,12 @@ describe('selected Whiteboard discussion', () => {
 
   it('withholds an answer and draft suggestion without any supported citation', async () => {
     const { store, project } = fixture();
-    const node = createWhiteboardNode(store, { projectId: project.id, title: 'Only a box', x: 0, y: 0 });
+    const node = createWhiteboardNode(store, { projectId: project.id, title: 'Only a box', x: 0, y: 0, shape: 'note' });
     const reply = await discussWhiteboardSelection(store, { projectId: project.id, nodeIds: [node.id], question: 'Is it finished?' }, async (call) => {
       writeFileSync(call.outputPath, JSON.stringify({ answer: 'Everything is done.', citedNodeIds: [], citedProjectSourceIds: [], suggestedTitle: 'Release now', suggestedDescription: 'Ship.' }));
     });
     expect(reply.answer).toContain('keine verlässliche Antwort');
+    expect(reply.sources[0]?.shape).toBe('note');
     expect(reply.suggestedTitle).toBe('');
     store.close();
   });

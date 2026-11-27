@@ -1,0 +1,4 @@
+export const WHITEBOARD_MIN_WIDTH = 140;
+export const WHITEBOARD_MAX_WIDTH = 1000;
+export const WHITEBOARD_MIN_HEIGHT = 72;
+export const WHITEBOARD_MAX_HEIGHT = 700;
