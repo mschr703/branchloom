@@ -11,7 +11,7 @@ export function BoardSessionDock({ snapshot, onOpenSession }: Props) {
   const running = snapshot.sessions.filter((session) => session.state === 'running');
   const recent = [...snapshot.sessions].filter((session) => session.state !== 'running').sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, 3);
   const visible = running.length ? running : recent;
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(running.length > 0);
   const previousCount = useRef(running.length);
 
   useEffect(() => {

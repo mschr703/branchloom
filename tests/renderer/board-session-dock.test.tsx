@@ -28,8 +28,11 @@ it('opens a newly active run and keeps the finished session visible', async () =
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   try {
     await act(async () => { root.render(<BoardSessionDock snapshot={base} onOpenSession={onOpenSession} />); });
-    expect(host.querySelector('.board-session-toggle')?.getAttribute('aria-expanded')).toBe('true');
+    expect(host.querySelector('.board-session-toggle')?.getAttribute('aria-expanded')).toBe('false');
+    expect(host.textContent).not.toContain('Noch keine Agentensitzung');
+    await act(async () => { host.querySelector<HTMLButtonElement>('.board-session-toggle')!.click(); });
     expect(host.textContent).toContain('Noch keine Agentensitzung');
+    await act(async () => { host.querySelector<HTMLButtonElement>('.board-session-toggle')!.click(); });
     await act(async () => { root.render(<BoardSessionDock snapshot={{ ...base, sessions: [session] }} onOpenSession={onOpenSession} />); });
     expect(host.querySelector('.board-session-toggle')?.getAttribute('aria-expanded')).toBe('true');
     expect(host.textContent).toContain('Review invitation flow');

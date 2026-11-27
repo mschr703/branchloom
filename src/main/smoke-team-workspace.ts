@@ -14,6 +14,7 @@ const Y = require('yjs') as typeof import('yjs', { with: { 'resolution-mode': 'r
 export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store: StudioStore,
   projectPath: string, host: TeamLocalService): Promise<void> {
   const boardScreenshot = process.env.BRANCHLOOM_TEAM_BOARD_OVERVIEW_SCREENSHOT;
+  const narrowBoardScreenshot = process.env.BRANCHLOOM_TEAM_BOARD_NARROW_SCREENSHOT;
   const projectName = boardScreenshot ? 'Atlas sample' : 'Synthetic team project';
   const project = store.createProject({ name: projectName, path: projectPath });
   const card = store.createCard({ projectId: project.id, columnId: store.snapshot(project.id).columns[0]!.id,
@@ -43,12 +44,32 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
       }
       throw new Error('Synthetic board did not settle for screenshot.');
     })()`);
-    window.showInactive();
+    if (window.isVisible()) throw new Error('Board screenshot must not take over the active desktop.');
+    const originalSize = window.getSize();
     try {
-      window.webContents.sendInputEvent({ type: 'mouseMove', x: 700, y: 180 });
+      window.setSize(1440, 900);
       await window.webContents.executeJavaScript('new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
       writeFileSync(boardScreenshot, (await window.capturePage()).toPNG());
-    } finally { window.hide(); }
+      if (narrowBoardScreenshot) {
+        window.setSize(430, 760);
+        await window.webContents.executeJavaScript('new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+        const cardTop = await window.webContents.executeJavaScript(`(() => document.querySelector('.board-card-wrap')?.getBoundingClientRect().top ?? Infinity)()`);
+        if (cardTop >= 760) throw new Error('Board cards are below the first narrow viewport.');
+        writeFileSync(narrowBoardScreenshot, (await window.capturePage()).toPNG());
+      }
+      await window.webContents.executeJavaScript(`(() => {
+        const actions = document.querySelector('.board-more-tools');
+        const filters = document.querySelector('.board-filter-options');
+        if (!(actions instanceof HTMLDetailsElement) || !(filters instanceof HTMLDetailsElement)) throw new Error('Board menus are missing.');
+        actions.querySelector('summary')?.click();
+        if (!actions.open || !actions.textContent?.includes('Trello importieren') || !actions.textContent?.includes('UI-Prüfung')) throw new Error('Board actions did not open.');
+        actions.querySelector('summary')?.click();
+        filters.querySelector('summary')?.click();
+        if (!filters.open || filters.querySelectorAll('select').length !== 4) throw new Error('Board filters did not open.');
+        filters.querySelector('summary')?.click();
+        return true;
+      })()`);
+    } finally { window.setSize(originalSize[0]!, originalSize[1]!); }
   }
   const result = await window.webContents.executeJavaScript(`(async () => {
     const wait = async (predicate, label) => {

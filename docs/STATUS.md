@@ -2,6 +2,11 @@
 
 Stand: 27.11.2026 (Europe/Berlin). Dies ist ein Entwicklungsstand, keine vollständige Kangentic-Parität.
 
+## Kanban-Hauptansicht: kompaktere Bedienung (lokal geprüft)
+
+- Die Hauptfläche beginnt früher. Seltener genutzte Aktionen (Aufgabe vorbereiten, Trello-Import, UI-Prüfung) liegen in einem zugänglichen Menü; Priorität, Label, Spalte und Archivstatus in einem gemeinsamen Filter. Neue Aufgabe bleibt direkt sichtbar. Ohne laufende Sitzung ist die untere Sitzungsleiste nur eine schmale Kopfzeile; beim Start einer neuen Sitzung öffnet sie sich weiterhin selbst. Karten haben einen ruhigeren Rahmen, und die doppelte Aktivitätszahl im Boardkopf entfällt.
+- Ein verstecktes Electron-Fenster mit synthetischem Projekt wurde bei 1440 × 900 und 430 × 760 aufgenommen. Im schmalen Fenster liegt die erste Karte wieder im ersten Bildausschnitt; der Smoke prüft Menüs, Filter und den bestehenden Zwei-Client-Teamablauf. Elf gezielte Board-Tests, Typprüfung und Produktionsbuild bestanden. Die neue README-Boardaufnahme zeigt nur synthetische Karten. Eine vollständige Neubewertung der Kanban-Gestaltung mit echten Agentenläufen und Nutzerfeedback steht noch aus.
+
 ## Design-Fokus ohne Übernahme des Nutzerfensters
 
 - Der vergrößerte Wireframe-Editor nutzt mehr Fensterbreite für die Zeichenfläche. Ebenen und Eigenschaften stehen als schmale, durchgehende Seitenleisten daneben; die Artboard-Auswahl ist flacher. Auf schmalen Fenstern rückt die Zeichenfläche nach vorn, während Speichern und Freigeben weiterhin sichtbar und getrennt bleiben. `npm run smoke:design-preview` startet eine versteckte, isolierte Electron-Testinstanz, öffnet einen synthetischen Entwurf und erzeugt Desktop- und 430-Pixel-Aufnahmen, ohne Maus, Tastatur oder das normale Branchloom-Profil zu verwenden. Der fokussierte Test und sechs gezielte Renderer-Tests bestanden; beide Bilder wurden gesichtet. Build und Typprüfung bestanden; der Produktions-Audit hatte keine Funde, der vollständige Audit nur sechs moderate Meldungen aus Build-Abhängigkeiten. Ein früherer Gesamtsmoke scheiterte später im unabhängigen F08-Login-Pfad beziehungsweise an einem fehlenden nativen Design-Smoke-Status; der neue fokussierte Test deckt diese Pfade nicht ab. Dieser Schritt erweitert keine Wireframe-Funktionen und macht aus QA-Aufnahmen keine editierbaren Entwürfe.
