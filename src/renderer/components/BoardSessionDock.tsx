@@ -1,16 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Terminal } from 'lucide-react';
 import type { ProjectSnapshot } from '../../shared/types';
+import { readableSessionOutput } from '../activity-transcript';
 
 interface Props {
   snapshot: ProjectSnapshot;
   onOpenSession: (cardId: string, sessionId: string) => void;
 }
 
+export function sessionOutputPreview(output: string): string {
+  return readableSessionOutput(output).split('\n').map((line) => line.trimEnd()).filter((line) => line.trim().length > 0).slice(-3).join('\n').slice(-480);
+}
+
 export function BoardSessionDock({ snapshot, onOpenSession }: Props) {
   const running = snapshot.sessions.filter((session) => session.state === 'running');
   const recent = [...snapshot.sessions].filter((session) => session.state !== 'running').sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, 3);
   const visible = running.length ? running : recent;
+  const latestOutput = running[0] ? sessionOutputPreview(running[0].output) : '';
   const [expanded, setExpanded] = useState(running.length > 0);
   const previousCount = useRef(running.length);
 
@@ -39,6 +45,7 @@ export function BoardSessionDock({ snapshot, onOpenSession }: Props) {
           <span className="board-session-action">Sitzung öffnen</span>
         </button>;
       }) : <p className="board-session-empty">Noch keine Agentensitzung in diesem Projekt. Starte eine Karte, um ihren Verlauf hier zu sehen.</p>}
+      {latestOutput ? <div className="board-session-preview"><span>Letzte Ausgabe · {snapshot.agents.find((item) => item.id === running[0]!.agentId)?.name ?? 'Agent'}</span><pre aria-label="Letzte Agentenausgabe">{latestOutput}</pre></div> : null}
     </div> : null}
   </section>;
 }

@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it, vi } from 'vitest';
-import { BoardSessionDock } from '../../src/renderer/components/BoardSessionDock';
+import { BoardSessionDock, sessionOutputPreview } from '../../src/renderer/components/BoardSessionDock';
 import { CardPanel } from '../../src/renderer/components/CardPanel';
 import type { ProjectSnapshot, Session } from '../../src/shared/types';
 
@@ -37,6 +37,9 @@ it('opens a newly active run and keeps the finished session visible', async () =
     expect(host.querySelector('.board-session-toggle')?.getAttribute('aria-expanded')).toBe('true');
     expect(host.textContent).toContain('Review invitation flow');
     expect(host.textContent).toContain('Codex');
+    expect(host.querySelector('.board-session-preview')).toBeNull();
+    await act(async () => { root.render(<BoardSessionDock snapshot={{ ...base, sessions: [{ ...session, output: '\u001b[32mread\u001b[0m file.ts\nedit filter\ncheck preview\n' }] }} onOpenSession={onOpenSession} />); });
+    expect(host.querySelector('.board-session-preview pre')?.textContent).toBe('read file.ts\nedit filter\ncheck preview');
     await act(async () => { host.querySelector<HTMLButtonElement>('.board-session-row')!.click(); });
     expect(onOpenSession).toHaveBeenCalledWith('card', 'run');
     await act(async () => { root.render(<BoardSessionDock snapshot={{ ...base, sessions: [{ ...session, state: 'exited' }] }} onOpenSession={onOpenSession} />); });
@@ -49,6 +52,11 @@ it('opens a newly active run and keeps the finished session visible', async () =
     else Reflect.deleteProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
     host.remove();
   }
+});
+
+it('limits the dock preview to the latest three readable lines', () => {
+  expect(sessionOutputPreview('old\nsecond\nthird\nfourth\n')).toBe('second\nthird\nfourth');
+  expect(sessionOutputPreview('x'.repeat(600))).toHaveLength(480);
 });
 
 it('shows the selected run when a card has multiple saved sessions', () => {

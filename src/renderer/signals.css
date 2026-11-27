@@ -212,6 +212,9 @@
 :root[data-theme] .board-session-toggle > strong { color: var(--text); }
 :root[data-theme] .board-session-list { min-height: 64px; padding: 4px 10px 8px; }
 :root[data-theme] .board-session-empty { padding: 10px 0; font-size: 12px; }
+:root[data-theme] .board-session-preview { margin: 5px 0 1px 3px; padding: 3px 0 2px 12px; border-left: 2px solid var(--border); }
+:root[data-theme] .board-session-preview > span { display: block; margin-bottom: 3px; color: var(--muted); font-size: 10px; }
+:root[data-theme] .board-session-preview pre { overflow: hidden; max-height: 52px; margin: 0; color: var(--muted); font: 11px/1.4 ui-monospace, 'Cascadia Code', Consolas, monospace; text-overflow: ellipsis; white-space: pre-wrap; overflow-wrap: anywhere; }
 :root[data-theme] .board-session-running.state-exited { background: var(--muted); }
 :root[data-theme] .board-session-running.state-stopped { background: var(--warning); }
 :root[data-theme] .board-session-running.state-failed { background: var(--danger); }
@@ -389,4 +392,8 @@
   :root[data-theme] .board-view-tabs { gap: 10px; overflow: auto; scrollbar-width: none; }
   :root[data-theme] .board-view-tabs > * { font-size: 11px; }
   :root[data-theme] .board-filters { padding-block: 5px; }
+}
+@media (forced-colors: active) {
+  :root[data-theme] .column-indicator { color: ButtonText; }
+  :root[data-theme] .board-session-preview { border-left-color: CanvasText; }
 }

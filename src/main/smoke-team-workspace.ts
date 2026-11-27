@@ -39,6 +39,7 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
     const runningPreviewCard = store.createCard({ projectId: project.id, columnId: columns[2]?.id ?? columns[0]!.id,
       title: 'Make board filters keyboard friendly', description: 'Keep search and filter state in view.', labels: ['Board'] });
     const runningPreview = store.createSession({ cardId: runningPreviewCard.id, agentId: sampleAgent.id });
+    store.appendOutput(runningPreview.id, 'read  src/renderer/board-filters.ts\nedit  keyboard navigation for the filter row\ncheck focused controls in the preview\n');
     store.createCard({ projectId: project.id, columnId: columns[1]?.id ?? columns[0]!.id,
       title: 'Sketch project navigation', description: 'Compare the first route with the approved draft.', labels: ['Design'] });
     store.createCard({ projectId: project.id, columnId: columns[2]?.id ?? columns[0]!.id,
