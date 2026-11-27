@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { SavedTeamConnection } from '../../main/team-connection-store';
+import type { HostedTeamWorkspace } from '../../main/team-local-service';
 import type { CollaborativeTeamBoard } from '../../main/team-remote-client';
 import { TeamCardDraftEditor } from './TeamCardDraftEditor';
 import { TeamCardPriorityControl } from './TeamCardPriorityControl';
@@ -10,11 +11,44 @@ import './team-workspace-view.css';
 const messageOf = (reason: unknown) => reason instanceof Error ? reason.message : String(reason);
 type RemoteWorkspace = { member: { displayName: string; role: string }; projects: Array<{ id: string; name: string; canEditDraft: boolean; canManageTask: boolean }> };
 
+const roleNames: Record<string, string> = { owner: 'Owner', admin: 'Admin', editor: 'Mitglied', developer: 'Entwicklung', viewer: 'Ansicht' };
+const accessNames: Record<string, string> = { none: 'Kein Projektzugang', read: 'Nur lesen', edit: 'Mitarbeiten' };
+
+function memberAccessLabel(member: HostedTeamWorkspace['members'][number], projectDefault: HostedTeamWorkspace['defaultMemberAccess']): string {
+  const access = member.role === 'owner' ? 'edit' : member.projectAccess ?? projectDefault;
+  if (access !== 'edit') return accessNames[access] ?? 'Kein Projektzugang';
+  if (member.role === 'viewer') return member.extraCapabilities.some((capability) => capability !== 'read') ? 'Zusatzrechte' : 'Nur lesen';
+  if (member.role === 'developer') return member.extraCapabilities.some((capability) => capability !== 'read' && capability !== 'edit_draft') ? 'Entwurf & Zusatzrechte' : 'Entwurf bearbeiten';
+  return 'Mitarbeiten';
+}
+
+export function memberMonogram(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return parts.length > 1 ? `${parts[0]![0]}${parts.at(-1)![0]}`.toLocaleUpperCase() : (parts[0] ?? '?').slice(0, 2).toLocaleUpperCase();
+}
+
+export function TeamMemberOverview({ hosted, currentMemberId, fallbackMember, onRefresh }: {
+  hosted: HostedTeamWorkspace | null;
+  currentMemberId?: string;
+  fallbackMember?: RemoteWorkspace['member'];
+  onRefresh?: () => void;
+}) {
+  const members = hosted?.members.filter((member) => !member.revokedAt) ?? [];
+  return <section className="team-members-overview" aria-label="Mitglieder">
+    <div className="team-section-heading"><div><h3>Mitglieder</h3><p>{hosted ? 'Rollen und Rechte für dieses Projekt' : 'Dein Zugang in diesem Workspace'}</p></div>{hosted ? <span>{members.length}</span> : null}{hosted && onRefresh ? <button type="button" className="text-button" onClick={onRefresh}>Aktualisieren</button> : null}</div>
+    {hosted ? <ul className="team-members-list">{members.map((member) => {
+      return <li key={member.id}><span className="team-member-avatar" aria-hidden="true">{memberMonogram(member.displayName)}</span><div className="team-member-identity"><strong>{member.displayName}</strong><small>{roleNames[member.role] ?? member.role}{member.id === currentMemberId ? ' · Du' : ''}</small></div><span className="team-member-access">{memberAccessLabel(member, hosted.defaultMemberAccess)}</span></li>;
+    })}</ul> : fallbackMember ? <><div className="team-member-self"><span className="team-member-avatar" aria-hidden="true">{memberMonogram(fallbackMember.displayName)}</span><div className="team-member-identity"><strong>{fallbackMember.displayName}</strong><small>{roleNames[fallbackMember.role] ?? fallbackMember.role} · Du</small></div></div><p className="team-members-limitation">Die vollständige Mitgliederliste ist in dieser lokalen Vorschau nur auf dem Host sichtbar.</p></> : <p className="team-workspace-muted">Mitglieder werden geladen…</p>}
+  </section>;
+}
+
 export function TeamWorkspaceView({ projectId }: { projectId?: string }) {
+  const settingsRef = useRef<HTMLDetailsElement>(null);
   const [refreshToken, setRefreshToken] = useState(0);
   const [connections, setConnections] = useState<SavedTeamConnection[]>([]);
   const [workspaceId, setWorkspaceId] = useState('');
   const [workspace, setWorkspace] = useState<RemoteWorkspace | null>(null);
+  const [hosted, setHosted] = useState<HostedTeamWorkspace | null>(null);
   const [remoteProjectId, setRemoteProjectId] = useState('');
   const [board, setBoard] = useState<CollaborativeTeamBoard | null>(null);
   const [cardId, setCardId] = useState('');
@@ -59,26 +93,33 @@ export function TeamWorkspaceView({ projectId }: { projectId?: string }) {
     return () => { active = false; clearInterval(timer); };
   }, [workspaceId, remoteProjectId]);
 
+  useEffect(() => {
+    if (!remoteProjectId || connections.find((item) => item.workspaceId === workspaceId)?.role !== 'owner') { setHosted(null); return; }
+    let active = true;
+    setHosted(null);
+    void window.studio.hostedTeamProject(remoteProjectId).then((next) => { if (active) setHosted(next); })
+      .catch((reason: unknown) => { if (active) setError(messageOf(reason)); });
+    return () => { active = false; };
+  }, [workspaceId, remoteProjectId, connections, refreshToken]);
+
   const selectedCard = board?.cards.find((card) => card.id === cardId);
   return <div className="team-workspace-page standard-page">
-    <p className="team-workspace-intro">Gemeinsame Projekte, Mitglieder und Entwürfe. Auf diesem Gerät läuft der Koordinator nur lokal.</p>
-    <details className="team-workspace-setup" open={!connections.length ? true : undefined}>
-      <summary>{connections.length ? 'Workspace verwalten oder beitreten' : 'Workspace erstellen oder Einladung annehmen'}</summary>
-      <TeamWorkspaceSettings projectId={projectId} onConnectionChange={() => setRefreshToken((value) => value + 1)} />
-    </details>
+    <header className="team-workspace-header"><div><h2>Team</h2><p>Mitglieder, Projektrechte und gemeinsame Entwürfe.</p></div>
+      {connections.length ? <button type="button" className="secondary-button" onClick={() => { if (settingsRef.current) { settingsRef.current.open = true; settingsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }}>Einladen &amp; Rechte</button> : null}</header>
     {connections.length ? <div className="team-workspace-content">
       <div className="team-workspace-switches"><label>Workspace<select value={workspaceId} onChange={(event) => setWorkspaceId(event.currentTarget.value)}>
         {connections.map((item) => <option key={item.workspaceId} value={item.workspaceId}>{item.displayName} · {item.role}</option>)}</select></label>
         {workspace?.projects.length ? <label>Projekt<select value={remoteProjectId} onChange={(event) => setRemoteProjectId(event.currentTarget.value)}>
           {workspace.projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label> : null}
-        {workspace ? <span>{workspace.member.displayName} · {workspace.member.role}</span> : null}</div>
-      {board ? <div className="team-workspace-board-layout"><div className="team-workspace-board" aria-label={`Teamboard ${board.projectName}`}>
-        <div className="team-workspace-board-heading"><h3>{board.projectName}</h3><span>{board.cards.length}{board.truncated ? '+' : ''} Karten · Stand {new Date(board.observedAt).toLocaleTimeString('de-DE')}</span></div>
-        <div className="team-workspace-columns">{board.columns.map((column) => <section key={column.id} aria-label={`Spalte ${column.name}`}>
+        {workspace ? <span>{workspace.member.displayName} · {roleNames[workspace.member.role] ?? workspace.member.role}</span> : null}</div>
+      {workspace ? <TeamMemberOverview hosted={hosted} currentMemberId={connections.find((item) => item.workspaceId === workspaceId)?.memberId} fallbackMember={workspace.member} onRefresh={() => setRefreshToken((value) => value + 1)} /> : null}
+      {board ? <div className="team-workspace-board-layout"><div className="team-workspace-board" aria-label={`Gemeinsame Arbeit ${board.projectName}`}>
+        <div className="team-workspace-board-heading"><div><h3>Gemeinsame Arbeit</h3><p>Dieselben Karten wie im Projekt-Board. Hier öffnest du einen gemeinsamen Entwurf.</p></div><span>{board.cards.length}{board.truncated ? '+' : ''} Karten · Stand {new Date(board.observedAt).toLocaleTimeString('de-DE')}</span></div>
+        <div className="team-workspace-columns">{board.columns.filter((column) => board.cards.some((card) => card.columnId === column.id)).map((column) => <section key={column.id} aria-label={`Spalte ${column.name}`}>
           <h4>{column.name} <small>{board.cards.filter((card) => card.columnId === column.id).length}</small></h4>
           {board.cards.filter((card) => card.columnId === column.id).map((card) => <button key={card.id} type="button"
             className={cardId === card.id ? 'team-workspace-card selected' : 'team-workspace-card'} onClick={() => { setCardId(card.id); setActionNotice(''); }}
-            aria-pressed={cardId === card.id}><strong>{card.title}</strong><small>{card.runningSince ? 'Agent aktiv' : card.priority === 'none' ? 'Ohne Priorität' : card.priority}</small></button>)}
+            aria-pressed={cardId === card.id}><strong>{card.title}</strong><small>{card.runningSince ? 'Agent arbeitet' : card.priority === 'none' ? 'Ohne Priorität' : card.priority}</small></button>)}
         </section>)}</div></div>
         <div className="team-workspace-detail">{selectedCard ? <>
           {actionNotice ? <p className="inline-note" role="status">{actionNotice}</p> : null}
@@ -102,8 +143,12 @@ export function TeamWorkspaceView({ projectId }: { projectId?: string }) {
             onCardChanged={() => { void window.studio.teamBoard({ workspaceId, projectId: remoteProjectId })
               .then(setBoard).catch((reason: unknown) => setError(messageOf(reason))); }} /></>
           : <p>Wähle eine Karte, um den gemeinsamen Entwurf zu öffnen.</p>}</div></div> : null}
-      {!board && !error ? <p className="team-workspace-muted">Teamboard wird geladen…</p> : null}
+      {!board && !error ? <p className="team-workspace-muted">Gemeinsame Arbeit wird geladen…</p> : null}
     </div> : null}
+    <details ref={settingsRef} className="team-workspace-setup" open={!connections.length ? true : undefined}>
+      <summary>{connections.length ? 'Workspace verwalten oder beitreten' : 'Workspace erstellen oder Einladung annehmen'}</summary>
+      <TeamWorkspaceSettings projectId={projectId} onConnectionChange={() => setRefreshToken((value) => value + 1)} />
+    </details>
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
   </div>;
 }

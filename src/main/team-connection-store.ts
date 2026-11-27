@@ -35,6 +35,12 @@ export function checkedCoordinatorUrl(value: string): string {
   return url.origin;
 }
 
+/** Distinguish an on-device preview from an HTTPS coordinator without trusting a saved label. */
+export function teamCoordinatorTransport(value: string): 'loopback' | 'remote-https' {
+  const origin = checkedCoordinatorUrl(value);
+  return origin.startsWith('http://127.0.0.1:') ? 'loopback' : 'remote-https';
+}
+
 function checked(value: unknown): TeamConnectionSecret {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Saved team connection is invalid.');
   const row = value as Partial<TeamConnectionSecret>;

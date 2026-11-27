@@ -1,4 +1,4 @@
-export type ThemePreference = 'dark' | 'light';
+export type ThemePreference = 'light' | 'stone' | 'dark' | 'ink';
 
 // Preserve the pre-rename key so users keep their chosen appearance.
 export const THEME_STORAGE_KEY = 'jarvis-studio:theme';
@@ -8,7 +8,7 @@ type ThemeStorage = Pick<Storage, 'getItem' | 'setItem'>;
 export function readThemePreference(storage: Pick<ThemeStorage, 'getItem'> | null): ThemePreference {
   try {
     const saved = storage?.getItem(THEME_STORAGE_KEY);
-    if (saved === 'dark' || saved === 'light') return saved;
+    if (saved === 'dark' || saved === 'light' || saved === 'stone' || saved === 'ink') return saved;
   } catch {
     // Storage can be unavailable in restricted desktop/browser contexts.
   }
@@ -36,6 +36,10 @@ export function persistTheme(theme: ThemePreference): void {
   writeThemePreference(storage, theme);
 }
 
+export function themeColorScheme(theme: ThemePreference): 'light' | 'dark' {
+  return theme === 'dark' || theme === 'ink' ? 'dark' : 'light';
+}
+
 export function themeToggleLabel(theme: ThemePreference): string {
-  return theme === 'dark' ? 'Helles Design aktivieren' : 'Dunkles Design aktivieren';
+  return themeColorScheme(theme) === 'dark' ? 'Helles Design aktivieren' : 'Dunkles Design aktivieren';
 }

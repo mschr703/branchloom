@@ -72,4 +72,18 @@ describe('workflow planner', () => {
     expect(html).toContain('Spalten-Codex');
     expect(html).toContain('Freigabe vor Start');
   });
+
+  it('resolves cited board sources from the current snapshot without fabricating missing ones', () => {
+    const card = { id: 'card-1', projectId: 'p', columnId: 'planning', title: 'Existing account form', description: '',
+      priority: 'none' as const, labels: [], wireframeRequired: false, position: 0,
+      createdAt: '', updatedAt: '', archivedAt: null };
+    const proposal: WorkflowProposal = { title: 'Review',
+      explanation: 'Continue [card:card-1] in [column:testing], but ignore [card:invented].',
+      cards: [{ title: 'Verify', description: '' }], columnIds: ['testing'] };
+    const html = renderToStaticMarkup(createElement(ProposalPreview, { proposal, snapshot: { ...snapshot, cards: [card] }, onAccept: () => undefined, accepting: false }));
+    expect(html).toContain('Verifizierte Board-Verweise');
+    expect(html).toContain('Karte: Existing account form');
+    expect(html).toContain('Spalte: Testing');
+    expect(html).not.toContain('Karte: invented');
+  });
 });

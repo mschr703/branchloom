@@ -64,6 +64,13 @@ export async function runUsageSmoke(window: BrowserWindow, store: StudioStore, r
     const tokens = document.querySelector('.usage-telemetry')?.textContent ?? '';
     if (!tokens.includes('Kein verifizierter Wert') || document.querySelector('.usage-panel')?.textContent?.includes('0 Token'))
       throw new Error('Missing honest token and cost state.');
+    const outcomes = document.querySelector('.usage-outcomes')?.textContent ?? '';
+    if (!outcomes.includes('2 erfolgreich beendet') || !outcomes.includes('1 gestoppt') || !outcomes.includes('0 ungeklärt'))
+      throw new Error('Stored run outcomes are not shown accurately.');
+    const recent = [...document.querySelectorAll('.usage-recent-row')];
+    if (recent.length !== 4 || !recent.some((row) => row.textContent?.includes('Queue run') && row.textContent?.includes('Fehlgeschlagen'))
+      || !recent.some((row) => row.textContent?.includes('Historical run') && row.textContent?.includes('Zeit unbekannt')))
+      throw new Error('Recent source-backed runs are missing or misclassified.');
     const taskLinks = [...document.querySelectorAll('.usage-card-list button')];
     if (taskLinks.length !== 4 || !taskLinks.some((item) => item.textContent?.includes('Workflow run')))
       throw new Error('Stored task run breakdown is not visible.');

@@ -1,5 +1,5 @@
 .app-language-settings { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 0 20px; border-bottom: 1px solid var(--border); }
-.app-language-settings h3, .app-settings-section-title { margin: 0; color: var(--text); font-size: 15px; font-weight: 620; }
+.app-language-settings h4, .app-settings-section-title { margin: 0; color: var(--text); font-size: 15px; font-weight: 620; }
 .app-language-settings p { max-width: 62ch; margin: 4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
 .app-language-settings fieldset { display: flex; flex: none; gap: 3px; margin: 0; padding: 3px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-2); }
 .app-language-settings label { position: relative; min-width: 78px; padding: 6px 10px; border-radius: 4px; color: var(--muted); text-align: center; font-size: 13px; cursor: pointer; }
@@ -9,3 +9,28 @@
 .app-settings-section-title { margin-top: 26px; margin-bottom: 12px; }
 .first-run-settings-back { padding: 18px 24px 0; }
 @media (max-width: 600px) { .app-language-settings { align-items: flex-start; flex-direction: column; gap: 12px; } }
+
+.app-settings-page { max-width: 1120px; }
+.app-settings-layout { display: grid; grid-template-columns: 154px minmax(0, 1fr); gap: 34px; align-items: start; }
+.app-settings-navigation { display: grid; gap: 2px; position: sticky; top: 16px; padding-top: 4px; }
+.app-settings-navigation button { min-height: 36px; padding: 7px 12px; border: 0; border-left: 2px solid transparent; background: transparent; color: var(--muted); text-align: left; font: inherit; font-size: 13px; cursor: pointer; }
+.app-settings-navigation button:hover { color: var(--text); background: var(--surface-2); }
+.app-settings-navigation button[aria-selected='true'] { color: var(--text); border-left-color: var(--text); font-weight: 650; }
+.app-settings-navigation button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.app-settings-content { min-width: 0; max-width: 780px; }
+.app-settings-panel[hidden] { display: none !important; }
+.app-settings-panel-heading { padding: 0 0 16px; border-bottom: 1px solid var(--border); }
+.app-settings-panel-heading h3 { margin: 0; color: var(--text); font-size: 18px; font-weight: 650; }
+.app-settings-panel-heading p { margin: 5px 0 0; max-width: 68ch; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.app-settings-panel > .project-agent-rights,
+.app-settings-panel > .agent-browser-settings,
+.app-settings-panel > .team-board-share { margin-top: 0; padding-top: 16px; border-top: 0; }
+.app-settings-panel > .secondary-button { margin-top: 18px; }
+.app-settings-update-note { margin: 17px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+
+@media (max-width: 700px) {
+  .app-settings-layout { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .app-settings-navigation { display: flex; gap: 14px; position: static; overflow-x: auto; padding: 0 0 1px; border-bottom: 1px solid var(--border); scrollbar-width: thin; }
+  .app-settings-navigation button { flex: none; padding: 9px 1px; border-left: 0; border-bottom: 2px solid transparent; }
+  .app-settings-navigation button[aria-selected='true'] { border-left-color: transparent; border-bottom-color: var(--text); }
+}

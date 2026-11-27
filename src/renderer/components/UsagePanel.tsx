@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ProjectSnapshot } from '../../shared/types';
-import type { UsageSessionPage } from '../../shared/usage';
-import { formatUsageDuration, projectUsage, usageStart, type CardUsage, type ProjectUsage, type UsagePeriod } from '../usage-data';
+import type { UsageSession, UsageSessionPage } from '../../shared/usage';
+import { formatUsageDuration, projectUsage, recentUsageSessions, usageOrigin, usageOutcome, usageRunDurationMs, usageStart, type CardUsage, type ProjectUsage, type UsagePeriod } from '../usage-data';
 import '../usage.css';
 
 interface Props { snapshot: ProjectSnapshot; now: number; onShowAgent: (name: string) => void; onOpenWorkflow: (id: string) => void; onOpenCard: (id: string) => void }
@@ -11,6 +11,35 @@ function cardDetails(card: CardUsage): string {
   const missing = card.unknownDurationCount && card.unknownDurationCount < card.runs
     ? ` · ${card.unknownDurationCount} ohne Zeitbeleg` : '';
   return `${card.runs} ${card.runs === 1 ? 'Lauf' : 'Läufe'} · ${card.agents} ${card.agents === 1 ? 'Agent' : 'Agenten'} · ${duration}${missing}${card.failed ? ` · ${card.failed} fehlgeschlagen` : ''}${card.active ? ` · ${card.active} aktiv` : ''}`;
+}
+
+const originLabel = { direct: 'Direkt', workflow: 'Workflow', queue: 'Warteschlange', unknown: 'Startweg ungeklärt' } as const;
+const outcomeLabel = { running: 'Läuft', failed: 'Fehlgeschlagen', stopped: 'Gestoppt', completed: 'Erfolgreich beendet', unknown: 'Ergebnis ungeklärt' } as const;
+
+export function UsageRecentRuns({ sessions, agents, availableCardIds, now, onOpenCard }: {
+  sessions: UsageSession[];
+  agents: ProjectSnapshot['agents'];
+  availableCardIds: ReadonlySet<string>;
+  now: number;
+  onOpenCard: (id: string) => void;
+}) {
+  const names = new Map(agents.map((agent) => [agent.id, agent.name]));
+  return <section className="usage-recent" aria-label="Letzte Agentenläufe">
+    <div className="usage-section-head"><h3>Letzte Läufe</h3><span>gespeicherte Sitzungen</span></div>
+    {sessions.length ? <div className="usage-recent-list">{sessions.map((session) => {
+      const outcome = usageOutcome(session);
+      const duration = usageRunDurationMs(session, now);
+      const content = <>
+        <time dateTime={session.startedAt}>{new Date(session.startedAt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
+        <span className="usage-recent-work"><strong>{session.cardTitle}</strong><small>{names.get(session.agentId) ?? 'Entfernter Agent'} · {originLabel[usageOrigin(session)]}</small></span>
+        <span className={`usage-recent-state is-${outcome}`}>{outcomeLabel[outcome]}</span>
+        <span className="usage-recent-duration">{duration === null ? 'Zeit unbekannt' : formatUsageDuration(duration)}</span>
+      </>;
+      return availableCardIds.has(session.cardId)
+        ? <button type="button" className="usage-recent-row" key={session.id} onClick={() => onOpenCard(session.cardId)} aria-label={`${session.cardTitle}: ${outcomeLabel[outcome]}, Karte öffnen`}>{content}</button>
+        : <div className="usage-recent-row is-missing" key={session.id} title="Karte nicht mehr verfügbar">{content}</div>;
+    })}</div> : <p className="usage-empty">Keine gespeicherten Läufe in diesem Zeitraum.</p>}
+  </section>;
 }
 
 export function UsageSourceBreakdown({ usage, availableWorkflowIds, onOpenWorkflow }: {
@@ -54,6 +83,7 @@ export function UsagePanel({ snapshot, now, onShowAgent, onOpenWorkflow, onOpenC
     return () => { active = false; };
   }, [snapshot.project.id, period, currentDay, sessionRevision, retry]);
   const usage = useMemo(() => page ? projectUsage(page, snapshot.agents, now, period) : null, [page, snapshot.agents, now, period]);
+  const recent = useMemo(() => page ? recentUsageSessions(page, now, period) : [], [page, now, period]);
   const availableCardIds = useMemo(() => new Set(snapshot.cards.map((card) => card.id)), [snapshot.cards]);
   const maxRuns = Math.max(1, ...(usage?.days.map((day) => day.runs) ?? []));
   return <section className="usage-panel" aria-label="Projektnutzung">
@@ -72,6 +102,7 @@ export function UsagePanel({ snapshot, now, onShowAgent, onOpenWorkflow, onOpenC
       <div><strong>{formatUsageDuration(usage.knownDurationMs)}</strong><span>summierte Laufzeit{usage.unknownDurationCount ? ` · ${usage.unknownDurationCount} ohne Zeitbeleg` : ''}</span></div>
     </div>
     <p className="usage-telemetry"><strong>Token und Kosten</strong><span>Kein verifizierter Wert verfügbar. Branchloom liest derzeit keine Abrechnungsdaten der CLI-Anbieter; Terminaltext wird nicht als Verbrauch gezählt.</span></p>
+    <div className="usage-outcomes" aria-label="Weitere Laufergebnisse"><strong>Weitere Ergebnisse</strong><span>{usage.completed} erfolgreich beendet</span><span>{usage.stopped} gestoppt</span><span>{usage.unknownOutcome} ungeklärt</span><small>Ein Lauf gilt nur mit Exit-Code 0 als erfolgreich beendet.</small></div>
     <div className="usage-analysis">
       <section className="usage-history" aria-label="Läufe nach Tag"><div className="usage-section-head"><h3>Verlauf</h3><span>Starts pro Tag</span></div>
         <div className="usage-bars" role="img" aria-label={`${usage.runs} Agentenläufe im gewählten Zeitraum`}>
@@ -90,6 +121,7 @@ export function UsagePanel({ snapshot, now, onShowAgent, onOpenWorkflow, onOpenC
         <UsageSourceBreakdown usage={usage} availableWorkflowIds={new Set(snapshot.workflows.map((workflow) => workflow.id))} onOpenWorkflow={onOpenWorkflow} />
       </section>
     </div>
+    <UsageRecentRuns sessions={recent} agents={snapshot.agents} availableCardIds={availableCardIds} now={now} onOpenCard={onOpenCard} />
     <section className="usage-cards" aria-label="Nutzung nach Aufgabe">
       <div className="usage-section-head"><h3>Aufgaben</h3><span>{usage.cards.length} mit gespeichertem Lauf</span></div>
       {usage.cards.length ? <div className="usage-card-list">{usage.cards.slice(0, visibleCards).map((card) => {

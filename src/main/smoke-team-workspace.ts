@@ -17,6 +17,8 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
   const narrowBoardScreenshot = process.env.BRANCHLOOM_TEAM_BOARD_NARROW_SCREENSHOT;
   const darkBoardScreenshot = process.env.BRANCHLOOM_TEAM_BOARD_DARK_SCREENSHOT;
   const dragBoardScreenshot = process.env.BRANCHLOOM_TEAM_BOARD_DRAG_SCREENSHOT;
+  const notificationScreenshot = process.env.BRANCHLOOM_NOTIFICATION_SCREENSHOT;
+  const notificationNarrowScreenshot = process.env.BRANCHLOOM_NOTIFICATION_NARROW_SCREENSHOT;
   const projectName = boardScreenshot ? 'Fieldnotes' : 'Synthetic team project';
   const project = store.createProject({ name: projectName, path: projectPath });
   const card = store.createCard({ projectId: project.id, columnId: store.snapshot(project.id).columns[0]!.id,
@@ -68,12 +70,24 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
       window.setSize(1440, 900);
       await window.webContents.executeJavaScript('new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
       writeFileSync(boardScreenshot, (await window.capturePage()).toPNG());
+      if (notificationScreenshot) {
+        await window.webContents.executeJavaScript(`(() => document.querySelector('.notification-trigger')?.click())()`);
+        await window.webContents.executeJavaScript('new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+        writeFileSync(notificationScreenshot, (await window.capturePage()).toPNG());
+        await window.webContents.executeJavaScript(`(() => document.querySelector('.notification-trigger')?.click())()`);
+      }
       if (narrowBoardScreenshot) {
         window.setSize(430, 760);
         await window.webContents.executeJavaScript('new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
         const cardTop = await window.webContents.executeJavaScript(`(() => document.querySelector('.board-card-wrap')?.getBoundingClientRect().top ?? Infinity)()`);
         if (cardTop >= 760) throw new Error('Board cards are below the first narrow viewport.');
         writeFileSync(narrowBoardScreenshot, (await window.capturePage()).toPNG());
+        if (notificationNarrowScreenshot) {
+          await window.webContents.executeJavaScript(`(() => document.querySelector('.notification-trigger')?.click())()`);
+          await window.webContents.executeJavaScript('new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+          writeFileSync(notificationNarrowScreenshot, (await window.capturePage()).toPNG());
+          await window.webContents.executeJavaScript(`(() => document.querySelector('.notification-trigger')?.click())()`);
+        }
       }
       if (darkBoardScreenshot) {
         window.setSize(1440, 900);
@@ -447,6 +461,41 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
     window.showInactive();
     await window.webContents.executeJavaScript('new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     writeFileSync(screenshot, (await window.capturePage()).toPNG());
+    window.hide();
+  }
+  const settingsScreenshot = process.env.BRANCHLOOM_SETTINGS_SCREENSHOT;
+  const inkScreenshot = process.env.BRANCHLOOM_INK_THEME_SCREENSHOT;
+  if (settingsScreenshot || inkScreenshot) {
+    await window.webContents.executeJavaScript(`(async () => {
+      const settings = document.querySelector('button[aria-label="Einstellungen"]');
+      if (!(settings instanceof HTMLButtonElement)) throw new Error('Settings entry is missing.');
+      settings.click();
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        if (document.querySelector('#settings-panel-app')) break;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      const stone = document.querySelector('input[name="app-theme"][value="stone"]');
+      if (!(stone instanceof HTMLInputElement)) throw new Error('Theme selector is missing.');
+      stone.click();
+      if (document.documentElement.dataset.palette !== 'stone' || document.documentElement.dataset.theme !== 'light') {
+        throw new Error('Stone theme did not apply.');
+      }
+    })()`);
+    window.showInactive();
+    await window.webContents.executeJavaScript('new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+    if (settingsScreenshot) writeFileSync(settingsScreenshot, (await window.capturePage()).toPNG());
+    if (inkScreenshot) {
+      await window.webContents.executeJavaScript(`(() => {
+        const ink = document.querySelector('input[name="app-theme"][value="ink"]');
+        if (!(ink instanceof HTMLInputElement)) throw new Error('Ink theme is missing.');
+        ink.click();
+        if (document.documentElement.dataset.palette !== 'ink' || document.documentElement.dataset.theme !== 'dark') {
+          throw new Error('Ink theme did not apply.');
+        }
+      })()`);
+      await window.webContents.executeJavaScript('new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+      writeFileSync(inkScreenshot, (await window.capturePage()).toPNG());
+    }
     window.hide();
   }
   await new Promise<void>((resolve) => { window.webContents.once('did-finish-load', () => resolve()); window.webContents.reload(); });

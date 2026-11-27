@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudioStore } from '../../src/main/store';
-import { acceptReviewedPlan, createPlanComment, listPlanComments, listReviewedPlans, saveReviewedPlan } from '../../src/main/plan-review';
+import { acceptReviewedPlan, createPlanComment, listPlanComments, listReviewedPlans, reviseReviewedPlan, saveReviewedPlan } from '../../src/main/plan-review';
 import { planFeedback, planLines } from '../../src/shared/plan-review';
 
 const roots: string[] = [];
@@ -63,6 +63,25 @@ describe('persisted workflow plan review', () => {
     expect(() => acceptReviewedPlan(store, { planId: first.id, fingerprint: first.fingerprint })).toThrow('veraltet');
     expect(() => acceptReviewedPlan(store, { planId: second.id, fingerprint: first.fingerprint })).toThrow('veraltet');
     expect(store.snapshot(project.id).cards).toHaveLength(0);
+    store.close();
+  });
+
+  it('saves an edited proposal as a new review revision without creating cards or moving old comments', () => {
+    const { store, project, input } = setup();
+    const first = saveReviewedPlan(store, input);
+    const comment = createPlanComment(store, { planId: first.id, fingerprint: first.fingerprint, line: 1, body: 'Shorten the name' });
+    const edited = reviseReviewedPlan(store, { planId: first.id, fingerprint: first.fingerprint,
+      proposal: { ...input.proposal, title: 'Edited workflow', cards: [{ title: 'Implement carefully', description: 'Keep tests.' }] } });
+    expect(edited.id).not.toBe(first.id);
+    expect(edited.proposal.title).toBe('Edited workflow');
+    expect(listReviewedPlans(store, project.id).map((plan) => plan.state)).toEqual(['open', 'superseded']);
+    expect(listPlanComments(store, first.id)).toEqual([comment]);
+    expect(store.snapshot(project.id).cards).toHaveLength(0);
+    expect(() => reviseReviewedPlan(store, { planId: first.id, fingerprint: first.fingerprint, proposal: input.proposal })).toThrow('veraltet');
+    expect(() => reviseReviewedPlan(store, { planId: edited.id, fingerprint: 'forged', proposal: input.proposal })).toThrow('veraltet');
+    const accepted = acceptReviewedPlan(store, { planId: edited.id, fingerprint: edited.fingerprint });
+    expect(accepted.state).toBe('draft');
+    expect(store.snapshot(project.id).cards.map((card) => card.title)).toEqual(['Implement carefully']);
     store.close();
   });
 

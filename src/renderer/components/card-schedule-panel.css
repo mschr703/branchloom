@@ -1,0 +1,13 @@
+.card-schedule-panel .card-detail-group-content { display: grid; gap: 12px; }
+.card-schedule-panel .field-help { margin: 0; }
+.card-schedule-controls, .card-schedule-completion { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+.card-schedule-controls label { display: grid; gap: 5px; min-width: 165px; color: var(--muted); font-size: 13px; }
+.card-schedule-controls input { min-height: 36px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font: inherit; }
+.card-schedule-controls input:focus-visible, .card-schedule-panel button:focus-visible, .card-schedule-history summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.card-schedule-completion { justify-content: space-between; border-top: 1px solid var(--border); padding-top: 12px; color: var(--soft); font-size: 13px; }
+.card-schedule-history { border-top: 1px solid var(--border); padding-top: 10px; color: var(--muted); font-size: 12px; }
+.card-schedule-history summary { cursor: pointer; }
+.card-schedule-history ol { list-style: none; margin: 10px 0 0; padding: 0; }
+.card-schedule-history li { display: flex; gap: 12px; padding: 6px 0; border-top: 1px solid var(--border); }
+.card-schedule-history time { flex: none; font-variant-numeric: tabular-nums; }
+@media (max-width: 550px) { .card-schedule-completion { align-items: flex-start; flex-direction: column; } .card-schedule-history li { flex-direction: column; gap: 2px; } }

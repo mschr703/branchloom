@@ -13,6 +13,8 @@ export interface ProjectUsage {
   active: number;
   failed: number;
   stopped: number;
+  completed: number;
+  unknownOutcome: number;
   knownDurationMs: number;
   unknownDurationCount: number;
   agents: AgentUsage[];
@@ -20,6 +22,35 @@ export interface ProjectUsage {
   workflows: WorkflowUsage[];
   cards: CardUsage[];
   days: UsageDay[];
+}
+
+export type UsageOutcome = 'running' | 'failed' | 'stopped' | 'completed' | 'unknown';
+
+/** A clean exit is the only outcome this view calls completed. */
+export function usageOutcome(session: UsageSession): UsageOutcome {
+  if (session.state === 'running') return 'running';
+  if (session.state === 'stopped') return 'stopped';
+  if (session.state === 'failed' || session.exitCode !== null && session.exitCode !== 0) return 'failed';
+  return session.exitCode === 0 ? 'completed' : 'unknown';
+}
+
+export function recentUsageSessions(page: UsageSessionPage, now: number, period: UsagePeriod, limit = 6): UsageSession[] {
+  const first = usageStart(now, period).getTime();
+  return page.sessions.filter((session) => {
+    const started = Date.parse(session.startedAt);
+    return Number.isFinite(started) && started >= first && started <= now;
+  }).sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt) || a.id.localeCompare(b.id)).slice(0, limit);
+}
+
+export function usageRunDurationMs(session: UsageSession, now: number): number | null {
+  const start = Date.parse(session.startedAt);
+  const end = session.endedAt ? Date.parse(session.endedAt) : session.state === 'running' ? now : NaN;
+  return Number.isFinite(start) && Number.isFinite(end) && end >= start ? end - start : null;
+}
+
+export function usageOrigin(session: UsageSession): UsageOrigin {
+  return session.workflowId && (session.origin === 'workflow' || session.origin === 'queue')
+    ? session.origin : session.origin === 'direct' ? 'direct' : 'unknown';
 }
 
 function localDay(date: Date): string {
@@ -53,6 +84,8 @@ export function projectUsage(page: UsageSessionPage, agents: AgentPreset[], now:
   let active = 0;
   let failures = 0;
   let stopped = 0;
+  let completed = 0;
+  let unknownOutcome = 0;
   let knownDurationMs = 0;
   let unknownDurationCount = 0;
   let runs = 0;
@@ -65,16 +98,16 @@ export function projectUsage(page: UsageSessionPage, agents: AgentPreset[], now:
     if (!day) continue;
     day.runs += 1;
     runs += 1;
-    const origin = session.workflowId && (session.origin === 'workflow' || session.origin === 'queue')
-      ? session.origin : session.origin === 'direct' ? 'direct' : 'unknown';
+    const origin = usageOrigin(session);
     origins[origin] += 1;
     const isFailed = failed(session);
     const isActive = session.state === 'running';
     if (isFailed) failures += 1;
     if (isActive) active += 1;
     if (session.state === 'stopped') stopped += 1;
-    const endMs = session.endedAt ? Date.parse(session.endedAt) : isActive ? now : NaN;
-    const duration = Number.isFinite(endMs) && endMs >= startMs ? endMs - startMs : null;
+    if (usageOutcome(session) === 'completed') completed += 1;
+    if (usageOutcome(session) === 'unknown') unknownOutcome += 1;
+    const duration = usageRunDurationMs(session, now);
     if (duration === null) unknownDurationCount += 1;
     else knownDurationMs += duration;
     let agent = byAgent.get(session.agentId);
@@ -111,7 +144,7 @@ export function projectUsage(page: UsageSessionPage, agents: AgentPreset[], now:
       if (isFailed) workflow.failed += 1;
     }
   }
-  return { truncated: page.truncated, runs, active, failed: failures, stopped, knownDurationMs, unknownDurationCount,
+  return { truncated: page.truncated, runs, active, failed: failures, stopped, completed, unknownOutcome, knownDurationMs, unknownDurationCount,
     agents: [...byAgent.values()].sort((a, b) => b.runs - a.runs || a.name.localeCompare(b.name, 'de')),
     origins, workflows: [...byWorkflow.values()].sort((a, b) => b.runs - a.runs || a.name.localeCompare(b.name, 'de')),
     cards: [...byCard.values()].map(({ agentIds: _agentIds, ...card }) => card)

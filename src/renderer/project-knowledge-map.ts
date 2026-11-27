@@ -73,3 +73,18 @@ export function projectKnowledgeMapPage(
     hiddenReferences: visible.reduce((total, group) => total + Math.max(0, group.references.length - REFERENCES_PER_CARD), 0),
   };
 }
+
+/** Locate a saved task in the same bounded ordering used by the graph. */
+export function knowledgeMapPageForCard(snapshot: Pick<ProjectSnapshot, 'project' | 'cards' | 'sessions'>, cardId: string): number | null {
+  const pages = projectKnowledgeMapPage(snapshot).pages;
+  for (let page = 0; page < pages; page++) {
+    if (projectKnowledgeMapPage(snapshot, page).groups.some((group) => group.card.id === cardId)) return page;
+  }
+  return null;
+}
+
+/** Search hits use repository paths; the graph may remove the project subdirectory prefix. */
+export function knowledgeMapFileForHit(sources: ProjectMemoryMapSources, path: string, sourceId: string): ProjectMemoryMapSources['codeFiles'][number] | null {
+  const normalized = path.replaceAll('\\', '/');
+  return sources.codeFiles.find((file) => file.path === normalized || normalized.endsWith(`/${file.path}`) || file.sourceId === sourceId) ?? null;
+}

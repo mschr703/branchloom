@@ -8,7 +8,7 @@ const TerminalDisplay = lazy(async () => ({ default: (await import('./SessionTer
 
 const shellName = (shell: CommandShell) => shell === 'powershell' ? 'PowerShell' : 'Eingabeaufforderung';
 
-export function CommandTerminalView({ projectId, columns, onOpenCard }: { projectId: string; columns: Column[]; onOpenCard: (card: Card) => void | Promise<void> }) {
+export function CommandTerminalView({ projectId, projectPath, columns, onOpenCard }: { projectId: string; projectPath?: string; columns: Column[]; onOpenCard: (card: Card) => void | Promise<void> }) {
   const [rows, setRows] = useState<CommandTerminal[]>([]);
   const [targets, setTargets] = useState<CommandTerminalTarget[]>([]);
   const [targetCardId, setTargetCardId] = useState('');
@@ -21,6 +21,7 @@ export function CommandTerminalView({ projectId, columns, onOpenCard }: { projec
   const generation = useRef(0);
   const selected = rows.find((item) => item.id === selectedId) ?? null;
   const active = rows.find((item) => item.state === 'running') ?? null;
+  const selectedTarget = targets.find((item) => item.cardId === targetCardId);
 
   useEffect(() => {
     const current = ++generation.current;
@@ -72,18 +73,19 @@ export function CommandTerminalView({ projectId, columns, onOpenCard }: { projec
   }
 
   return <div className="standard-page command-terminal-page">
-    <div className="view-header"><div><div className="eyebrow">PROJEKTWERKZEUG</div><h2>Befehlsterminal</h2><p>Starte eine lokale Shell im Projekt oder einem gespeicherten Karten-Worktree. Befehle werden erst durch deine Eingabe ausgeführt.</p></div></div>
+    <div className="view-header"><div><h2>Manuelles Projekt-Terminal</h2><p>Für eigene Git-Befehle, Tests oder kurze Prüfungen. Agentenläufe und ihre Ausgaben findest du auf der jeweiligen Karte; dieses Terminal bedienst nur du.</p></div></div>
     <div className="command-terminal-start panel">
       <label>Shell<select aria-label="Shell auswählen" value={shell} disabled={busy || Boolean(active)} onChange={(event) => setShell(event.target.value as CommandShell)}><option value="powershell">Windows PowerShell</option><option value="cmd">Eingabeaufforderung (cmd)</option></select></label>
       <label>Arbeitsordner<select aria-label="Terminal-Arbeitsordner auswählen" value={targetCardId} disabled={busy || Boolean(active)} onChange={(event) => setTargetCardId(event.target.value)}><option value="">Projektordner</option>{targets.map((target) => <option key={target.cardId} value={target.cardId}>{target.cardTitle} · {target.branch}</option>)}</select></label>
       <button className="primary-button" type="button" disabled={busy || Boolean(active)} onClick={() => void start()}><Play size={15} /> Terminal starten</button>
+      <p className="command-terminal-cwd"><strong>Arbeitsordner</strong><code>{selectedTarget?.path ?? projectPath ?? 'Projektordner'}</code></p>
       <p>Höchstens ein laufendes Befehlsterminal pro Projekt. Der Karten-Worktree wird beim Start erneut geprüft. Nach einem App-Neustart wird ein unterbrochener Lauf als fehlgeschlagen markiert; er startet nicht von selbst erneut.</p>
     </div>
     {error ? <p className="inline-error" role="alert">{error}</p> : null}
     <div className="command-terminal-layout">
       <section className="panel command-terminal-history" aria-label="Terminalverlauf"><h3>Letzte Terminals</h3>{rows.length ? rows.map((item) => <button className={item.id === selectedId ? 'command-terminal-history-item selected' : 'command-terminal-history-item'} key={item.id} type="button" onClick={() => setSelectedId(item.id)} aria-current={item.id === selectedId ? 'true' : undefined}><TerminalSquare size={16} /><span><strong>{shellName(item.shell)}</strong><small>{item.cardId ? `Karte · ${targets.find((target) => target.cardId === item.cardId)?.cardTitle ?? item.cardId}` : 'Projektordner'} · {new Date(item.startedAt).toLocaleString('de-DE')} · {item.state}</small></span></button>) : <p>Noch kein Terminal gestartet.</p>}</section>
       <section className="panel command-terminal-screen" aria-label="Befehlsterminal">
-        {selected ? <><div className="command-terminal-screen-header"><div><strong>{shellName(selected.shell)}</strong><span>{selected.cardId ? `Karten-Worktree: ${selected.worktreePath ?? 'Pfad unbekannt'}` : 'Projektordner'} · {selected.state === 'running' ? 'Läuft' : `Beendet: ${selected.state}${selected.exitCode !== null ? ` (${selected.exitCode})` : ''}`}</span></div>{selected.state === 'running' ? <button className="secondary-button small" type="button" disabled={busy} onClick={() => void stop()}><CircleStop size={15} /> Stoppen</button> : null}</div><Suspense fallback={<p>Terminal wird geladen…</p>}><TerminalDisplay session={selected} ariaLabel="Interaktives Befehlsterminal" onInput={(id, data) => window.studio.writeCommandTerminal({ terminalId: id, data })} onResize={(id, cols, rows) => window.studio.resizeCommandTerminal({ terminalId: id, cols, rows })} /></Suspense>{selected.state !== 'running' ? <OutputErrorPanel key={selected.id} projectId={projectId} sourceKind="command" sourceId={selected.id} columns={columns} onCreated={onOpenCard} /> : null}</> : <div className="feature-empty"><TerminalSquare size={28} /><h3>Terminal bereit</h3><p>Wähle PowerShell oder cmd und starte es bewusst. Die Ausgabe bleibt lokal gespeichert.</p></div>}
+        {selected ? <><div className="command-terminal-screen-header"><div><strong>{shellName(selected.shell)}</strong><span>{selected.cardId ? `Karten-Worktree: ${selected.worktreePath ?? 'Pfad unbekannt'}` : `Projektordner: ${projectPath ?? 'Pfad nicht angezeigt'}`} · {selected.state === 'running' ? 'Läuft' : `Beendet: ${selected.state}${selected.exitCode !== null ? ` (${selected.exitCode})` : ''}`}</span></div>{selected.state === 'running' ? <button className="secondary-button small" type="button" disabled={busy} onClick={() => void stop()}><CircleStop size={15} /> Stoppen</button> : null}</div><Suspense fallback={<p>Terminal wird geladen…</p>}><TerminalDisplay session={selected} ariaLabel="Interaktives Befehlsterminal" onInput={(id, data) => window.studio.writeCommandTerminal({ terminalId: id, data })} onResize={(id, cols, rows) => window.studio.resizeCommandTerminal({ terminalId: id, cols, rows })} /></Suspense>{selected.state !== 'running' ? <OutputErrorPanel key={selected.id} projectId={projectId} sourceKind="command" sourceId={selected.id} columns={columns} onCreated={onOpenCard} /> : null}</> : <div className="feature-empty"><TerminalSquare size={28} /><h3>Noch kein Terminal</h3><p>Wähle oben den Arbeitsordner und die Shell. Befehle laufen erst, wenn du sie eingibst.</p></div>}
       </section>
     </div>
   </div>;

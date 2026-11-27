@@ -49,7 +49,7 @@ export interface WhiteboardEdge { id: string; projectId: string; sourceId: strin
 export interface WhiteboardSnapshot { nodes: WhiteboardNode[]; edges: WhiteboardEdge[] }
 export type ColumnTint = 'default' | 'lilac' | 'blue' | 'sand' | 'coral';
 export interface Column { id: string; projectId: string; name: string; position: number; autoStart: boolean; agentId: string | null; model: string | null; effort: ColumnEffort | null; tint?: ColumnTint }
-export interface Card { id: string; projectId: string; columnId: string; title: string; description: string; priority: CardPriority; labels: string[]; wireframeRequired: boolean; position: number; createdAt: string; updatedAt: string; archivedAt: string | null }
+export interface Card { id: string; projectId: string; columnId: string; title: string; description: string; priority: CardPriority; labels: string[]; wireframeRequired: boolean; position: number; createdAt: string; updatedAt: string; archivedAt: string | null; plannedDueDate?: string | null; completedAt?: string | null }
 export type BulkCardAction = { projectId: string; cardIds: string[]; action: 'move'; columnId: string } | { projectId: string; cardIds: string[]; action: 'archive' } | { projectId: string; cardIds: string[]; action: 'priority'; priority: CardPriority };
 export interface CardAttachment { id: string; cardId: string; name: string; size: number; addedAt: string; available: boolean; canOpen: boolean }
 export type CardContextKind = 'file' | 'folder' | 'url' | 'design';
@@ -265,7 +265,9 @@ export interface StudioAPI {
   createCard(input: { projectId: string; columnId: string; title: string; description?: string; priority?: CardPriority; labels?: string[] }): Promise<Card>;
   designTaskCandidate(input: { projectId: string; selectionId: string }): Promise<CardDesignContextCandidate>;
   createCardFromDesignRequest(input: { projectId: string; selectionId: string; expectedFingerprint: string; columnId: string; title: string; description: string }): Promise<Card>;
-  updateCard(input: { id: string; title?: string; description?: string; priority?: CardPriority; labels?: string[]; wireframeRequired?: boolean }): Promise<Card>;
+  updateCard(input: { id: string; title?: string; description?: string; priority?: CardPriority; labels?: string[]; wireframeRequired?: boolean; plannedDueDate?: string | null }): Promise<Card>;
+  setCardCompleted(input: { id: string; completed: boolean }): Promise<Card>;
+  cardScheduleEvents(cardId: string): Promise<import('./card-schedule').CardScheduleEvent[]>;
   taskRevisionHistory(input: { projectId: string; cardId: string }): Promise<TaskRevisionHistory>;
   previewTaskRevisionCleanup(input: { projectId: string; cardId: string; revisionId: string }): Promise<TaskRevisionCleanupPreview>;
   confirmTaskRevision(input: ConfirmTaskRevisionInput): Promise<TaskRevisionHistory>;
@@ -353,6 +355,7 @@ export interface StudioAPI {
   saveWorkflowAgentSettings(input: WorkflowAgentSettings): Promise<WorkflowAgentSettings>;
   proposeWorkflow(input: { projectId: string; request: string }): Promise<WorkflowProposal>;
   proposeReviewedWorkflow(input: { projectId: string; request: string }): Promise<import('./plan-review').ReviewedPlan>;
+  reviseReviewedPlan(input: { planId: string; fingerprint: string; proposal: WorkflowProposal }): Promise<import('./plan-review').ReviewedPlan>;
   reviewedPlans(projectId: string): Promise<import('./plan-review').ReviewedPlan[]>;
   planComments(planId: string): Promise<import('./plan-review').PlanComment[]>;
   createPlanComment(input: { planId: string; fingerprint: string; line: number; body: string }): Promise<import('./plan-review').PlanComment>;

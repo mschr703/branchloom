@@ -19,7 +19,8 @@ describe('changelog presentation', () => {
     expect(html).toContain('Git-Historie wird gelesen');
     expect(html).toContain('Letzte 24 Stunden');
     expect(html).toContain('Projekt-HEAD + Karten-Worktrees');
-    expect(html).toContain('Markdown kopieren');
+    expect(html).toContain('Gesamten Bericht kopieren');
+    expect(html).toContain('Ereignisse');
     expect(html).not.toContain('Fix &lt;script&gt;');
   });
 
@@ -107,5 +108,28 @@ describe('changelog presentation', () => {
     expect(markdown).toContain('## Karten-Übernahmen');
     expect(markdown).toContain('Nicht mehr im aktuellen Projekt-HEAD');
     expect(markdown).toContain('QA beobachtet eine lokale Vorschau');
+    expect(markdown).toContain('Karten-Übernahme');
+    expect(html).toContain('Karten-Übernahme');
+    expect(html).toContain('Karte öffnen');
+    expect(html).toContain('QA-Bericht öffnen');
+  });
+
+  it('filters the timeline by recorded event kind or Git author without assigning team identity', () => {
+    const authored = { ...result.commits[0]!, authorName: 'Alex Git', sources: [{ kind: 'project-head' as const }] };
+    const other = { hash: 'b'.repeat(40), committedAt: '2026-01-03T09:00:00Z', subject: 'Other work', authorName: 'Jo Git',
+      sources: [{ kind: 'project-head' as const }] };
+    const report: ProjectChangelog = { ...result, commits: [authored, other],
+      qaObservations: [{ id: 'qa-1', cardId: 'card-1', cardTitle: 'Browser check', endedAt: '2026-01-03T11:00:00Z',
+        status: 'passed', checkoutState: 'clean', checkoutHead: authored.hash }], qaTotal: 1 };
+    const code = changelogDigest(report, 18, { kind: 'code', gitAuthor: 'Alex Git' });
+    expect(code.days.flatMap((day) => day.entries).map((entry) => [entry.kind, entry.title])).toEqual([['head', authored.subject]]);
+    const qa = changelogDigest(report, 18, { kind: 'qa' });
+    expect(qa.days.flatMap((day) => day.entries).map((entry) => entry.title)).toEqual(['Browser check']);
+    const html = renderToStaticMarkup(createElement(ChangelogReport, { result: report, gitAuthor: 'Alex Git', eventFilter: 'code' }));
+    expect(html).toContain('Git-Autor: Alex Git');
+    expect(html).toContain('keine belegte Personenzuordnung');
+    expect(html).toContain('Commit unten ansehen');
+    expect(html).not.toContain('changelog-event-qa');
+    expect(html).not.toContain('changelog-event-head"><time dateTime="2026-01-03T09:00:00Z"');
   });
 });

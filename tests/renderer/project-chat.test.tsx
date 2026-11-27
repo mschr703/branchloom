@@ -9,7 +9,9 @@ describe('project chat surface', () => {
     const html = renderToStaticMarkup(<ProjectChat snapshot={snapshot} />);
     expect(html).toContain('Projektgespräch');
     expect(html).toContain('Deine Frage');
-    expect(html).toContain('Belege');
+    expect(html).toContain('Synthetic');
+    expect(html).toContain('Quellen');
+    expect(html).toContain('Offene Entscheidungen');
     expect(html).not.toContain('Karte erstellt');
   });
 });

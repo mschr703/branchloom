@@ -1,0 +1,17 @@
+.workflow-proposal-editor { margin: 16px 0 0; border-top: 1px solid var(--border); color: var(--text); }
+.workflow-proposal-editor summary { padding: 12px 0; cursor: pointer; font-size: 13px; font-weight: 600; }
+.workflow-proposal-editor summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.workflow-proposal-edit-fields { display: grid; gap: 16px; max-width: 900px; padding: 0 0 16px; }
+.workflow-proposal-edit-fields label { display: grid; gap: 5px; font-size: 12px; color: var(--muted); }
+.workflow-proposal-edit-fields input:not([type='checkbox']), .workflow-proposal-edit-fields textarea { width: 100%; font-size: 13px; color: var(--text); }
+.workflow-proposal-edit-cards { display: grid; gap: 12px; }
+.workflow-proposal-edit-cards > strong, .workflow-proposal-edit-route legend { font-size: 13px; color: var(--text); }
+.workflow-proposal-edit-card { display: grid; grid-template-columns: minmax(170px, .8fr) minmax(240px, 1.2fr) auto; gap: 10px; align-items: end; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.workflow-proposal-edit-route { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 0; padding: 0; border: 0; }
+.workflow-proposal-edit-route p { flex-basis: 100%; margin: 3px 0; color: var(--muted); font-size: 12px; }
+.workflow-proposal-edit-route > label { display: flex; align-items: center; gap: 6px; color: var(--text); }
+.workflow-proposal-route-order { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 8px; }
+.workflow-proposal-route-order > div { display: flex; align-items: center; gap: 4px; font-size: 12px; }
+.workflow-proposal-edit-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--border); padding-top: 12px; }
+.workflow-proposal-edit-actions span { flex: 1 1 250px; color: var(--muted); font-size: 12px; }
+@media (max-width: 700px) { .workflow-proposal-edit-card { grid-template-columns: minmax(0, 1fr); } }

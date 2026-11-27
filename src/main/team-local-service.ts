@@ -1,5 +1,5 @@
 import type { StudioStore } from './store';
-import { TeamConnectionStore, type SavedTeamConnection } from './team-connection-store';
+import { TeamConnectionStore, teamCoordinatorTransport, type SavedTeamConnection } from './team-connection-store';
 import { TeamCoordinatorHttp } from './team-coordinator-http';
 import { addTeamProject, authenticateTeamMember, createTeamMemberInvite, createTeamWorkspace, revokeTeamMember,
   setTeamCapabilityGrant, setTeamProjectAccess, type TeamCapability, type TeamMember, type TeamRole } from './team-workspace';
@@ -42,6 +42,7 @@ export class TeamLocalService {
   /** Restore the local coordinator after app restart without waiting for the Team page. */
   async resumeSavedHost(): Promise<string | null> {
     const owner = (await this.connections.list()).find((item) => item.role === 'owner' &&
+      teamCoordinatorTransport(item.coordinatorUrl) === 'loopback' &&
       this.store.db.prepare('SELECT 1 FROM team_workspaces WHERE id = ?').get(item.workspaceId));
     if (!owner) return null;
     const connection = await this.connections.get(owner.workspaceId);
@@ -57,7 +58,7 @@ export class TeamLocalService {
       .get(projectId) as { id: string; name: string } | undefined;
     if (!row) return null;
     const connection = await this.connections.get(row.id);
-    if (!connection || connection.role !== 'owner') {
+    if (!connection || connection.role !== 'owner' || teamCoordinatorTransport(connection.coordinatorUrl) !== 'loopback') {
       throw new Error('This device does not hold the team workspace owner credential.');
     }
     const owner = authenticateTeamMember(this.store.db, connection.credential);
@@ -87,7 +88,7 @@ export class TeamLocalService {
   async ownedWorkspaces(): Promise<OwnedTeamWorkspace[]> {
     const result: OwnedTeamWorkspace[] = [];
     for (const saved of await this.connections.list()) {
-      if (saved.role !== 'owner') continue;
+      if (saved.role !== 'owner' || teamCoordinatorTransport(saved.coordinatorUrl) !== 'loopback') continue;
       const connection = await this.ownerConnection(saved.workspaceId);
       const member = authenticateTeamMember(this.store.db, connection.credential);
       if (member.id !== saved.memberId || member.workspaceId !== saved.workspaceId) continue;
@@ -188,7 +189,9 @@ export class TeamLocalService {
 
   private async ownerConnection(workspaceId: string): Promise<SavedTeamConnection & { credential: string }> {
     const connection = await this.connections.get(workspaceId);
-    if (!connection || connection.role !== 'owner') throw new Error('Team workspace owner credential is unavailable.');
+    if (!connection || connection.role !== 'owner' || teamCoordinatorTransport(connection.coordinatorUrl) !== 'loopback') {
+      throw new Error('Local team workspace owner credential is unavailable.');
+    }
     return connection;
   }
 }

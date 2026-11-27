@@ -3,7 +3,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { AgentPreset } from '../../src/shared/types';
 import type { UsageSession, UsageSessionPage } from '../../src/shared/usage';
-import { formatUsageDuration, projectUsage, usageStart } from '../../src/renderer/usage-data';
+import { formatUsageDuration, projectUsage, recentUsageSessions, usageOutcome, usageStart } from '../../src/renderer/usage-data';
 import { UsageSourceBreakdown } from '../../src/renderer/components/UsagePanel';
 
 const now = Date.parse('2026-11-24T12:00:00.000Z');
@@ -23,7 +23,7 @@ describe('local usage aggregation', () => {
       session('out of range', 'exited', '2026-11-10T10:00:00.000Z', '2026-11-10T11:00:00.000Z'),
     ] };
     const usage = projectUsage(page, [agent], now, 7);
-    expect(usage).toMatchObject({ runs: 3, active: 1, failed: 1, stopped: 0, knownDurationMs: 95 * 60_000, unknownDurationCount: 0 });
+    expect(usage).toMatchObject({ runs: 3, active: 1, failed: 1, stopped: 0, completed: 0, unknownOutcome: 1, knownDurationMs: 95 * 60_000, unknownDurationCount: 0 });
     expect(usage.agents).toEqual([
       { id: 'a', name: 'Codex', runs: 2, durationMs: 90 * 60_000, active: 1, failed: 0 },
       { id: 'b', name: 'Entfernter Agent', runs: 1, durationMs: 5 * 60_000, active: 0, failed: 1 },
@@ -46,6 +46,7 @@ describe('local usage aggregation', () => {
     ] };
     const usage = projectUsage(page, [agent], now, 7);
     expect(usage.origins).toEqual({ direct: 0, workflow: 1, queue: 1, unknown: 2 });
+    expect(usage).toMatchObject({ completed: 2, failed: 1, stopped: 1, unknownOutcome: 0 });
     expect(usage.workflows).toEqual([
       { id: 'q', name: 'Night queue', origin: 'queue', runs: 1, durationMs: 30 * 60_000, failed: 0 },
       { id: 'w', name: 'Review route', origin: 'workflow', runs: 1, durationMs: 10 * 60_000, failed: 1 },
@@ -75,6 +76,19 @@ describe('local usage aggregation', () => {
     const end = new Date(start);
     end.setDate(end.getDate() + 6);
     expect(end.toDateString()).toBe(new Date(now).toDateString());
+  });
+
+  it('does not treat missing exit codes as successful and excludes stale or future runs from the recent list', () => {
+    const page: UsageSessionPage = { truncated: false, sessions: [
+      session('older', 'exited', '2026-11-10T10:00:00.000Z', '2026-11-10T11:00:00.000Z', 'a', 0),
+      session('unknown', 'exited', '2026-11-24T09:00:00.000Z', '2026-11-24T09:10:00.000Z'),
+      session('done', 'exited', '2026-11-24T10:00:00.000Z', '2026-11-24T10:10:00.000Z', 'a', 0),
+      session('future', 'running', '2026-11-25T10:00:00.000Z', null),
+    ] };
+    expect(usageOutcome(page.sessions[1]!)).toBe('unknown');
+    expect(usageOutcome(page.sessions[2]!)).toBe('completed');
+    expect(recentUsageSessions(page, now, 7).map((item) => item.id)).toEqual(['done', 'unknown']);
+    expect(projectUsage(page, [agent], now, 7)).toMatchObject({ runs: 2, completed: 1, unknownOutcome: 1 });
   });
 
   it('groups only stored task runs and distinct agents, preserving missing durations', () => {

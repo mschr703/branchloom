@@ -14,9 +14,8 @@
 .project-chat-close { position: sticky; top: 14px; left: calc(100% - 48px); z-index: 1; margin: 14px 14px -46px auto; background: var(--bg); }
 .project-chat-host.dock .project-chat { padding-top: 64px; }
 .project-chat-host.dock .project-chat-layout { grid-template-columns: 1fr; gap: 20px; }
-.project-chat-host.dock .project-chat-main { min-height: 300px; }
-.project-chat-host.dock .project-chat-transcript { min-height: 120px; }
-.project-chat-host.dock .project-chat-evidence { border-left: 0; border-top: 1px solid var(--border); padding: 20px 0 0; }
+.project-chat-host.dock .project-chat-transcript { height: min(28vh, 235px); min-height: 140px; }
+.project-chat-host.dock .project-chat-evidence { max-height: none; overflow: visible; border-left: 0; border-top: 1px solid var(--border); padding: 20px 0 0; }
 @media (max-width: 600px) {
   .project-chat-host.dock { width: 100vw; border-left: 0; box-shadow: none; }
 }

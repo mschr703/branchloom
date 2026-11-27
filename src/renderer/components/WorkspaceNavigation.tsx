@@ -1,8 +1,8 @@
-import { Activity, Bot, BrainCircuit, Columns3, GitBranch, GitCommitHorizontal, Globe2, History, Inbox, Lightbulb, MessageCircle, MousePointer2, Network, Settings2, TerminalSquare, UsersRound } from 'lucide-react';
+import { Activity, Bot, BrainCircuit, CalendarDays, Columns3, GitBranch, GitCommitHorizontal, Globe2, History, Inbox, Lightbulb, MessageCircle, MousePointer2, Network, Settings2, TerminalSquare, UsersRound } from 'lucide-react';
 import type { ProjectSnapshot } from '../../shared/types';
 import type { LanguagePreference } from '../language';
 
-export type View = 'board' | 'ideas' | 'chat' | 'activity' | 'workflows' | 'team' | 'decisions' | 'whiteboard' | 'memory' | 'milestones' | 'agents' | 'terminal' | 'browser' | 'design' | 'changelog' | 'settings';
+export type View = 'board' | 'ideas' | 'chat' | 'activity' | 'workflows' | 'calendar' | 'team' | 'decisions' | 'whiteboard' | 'memory' | 'milestones' | 'agents' | 'terminal' | 'browser' | 'design' | 'changelog' | 'settings';
 
 export const views: { id: View; name: string; icon: typeof Columns3 }[] = [
   { id: 'board', name: 'Board', icon: Columns3 },
@@ -11,22 +11,23 @@ export const views: { id: View; name: string; icon: typeof Columns3 }[] = [
   { id: 'activity', name: 'Aktivität', icon: Activity },
   { id: 'changelog', name: 'Changelog', icon: GitCommitHorizontal },
   { id: 'workflows', name: 'Workflows', icon: GitBranch },
+  { id: 'calendar', name: 'Kalender', icon: CalendarDays },
   { id: 'team', name: 'Team', icon: UsersRound },
   { id: 'decisions', name: 'Entscheidungen', icon: Inbox },
   { id: 'whiteboard', name: 'Whiteboard', icon: Network },
   { id: 'memory', name: 'Memory', icon: BrainCircuit },
   { id: 'milestones', name: 'Zeitmaschine', icon: History },
   { id: 'agents', name: 'Agenten', icon: Bot },
-  { id: 'terminal', name: 'Terminal', icon: TerminalSquare },
+  { id: 'terminal', name: 'Projekt-Terminal', icon: TerminalSquare },
   { id: 'browser', name: 'Webvorschau', icon: Globe2 },
   { id: 'design', name: 'Design', icon: MousePointer2 },
   { id: 'settings', name: 'Einstellungen', icon: Settings2 },
 ];
 
 const englishViewNames: Record<View, string> = {
-  board: 'Board', ideas: 'Ideas', chat: 'Project chat', activity: 'Activity', workflows: 'Workflows',
+  board: 'Board', ideas: 'Ideas', chat: 'Project chat', activity: 'Activity', workflows: 'Workflows', calendar: 'Calendar',
   team: 'Team', decisions: 'Decisions', whiteboard: 'Whiteboard', memory: 'Memory',
-  milestones: 'Timeline', agents: 'Agents', terminal: 'Terminal', browser: 'Web preview',
+  milestones: 'Timeline', agents: 'Agents', terminal: 'Project terminal', browser: 'Web preview',
   design: 'Design', changelog: 'Changelog', settings: 'Settings',
 };
 
@@ -34,7 +35,7 @@ export function viewName(view: View, language: LanguagePreference): string {
   return language === 'en' ? englishViewNames[view] : views.find((item) => item.id === view)?.name ?? view;
 }
 
-const primaryViewIds: View[] = ['board', 'ideas', 'chat', 'workflows', 'team'];
+const primaryViewIds: View[] = ['board', 'ideas', 'chat', 'workflows', 'calendar', 'team'];
 const primaryViews = primaryViewIds.map((id) => views.find((item) => item.id === id)!);
 const secondaryGroups: { name: string; ids: View[] }[] = [
   { name: 'Entwurf & Wissen', ids: ['whiteboard', 'memory', 'design', 'milestones'] },

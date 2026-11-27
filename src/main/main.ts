@@ -62,7 +62,7 @@ import { createReviewComment, listReviewComments, previewCardDiff } from './diff
 import { acknowledgeGuestInboxComment, acknowledgeQaInboxReport, acknowledgeReviewInboxComment, reviewInboxItems } from './review-inbox';
 import { agentQuestionDecisionCount, agentQuestions, answerAgentQuestions } from './agent-questions';
 import { globalInboxItems } from './global-inbox';
-import { acceptReviewedPlan, createPlanComment, listPlanComments, listReviewedPlans, saveReviewedPlan } from './plan-review';
+import { acceptReviewedPlan, createPlanComment, listPlanComments, listReviewedPlans, reviseReviewedPlan, saveReviewedPlan } from './plan-review';
 import { createReviewRuleFromComment, deleteReviewRule, listReviewRules, updateReviewRule } from './review-rules';
 import { reviewCardWorktreeConflicts, reviewProjectConflicts } from './conflict-radar';
 import { exportMemoryVaultToDirectory } from './memory-vault';
@@ -429,6 +429,8 @@ function installIpc(): void {
   bind('designTaskCandidate', (input: Parameters<StudioAPI['designTaskCandidate']>[0]) => designTaskCandidate(db, input));
   bind('createCardFromDesignRequest', (input: Parameters<StudioAPI['createCardFromDesignRequest']>[0]) => createCardFromDesignRequest(db, input));
   bind('updateCard', (input: Parameters<StudioAPI['updateCard']>[0]) => db.updateCard(input));
+  bind('setCardCompleted', (input: Parameters<StudioAPI['setCardCompleted']>[0]) => db.setCardCompleted(input));
+  bind('cardScheduleEvents', (cardId: string) => db.cardScheduleEvents(cardId));
   bind('taskRevisionHistory', (input: Parameters<StudioAPI['taskRevisionHistory']>[0]) => taskRevisionHistory(db, input));
   bind('previewTaskRevisionCleanup', (input: Parameters<StudioAPI['previewTaskRevisionCleanup']>[0]) => previewTaskRevisionCleanup(db, input));
   bind('confirmTaskRevision', (input: Parameters<StudioAPI['confirmTaskRevision']>[0]) => confirmTaskRevision(db, input));
@@ -647,6 +649,7 @@ function installIpc(): void {
   bind('saveWorkflowAgentSettings', (input: WorkflowAgentSettings) => db.saveWorkflowAgentSettings(input));
   bind('proposeWorkflow', (input: { projectId: string; request: string }) => proposeWorkflow(db, input));
   bind('proposeReviewedWorkflow', async (input: { projectId: string; request: string }) => saveReviewedPlan(db, { ...input, proposal: await proposeWorkflow(db, input) }));
+  bind('reviseReviewedPlan', (input: Parameters<StudioAPI['reviseReviewedPlan']>[0]) => reviseReviewedPlan(db, input));
   bind('reviewedPlans', (projectId: string) => listReviewedPlans(db, projectId));
   bind('planComments', (planId: string) => listPlanComments(db, planId));
   bind('createPlanComment', (input: Parameters<StudioAPI['createPlanComment']>[0]) => createPlanComment(db, input));
@@ -1737,7 +1740,7 @@ function createWindow(): void {
               discussionDrop?.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dragData }));
               for (let attempt = 0; attempt < 100 && !document.querySelector('.ideas-conversation-subject')?.textContent?.includes('Smoke-Idee'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               if (!document.querySelector('.ideas-conversation-subject')?.textContent?.includes('Smoke-Idee') || !(await sessionsUnchanged())) throw new Error('Notiz-Drop öffnete keine lokale Diskussion oder startete einen Agenten.');
-              const ideaImport = [...document.querySelectorAll('.ideas-heading > button')].find((item) => item.textContent?.includes('Aus Trello vormerken'));
+              const ideaImport = [...document.querySelectorAll('.ideas-heading > button')].find((item) => item.textContent?.includes('Trello'));
               const selectedTrelloIdea = [...document.querySelectorAll('.ideas-note-open')].find((item) => item.textContent?.includes('Trello-Idee aktualisiert'));
               if (!(ideaImport instanceof HTMLButtonElement) || !(selectedTrelloIdea instanceof HTMLButtonElement)) throw new Error('Aktualisierte Trello-Idee oder Import-Einstieg fehlt im Ideenraum.');
               selectedTrelloIdea.click();
@@ -1746,7 +1749,7 @@ function createWindow(): void {
               ideaImport.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('.trello-import-dialog'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
               const ideaDialog = document.querySelector('.trello-import-dialog');
-              if (!ideaDialog?.textContent?.includes('Trello-Ideen vormerken')) throw new Error('Trello-Ideen-Vorschau wurde nicht geöffnet.');
+              if (!ideaDialog?.querySelector('#trello-import-title')?.textContent?.includes('Trello') || !ideaDialog.textContent?.includes('Ideen')) throw new Error('Trello-Ideen-Vorschau wurde nicht geöffnet.');
               const trelloIdeaFileTab = [...ideaDialog.querySelectorAll('.trello-source-tabs button')].find((item) => item.textContent?.includes('JSON-Datei'));
               if (!trelloIdeaFileTab) throw new Error('Trello-Ideen: JSON-Datei-Einstieg fehlt.');
               trelloIdeaFileTab.click();
@@ -1988,7 +1991,7 @@ function createWindow(): void {
               const linkedRunQa = await window.studio.sessionRunEvidence({ projectId: boardProject.id, sessionId: runSession.id });
               if (linkedRunQa.linkedQa[0]?.reportId !== qaReport.id || linkedRunQa.linkedQa[0]?.status !== 'failed' || !runPanel.textContent?.includes('Mit Fehlern')) throw new Error('Fehlgeschlagene QA wurde dem Lauf nicht korrekt und sichtbar zugeordnet.');
               const handoff = document.querySelector('.card-drawer .agent-handoff');
-              const agentSelect = [...document.querySelectorAll('.card-drawer label')].find((item) => item.textContent?.includes('Agent auswählen'))?.querySelector('select');
+              const agentSelect = document.querySelector('.card-drawer .card-agent-choice select') ?? [...document.querySelectorAll('.card-drawer label')].find((item) => item.textContent?.includes('Agent für diesen Start'))?.querySelector('select');
               const targetAgent = (await window.studio.snapshot(boardProject.id)).agents.find((item) => item.enabled && item.id !== runSession.agentId);
               if (!handoff || !agentSelect || !targetAgent) throw new Error('Agentenwechsel-Einstieg oder anderer Zielagent fehlt.');
               viewportSetter.call(agentSelect, targetAgent.id); agentSelect.dispatchEvent(new Event('change', { bubbles: true }));
@@ -2555,7 +2558,7 @@ function createWindow(): void {
                 let linkedFileVisible = false;
                 for (let excerpt = 0; excerpt < 20 && !linkedFileVisible; excerpt++) {
                   for (let attempt = 0; attempt < 100 && document.querySelector('.knowledge-map-source-status'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-                  const fileEntry = [...document.querySelectorAll('.knowledge-map-list button')].find((item) => item.textContent?.includes('Datei · src/widget.ts'));
+                  const fileEntry = [...document.querySelectorAll('.knowledge-map-list button')].find((item) => item.textContent?.trim() === 'src/widget.ts');
                   if (fileEntry) {
                     fileEntry.click();
                     for (let attempt = 0; attempt < 100 && document.querySelector('.knowledge-map-inspector h3')?.textContent !== 'src/widget.ts'; attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
@@ -4103,7 +4106,7 @@ function createWindow(): void {
               if (!(select instanceof HTMLSelectElement) || !setter) throw new Error('Terminal-Worktree: Projektauswahl fehlt.');
               setter.call(select, ${JSON.stringify(milestoneProjectId)}); select.dispatchEvent(new Event('change', { bubbles: true }));
               for (let attempt = 0; attempt < 100 && !document.querySelector('#project-select option:checked')?.textContent?.includes('Meilenstein-Vorschau'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
-              [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((button) => button.textContent?.trim() === 'Terminal')?.click();
+              [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')].find((button) => button.textContent?.trim() === 'Projekt-Terminal')?.click();
               let target;
               for (let attempt = 0; attempt < 100; attempt++) {
                 target = document.querySelector('select[aria-label="Terminal-Arbeitsordner auswählen"]');
@@ -4195,7 +4198,8 @@ function createWindow(): void {
               const status = await window.studio.trelloConnectionStatus();
               if (status.connected) throw new Error('Synthetisches Smoke-Profil enthält unerwartet Trello-Zugangsdaten.');
               document.querySelector('.card-drawer button[aria-label="Karte schließen"]')?.click();
-              const open = [...document.querySelectorAll('.board-header-actions button')].find((button) => button.textContent?.includes('Trello importieren'));
+              document.querySelector('.board-more-tools summary')?.click();
+              const open = [...document.querySelectorAll('.board-more-tools-content button')].find((button) => button.textContent?.includes('Trello'));
               if (!(open instanceof HTMLButtonElement)) throw new Error('Trello-Importknopf fehlt im Board.');
               open.click();
               for (let attempt = 0; attempt < 100 && !document.querySelector('.trello-import-dialog'); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));

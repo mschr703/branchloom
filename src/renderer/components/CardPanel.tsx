@@ -16,6 +16,7 @@ import { SessionEvidencePanel } from './SessionEvidencePanel';
 import { SessionRecoveryPanel } from './SessionRecoveryPanel';
 import { AgentHandoffPanel } from './AgentHandoffPanel';
 import { TaskRevisionPanel } from './TaskRevisionPanel';
+import { CardSchedulePanel } from './CardSchedulePanel';
 import { ParallelRunPanel } from './ParallelRunPanel';
 import type { CardRunGate } from '../../shared/parallel-runs';
 import type { CardCriterionEvidenceKind } from '../../shared/card-acceptance';
@@ -286,6 +287,7 @@ export function CardPanel({ card, snapshot, mutate, onClose, onOpenCard, onOpenD
         {archiveError ? <p className="inline-error" role="alert">{archiveError}</p> : null}
         {deleteError ? <p className="inline-error" role="alert">{deleteError}</p> : null}
         <details className="card-detail-group"><summary>Planung, Kontext und Nachweise</summary><div className="card-detail-group-content">
+        <CardSchedulePanel card={card} mutate={mutate} />
         <TaskRevisionPanel card={card} session={session} mutate={mutate} />
         <label className="field-label"><span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" style={{ width: 'auto' }} checked={card.wireframeRequired} disabled={Boolean(card.archivedAt) || session?.state === 'running'} onChange={(event) => void mutate(() => window.studio.updateCard({ id: card.id, wireframeRequired: event.target.checked }))} /> Wireframe vor Agentenstart prüfen</span></label>
         <p className="field-help">Wenn aktiviert, starten Karten-Agenten und Workflow-Schritte erst mit einem gespeicherten, aktuell freigegebenen Entwurf. Die Freigabe startet keinen Agenten.</p>

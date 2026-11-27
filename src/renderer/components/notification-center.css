@@ -1,0 +1,27 @@
+.notification-center { position: relative; flex: none; }
+.notification-trigger { position: relative; }
+.notification-trigger:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.notification-count { position: absolute; top: -5px; right: -8px; display: grid; place-items: center; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 8px; background: #a34e42; color: #fff; font-size: 10px; font-variant-numeric: tabular-nums; line-height: 1; }
+.notification-panel { position: absolute; z-index: 100; top: calc(100% + 12px); right: -38px; display: flex; flex-direction: column; width: min(380px, calc(100vw - 24px)); max-height: min(600px, calc(100vh - 95px)); overflow-y: auto; padding: 0 14px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text); box-shadow: 0 12px 34px #0002; }
+.notification-heading { position: sticky; top: 0; z-index: 1; display: flex; justify-content: space-between; align-items: center; min-height: 48px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.notification-heading h2 { margin: 0; font-size: 15px; font-weight: 650; }
+.notification-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 38px; color: var(--muted); font-size: 12px; }
+.notification-list-heading strong { font-weight: 600; color: var(--text); }
+.notification-list-heading button, .notification-all { border: 0; padding: 4px 0; background: transparent; color: var(--accent); font: inherit; font-size: 12px; cursor: pointer; }
+.notification-list-heading button:hover, .notification-all:hover { text-decoration: underline; }
+.notification-list-heading button:focus-visible, .notification-all:focus-visible, .notification-item:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.notification-empty, .notification-error, .notification-more { margin: 6px 0 13px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.notification-error { color: var(--danger); }
+.notification-item { position: relative; display: grid; gap: 3px; width: 100%; min-height: 78px; padding: 9px 24px 9px 0; border: 0; border-top: 1px solid var(--border); background: transparent; color: var(--text); text-align: left; font: inherit; cursor: pointer; }
+.notification-item:hover { background: var(--surface-2); }
+.notification-item > svg { position: absolute; right: 3px; top: 30px; color: var(--muted); }
+.notification-item strong, .notification-item-detail { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; }
+.notification-item strong { font-weight: 650; }
+.notification-item-detail { color: var(--muted); }
+.notification-item-meta { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 11px; }
+.notification-item-meta > span:first-child { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.notification-new { color: #a34e42; font-weight: 650; }
+.notification-all { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; margin-top: 9px; }
+.notification-panel .release-update-notice { position: static; width: auto; margin: 12px 0 4px; padding: 10px 0 11px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; box-shadow: none; }
+.notification-panel .release-update-actions { margin-top: 8px; }
+@media (max-width: 600px) { .notification-panel { position: fixed; top: 76px; right: 12px; max-height: calc(100vh - 88px); } }

@@ -2,6 +2,8 @@
 
 This is the implementation direction for the first real team release. It describes intended behavior, not a shipped service. The [current guest board](TEAM_BOARD.md) remains a short-lived view hosted by one running desktop app.
 
+The paid VPS-hosted direction and the boundary between the current loopback preview and a future managed service are detailed in [TEAM_HOSTING.md](TEAM_HOSTING.md).
+
 The [local two-client preview](TEAM_LOCAL_PREVIEW.md) has concrete startup steps and limits. Its S03e foundation, live presence, and revisioned card controls are in `main`.
 
 The S03e foundation exercises a local, authenticated coordinator and a first shared card draft with Yjs updates. S03f added an authenticated server event stream for open-member presence and draft notifications; a five-second client poll remains as a fallback. This is local live editing, not a production remote service. The coordinator reuses its saved loopback port after restart. The accepted board card remains separate from the draft. Incremental outgoing updates are encrypted on the client before each send and replayed with their original mutation ID after a failed response or restart. This has a bounded queue; when full or when OS encryption is unavailable, saving fails visibly. The server remains authoritative about project rights. The admin acceptance command does not exist yet, so no draft is promoted by AI agreement.

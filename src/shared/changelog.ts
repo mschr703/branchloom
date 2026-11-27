@@ -12,6 +12,8 @@ export interface ChangelogCommit {
   hash: string;
   committedAt: string;
   subject: string;
+  /** Git commit author name. This is not a verified Branchloom team identity. */
+  authorName?: string;
   sources?: ChangelogSource[];
 }
 

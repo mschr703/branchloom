@@ -14,6 +14,9 @@
 .usage-numbers span { color: var(--muted); font-size: 11px; line-height: 1.35; }
 .usage-telemetry { display: flex; align-items: baseline; gap: 16px; max-width: 88ch; margin: -14px 0 30px; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .usage-telemetry strong { flex: none; color: var(--text); font-size: 12px; font-weight: 650; }
+.usage-outcomes { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 18px; margin: -12px 0 28px; color: var(--soft); font-size: 12px; font-variant-numeric: tabular-nums; }
+.usage-outcomes strong { color: var(--text); font-size: 12px; font-weight: 650; }
+.usage-outcomes small { color: var(--muted); font-size: 11px; }
 .usage-analysis { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr); gap: 32px; }
 .usage-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
 .usage-section-head h3 { margin: 0; font-size: 15px; font-weight: 650; }
@@ -42,6 +45,20 @@
 .usage-workflow-list button:hover { background: var(--surface-2); }
 .usage-workflow-list button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .usage-cards { margin-top: 30px; }
+.usage-recent { margin-top: 32px; }
+.usage-recent-list { display: grid; }
+.usage-recent-row { display: grid; grid-template-columns: 90px minmax(170px, 1fr) 135px 110px; align-items: center; gap: 12px; width: 100%; min-width: 0; padding: 11px 2px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); text-align: left; font: inherit; }
+button.usage-recent-row { cursor: pointer; }
+button.usage-recent-row:hover { background: var(--surface-2); }
+button.usage-recent-row:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.usage-recent-row time, .usage-recent-duration { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.usage-recent-work { display: grid; gap: 3px; min-width: 0; }
+.usage-recent-work strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
+.usage-recent-work small { color: var(--muted); font-size: 11px; }
+.usage-recent-state { font-size: 12px; font-weight: 600; }
+.usage-recent-state.is-failed { color: var(--danger); }
+.usage-recent-state.is-running { color: var(--accent); }
+.usage-recent-row.is-missing { opacity: .65; }
 .usage-card-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; }
 .usage-card-row { min-width: 0; display: grid; gap: 4px; width: 100%; padding: 12px 2px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); text-align: left; font: inherit; cursor: pointer; }
 .usage-card-row:hover { background: var(--surface-2); }
@@ -60,4 +77,5 @@
 .usage-load-state { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; min-height: 100px; }
 .usage-limit { color: var(--warning); background: var(--warning-bg); border-left: 3px solid var(--warning); padding: 10px 12px; font-size: 12px; }
 @media (max-width: 900px) { .usage-numbers { grid-template-columns: repeat(3, 1fr); } .usage-numbers > div:nth-child(4) { border-left: 0; } .usage-analysis, .usage-card-list { grid-template-columns: 1fr; } }
-@media (max-width: 600px) { .usage-toolbar { align-items: flex-start; flex-direction: column; } .usage-numbers { grid-template-columns: repeat(2, 1fr); } .usage-numbers > div { padding: 16px 10px; } .usage-numbers > div:nth-child(odd) { border-left: 0; padding-left: 0; } .usage-numbers > div:nth-child(4) { border-left: 1px solid var(--border); } .usage-bars { min-width: 0; } .usage-telemetry { flex-direction: column; gap: 3px; } }
+@media (max-width: 700px) { .usage-recent-row { grid-template-columns: 76px minmax(0, 1fr) auto; } .usage-recent-duration { display: none; } }
+@media (max-width: 600px) { .usage-toolbar { align-items: flex-start; flex-direction: column; } .usage-numbers { grid-template-columns: repeat(2, 1fr); } .usage-numbers > div { padding: 16px 10px; } .usage-numbers > div:nth-child(odd) { border-left: 0; padding-left: 0; } .usage-numbers > div:nth-child(4) { border-left: 1px solid var(--border); } .usage-bars { min-width: 0; } .usage-telemetry { flex-direction: column; gap: 3px; } .usage-recent-row { grid-template-columns: minmax(0, 1fr) auto; } .usage-recent-row time { grid-column: 1 / -1; } }

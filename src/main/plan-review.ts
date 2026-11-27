@@ -58,6 +58,13 @@ export function saveReviewedPlan(store: StudioStore, input: { projectId: string;
   return reviewedPlan(store, id);
 }
 
+/** Editing creates a new review revision so old comments retain their exact source lines. */
+export function reviseReviewedPlan(store: StudioStore, input: { planId: string; fingerprint: string; proposal: ReviewedPlan['proposal'] }): ReviewedPlan {
+  const previous = reviewedPlan(store, input.planId);
+  if (previous.state !== 'open' || previous.fingerprint !== input.fingerprint) throw new Error('Der Plan ist veraltet oder bereits übernommen. Bitte neu laden.');
+  return saveReviewedPlan(store, { projectId: previous.projectId, request: previous.request, proposal: input.proposal });
+}
+
 export function listPlanComments(store: StudioStore, planId: string): PlanComment[] {
   reviewedPlan(store, planId);
   return (store.db.prepare('SELECT * FROM plan_comments WHERE plan_id = ? ORDER BY created_at, rowid LIMIT 101').all(planId) as CommentRow[]).map(commentOf);

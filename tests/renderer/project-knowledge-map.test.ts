@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { Card, CardContextReference, Project, ProjectSnapshot, Session } from '../../src/shared/types';
-import { projectKnowledgeMapPage, visibleKnowledgeCodeFiles } from '../../src/renderer/project-knowledge-map';
+import { knowledgeMapFileForHit, knowledgeMapPageForCard, projectKnowledgeMapPage, visibleKnowledgeCodeFiles } from '../../src/renderer/project-knowledge-map';
 import { knowledgeMapFlow, ProjectKnowledgeMap } from '../../src/renderer/components/ProjectKnowledgeMap';
 import type { ProjectMemoryMapSources } from '../../src/shared/project-memory-index';
 
@@ -59,6 +59,19 @@ describe('project knowledge map', () => {
     expect(projectKnowledgeMapPage({ project, cards, sessions }, 1).groups).toHaveLength(4);
     expect(projectKnowledgeMapPage({ project, cards, sessions }, 99).page).toBe(1);
     expect(projectKnowledgeMapPage({ project, cards, sessions }, Number.NaN).page).toBe(0);
+  });
+
+  it('locates a source-backed task across graph pages without inventing a new node', () => {
+    const snapshot = { project, cards: Array.from({ length: 9 }, (_, index) => card(`card-${index}`)), sessions: [] };
+    expect(knowledgeMapPageForCard(snapshot, 'card-8')).toBe(2);
+    expect(knowledgeMapPageForCard(snapshot, 'missing')).toBeNull();
+  });
+
+  it('matches a code search hit to a graph file when the project path prefix is omitted', () => {
+    const sources = { gitRef: 'abc', headCommit: null, totalCodeFiles: 1,
+      codeFiles: [{ path: 'src/app.ts', sourceId: 'packages/ui/src/app.ts#1', updatedAt: '2026-01-01T00:00:00Z' }] } satisfies ProjectMemoryMapSources;
+    expect(knowledgeMapFileForHit(sources, 'packages/ui/src/app.ts', 'packages/ui/src/app.ts#42')?.path).toBe('src/app.ts');
+    expect(knowledgeMapFileForHit(sources, 'packages/ui/src/missing.ts', 'missing#1')).toBeNull();
   });
 
   it('shows only explicitly saved file and folder references for visible project cards', () => {

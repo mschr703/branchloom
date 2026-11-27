@@ -80,6 +80,25 @@ describe('global workflow agent', () => {
     store.close();
   });
 
+  it('supplies real board card references and rejects an invented source citation', async () => {
+    const { store, project, columns, proposal } = fixture();
+    const existing = store.createCard({ projectId: project.id, columnId: columns[0]!.id, title: 'Existing login card' });
+    let prompt = '';
+    const cited = await proposeWorkflow(store, { projectId: project.id, request: 'Plan account settings' }, async (call) => {
+      prompt = call.stdin ?? '';
+      writeFileSync(call.outputPath, JSON.stringify({ ...proposal,
+        explanation: `Keep the existing task [card:${existing.id}], then review in [column:${columns[4]!.id}].` }));
+    });
+    expect(prompt).toContain(existing.id);
+    expect(prompt).toContain('Existing login card');
+    expect(cited.explanation).toContain(`[card:${existing.id}]`);
+    await expect(proposeWorkflow(store, { projectId: project.id, request: 'Plan account settings' }, async (call) => {
+      writeFileSync(call.outputPath, JSON.stringify({ ...proposal, explanation: 'See [card:fictional-id].' }));
+    })).rejects.toThrow('not supplied');
+    expect(store.snapshot(project.id).cards).toHaveLength(1);
+    store.close();
+  });
+
   it('refuses invalid requests and unsupported agents rather than silently ignoring effort', async () => {
     const { store, project } = fixture();
     await expect(proposeWorkflow(store, { projectId: project.id, request: ' '.repeat(10) }, async () => undefined)).rejects.toThrow('request');

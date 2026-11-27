@@ -158,10 +158,11 @@ export function parseChangelogLog(output: string): ChangelogCommit[] {
   if (!output.endsWith('\0\0')) throw new Error('Git-Changelog ist unvollständig.');
   return output.slice(0, -2).split('\0\0').map((record) => {
     const parts = record.split('\0');
-    if (parts.length !== 3 || !/^[a-f0-9]{40,64}$/i.test(parts[0]!) || !Number.isFinite(Date.parse(parts[1]!)) || !parts[2]!.trim()) {
+    if ((parts.length !== 3 && parts.length !== 4) || !/^[a-f0-9]{40,64}$/i.test(parts[0]!) || !Number.isFinite(Date.parse(parts[1]!)) || !parts.at(-1)!.trim()) {
       throw new Error('Git-Changelog enthält einen ungültigen Commit.');
     }
-    return { hash: parts[0]!, committedAt: parts[1]!, subject: parts[2]! };
+    const authorName = parts.length === 4 ? parts[2]!.replace(/[\x00-\x1f\x7f]/g, ' ').trim().slice(0, 120) : '';
+    return { hash: parts[0]!, committedAt: parts[1]!, subject: parts.at(-1)!, ...(authorName ? { authorName } : {}) };
   });
 }
 
@@ -192,7 +193,7 @@ export async function projectChangelog(store: StudioStore, projectId: string, pe
   const result = await git(project.path, [
     'log', '--no-show-signature', '--no-decorate', '--no-ext-diff', '-z',
     `--since=${since}`, `--until=${checkedAt}`, `--max-count=${MAX_VISIBLE + 1}`,
-    '--format=%H%x00%cI%x00%s%x00', 'HEAD',
+    '--format=%H%x00%cI%x00%an%x00%s%x00', 'HEAD',
   ]);
   if (result.failed) throw new Error('Git-Changelog konnte nicht gelesen werden.');
   const all = parseChangelogLog(result.stdout);
@@ -225,7 +226,7 @@ export async function projectChangelog(store: StudioStore, projectId: string, pe
       const log = await checkedGit(record.path, [
         'log', '--no-show-signature', '--no-decorate', '--no-ext-diff', '-z',
         `--since=${since}`, `--until=${checkedAt}`, `--max-count=${MAX_VISIBLE + 1}`,
-        '--format=%H%x00%cI%x00%s%x00', 'HEAD',
+        '--format=%H%x00%cI%x00%an%x00%s%x00', 'HEAD',
       ], deadline);
       const history = limitChangelogCommits(parseChangelogLog(log));
       if (history.moreAvailable) moreAvailable = true;

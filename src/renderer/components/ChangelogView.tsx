@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowUpRight, Clipboard, RefreshCw } from 'lucide-react';
 import type { ChangelogCommit, ChangelogPeriod, ChangelogScope, ChangelogSource, ProjectChangelog } from '../../shared/changelog';
-import { changelogDigest } from '../changelog-digest';
+import { changelogDigest, type ChangelogEventFilter, type DigestEntry } from '../changelog-digest';
 import './changelog.css';
 
 function displayTime(value: string): string {
@@ -74,7 +74,7 @@ export function changelogMarkdown(changelog: ProjectChangelog): string {
     '## Zeitlicher Verlauf',
     ...(digest.days.length ? digest.days.flatMap((day) => [
       `### ${markdownText(day.day)}`,
-      ...day.entries.map((entry) => `- ${markdownText(entry.at)} · ${entry.kind === 'head' ? 'Projekt-HEAD' : entry.kind === 'worktree' ? 'Karten-Branch' : entry.kind === 'qa' ? 'Browser-QA' : 'Diff-Review'} · ${markdownText(entry.title)} — ${markdownText(entry.detail)} (${markdownText(entry.source)})`),
+      ...day.entries.map((entry) => `- ${markdownText(entry.at)} · ${entry.kind === 'head' ? 'Projekt-HEAD' : entry.kind === 'worktree' ? 'Karten-Branch' : entry.kind === 'qa' ? 'Browser-QA' : entry.kind === 'review' ? 'Diff-Review' : 'Karten-Übernahme'} · ${markdownText(entry.title)} — ${markdownText(entry.detail)} (${markdownText(entry.source)}${entry.authorName ? `; Git-Autor: ${markdownText(entry.authorName)}` : ''})`),
     ]) : ['Keine Änderungen oder lokalen Prüfspuren in den gewählten Quellen.']),
     ...(digest.hidden ? [`${digest.hidden} weitere Einträge nicht einzeln aufgeführt.`] : []),
     '',
@@ -84,7 +84,7 @@ export function changelogMarkdown(changelog: ProjectChangelog): string {
   else if (changelog.state === 'no-commits') lines.push('Dieses Git-Repository hat noch keinen Commit.');
   else if (!changelog.commits.length) lines.push(changelog.scope === 'head' ? 'In diesem Zeitraum ist kein Commit in HEAD erreichbar.' : 'In diesem Zeitraum wurde in den geprüften Quellen kein Commit gefunden.');
   else for (const commit of changelog.commits) {
-    lines.push(`- ${markdownText(commit.subject)} (${commit.hash}, ${commit.committedAt})`);
+    lines.push(`- ${markdownText(commit.subject)} (${commit.hash}, ${commit.committedAt})${commit.authorName ? ` · Git-Autor: ${markdownText(commit.authorName)}` : ''}`);
     if (changelog.scope === 'saved-worktrees') lines.push(`  Quellen: ${(commit.sources ?? []).map((source) => markdownText(sourceName(source))).join('; ')}`);
   }
   if (changelog.moreAvailable) lines.push('', 'Weitere Commits sind vorhanden; die Ansicht zeigt höchstens 100.');
@@ -117,10 +117,24 @@ function byLocalDay(commits: ChangelogCommit[]): Array<{ day: string; commits: C
   return groups;
 }
 
-export function ChangelogReport({ result, onOpenCard, onOpenQaReport }: { result: ProjectChangelog;
-  onOpenCard?: (cardId: string) => void; onOpenQaReport?: (cardId: string, reportId: string) => void }) {
+function eventSource(entry: DigestEntry, onOpenCard?: (cardId: string) => void,
+  onOpenQaReport?: (cardId: string, reportId: string) => void) {
+  if (entry.qaReportId && entry.cardId && onOpenQaReport) return <button type="button" className="changelog-event-source" onClick={() => onOpenQaReport(entry.cardId!, entry.qaReportId!)}>QA-Bericht öffnen <ArrowUpRight size={13} aria-hidden="true" /></button>;
+  if (entry.cardId && onOpenCard) return <button type="button" className="changelog-event-source" onClick={() => onOpenCard(entry.cardId!)}>Karte öffnen <ArrowUpRight size={13} aria-hidden="true" /></button>;
+  if (entry.commitHash) return <button type="button" className="changelog-event-source" onClick={() => {
+    const target = document.getElementById(`commit-${entry.commitHash}`);
+    const details = target?.closest('details');
+    if (details) details.open = true;
+    target?.scrollIntoView({ block: 'center' });
+  }}>Commit unten ansehen <ArrowUpRight size={13} aria-hidden="true" /></button>;
+  return null;
+}
+
+export function ChangelogReport({ result, onOpenCard, onOpenQaReport, eventFilter = 'all', gitAuthor = '' }: { result: ProjectChangelog;
+  onOpenCard?: (cardId: string) => void; onOpenQaReport?: (cardId: string, reportId: string) => void;
+  eventFilter?: ChangelogEventFilter; gitAuthor?: string }) {
   const overview = changelogOverview(result);
-  const digest = changelogDigest(result);
+  const digest = changelogDigest(result, 18, { kind: eventFilter, gitAuthor });
   const headCount = overview.head.length;
   const worktreeCount = overview.worktreeOnly.length;
   return <div className="changelog-report">
@@ -139,14 +153,14 @@ export function ChangelogReport({ result, onOpenCard, onOpenQaReport }: { result
       {result.reviewActivity.length ? <div className="changelog-review-line"><strong>Diff-Kommentare</strong>{result.reviewActivity.slice(0, 5).map((review) => <button key={review.cardId} type="button" className="changelog-source-link" disabled={!onOpenCard} onClick={() => onOpenCard?.(review.cardId)}>{review.cardTitle} · {review.count}<ArrowUpRight size={14} aria-hidden="true" /></button>)}</div> : null}
     </section>
     <section className="changelog-digest" aria-label="Zeitlicher Projektüberblick">
-      <header><h3>{result.period === 'day' ? 'Die letzten 24 Stunden' : 'Die letzten sieben Tage'}</h3><p>{headCount} {headCount === 1 ? 'Commit' : 'Commits'} im Projekt-HEAD{result.scope === 'saved-worktrees' ? ` · ${worktreeCount} nur in Karten-Worktrees` : ''} · {result.qaTotal} lokale Browser-QA · {result.reviewTotal} Diff-Kommentare</p></header>
-      {digest.days.length ? <ol className="changelog-timeline">{digest.days.map((day) => <li key={day.day} className="changelog-day"><h4>{day.day}</h4><ol>{day.entries.map((entry) => <li key={entry.id} className={`changelog-event changelog-event-${entry.kind}${entry.status ? ` changelog-event-${entry.status}` : ''}`}><time dateTime={entry.at}>{new Date(entry.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</time><div><span className="changelog-event-kind">{entry.kind === 'head' ? 'Projekt-HEAD' : entry.kind === 'worktree' ? 'Karten-Branch' : entry.kind === 'qa' ? 'Browser-QA' : 'Diff-Review'}</span><strong>{entry.title}</strong><p>{entry.detail}</p><small>{entry.source}</small></div></li>)}</ol></li>)}</ol> : <p className="changelog-empty">{result.state === 'no-repository' ? 'Der Projektordner ist kein Git-Repository.' : result.state === 'no-commits' ? 'Dieses Git-Repository hat noch keinen Commit.' : 'Für diesen Zeitraum liegen in den gewählten Quellen keine Änderungen oder lokalen Prüfspuren vor.'}</p>}
+      <header><h3>{result.period === 'day' ? 'Die letzten 24 Stunden' : 'Die letzten sieben Tage'}</h3><p>{headCount} {headCount === 1 ? 'Commit' : 'Commits'} im Projekt-HEAD{result.scope === 'saved-worktrees' ? ` · ${worktreeCount} nur in Karten-Worktrees` : ''} · {result.qaTotal} lokale Browser-QA · {result.reviewTotal} Diff-Kommentare</p>{gitAuthor ? <p>Git-Autor: {gitAuthor}. QA, Reviews und Übernahmen haben hier keine belegte Personenzuordnung und erscheinen bei diesem Filter nicht.</p> : null}</header>
+      {digest.days.length ? <ol className="changelog-timeline">{digest.days.map((day) => <li key={day.day} className="changelog-day"><h4>{day.day}</h4><ol>{day.entries.map((entry) => <li key={entry.id} className={`changelog-event changelog-event-${entry.kind}${entry.status ? ` changelog-event-${entry.status}` : ''}`}><time dateTime={entry.at}>{new Date(entry.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</time><div><span className="changelog-event-kind">{entry.kind === 'head' ? 'Projekt-HEAD' : entry.kind === 'worktree' ? 'Karten-Branch' : entry.kind === 'qa' ? 'Browser-QA' : entry.kind === 'review' ? 'Diff-Review' : 'Karten-Übernahme'}</span><strong>{entry.title}</strong><p>{entry.detail}</p><small>{entry.source}{entry.authorName ? ` · Git-Autor: ${entry.authorName}` : ''}</small>{eventSource(entry, onOpenCard, onOpenQaReport)}</div></li>)}</ol></li>)}</ol> : <p className="changelog-empty">{eventFilter !== 'all' || gitAuthor ? 'Für diesen Filter gibt es im gewählten Zeitraum keine belegten Ereignisse.' : result.state === 'no-repository' ? 'Der Projektordner ist kein Git-Repository.' : result.state === 'no-commits' ? 'Dieses Git-Repository hat noch keinen Commit.' : 'Für diesen Zeitraum liegen in den gewählten Quellen keine Änderungen oder lokalen Prüfspuren vor.'}</p>}
       {digest.hidden ? <p className="changelog-limit">{digest.hidden} weitere Einträge sind in diesem Überblick nicht einzeln aufgeführt.</p> : null}
       {result.qaTotal > result.qaObservations.length || result.reviewTotal > result.reviewActivity.reduce((sum, item) => sum + item.count, 0) ? <p className="changelog-limit">Weitere QA- oder Review-Einträge liegen außerhalb der begrenzten Detailabfrage.</p> : null}
     </section>
     {result.state === 'no-repository' && digest.days.length ? <p className="changelog-empty">Der Projektordner ist kein Git-Repository.</p>
       : result.state === 'no-commits' && digest.days.length ? <p className="changelog-empty">Dieses Git-Repository hat noch keinen Commit.</p>
-      : result.commits.length ? <details className="changelog-detail"><summary>Git-Details: {result.commits.length} {result.commits.length === 1 ? 'Commit' : 'Commits'} ansehen</summary><div className="changelog-groups">{byLocalDay(result.commits).map((group, index) => <section key={`${group.day}:${index}`} aria-label={group.day}><h3>{group.day}</h3><ol>{group.commits.map((commit) => <li key={commit.hash}><div className="changelog-subject">{commit.subject}</div><div className="changelog-commit-meta"><time dateTime={commit.committedAt}>{displayTime(commit.committedAt)}</time><code title={commit.hash}>{commit.hash}</code></div>{result.scope === 'saved-worktrees' ? <div className="changelog-provenance" aria-label="Commit-Quellen">{(commit.sources ?? []).map((source, sourceIndex) => <span key={`${source.kind}:${source.cardId ?? ''}:${sourceIndex}`}>{sourceName(source)}</span>)}</div> : null}</li>)}</ol></section>)}</div></details> : null}
+      : result.commits.length ? <details className="changelog-detail"><summary>Git-Details: {result.commits.length} {result.commits.length === 1 ? 'Commit' : 'Commits'} ansehen</summary><div className="changelog-groups">{byLocalDay(result.commits).map((group, index) => <section key={`${group.day}:${index}`} aria-label={group.day}><h3>{group.day}</h3><ol>{group.commits.map((commit) => <li key={commit.hash} id={`commit-${commit.hash}`}><div className="changelog-subject">{commit.subject}</div><div className="changelog-commit-meta"><time dateTime={commit.committedAt}>{displayTime(commit.committedAt)}</time><code title={commit.hash}>{commit.hash}</code>{commit.authorName ? <span>Git-Autor: {commit.authorName}</span> : null}</div>{result.scope === 'saved-worktrees' ? <div className="changelog-provenance" aria-label="Commit-Quellen">{(commit.sources ?? []).map((source, sourceIndex) => <span key={`${source.kind}:${source.cardId ?? ''}:${sourceIndex}`}>{sourceName(source)}</span>)}</div> : null}</li>)}</ol></section>)}</div></details> : null}
     {result.moreAvailable ? <p className="changelog-limit">Weitere Commits sind vorhanden. Die Ansicht zeigt höchstens 100.</p> : null}
     {result.scope === 'saved-worktrees' ? <p className="changelog-worktree-summary changelog-limit">{result.checkedWorktrees} gespeicherte Karten-Worktrees geprüft.</p> : null}
     <p className="changelog-scope">QA beobachtet eine lokale Vorschau; der vom Dev-Server ausgelieferte Code ist keinem Commit nachgewiesen zugeordnet. Diff-Kommentare sind keine Review-Freigabe. Unversionierte Änderungen{result.scope === 'head' ? ' und andere Branches' : ' und nicht gespeicherte Branches'} sind nicht enthalten.</p>
@@ -157,11 +171,15 @@ export function ChangelogView({ projectId, onOpenCard, onOpenQaReport }: { proje
   onOpenCard?: (cardId: string) => void; onOpenQaReport?: (cardId: string, reportId: string) => void }) {
   const [period, setPeriod] = useState<ChangelogPeriod>('week');
   const [scope, setScope] = useState<ChangelogScope>('head');
+  const [eventFilter, setEventFilter] = useState<ChangelogEventFilter>('all');
+  const [gitAuthor, setGitAuthor] = useState('');
   const [refresh, setRefresh] = useState(0);
   const [result, setResult] = useState<ProjectChangelog | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const gitAuthors = [...new Set(result?.commits.map((commit) => commit.authorName).filter((name): name is string => Boolean(name)) ?? [])].sort((a, b) => a.localeCompare(b));
+  const effectiveAuthor = gitAuthors.includes(gitAuthor) ? gitAuthor : '';
 
   useEffect(() => {
     let live = true;
@@ -184,9 +202,11 @@ export function ChangelogView({ projectId, onOpenCard, onOpenQaReport }: { proje
     <div className="changelog-controls">
       <label>Zeitraum<select value={period} onChange={(event) => setPeriod(event.target.value as ChangelogPeriod)}><option value="day">Letzte 24 Stunden</option><option value="week">Letzte 7 Tage</option></select></label>
       <label>Quellen<select value={scope} onChange={(event) => setScope(event.target.value as ChangelogScope)}><option value="head">Nur Projekt-HEAD</option><option value="saved-worktrees">Projekt-HEAD + Karten-Worktrees</option></select></label>
+      <label>Verlauf · Ereignisse<select value={eventFilter} onChange={(event) => setEventFilter(event.target.value as ChangelogEventFilter)}><option value="all">Alle Ereignisse</option><option value="code">Git-Commits</option><option value="integration">Karten-Übernahmen</option><option value="qa">Browser-QA</option><option value="review">Diff-Reviews</option></select></label>
+      {gitAuthors.length ? <label>Verlauf · Git-Autor<select value={effectiveAuthor} onChange={(event) => setGitAuthor(event.target.value)}><option value="">Alle Git-Autoren</option>{gitAuthors.map((author) => <option key={author} value={author}>{author}</option>)}</select></label> : null}
       <button type="button" className="secondary-button" onClick={() => setRefresh((value) => value + 1)} disabled={loading}><RefreshCw size={15} aria-hidden="true" /> Aktualisieren</button>
-      <button type="button" className="secondary-button" onClick={() => void copy()} disabled={!result || loading}><Clipboard size={15} aria-hidden="true" /> {copied ? 'Markdown kopiert' : 'Markdown kopieren'}</button>
+      <button type="button" className="secondary-button" onClick={() => void copy()} disabled={!result || loading}><Clipboard size={15} aria-hidden="true" /> {copied ? 'Gesamter Bericht kopiert' : 'Gesamten Bericht kopieren'}</button>
     </div>
-    {loading ? <p role="status">Git-Historie wird gelesen…</p> : error ? <p className="changelog-error" role="alert">{error}</p> : result ? <ChangelogReport result={result} onOpenCard={onOpenCard} onOpenQaReport={onOpenQaReport} /> : null}
+    {loading ? <p role="status">Git-Historie wird gelesen…</p> : error ? <p className="changelog-error" role="alert">{error}</p> : result ? <ChangelogReport result={result} onOpenCard={onOpenCard} onOpenQaReport={onOpenQaReport} eventFilter={eventFilter} gitAuthor={effectiveAuthor} /> : null}
   </section>;
 }

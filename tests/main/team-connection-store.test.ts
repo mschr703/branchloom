@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
-import { TeamConnectionStore, checkedCoordinatorUrl } from '../../src/main/team-connection-store';
+import { TeamConnectionStore, checkedCoordinatorUrl, teamCoordinatorTransport } from '../../src/main/team-connection-store';
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -42,6 +42,9 @@ it('rejects unprotected storage, untrusted HTTP origins, and corrupt encrypted d
   const unavailable = new TeamConnectionStore(root, { ...secure, isAsyncEncryptionAvailable: async () => false });
   await expect(unavailable.save(input)).rejects.toThrow('unavailable');
   expect(checkedCoordinatorUrl('http://127.0.0.1:4567')).toBe('http://127.0.0.1:4567');
+  expect(teamCoordinatorTransport('http://127.0.0.1:4567')).toBe('loopback');
+  expect(teamCoordinatorTransport('https://team.example.com')).toBe('remote-https');
+  expect(() => teamCoordinatorTransport('http://team.example.com')).toThrow();
   for (const url of ['http://example.com:4567', 'https://team.example.com/path',
     'https://user:pass@team.example.com', 'http://127.0.0.1']) {
     expect(() => checkedCoordinatorUrl(url)).toThrow();

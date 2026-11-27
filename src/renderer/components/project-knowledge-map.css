@@ -101,7 +101,14 @@
 .knowledge-map-list { width: 100%; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; }
 .knowledge-map-list summary { cursor: pointer; }
 .knowledge-map-list summary:focus-visible, .knowledge-map-list button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.knowledge-map-list-search { display: flex; align-items: center; gap: 7px; margin-top: 9px; padding: 0 6px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); }
+.knowledge-map-list-search:focus-within { outline: 2px solid var(--focus); outline-offset: 1px; }
+.knowledge-map-list-search input { width: 100%; min-width: 0; height: 30px; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 12px; }
 .knowledge-map-list ul { max-height: 160px; overflow-y: auto; margin: 10px 0 0; padding: 0; list-style: none; }
+.knowledge-map-list .knowledge-map-list-group > ul { max-height: none; margin: 0; }
+.knowledge-map-list-group h4 { display: flex; justify-content: space-between; margin: 10px 0 2px; color: var(--muted); font-size: 10px; font-weight: 600; letter-spacing: .03em; }
+.knowledge-map-list-group h4 small { font-size: inherit; font-variant-numeric: tabular-nums; }
+.knowledge-map-list .knowledge-map-list-none { padding: 10px 2px; color: var(--muted); }
 .knowledge-map-list li + li { border-top: 1px solid var(--border); }
 .knowledge-map-list button { width: 100%; padding: 7px 2px; border: 0; background: transparent; color: var(--text); text-align: left; font: inherit; cursor: pointer; }
 .knowledge-map-list button:hover { color: var(--accent); }

@@ -25,6 +25,15 @@
 .workflow-context-disclosure summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .workflow-context-disclosure p { margin: 8px 0 0; }
 :root[data-theme] .workflow-workbench .proposal-preview { background: transparent; border: 0; border-top: 1px solid var(--border); border-radius: 0; margin-top: 24px; padding: 20px 0 0; }
+.workflow-revision-chat { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 1.2fr) auto; align-items: end; gap: 14px; margin: 12px 0 22px; padding: 16px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.workflow-revision-chat strong { display: block; font-size: 14px; color: var(--text); }
+.workflow-revision-chat p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.workflow-revision-chat label { display: grid; gap: 5px; font-size: 12px; color: var(--muted); }
+.workflow-revision-chat textarea { width: 100%; min-height: 72px; font-size: 13px; }
+.workflow-revision-chat button { margin-bottom: 1px; }
+.workflow-plan-citations { margin: -4px 0 16px; color: var(--muted); font-size: 12px; }
+.workflow-plan-citations strong { color: var(--text); font-weight: 600; }
+.workflow-plan-citations ul { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 6px 0 0; padding-left: 18px; }
 :root[data-theme] .workflow-workbench > .workflow-card { margin: 0; padding: 24px 0 28px; border-bottom: 1px solid var(--border); }
 :root[data-theme] .workflow-workbench .queue-preview { background: transparent; border: 0; border-left: 2px solid var(--border); border-radius: 0; padding: 0 0 0 14px; margin: 18px 0; }
 :root[data-theme] .workflow-workbench .queue-preview > strong { color: var(--text); font-size: 13px; }
@@ -44,6 +53,7 @@
 .workflow-haltpoint-actions { display: flex; align-items: center; gap: 8px; }
 :root[data-theme] .workflow-workbench .feature-empty { background: transparent; border: 0; box-shadow: none; padding: 24px 0; text-align: left; align-items: flex-start; }
 @media (max-width: 700px) {
+  .workflow-revision-chat { grid-template-columns: minmax(0, 1fr); }
   :root[data-theme] .workflow-workbench .planner-settings { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   :root[data-theme] .workflow-workbench .planner-request-actions { flex-direction: column; align-items: stretch; }
   :root[data-theme] .workflow-workbench .planner-request-actions .primary-button { align-self: flex-start; }

@@ -76,3 +76,27 @@ it('hosts a project, refreshes the loopback port after restart, and revokes a jo
     rmSync(guestRoot, { recursive: true, force: true });
   }
 });
+
+it('does not restart a local host or mutate local workspace data for a remote HTTPS connection', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'branchloom-team-host-boundary-'));
+  const store = new StudioStore(join(root, 'studio.sqlite'));
+  const connections = new TeamConnectionStore(root, secure);
+  let host = new TeamLocalService(store, connections);
+  try {
+    const project = store.createProject({ name: 'Sample', path: root });
+    const workspace = await host.create({ projectId: project.id, workspaceName: 'Team', ownerName: 'Owner' });
+    await host.close();
+    const owner = await connections.get(workspace.workspaceId);
+    expect(owner).not.toBeNull();
+    await connections.save({ ...owner!, coordinatorUrl: 'https://team.example.com' });
+    host = new TeamLocalService(store, connections);
+    expect(await host.resumeSavedHost()).toBeNull();
+    expect(await host.ownedWorkspaces()).toEqual([]);
+    await expect(host.hostedProject(project.id)).rejects.toThrow('does not hold');
+    await expect(host.addProject(project.id, workspace.workspaceId)).rejects.toThrow('Local team workspace owner credential');
+  } finally {
+    await host.close();
+    store.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});

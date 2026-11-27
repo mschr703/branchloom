@@ -50,6 +50,7 @@ describe('project changelog', () => {
       const day = await projectChangelog(store, project.id, 'day', now);
       expect(day).toMatchObject({ state: 'ready', period: 'day', scope: 'head', head: recentHash, since: '2026-01-02T12:00:00.000Z', until: now.toISOString(), moreAvailable: false, checkedWorktrees: 0, issues: [] });
       expect(day.commits.map((item) => [item.hash, item.subject])).toEqual([[recentHash, 'Add visible card flow']]);
+      expect(day.commits[0]?.authorName).toBe('Studio Test');
       const week = await projectChangelog(store, project.id, 'week', now);
       expect(week.commits).toHaveLength(2);
       expect(week.commits.some((item) => item.hash === otherHash)).toBe(false);
@@ -223,5 +224,7 @@ describe('project changelog', () => {
   it('rejects truncated and malformed Git records', () => {
     expect(() => parseChangelogLog('bad')).toThrow('unvollständig');
     expect(() => parseChangelogLog('bad\0date\0subject\0\0')).toThrow('ungültigen Commit');
+    expect(parseChangelogLog(`${'a'.repeat(40)}\0${'2026-01-03T11:00:00Z'}\0Alex Git\0Commit\0\0`)[0]).toMatchObject({ authorName: 'Alex Git', subject: 'Commit' });
+    expect(parseChangelogLog(`${'a'.repeat(40)}\0${'2026-01-03T11:00:00Z'}\0Legacy commit\0\0`)[0]).toMatchObject({ subject: 'Legacy commit' });
   });
 });

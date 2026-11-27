@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUpRight, Send } from 'lucide-react';
+import { ArrowUpRight, CornerDownLeft, Send } from 'lucide-react';
 import type { ProjectSnapshot } from '../../shared/types';
 import type { DraftTurn } from '../../shared/task-draft';
 import type { ProjectChatReply, ProjectChatSuggestion } from '../../shared/project-chat';
@@ -29,6 +29,8 @@ export function ProjectChat({ snapshot, onOpenCard, onOpenSession, onSaveTask, o
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const savingCanvas = useRef(false);
+  const messageField = useRef<HTMLTextAreaElement>(null);
+  const transcript = useRef<HTMLDivElement>(null);
   let canvasProblem = '';
   if (draft?.kind === 'canvas') {
     try { prepareChatCanvasNode(projectId, reply, draft); }
@@ -36,6 +38,7 @@ export function ProjectChat({ snapshot, onOpenCard, onOpenSession, onSaveTask, o
   }
 
   useEffect(() => { setTurns([]); setMessage(''); setReply(null); setDraft(null); setError(''); setSaved(false); }, [projectId]);
+  useEffect(() => { if (turns.length && transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight; }, [turns]);
 
   async function ask(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -85,27 +88,43 @@ export function ProjectChat({ snapshot, onOpenCard, onOpenSession, onSaveTask, o
     if (hit.kind === 'conversation' && hit.sessionId) onOpenSession?.(hit.sessionId);
   }
 
+  function suggestQuestion(question: string) {
+    setMessage(question);
+    messageField.current?.focus();
+  }
+
   return <section className="project-chat" aria-label="Projektgespräch">
-    <header className="project-chat-heading"><h2>Projektgespräch</h2><p>Frag nach Entscheidungen, Karten und gespeichertem Projektwissen. Aussagen bleiben an Quellen gebunden.</p></header>
+    <header className="project-chat-heading">
+      <div><h2>Projektgespräch</h2><p>Fragen und Entwürfe aus gespeicherten Projektquellen.</p></div>
+      <span className="project-chat-project" title={snapshot.project.name}>Projekt <strong>{snapshot.project.name}</strong></span>
+    </header>
     <div className="project-chat-layout">
       <div className="project-chat-main">
-        <div className="project-chat-transcript" aria-live="polite">
-          {turns.length ? turns.map((turn, index) => <article key={index} className={turn.role === 'user' ? 'project-chat-turn user' : 'project-chat-turn'}><small>{turn.role === 'user' ? 'Du' : 'Projektagent'}</small><p>{turn.text}</p></article>) : <p className="project-chat-empty">Zum Beispiel: „Was ist an der Review-Vorschau schon belegt, und was fehlt noch?“</p>}
+        <div ref={transcript} className="project-chat-transcript" aria-live="polite">
+          {turns.length ? turns.map((turn, index) => <article key={index} className={turn.role === 'user' ? 'project-chat-turn user' : 'project-chat-turn'}><small>{turn.role === 'user' ? 'Du' : 'Projektagent'}</small><p>{turn.text}</p></article>) : <div className="project-chat-empty">
+            <p>Was möchtest du über dieses Projekt wissen?</p>
+            <div className="project-chat-prompts" aria-label="Beispielfragen">
+              <button type="button" onClick={() => suggestQuestion('Welche offenen Karten brauchen meine Entscheidung?')}>Offene Entscheidungen</button>
+              <button type="button" onClick={() => suggestQuestion('Was ist zu den letzten Änderungen belegt?')}>Letzte Änderungen</button>
+            </div>
+          </div>}
         </div>
         <form className="project-chat-compose" onSubmit={(event) => void ask(event)}>
           <label htmlFor="project-chat-message">Deine Frage</label>
-          <textarea id="project-chat-message" rows={3} maxLength={4_000} disabled={busy} value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Frag nach einem Arbeitsstand oder besprich den nächsten Schritt …" />
-          <div><small>Projektfragen lesen Quellen. „Arbeite bis 20 Uhr“ öffnet die Queue-Freigabe.</small><button type="submit" className="primary-button" disabled={busy || !message.trim()}><Send size={15} aria-hidden="true" /> {busy ? 'Prüfe Quellen…' : 'Fragen'}</button></div>
+          <textarea ref={messageField} id="project-chat-message" rows={3} maxLength={4_000} disabled={busy} value={message} onChange={(event) => setMessage(event.target.value)} onKeyDown={(event) => {
+            if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }
+          }} placeholder="Frag nach einem Arbeitsstand oder besprich den nächsten Schritt …" />
+          <div><small>„Arbeite bis 20 Uhr“ öffnet die Queue-Freigabe. <span><CornerDownLeft size={12} aria-hidden="true" /> Strg/⌘ + Enter zum Fragen</span></small><button type="submit" className="primary-button" disabled={busy || !message.trim()}><Send size={15} aria-hidden="true" /> {busy ? 'Prüfe Quellen…' : 'Fragen'}</button></div>
         </form>
         {error ? <p className="inline-error" role="alert">{error}</p> : null}
       </div>
       <aside className="project-chat-evidence" aria-label="Belege und Vorschlag">
-        <div className="project-chat-evidence-head"><h3>Belege</h3><small>{reply?.index.indexedAt ? `Index vom ${new Date(reply.index.indexedAt).toLocaleString('de-DE')}` : 'Noch kein Indexstand'}</small></div>
-        {reply?.index.warning ? <p className="project-chat-warning">{reply.index.warning}</p> : null}
-        {reply?.sources.length ? <ol>{reply.sources.map((hit) => <li key={`${hit.kind}:${hit.sourceId}`}><span>{kindName[hit.kind]} · {new Date(hit.updatedAt).toLocaleDateString('de-DE')}{hit.gitRef ? ` · ${hit.gitRef.slice(0, 8)}` : ''}</span><code className="project-chat-source-id">{hit.kind}:{hit.sourceId}</code><strong>{hit.title}</strong><p>{hit.snippet}</p>{(hit.kind === 'task' && onOpenCard || hit.kind === 'conversation' && onOpenSession) ? <button type="button" className="text-button" onClick={() => openSource(hit)}>Quelle öffnen <ArrowUpRight size={14} aria-hidden="true" /></button> : null}</li>)}</ol> : <p className="project-chat-muted">Nach einer Antwort stehen hier die tatsächlich verwendeten lokalen Quellen.</p>}
         {draft ? <div className="project-chat-draft">
-          <h3>{draft.kind === 'task' ? 'Kartenvorschlag' : 'Canvas-Skizze'}</h3>
-          <p>Entwurf – noch nicht übernommen.</p>
+          <div className="project-chat-draft-head"><h3>{draft.kind === 'task' ? 'Kartenvorschlag' : 'Canvas-Skizze'}</h3><span>Entwurf</span></div>
+          <p>Bearbeiten und anschließend bewusst übernehmen.</p>
           <label>Titel<input value={draft.title} disabled={busy} maxLength={draft.kind === 'canvas' ? 120 : 160}
             onChange={(event) => { setDraft({ ...draft, title: event.target.value }); setSaved(false); }} /></label>
           <label>Beschreibung<textarea rows={5} maxLength={8_000} disabled={busy} value={draft.body}
@@ -119,6 +138,11 @@ export function ProjectChat({ snapshot, onOpenCard, onOpenSession, onSaveTask, o
             <button type="button" className="secondary-button" disabled={busy || saved || Boolean(canvasProblem)} onClick={() => void saveCanvas()}>{saved ? 'Im Whiteboard gespeichert' : 'Im Whiteboard speichern'}</button>
           </> : null}
         </div> : null}
+        <div className="project-chat-sources">
+          <div className="project-chat-evidence-head"><h3>Quellen{reply ? ` · ${reply.sources.length}` : ''}</h3><small>{reply?.index.indexedAt ? `Index vom ${new Date(reply.index.indexedAt).toLocaleString('de-DE')}` : 'Noch kein Indexstand'}</small></div>
+          {reply?.index.warning ? <p className="project-chat-warning">{reply.index.warning}</p> : null}
+          {reply?.sources.length ? <ol>{reply.sources.map((hit) => <li key={`${hit.kind}:${hit.sourceId}`}><span>{kindName[hit.kind]} · {new Date(hit.updatedAt).toLocaleDateString('de-DE')}{hit.gitRef ? ` · ${hit.gitRef.slice(0, 8)}` : ''}</span><code className="project-chat-source-id">{hit.kind}:{hit.sourceId}</code><strong>{hit.title}</strong><p>{hit.snippet}</p>{(hit.kind === 'task' && onOpenCard || hit.kind === 'conversation' && onOpenSession) ? <button type="button" className="text-button" onClick={() => openSource(hit)}>Quelle öffnen <ArrowUpRight size={14} aria-hidden="true" /></button> : null}</li>)}</ol> : <p className="project-chat-muted">Nach einer Antwort stehen hier die tatsächlich verwendeten lokalen Quellen.</p>}
+        </div>
       </aside>
     </div>
   </section>;

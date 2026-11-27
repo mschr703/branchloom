@@ -4,8 +4,9 @@ import type { Project, ProjectOrganization, ProjectPackagePreview, ProjectSnapsh
 import { BoardView } from './components/BoardView';
 import { IdeasView } from './components/IdeasView';
 import { AgentView } from './components/AgentView';
-import { ProjectSettingsView } from './components/ProjectSettingsView';
+import { ProjectSettingsView, type SettingsSection } from './components/ProjectSettingsView';
 import { TeamWorkspaceView } from './components/TeamWorkspaceView';
+import { ProjectCalendarView } from './components/ProjectCalendarView';
 import { CommandTerminalView } from './components/CommandTerminalView';
 import { MilestonesView } from './components/MilestonesView';
 import { SearchPalette } from './components/SearchPalette';
@@ -17,13 +18,14 @@ import { ProjectFolderField } from './components/ProjectFolderField';
 import { BranchloomMark } from './components/BranchloomMark';
 import { sessionMemoryDraft } from './activity-transcript';
 import { viewForSearchKind, type ProjectSearchResult, type SearchKind } from './project-search';
-import { currentTheme, persistTheme, type ThemePreference } from './theme';
+import { currentTheme, persistTheme, themeColorScheme, type ThemePreference } from './theme';
 import { currentLanguage, languageText, persistLanguage, type LanguageKey, type LanguagePreference } from './language';
 import { decisionNavigationStatus, useDecisionInboxIndicator } from './decision-navigation';
 import type { ProjectConflictRadarResult } from '../shared/conflict-radar';
 import type { GlobalInboxItem } from '../shared/global-inbox';
 import { ProjectConflictBanner } from './components/ProjectConflictBanner';
 import { ProjectSwitcher } from './components/ProjectSwitcher';
+import { NotificationCenter } from './components/NotificationCenter';
 import { projectNavigationStatus, viewName, WorkspaceNavigation, views, type View } from './components/WorkspaceNavigation';
 import { startConflictRadarRefresh } from './conflict-radar-schedule';
 import { savePreparedChatCanvasNode } from './project-chat-canvas';
@@ -48,6 +50,7 @@ export function App() {
   const [projectId, setProjectId] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<ProjectSnapshot | null>(null);
   const [view, setView] = useState<View>('board');
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>('app');
   const [chatDockOpen, setChatDockOpen] = useState(false);
   const [whiteboardOpenNodeId, setWhiteboardOpenNodeId] = useState<string | null>(null);
   const activeProjectId = useRef(projectId);
@@ -79,9 +82,15 @@ export function App() {
   const viewAreaRef = useRef<HTMLDivElement>(null);
   const focusBeforeSearch = useRef<HTMLElement | null>(null);
 
+  function openSettings(section: SettingsSection = 'app') {
+    setSettingsSection(section);
+    setView('settings');
+  }
+
   useLayoutEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.style.colorScheme = theme;
+    document.documentElement.dataset.theme = themeColorScheme(theme);
+    document.documentElement.dataset.palette = theme;
+    document.documentElement.style.colorScheme = themeColorScheme(theme);
     persistTheme(theme);
   }, [theme]);
 
@@ -373,8 +382,9 @@ export function App() {
         <div className="topbar-title"><h1>{projectId && view === 'board' ? <><span>{ui('projects')}</span><span className="topbar-breadcrumb-divider" aria-hidden="true">/</span>Board</> : projectId ? viewName(view, language) : view === 'team' ? 'Team' : view === 'settings' ? ui('settings') : ui('start')}</h1></div>
         <div className="topbar-actions">
           {projectId ? <><div className={searchOpen ? 'topbar-search-slot is-open' : 'topbar-search-slot'}><button ref={searchButtonRef} className="search-trigger" type="button" title={`${ui('searchProject')} (Strg+K)`} aria-label={ui('searchProject')} aria-expanded={searchOpen} disabled={!snapshot || snapshot.project.id !== projectId} onClick={openSearch}><Search size={16} /><span>{ui('searchPlaceholder')}</span><kbd>Strg K</kbd></button>{searchOpen && snapshot?.project.id === projectId ? <SearchPalette snapshot={snapshot} onClose={closeSearch} onNavigate={navigateToResult} /> : null}</div>{view !== 'board' ? <button className="project-pause-button" type="button" aria-label={snapshot?.runPause.state === 'paused' ? ui('resumeProject') : snapshot?.runPause.state === 'requested' ? ui('pauseRequested') : ui('pauseProject')} disabled={!snapshot || snapshot.project.id !== projectId || snapshot.runPause.state === 'requested'} onClick={() => snapshot && void mutate(() => window.studio.setProjectRunPause({ projectId: snapshot.project.id, paused: snapshot.runPause.state === 'active' }))}>{snapshot?.runPause.state === 'paused' ? <Play size={15} aria-hidden="true" /> : <Pause size={15} aria-hidden="true" />}<span>{snapshot?.runPause.state === 'paused' ? ui('resumeProject') : snapshot?.runPause.state === 'requested' ? ui('pauseRequested') : ui('pauseProject')}</span></button> : null}<button className="icon-button" type="button" title={ui('projectConversation')} aria-label={ui('projectConversation')} aria-expanded={view === 'chat' || chatDockOpen} disabled={!snapshot || snapshot.project.id !== projectId} onClick={() => { if (view === 'chat') { setView('board'); setChatDockOpen(true); } else setChatDockOpen((open) => !open); }}><MessageCircle size={17} aria-hidden="true" /></button></> : null}
-          <button className="icon-button" type="button" title={ui('settings')} aria-label={ui('settings')} aria-current={view === 'settings' ? 'page' : undefined} onClick={() => setView('settings')}><Settings2 size={17} aria-hidden="true" /></button>
-          <button className="icon-button theme-toggle" type="button" title={ui(theme === 'dark' ? 'lightMode' : 'darkMode')} aria-label={ui(theme === 'dark' ? 'lightMode' : 'darkMode')} onClick={() => setTheme((previous) => previous === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}</button>
+          <NotificationCenter language={language} onOpenItem={openGlobalItem} onOpenInbox={() => setView('decisions')} />
+          <button className="icon-button" type="button" title={ui('settings')} aria-label={ui('settings')} aria-current={view === 'settings' ? 'page' : undefined} onClick={() => openSettings()}><Settings2 size={17} aria-hidden="true" /></button>
+          <button className="icon-button theme-toggle" type="button" title={ui(themeColorScheme(theme) === 'dark' ? 'lightMode' : 'darkMode')} aria-label={ui(themeColorScheme(theme) === 'dark' ? 'lightMode' : 'darkMode')} onClick={() => setTheme((previous) => themeColorScheme(previous) === 'dark' ? 'light' : 'dark')}>{themeColorScheme(theme) === 'dark' ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}</button>
           {projectId ? <button className="icon-button" type="button" title={ui('refresh')} aria-label={ui('refresh')} onClick={() => void refresh()}><RefreshCw size={17} /></button> : null}
         </div>
       </header>
@@ -394,9 +404,10 @@ export function App() {
         onRefresh={() => void checkProjectRadar()} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
       {error ? <div className="error-banner" role="alert"><span>{error}</span><button type="button" onClick={() => setError('')} aria-label="Fehler schließen">×</button></div> : null}
       {notice ? <div className="package-notice" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Hinweis schließen">×</button></div> : null}
-      {loading ? <div className="content-message">{ui('loadingProjects')}</div> : view === 'team' ? <div className="view-area" ref={viewAreaRef}><TeamWorkspaceView projectId={projectId ?? undefined} /></div> : view === 'browser' ? <div className="view-area" ref={viewAreaRef}><Suspense fallback={<div className="content-message" role="status">Browser wird geladen…</div>}><BrowserView active={!creatingProject && !searchOpen} snapshot={snapshot?.project.id === projectId ? snapshot : null} onOpenCard={async (id) => { await refresh(); navigateToEntity('card', id); }} onOpenSettings={snapshot?.project.id === projectId ? () => setView('settings') : undefined} /></Suspense></div> : !projectId && view === 'settings' ? <div className="view-area" ref={viewAreaRef}><div className="first-run-settings-back"><button className="secondary-button" type="button" onClick={() => setView('board')}>{ui('backToStart')}</button></div><ProjectSettingsView language={language} onLanguageChange={setLanguage} /></div> : !projectId ? <div className="empty-intro"><h2>{ui('firstRunTitle')}</h2><p>{ui('firstRunText')}</p><button className="primary-button" type="button" onClick={() => setCreatingProject(true)}><Plus size={17} /> {ui('chooseFolder')}</button><p className="first-run-detail">{ui('firstRunDetail')}</p><button className="first-run-import" type="button" onClick={() => void previewProjectPackage()}>{ui('firstRunImport')}</button></div> : !snapshot ? <div className="content-message">{ui('loadingWorkspace')}</div> : <div className="view-area" ref={viewAreaRef}>
+      {loading ? <div className="content-message">{ui('loadingProjects')}</div> : view === 'team' ? <div className="view-area" ref={viewAreaRef}><TeamWorkspaceView projectId={projectId ?? undefined} /></div> : view === 'browser' ? <div className="view-area" ref={viewAreaRef}><Suspense fallback={<div className="content-message" role="status">Browser wird geladen…</div>}><BrowserView active={!creatingProject && !searchOpen} snapshot={snapshot?.project.id === projectId ? snapshot : null} onOpenCard={async (id) => { await refresh(); navigateToEntity('card', id); }} onOpenSettings={snapshot?.project.id === projectId ? () => openSettings('browser') : undefined} /></Suspense></div> : !projectId && view === 'settings' ? <div className="view-area" ref={viewAreaRef}><div className="first-run-settings-back"><button className="secondary-button" type="button" onClick={() => setView('board')}>{ui('backToStart')}</button></div><ProjectSettingsView language={language} onLanguageChange={setLanguage} theme={theme} onThemeChange={setTheme} /></div> : !projectId ? <div className="empty-intro"><h2>{ui('firstRunTitle')}</h2><p>{ui('firstRunText')}</p><button className="primary-button" type="button" onClick={() => setCreatingProject(true)}><Plus size={17} /> {ui('chooseFolder')}</button><p className="first-run-detail">{ui('firstRunDetail')}</p><button className="first-run-import" type="button" onClick={() => void previewProjectPackage()}>{ui('firstRunImport')}</button></div> : !snapshot ? <div className="content-message">{ui('loadingWorkspace')}</div> : <div className="view-area" ref={viewAreaRef}>
         <Suspense fallback={<div className="content-message" role="status">{viewName(activeView.id, language)} {language === 'en' ? 'is loading…' : 'wird geladen…'}</div>}>
         {view === 'board' ? <BoardView snapshot={snapshot} mutate={mutate} openCard={navigationTarget?.kind === 'card' ? navigationTarget : null} decisionCount={decisionStatus?.count ?? null} decisionHasMore={decisionStatus?.hasMore} onNavigate={setView} onOpenDesign={(cardId) => { setDesignCardId(cardId); setView('design'); }} onOpenBrowser={() => setView('browser')} onOpenQaReport={navigateToQaReport} language={language} /> : null}
+        {view === 'calendar' ? <ProjectCalendarView snapshot={snapshot} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
         {view === 'ideas' ? <IdeasView key={snapshot.project.id} snapshot={snapshot} mutate={mutate} onOpenCard={(id) => navigateToEntity('card', id)} onNavigate={setView} language={language} /> : null}
         {view === 'activity' ? <ActivityView snapshot={snapshot} openSession={navigationTarget?.kind === 'session' ? navigationTarget : null} onSessionClosed={() => setNavigationTarget((old) => old?.kind === 'session' ? null : old)} onOpenCard={(id) => navigateToEntity('card', id)} onOpenWorkflow={(id) => navigateToEntity('workflow', id)} onSaveSessionAsNote={saveSessionAsNote} /> : null}
         {view === 'changelog' ? <ChangelogView key={snapshot.project.id} projectId={snapshot.project.id}
@@ -406,9 +417,9 @@ export function App() {
         {view === 'whiteboard' ? <WhiteboardView snapshot={snapshot} mutate={mutate} openNodeId={whiteboardOpenNodeId} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
         {view === 'memory' ? <MemoryView snapshot={snapshot} mutate={mutate} openNote={navigationTarget?.kind === 'note' ? navigationTarget : null} onOpenSession={(id) => void openSessionFromMemory(id)} onOpenCard={(id) => navigateToEntity('card', id)} /> : null}
         {view === 'milestones' ? <MilestonesView key={snapshot.project.id} projectId={snapshot.project.id} /> : null}
-        {view === 'agents' ? <AgentView snapshot={snapshot} mutate={mutate} onOpenBrowserSettings={() => setView('settings')} /> : null}
-        {view === 'settings' ? <ProjectSettingsView project={snapshot.project} language={language} onLanguageChange={setLanguage} /> : null}
-        {view === 'terminal' ? <CommandTerminalView key={snapshot.project.id} projectId={snapshot.project.id} columns={snapshot.columns} onOpenCard={async (card) => { await refresh(); navigateToEntity('card', card.id); }} /> : null}
+        {view === 'agents' ? <AgentView snapshot={snapshot} mutate={mutate} onOpenBrowserSettings={() => openSettings('browser')} /> : null}
+        {view === 'settings' ? <ProjectSettingsView project={snapshot.project} language={language} onLanguageChange={setLanguage} initialSection={settingsSection} onOpenAgents={() => setView('agents')} theme={theme} onThemeChange={setTheme} /> : null}
+        {view === 'terminal' ? <CommandTerminalView key={snapshot.project.id} projectId={snapshot.project.id} projectPath={snapshot.project.path} columns={snapshot.columns} onOpenCard={async (card) => { await refresh(); navigateToEntity('card', card.id); }} /> : null}
         {view === 'design' ? <DesignInspectionView key={snapshot.project.id} projectId={snapshot.project.id} active={!creatingProject && !searchOpen} cards={snapshot.cards} startCardId={designCardId} columns={snapshot.columns} queueState={snapshot.queue.state} onOpenCard={async (id) => { await refresh(); navigateToEntity('card', id); }} onCreated={refresh} /> : null}
         </Suspense>
       </div>}
