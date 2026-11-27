@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Archive, ArrowDown, ArrowUp, Copy, FileJson2, FolderOpen, GripVertical, MessageCircle, MoreHorizontal, Pause, Pencil, Play, Plus, Search, Terminal, X } from 'lucide-react';
+import { Archive, ArrowDown, ArrowRight, ArrowUp, Copy, FileJson2, FolderOpen, GripVertical, MessageCircle, MoreHorizontal, Pause, Pencil, Play, Plus, Search, Terminal, X } from 'lucide-react';
 import type { Card, CardPriority, Column, ColumnEffort, ProjectSnapshot } from '../../shared/types';
 import type { WorkflowRunEvidence } from '../../shared/workflow-evidence';
 import { CARD_PRIORITIES } from '../../shared/card-metadata';
@@ -23,7 +23,7 @@ import '../column-settings.css';
 import '../board-refine.css';
 import '../board-card-actions.css';
 
-interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openCard?: { id: string; token: number; reviewCommentId?: string; qaReportId?: string } | null; onNavigate?: (view: 'ideas' | 'workflows') => void; onOpenDesign?: (cardId: string) => void; onOpenBrowser?: () => void; onOpenQaReport?: (cardId: string, reportId: string) => void }
+interface Props { snapshot: ProjectSnapshot; mutate: Mutate; openCard?: { id: string; token: number; reviewCommentId?: string; qaReportId?: string } | null; decisionCount?: number | null; decisionHasMore?: boolean; onNavigate?: (view: 'ideas' | 'workflows' | 'decisions') => void; onOpenDesign?: (cardId: string) => void; onOpenBrowser?: () => void; onOpenQaReport?: (cardId: string, reportId: string) => void }
 
 export function isMoveShortcut(event: Pick<React.KeyboardEvent, 'key' | 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey'>): boolean {
   return event.key.toLocaleLowerCase() === 'm' && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
@@ -39,7 +39,7 @@ export function boardEmptyMessage(index: number, hasActiveCards: boolean, filter
   return index === 0 ? 'Erstelle unten deine erste Aufgabe. Verschiebe sie später zwischen den Spalten.' : null;
 }
 
-export function BoardView({ snapshot, mutate, openCard, onNavigate, onOpenDesign, onOpenBrowser, onOpenQaReport }: Props) {
+export function BoardView({ snapshot, mutate, openCard, decisionCount, decisionHasMore, onNavigate, onOpenDesign, onOpenBrowser, onOpenQaReport }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focusSession, setFocusSession] = useState(false);
   const [focusSessionId, setFocusSessionId] = useState<string | null>(null);
@@ -83,6 +83,7 @@ export function BoardView({ snapshot, mutate, openCard, onNavigate, onOpenDesign
   const archivedCount = snapshot.cards.filter((card) => card.archivedAt).length;
   const activeCardCount = snapshot.cards.length - archivedCount;
   const runningSessions = snapshot.sessions.filter((session) => session.state === 'running');
+  const openDecisionLabel = `${decisionHasMore ? 'Mindestens ' : ''}${decisionCount ?? 0} ${decisionCount === 1 ? 'Entscheidung' : 'Entscheidungen'} offen`;
   const runPauseState = snapshot.runPause?.state ?? 'active';
   const hasActiveCards = snapshot.cards.some((card) => !card.archivedAt);
   const filtersActive = Boolean(query.trim() || filterColumnId || filterPriority || filterLabel) || visibility !== 'active';
@@ -239,7 +240,7 @@ export function BoardView({ snapshot, mutate, openCard, onNavigate, onOpenDesign
       <div className="board-project-identity"><h2>{snapshot.project.name}</h2><span>{activeCardCount} {activeCardCount === 1 ? 'Aufgabe' : 'Aufgaben'} · {columns.length} {columns.length === 1 ? 'Spalte' : 'Spalten'}</span></div>
       <button className="project-pause-button" type="button" aria-label={runPauseState === 'paused' ? 'Projekt fortsetzen' : runPauseState === 'requested' ? 'Anhalten angefordert' : 'Sicher anhalten'} disabled={runPauseState === 'requested'} onClick={() => void mutate(() => window.studio.setProjectRunPause({ projectId: snapshot.project.id, paused: runPauseState === 'active' }))}>{runPauseState === 'paused' ? <Play size={15} aria-hidden="true" /> : <Pause size={15} aria-hidden="true" />}<span>{runPauseState === 'paused' ? 'Projekt fortsetzen' : runPauseState === 'requested' ? 'Anhalten angefordert' : 'Sicher anhalten'}</span></button>
     </div>
-    {runningSessions.length > 0 ? <div className="board-live-strip" role="status"><span className="board-live-summary"><i aria-hidden="true" />{runningSessions.length} {runningSessions.length === 1 ? 'Agent aktiv' : 'Agenten aktiv'}</span><span className="board-live-divider" aria-hidden="true" />{runningSessions.slice(0, 2).map((session) => { const card = snapshot.cards.find((item) => item.id === session.cardId); const agent = snapshot.agents.find((item) => item.id === session.agentId); return <button key={session.id} type="button" onClick={() => openBoardCard(session.cardId, true, session.id)} title={`${agent?.name ?? 'Agent'}: ${card?.title ?? 'Aufgabe'} öffnen`}>{agent?.name ?? 'Agent'} <span aria-hidden="true">→</span> {card?.title ?? 'Aufgabe'}</button>; })}{runningSessions.length > 2 ? <span>+{runningSessions.length - 2} weitere</span> : null}</div> : null}
+    {runningSessions.length > 0 || Boolean(decisionCount) ? <div className="board-live-strip" role="status">{runningSessions.length > 0 ? <><span className="board-live-summary"><i aria-hidden="true" />{runningSessions.length} {runningSessions.length === 1 ? 'Agent aktiv' : 'Agenten aktiv'}</span><span className="board-live-divider" aria-hidden="true" />{runningSessions.slice(0, 2).map((session) => { const card = snapshot.cards.find((item) => item.id === session.cardId); const agent = snapshot.agents.find((item) => item.id === session.agentId); return <button key={session.id} type="button" onClick={() => openBoardCard(session.cardId, true, session.id)} title={`${agent?.name ?? 'Agent'}: ${card?.title ?? 'Aufgabe'} öffnen`}>{agent?.name ?? 'Agent'} <span aria-hidden="true">→</span> {card?.title ?? 'Aufgabe'}</button>; })}{runningSessions.length > 2 ? <span>+{runningSessions.length - 2} weitere</span> : null}</> : null}{decisionCount ? <button className="board-decision-link" type="button" aria-label={openDecisionLabel} onClick={() => onNavigate?.('decisions')}><span className="board-decision-full">{openDecisionLabel}</span><span className="board-decision-short" aria-hidden="true">{decisionCount}{decisionHasMore ? '+' : ''} offen</span><ArrowRight size={13} aria-hidden="true" /></button> : null}</div> : null}
     <div className="board-toolbar board-header-actions">
       <nav className="board-view-tabs" aria-label="Projektansichten"><span className="is-active" aria-current="page">Board</span><button type="button" onClick={() => onNavigate?.('ideas')}>Ideenraum</button><button type="button" onClick={() => onNavigate?.('workflows')}>Workflows</button></nav>
       <div className="board-header-tools"><details className="board-more-tools"><summary><MoreHorizontal size={17} aria-hidden="true" /> Weitere Aktionen</summary><div className="board-more-tools-content"><button className="secondary-button" type="button" onClick={(event) => { event.currentTarget.closest('details')!.open = false; setShowTaskDraft(true); }} title="Mit einem Agenten aus einer Idee eine überprüfbare Aufgabe formulieren"><MessageCircle size={16} /> Aufgabe vorbereiten</button><button className="secondary-button" type="button" onClick={(event) => { event.currentTarget.closest('details')!.open = false; setShowImport(true); }}><FileJson2 size={16} /> Trello importieren</button><QaCoveragePanel key={snapshot.project.id} snapshot={snapshot} onOpenQaReport={onOpenQaReport ?? ((cardId) => openBoardCard(cardId))} /></div></details>{visibility !== 'archived' && columns[0] ? <button className="board-new-task primary-button" type="button" onClick={() => { setCreatingIn(columns[0]!.id); setTitle(''); }}><Plus size={16} aria-hidden="true" />Neue Aufgabe</button> : null}</div>

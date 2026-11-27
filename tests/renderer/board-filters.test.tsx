@@ -32,9 +32,12 @@ describe('board filters and archive visibility', () => {
       ], cards: [cards[0]!], agents: [], sessions: [], workflows: [], notes: [],
     } as ProjectSnapshot;
     try {
-      await act(async () => { root.render(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action(), onNavigate })); });
+      await act(async () => { root.render(createElement(BoardView, { snapshot, mutate: async <T,>(action: () => Promise<T>) => action(), decisionCount: 2, onNavigate })); });
       await act(async () => { [...host.querySelectorAll<HTMLButtonElement>('.board-view-tabs button')].find((button) => button.textContent === 'Ideenraum')!.click(); });
       expect(onNavigate).toHaveBeenCalledWith('ideas');
+      await act(async () => { host.querySelector<HTMLButtonElement>('.board-decision-link')!.click(); });
+      expect(onNavigate).toHaveBeenCalledWith('decisions');
+      expect(host.querySelector('.board-decision-link')?.getAttribute('aria-label')).toBe('2 Entscheidungen offen');
       await act(async () => { host.querySelector<HTMLButtonElement>('.card-quick-trigger')!.click(); });
       await act(async () => { [...document.querySelectorAll<HTMLButtonElement>('.card-quick-actions button')].find((button) => button.textContent?.includes('Verschieben'))!.click(); });
       expect(document.querySelector('.card-move-form')).not.toBeNull();
