@@ -54,10 +54,15 @@ it('resumes a lost invitation reply with the same credential and recognizes late
     const joined = await resumed.resumeJoin();
     expect(joined.workspaceId).toBe(owner.workspaceId);
     expect((await resumed.workspace(joined.workspaceId)).projects).toEqual([{ id: project.id, name: project.name, canEditDraft: true, canManageTask: false }]);
+    expect(await resumed.projectMembers({ workspaceId: joined.workspaceId, projectId: project.id })).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: owner.owner.id, displayName: 'Owner', role: 'owner', projectAccess: 'edit', canEditDraft: true, canManageTask: true, canStartAgent: true }),
+      expect.objectContaining({ id: joined.memberId, displayName: 'Colleague', role: 'editor', projectAccess: 'edit', canEditDraft: true, canManageTask: false, canStartAgent: false }),
+    ]));
     expect((store.db.prepare('SELECT COUNT(*) AS count FROM team_members').get() as { count: number }).count).toBe(2);
     expect(await resumed.pendingJoin()).toBeNull();
     revokeTeamMember(store.db, owner.credential, joined.memberId);
     await expect(resumed.workspace(joined.workspaceId)).rejects.toThrow('revoked');
+    await expect(resumed.projectMembers({ workspaceId: joined.workspaceId, projectId: project.id })).rejects.toThrow('revoked');
   } finally {
     await server.close();
     store.close();
@@ -82,13 +87,22 @@ it('merges two authenticated clients on one card draft and reconnects after host
     const secondInvite = await host.invite(project.id, 'editor');
     const first = new TeamRemoteClient(new TeamConnectionStore(firstRoot, secure), new TeamJoinAttemptStore(firstRoot, secure));
     const second = new TeamRemoteClient(new TeamConnectionStore(secondRoot, secure), new TeamJoinAttemptStore(secondRoot, secure));
-    await first.beginJoin({ coordinatorUrl: firstInvite.coordinatorUrl, inviteSecret: firstInvite.inviteSecret, displayName: 'Alex' });
-    await second.beginJoin({ coordinatorUrl: secondInvite.coordinatorUrl, inviteSecret: secondInvite.inviteSecret, displayName: 'Sam' });
+    const firstJoined = await first.beginJoin({ coordinatorUrl: firstInvite.coordinatorUrl, inviteSecret: firstInvite.inviteSecret, displayName: 'Alex' });
+    const secondJoined = await second.beginJoin({ coordinatorUrl: secondInvite.coordinatorUrl, inviteSecret: secondInvite.inviteSecret, displayName: 'Sam' });
     expect((await second.board({ workspaceId: workspace.workspaceId, projectId: project.id })).cards)
       .toEqual(expect.arrayContaining([expect.objectContaining({ id: card.id, title: 'Plan the first release', revision: 0 })]));
     await expect(first.setCardPriority({ workspaceId: workspace.workspaceId, projectId: project.id,
       cardId: card.id, priority: 'high', expectedRevision: 0, mutationId: randomUUID() })).rejects.toThrow('not permitted');
     const ownerClient = new TeamRemoteClient(hostConnections, new TeamJoinAttemptStore(hostRoot, secure));
+    const roleMutation = randomUUID();
+    expect(await ownerClient.changeMemberRole({ workspaceId: workspace.workspaceId, memberId: firstJoined.memberId,
+      role: 'developer', expectedRevision: 0, mutationId: roleMutation })).toMatchObject({ revision: 1, repeated: false });
+    expect(await ownerClient.changeMemberRole({ workspaceId: workspace.workspaceId, memberId: firstJoined.memberId,
+      role: 'developer', expectedRevision: 0, mutationId: roleMutation })).toMatchObject({ revision: 1, repeated: true });
+    expect((await second.projectMembers({ workspaceId: workspace.workspaceId, projectId: project.id }))
+      .find((member) => member.id === firstJoined.memberId)).toMatchObject({ role: 'developer', roleRevision: 1, canEditDraft: true });
+    await expect(first.changeMemberRole({ workspaceId: workspace.workspaceId, memberId: secondJoined.memberId,
+      role: 'admin', expectedRevision: 0, mutationId: randomUUID() })).rejects.toThrow('not permitted');
     expect((await ownerClient.setCardPriority({ workspaceId: workspace.workspaceId, projectId: project.id,
       cardId: card.id, priority: 'high', expectedRevision: 0, mutationId: randomUUID() })).revision).toBe(1);
     await expect(ownerClient.setCardPriority({ workspaceId: workspace.workspaceId, projectId: project.id,

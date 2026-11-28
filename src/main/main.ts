@@ -264,6 +264,8 @@ function installIpc(): void {
   bind('resumeTeamJoin', () => teamRemoteClient.resumeJoin());
   bind('cancelTeamJoin', () => teamRemoteClient.cancelPendingJoin());
   bind('teamWorkspace', (workspaceId: string) => teamRemoteClient.workspace(workspaceId));
+  bind('teamProjectMembers', (input: Parameters<StudioAPI['teamProjectMembers']>[0]) => teamRemoteClient.projectMembers(input));
+  bind('changeTeamMemberRole', (input: Parameters<StudioAPI['changeTeamMemberRole']>[0]) => teamRemoteClient.changeMemberRole(input));
   bind('teamBoard', (input: Parameters<StudioAPI['teamBoard']>[0]) => teamRemoteClient.board(input));
   bind('setTeamCardPriority', (input: Parameters<StudioAPI['setTeamCardPriority']>[0]) => teamRemoteClient.setCardPriority(input));
   bind('moveTeamCard', (input: Parameters<StudioAPI['moveTeamCard']>[0]) => teamRemoteClient.moveCard(input));

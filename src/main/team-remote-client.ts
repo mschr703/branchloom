@@ -17,6 +17,17 @@ export interface CollaborativeTeamBoard extends Omit<TeamBoardSnapshot, 'cards'>
   cards: Array<TeamBoardSnapshot['cards'][number] & { revision: number }>;
 }
 
+export interface TeamProjectMember {
+  id: string;
+  displayName: string;
+  role: TeamRole;
+  roleRevision: number;
+  projectAccess: 'read' | 'edit';
+  canEditDraft: boolean;
+  canManageTask: boolean;
+  canStartAgent: boolean;
+}
+
 export type TeamDraftStreamEvent =
   | { type: 'presence'; members: Array<{ memberId: string; displayName: string }> }
   | { type: 'draft' | 'card'; revision: number };
@@ -183,6 +194,46 @@ export class TeamRemoteClient {
     return checkedBoard(await this.authenticated(input.workspaceId, `/v1/projects/${input.projectId}/board`));
   }
 
+  async projectMembers(input: { workspaceId: string; projectId: string }): Promise<TeamProjectMember[]> {
+    if (!UUID.test(input.projectId)) throw new Error('Invalid team project.');
+    const value = record(await this.authenticated(input.workspaceId, `/v1/projects/${input.projectId}/members`));
+    if (!Array.isArray(value?.members) || value.members.length > 500) throw new Error('Coordinator returned an invalid project roster.');
+    const ids = new Set<string>();
+    return value.members.map((raw) => {
+      const member = record(raw);
+      if (!member || typeof member.id !== 'string' || !UUID.test(member.id) || ids.has(member.id) ||
+        typeof member.displayName !== 'string' || !member.displayName.trim() || member.displayName.length > 80 ||
+        typeof member.role !== 'string' || !ROLES.includes(member.role as TeamRole) ||
+        !Number.isSafeInteger(member.roleRevision) || Number(member.roleRevision) < 0 ||
+        (member.projectAccess !== 'read' && member.projectAccess !== 'edit') ||
+        typeof member.canEditDraft !== 'boolean' || typeof member.canManageTask !== 'boolean' ||
+        typeof member.canStartAgent !== 'boolean') throw new Error('Coordinator returned an invalid project roster.');
+      ids.add(member.id);
+      return { id: member.id, displayName: member.displayName, role: member.role as TeamRole,
+        roleRevision: member.roleRevision as number,
+        projectAccess: member.projectAccess, canEditDraft: member.canEditDraft,
+        canManageTask: member.canManageTask, canStartAgent: member.canStartAgent };
+    });
+  }
+
+  async changeMemberRole(input: { workspaceId: string; memberId: string; role: Exclude<TeamRole, 'owner'>;
+    expectedRevision: number; mutationId: string }): Promise<{ memberId: string; role: Exclude<TeamRole, 'owner'>;
+    revision: number; repeated: boolean }> {
+    if (!UUID.test(input.memberId) || !UUID.test(input.mutationId) ||
+      !['admin', 'editor', 'developer', 'viewer'].includes(input.role) ||
+      !Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 0) {
+      throw new Error('Invalid team member role command.');
+    }
+    const value = record(await this.authenticated(input.workspaceId, `/v1/workspace/members/${input.memberId}/role`, {
+      role: input.role, expectedRevision: input.expectedRevision, mutationId: input.mutationId,
+    }));
+    if (!value || value.memberId !== input.memberId || value.role !== input.role ||
+      !Number.isSafeInteger(value.revision) || Number(value.revision) < 0 || typeof value.repeated !== 'boolean') {
+      throw new Error('Coordinator returned an invalid member role result.');
+    }
+    return { memberId: input.memberId, role: input.role, revision: value.revision as number, repeated: value.repeated };
+  }
+
   async setCardPriority(input: { workspaceId: string; projectId: string; cardId: string;
     priority: CardPriority; expectedRevision: number; mutationId: string }): Promise<{
     cardId: string; revision: number; priority: CardPriority; repeated: boolean;
@@ -347,7 +398,7 @@ export class TeamRemoteClient {
     } catch { throw new Error('Coordinator is unavailable.'); }
     if (response.status === 401) throw new Error('Team access was revoked or is unavailable.');
     if (response.status === 403) throw new Error('Team action is not permitted for this project.');
-    if (response.status === 409) throw new Error('Team card changed. Reload before retrying.');
+    if (response.status === 409) throw new Error('Team data changed. Reload before retrying.');
     if (response.status === 423) throw new Error('Pause the project queue and finish the active run before moving this card.');
     if (response.status === 503) throw new Error('Team agent worker is unavailable.');
     if (!response.ok) throw new Error(`Coordinator request failed (HTTP ${response.status}).`);

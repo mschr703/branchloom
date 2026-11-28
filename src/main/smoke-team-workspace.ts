@@ -210,6 +210,11 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
   const joined = await guest.beginJoin({ coordinatorUrl: result.coordinatorUrl,
     inviteSecret: result.secret, displayName: 'Guest' });
   if (joined.workspaceId !== result.workspaceId) throw new Error('Guest joined another workspace.');
+  const firstRoster = await guest.projectMembers({ workspaceId: result.workspaceId, projectId: project.id });
+  if (firstRoster.length !== 2 || !firstRoster.some((member) => member.id === joined.memberId && member.canEditDraft)
+    || !firstRoster.some((member) => member.displayName === 'Owner' && member.role === 'owner')) {
+    throw new Error('Joined guest cannot inspect the authenticated project roster.');
+  }
   await window.webContents.executeJavaScript(`(async () => {
     const wait = async (predicate, label) => {
       for (let attempt = 0; attempt < 160; attempt += 1) {
@@ -239,6 +244,37 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
   })()`);
   if ((await guest.workspace(result.workspaceId)).projects.some((item) => item.id === secondProject.id)) {
     throw new Error('A newly attached project was visible to the guest before its grant.');
+  }
+  await guest.projectMembers({ workspaceId: result.workspaceId, projectId: secondProject.id }).then(
+    () => { throw new Error('Guest read a private project roster before its grant.'); },
+    (reason: unknown) => { if (!String(reason).includes('not permitted')) throw reason; },
+  );
+  await window.webContents.executeJavaScript(`(async () => {
+    const wait = async (predicate, label) => {
+      for (let attempt = 0; attempt < 120; attempt += 1) {
+        const value = await predicate(); if (value) return value;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      throw new Error('Team role smoke timed out: ' + label);
+    };
+    const roleControl = await wait(() => [...document.querySelectorAll('.team-members-list li')]
+      .find((item) => item.textContent?.includes('Guest'))?.querySelector('.team-member-role-control'), 'owner role control');
+    roleControl.open = true;
+    const select = roleControl.querySelector('select');
+    const button = roleControl.querySelector('button');
+    if (!(select instanceof HTMLSelectElement) || !(button instanceof HTMLButtonElement)) throw new Error('Role control is incomplete.');
+    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+    setter.call(select, 'developer'); select.dispatchEvent(new Event('change', { bubbles: true }));
+    button.click();
+    await wait(() => button.textContent?.includes('bestätigen'), 'role confirmation');
+    button.click();
+    await wait(async () => (await window.studio.hostedTeamProject(${JSON.stringify(secondProject.id)}))?.members
+      .some((item) => item.id === ${JSON.stringify(joined.memberId)} && item.role === 'developer' && item.roleRevision === 1), 'saved member role');
+    return true;
+  })()`);
+  if (!(await guest.projectMembers({ workspaceId: result.workspaceId, projectId: project.id }))
+    .some((member) => member.id === joined.memberId && member.role === 'developer' && member.canEditDraft)) {
+    throw new Error('Guest project roster did not reflect the new role.');
   }
   await window.webContents.executeJavaScript(`(async () => {
     const wait = async (predicate, label) => {
@@ -283,6 +319,9 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
   if (!(await guest.workspace(result.workspaceId)).projects.some((item) => item.id === secondProject.id)) {
     throw new Error('The granted guest cannot see the second project.');
   }
+  const secondRoster = await guest.projectMembers({ workspaceId: result.workspaceId, projectId: secondProject.id });
+  if (!secondRoster.some((member) => member.id === joined.memberId && member.projectAccess === 'read'
+    && !member.canEditDraft && !member.canManageTask)) throw new Error('Guest roster did not reflect the new read-only right.');
   const guestWatch = new AbortController();
   let guestReady: () => void = () => undefined;
   let guestFailed: (error: unknown) => void = () => undefined;

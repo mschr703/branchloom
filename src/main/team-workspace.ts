@@ -17,6 +17,17 @@ export interface TeamMember {
   revokedAt: string | null;
 }
 
+export interface TeamProjectMember {
+  id: string;
+  displayName: string;
+  role: TeamRole;
+  roleRevision: number;
+  projectAccess: 'read' | 'edit';
+  canEditDraft: boolean;
+  canManageTask: boolean;
+  canStartAgent: boolean;
+}
+
 export interface TeamAgentLaunch {
   state: 'pending' | 'dispatching' | 'started' | 'failed';
   agentId: string;
@@ -47,7 +58,8 @@ export function installTeamWorkspaces(db: Database.Database): void {
   CREATE TABLE IF NOT EXISTS team_members (
     id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES team_workspaces(id) ON DELETE CASCADE,
     display_name TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('owner','admin','editor','developer','viewer')),
-    credential_hash TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, revoked_at TEXT
+    credential_hash TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, revoked_at TEXT,
+    role_revision INTEGER NOT NULL DEFAULT 0
   );
   CREATE INDEX IF NOT EXISTS idx_team_members_workspace ON team_members(workspace_id, revoked_at);
   CREATE TABLE IF NOT EXISTS team_projects (
@@ -105,7 +117,22 @@ export function installTeamWorkspaces(db: Database.Database): void {
     card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
     update_hash TEXT NOT NULL, revision INTEGER NOT NULL,
     PRIMARY KEY (workspace_id, mutation_id)
+  );
+  CREATE TABLE IF NOT EXISTS team_member_role_commands (
+    workspace_id TEXT NOT NULL REFERENCES team_workspaces(id) ON DELETE CASCADE,
+    mutation_id TEXT NOT NULL,
+    actor_id TEXT NOT NULL REFERENCES team_members(id),
+    member_id TEXT NOT NULL REFERENCES team_members(id),
+    role TEXT NOT NULL CHECK(role IN ('admin','editor','developer','viewer')),
+    base_revision INTEGER NOT NULL,
+    committed_revision INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (workspace_id, mutation_id)
   );`);
+  const memberColumns = db.pragma('table_info(team_members)') as Array<{ name: string }>;
+  if (!memberColumns.some((column) => column.name === 'role_revision')) {
+    db.exec('ALTER TABLE team_members ADD COLUMN role_revision INTEGER NOT NULL DEFAULT 0');
+  }
 }
 
 /** A revisioned business command. Free-form collaborative text uses a separate document path. */
@@ -270,6 +297,85 @@ export function requireTeamProjectCapability(db: Database.Database, credential: 
 function storeGrant(db: Database.Database, projectId: string, memberId: string, capability: TeamCapability): boolean {
   return Boolean(db.prepare('SELECT 1 FROM team_project_capability_grants WHERE project_id = ? AND member_id = ? AND capability = ?')
     .get(projectId, memberId, capability));
+}
+
+/** Only active members who can read this project are visible to its participants. */
+export function listTeamProjectMembers(db: Database.Database, credential: string, projectId: string): TeamProjectMember[] {
+  const actor = requireTeamProjectCapability(db, credential, projectId, 'read');
+  const projectDefault = db.prepare('SELECT access FROM team_project_defaults WHERE project_id = ?')
+    .get(projectId) as { access: 'none' | 'read' | 'edit' } | undefined;
+  const rows = db.prepare(`SELECT member.id, member.display_name, member.role, member.role_revision, permission.access
+    FROM team_members member
+    LEFT JOIN team_project_permissions permission ON permission.project_id = ? AND permission.member_id = member.id
+    WHERE member.workspace_id = ? AND member.revoked_at IS NULL
+    ORDER BY member.display_name COLLATE NOCASE, member.id`)
+    .all(projectId, actor.workspaceId) as Array<{ id: string; display_name: string; role: TeamRole; role_revision: number;
+      access: 'none' | 'read' | 'edit' | null }>;
+  const grantRows = db.prepare(`SELECT member_id, capability FROM team_project_capability_grants WHERE project_id = ?`)
+    .all(projectId) as Array<{ member_id: string; capability: TeamCapability }>;
+  const grants = new Set(grantRows.map((row) => `${row.member_id}:${row.capability}`));
+  return rows.flatMap((row) => {
+    const access = row.role === 'owner' ? 'edit' : row.access ?? projectDefault?.access ?? 'edit';
+    if (access === 'none') return [];
+    const can = (capability: TeamCapability) => access === 'edit' &&
+      (allowed(row.role, capability) || grants.has(`${row.id}:${capability}`));
+    const canEditDraft = can('edit_draft');
+    const canManageTask = can('manage_task');
+    const canStartAgent = can('start_agent');
+    const canWrite = CAPABILITIES.some((capability) => capability !== 'read' && can(capability));
+    return [{ id: row.id, displayName: row.display_name, role: row.role, roleRevision: row.role_revision,
+      projectAccess: canWrite ? 'edit' as const : 'read' as const,
+      canEditDraft, canManageTask, canStartAgent }];
+  });
+}
+
+/** A role change is a separate owner action; old explicit grants cannot survive a demotion. */
+export function changeTeamMemberRole(db: Database.Database, input: {
+  credential: string; memberId: string; role: Exclude<TeamRole, 'owner'>;
+  expectedRevision: number; mutationId: string;
+}): { memberId: string; role: Exclude<TeamRole, 'owner'>; revision: number; repeated: boolean } {
+  if (!input || typeof input.memberId !== 'string' || !/^[0-9a-f-]{36}$/i.test(input.memberId) ||
+    !['admin', 'editor', 'developer', 'viewer'].includes(input.role) ||
+    !Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 0 ||
+    typeof input.mutationId !== 'string' || !/^[0-9a-f-]{36}$/i.test(input.mutationId)) {
+    throw new Error('Invalid team role change.');
+  }
+  return db.transaction(() => {
+    const actor = authenticateTeamMember(db, input.credential);
+    if (actor.role !== 'owner') throw new Error('Team member is not permitted to change roles.');
+    const previous = db.prepare(`SELECT actor_id, member_id, role, base_revision, committed_revision
+      FROM team_member_role_commands WHERE workspace_id = ? AND mutation_id = ?`)
+      .get(actor.workspaceId, input.mutationId) as { actor_id: string; member_id: string;
+        role: Exclude<TeamRole, 'owner'>; base_revision: number; committed_revision: number } | undefined;
+    if (previous) {
+      if (previous.actor_id !== actor.id || previous.member_id !== input.memberId || previous.role !== input.role ||
+        previous.base_revision !== input.expectedRevision) {
+        throw new Error('Mutation ID was already used for another action.');
+      }
+      return { memberId: input.memberId, role: input.role, revision: previous.committed_revision, repeated: true };
+    }
+    const target = db.prepare(`SELECT workspace_id, role, role_revision, revoked_at FROM team_members WHERE id = ?`)
+      .get(input.memberId) as { workspace_id: string; role: TeamRole; role_revision: number;
+        revoked_at: string | null } | undefined;
+    if (!target || target.workspace_id !== actor.workspaceId || target.revoked_at ||
+      input.memberId === actor.id || target.role === 'owner') {
+      throw new Error('Team member is unavailable for a role change.');
+    }
+    if (target.role_revision !== input.expectedRevision) {
+      throw new Error('Team member role changed. Reload before applying this team action.');
+    }
+    if (target.role === input.role) throw new Error('Team member already has this role.');
+    const revision = target.role_revision + 1;
+    db.prepare('UPDATE team_members SET role = ?, role_revision = ? WHERE id = ?')
+      .run(input.role, revision, input.memberId);
+    db.prepare('DELETE FROM team_project_capability_grants WHERE member_id = ?').run(input.memberId);
+    db.prepare(`INSERT INTO team_member_role_commands
+      (workspace_id, mutation_id, actor_id, member_id, role, base_revision, committed_revision, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(actor.workspaceId, input.mutationId, actor.id, input.memberId, input.role,
+        target.role_revision, revision, new Date().toISOString());
+    return { memberId: input.memberId, role: input.role, revision, repeated: false };
+  }).immediate();
 }
 
 /** Only the owner can add or remove an extra project capability. Draft proposals remain separate. */

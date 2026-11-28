@@ -138,6 +138,10 @@ export interface StudioAPI {
   resumeTeamJoin(): Promise<import('../main/team-connection-store').SavedTeamConnection>;
   cancelTeamJoin(): Promise<void>;
   teamWorkspace(workspaceId: string): Promise<{ member: import('../main/team-workspace').TeamMember; projects: Array<{ id: string; name: string; canEditDraft: boolean; canManageTask: boolean }> }>;
+  teamProjectMembers(input: { workspaceId: string; projectId: string }): Promise<import('../main/team-remote-client').TeamProjectMember[]>;
+  changeTeamMemberRole(input: { workspaceId: string; memberId: string; role: Exclude<import('../main/team-workspace').TeamRole, 'owner'>;
+    expectedRevision: number; mutationId: string }): Promise<{ memberId: string; role: Exclude<import('../main/team-workspace').TeamRole, 'owner'>;
+    revision: number; repeated: boolean }>;
   teamBoard(input: { workspaceId: string; projectId: string }): Promise<import('../main/team-remote-client').CollaborativeTeamBoard>;
   setTeamCardPriority(input: { workspaceId: string; projectId: string; cardId: string; priority: CardPriority;
     expectedRevision: number; mutationId: string }): Promise<{ cardId: string; revision: number; priority: CardPriority; repeated: boolean }>;

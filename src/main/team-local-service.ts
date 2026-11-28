@@ -5,6 +5,7 @@ import { addTeamProject, authenticateTeamMember, createTeamMemberInvite, createT
   setTeamCapabilityGrant, setTeamProjectAccess, type TeamCapability, type TeamMember, type TeamRole } from './team-workspace';
 
 export interface HostedTeamMember extends TeamMember {
+  roleRevision: number;
   projectAccess: 'none' | 'read' | 'edit' | null;
   extraCapabilities: TeamCapability[];
 }
@@ -70,8 +71,8 @@ export class TeamLocalService {
     const projectDefault = this.store.db.prepare('SELECT access FROM team_project_defaults WHERE project_id = ?')
       .get(projectId) as { access: 'none' | 'read' | 'edit' } | undefined;
     const baseMembers = this.store.db.prepare(`SELECT id, workspace_id AS workspaceId, display_name AS displayName,
-      role, revoked_at AS revokedAt FROM team_members WHERE workspace_id = ? ORDER BY created_at, id`)
-      .all(row.id) as TeamMember[];
+      role, role_revision AS roleRevision, revoked_at AS revokedAt FROM team_members WHERE workspace_id = ? ORDER BY created_at, id`)
+      .all(row.id) as Array<TeamMember & { roleRevision: number }>;
     const access = new Map((this.store.db.prepare('SELECT member_id, access FROM team_project_permissions WHERE project_id = ?')
       .all(projectId) as Array<{ member_id: string; access: 'none' | 'read' | 'edit' }>).map((item) => [item.member_id, item.access]));
     const grants = new Map<string, TeamCapability[]>();

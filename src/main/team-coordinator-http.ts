@@ -4,7 +4,8 @@ import type { StudioStore } from './store';
 import type { CardPriority } from '../shared/types';
 import { authenticateTeamMember, claimTeamMemberInvite, createTeamMemberInvite,
   claimTeamAgentLaunch, finishTeamAgentLaunch, requireTeamProjectCapability, revokeTeamMember,
-  setTeamCardPriority, moveTeamCard, teamAgentLaunch, type TeamRole } from './team-workspace';
+  setTeamCardPriority, moveTeamCard, teamAgentLaunch, listTeamProjectMembers, changeTeamMemberRole,
+  type TeamRole } from './team-workspace';
 import { teamBoardSnapshot } from './team-board';
 import { applyTeamCardDraftUpdate, readTeamCardDraft } from './team-card-draft';
 
@@ -105,6 +106,17 @@ export class TeamCoordinatorHttp {
         }
         return reply(response, 200, { revoked: true });
       }
+      const memberRole = /^\/v1\/workspace\/members\/([0-9a-f-]{36})\/role$/.exec(path);
+      if (request.method === 'POST' && memberRole) {
+        const value = await body(request);
+        const changed = changeTeamMemberRole(this.store.db, {
+          credential: actorCredential, memberId: memberRole[1]!, role: value.role as Exclude<TeamRole, 'owner'>,
+          expectedRevision: value.expectedRevision as number, mutationId: value.mutationId as string,
+        });
+        reply(response, 200, changed);
+        if (!changed.repeated) this.refreshPresence();
+        return;
+      }
       if (request.method === 'GET' && path === '/v1/workspace') {
         const actor = authenticateTeamMember(this.store.db, actorCredential);
         const projects = this.store.db.prepare(`SELECT project.id, project.name FROM team_projects linked
@@ -122,6 +134,10 @@ export class TeamCoordinatorHttp {
           catch { canManageTask = false; }
           return { ...project, canEditDraft, canManageTask };
         }) });
+      }
+      const projectMembers = /^\/v1\/projects\/([0-9a-f-]{36})\/members$/.exec(path);
+      if (request.method === 'GET' && projectMembers) {
+        return reply(response, 200, { members: listTeamProjectMembers(this.store.db, actorCredential, projectMembers[1]!) });
       }
       const board = /^\/v1\/projects\/([0-9a-f-]{36})\/board$/.exec(path);
       if (request.method === 'GET' && board) {
@@ -201,6 +217,8 @@ export class TeamCoordinatorHttp {
       const message = error instanceof Error ? error.message : '';
       if (message === 'Card changed. Reload before applying this team action.') {
         reply(response, 409, { error: 'Card changed. Reload before applying this team action.' });
+      } else if (message === 'Team member role changed. Reload before applying this team action.') {
+        reply(response, 409, { error: message });
       } else if (message === 'Team card is active. Pause the queue and finish its run before moving it.') {
         reply(response, 423, { error: message });
       } else if (message === 'Team agent worker is unavailable.') {
@@ -210,7 +228,8 @@ export class TeamCoordinatorHttp {
       } else if (message.includes('not permitted') || message.includes('cannot invite') || message.includes('cannot be removed')) {
         reply(response, 403, { error: 'Team action is not permitted' });
       } else if (message === 'Invalid request body' || error instanceof SyntaxError ||
-        message.startsWith('Invalid team card') || message.startsWith('Invalid team draft')) {
+        message.startsWith('Invalid team card') || message.startsWith('Invalid team draft') ||
+        message.startsWith('Invalid team role')) {
         reply(response, 400, { error: 'Invalid team command' });
       } else {
         reply(response, 400, { error: 'Team command was not accepted' });
