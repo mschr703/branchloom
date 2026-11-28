@@ -1,0 +1,14 @@
+.remote-team-board .board-columns{overflow-x:auto;display:flex;align-items:stretch;gap:10px;min-height:260px;padding:0 0 10px}
+.sidebar-shared-project{overflow:hidden;margin:0 0 7px;padding:5px 2px;color:var(--muted);font-size:12px;text-overflow:ellipsis;white-space:nowrap}
+.remote-team-board .board-column{display:flex;flex-direction:column;flex:none}
+.remote-team-board .column-body{overflow-y:auto;min-height:150px;padding:7px}
+.remote-team-board .task-card{text-align:left;width:100%;cursor:pointer}
+.remote-team-board .task-card[aria-pressed="true"]{outline:2px solid var(--focus);outline-offset:-2px}
+.remote-team-board .board-card-wrap{margin-bottom:7px}
+.remote-team-board-error,.remote-team-board-limit{margin:12px 0;color:var(--muted);font-size:12px}
+.remote-team-card-backdrop{position:fixed;inset:0;z-index:60;display:flex;justify-content:flex-end;background:rgb(0 0 0 / 24%)}
+.remote-team-card-detail{box-sizing:border-box;width:min(510px,100vw);height:100%;overflow-y:auto;padding:20px 24px;background:var(--surface);box-shadow:-10px 0 30px rgb(0 0 0 / 10%)}
+.remote-team-card-detail>header{display:flex;justify-content:space-between;gap:15px;align-items:start;padding-bottom:14px;margin-bottom:18px;border-bottom:1px solid var(--border)}
+.remote-team-card-detail>header small{color:var(--muted);font-size:11px}.remote-team-card-detail>header h3{margin:5px 0 0;font-size:18px;line-height:1.3}
+.remote-team-card-detail .team-card-draft textarea{min-height:220px}
+@media(max-width:650px){.remote-team-card-detail{width:100vw;padding:15px}}

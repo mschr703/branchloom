@@ -36,6 +36,9 @@ it('creates a local workspace, exposes an invitation once, and requires a second
     ownedTeamWorkspaces: vi.fn().mockResolvedValue([]),
     pendingTeamJoin: vi.fn().mockResolvedValue(null), createLocalTeamWorkspace: create,
     inviteTeamMember: invite, revokeTeamMember: revoke,
+    teamTailnetStatus: vi.fn().mockResolvedValue({ enabled: false, coordinatorUrl: null }),
+    enableTeamTailnet: vi.fn().mockResolvedValue({ enabled: true, coordinatorUrl: 'http://100.73.95.17:4567' }),
+    disableTeamTailnet: vi.fn().mockResolvedValue({ enabled: false, coordinatorUrl: null }),
     setTeamProjectAccess: setProjectAccess, setTeamCapabilityGrant: setCapabilityGrant,
   } });
   try {
@@ -49,11 +52,25 @@ it('creates a local workspace, exposes an invitation once, and requires a second
     expect(host.textContent).toContain('1 Mitglieder');
     await act(async () => { [...host.querySelectorAll<HTMLButtonElement>('button')]
       .find((button) => button.textContent === 'Einladung erstellen')!.click(); });
-    expect(invite).toHaveBeenCalledWith({ projectId: 'project', role: 'editor' });
+    expect(invite).toHaveBeenCalledWith({ projectId: 'project', role: 'editor', transport: 'local' });
     expect(host.querySelectorAll<HTMLInputElement>('.team-workspace-invitation input')[1]?.value).toBe('synthetic-invite');
     hosted = { ...workspace, members: [owner, colleague] };
     await act(async () => { root.render(<TeamWorkspaceSettings key="second" projectId="project" />); });
     expect(host.textContent).not.toContain('synthetic-invite');
+    await act(async () => { [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent === 'Tailscale-Zugang aktivieren')!.click(); });
+    expect(window.studio.enableTeamTailnet).toHaveBeenCalledWith('project');
+    expect(host.textContent).toContain('100.73.95.17');
+    await act(async () => {
+      const transport = host.querySelectorAll<HTMLSelectElement>('.team-workspace-invite select')[1]!;
+      transport.value = 'tailnet'; transport.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await act(async () => { [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent === 'Einladung erstellen')!.click(); });
+    expect(invite).toHaveBeenLastCalledWith({ projectId: 'project', role: 'editor', transport: 'tailnet' });
+    await act(async () => { [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent === 'Tailscale-Zugang beenden')!.click(); });
+    expect(window.studio.disableTeamTailnet).toHaveBeenCalledWith('project');
     const rights = host.querySelector<HTMLDetailsElement>('.team-workspace-member-rights')!;
     await act(async () => { rights.open = true; });
     await act(async () => {

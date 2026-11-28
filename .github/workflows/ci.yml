@@ -31,6 +31,9 @@ jobs:
       - run: npm run smoke:f17
       - run: npm run smoke:team-review
       - run: npm run smoke:team-workspace
+      - run: npm run smoke:team-secret-migration
+      - run: npm run smoke:team-two-process
+      - run: node scripts/smoke-team-two-process.mjs --crash-owner
       - run: npm run smoke:dev-accounts
       - run: node scripts/smoke-electron.mjs --f01 --timeout-ms 180000
       - run: node scripts/smoke-electron.mjs --f03 --timeout-ms 180000

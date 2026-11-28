@@ -4,7 +4,7 @@ import { networkInterfaces } from 'node:os';
 
 const execFileAsync = promisify(execFile);
 
-function isTailnetIPv4(value: unknown): value is string {
+export function isTailnetIPv4(value: unknown): value is string {
   if (typeof value !== 'string' || !/^\d{1,3}(?:\.\d{1,3}){3}$/.test(value)) return false;
   const parts = value.split('.').map(Number);
   return parts.length === 4 && parts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)

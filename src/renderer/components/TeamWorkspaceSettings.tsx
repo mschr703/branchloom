@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import type { HostedTeamWorkspace, OwnedTeamWorkspace } from '../../main/team-local-service';
+import type { HostedTeamWorkspace, OwnedTeamWorkspace, TeamTailnetStatus } from '../../main/team-local-service';
 import type { SavedTeamConnection } from '../../main/team-connection-store';
 import './team-workspace-settings.css';
 
@@ -18,6 +18,8 @@ export function TeamWorkspaceSettings({ projectId, onConnectionChange }: { proje
   const [ownerName, setOwnerName] = useState('');
   const [role, setRole] = useState<InviteRole>('editor');
   const [invitation, setInvitation] = useState<FreshInvitation | null>(null);
+  const [tailnet, setTailnet] = useState<TeamTailnetStatus>({ enabled: false, coordinatorUrl: null });
+  const [inviteTransport, setInviteTransport] = useState<'local' | 'tailnet'>('local');
   const [coordinatorUrl, setCoordinatorUrl] = useState('');
   const [inviteSecret, setInviteSecret] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -36,7 +38,11 @@ export function TeamWorkspaceSettings({ projectId, onConnectionChange }: { proje
       window.studio.teamConnections(), window.studio.pendingTeamJoin(), window.studio.ownedTeamWorkspaces()])
       .then(([nextHosted, nextConnections, nextPending, nextOwned]) => {
         if (active) { setHosted(nextHosted); setConnections(nextConnections); setPendingJoin(nextPending);
-          setOwned(nextOwned); setWorkspaceChoice(nextOwned[0]?.workspaceId ?? ''); if (nextHosted) onConnectionChange?.(); }
+          setOwned(nextOwned); setWorkspaceChoice(nextOwned[0]?.workspaceId ?? ''); if (nextHosted && projectId) {
+            onConnectionChange?.();
+            void window.studio.teamTailnetStatus(projectId).then((state) => { if (active) setTailnet(state); })
+              .catch((reason: unknown) => { if (active) setError(messageOf(reason)); });
+          } else setTailnet({ enabled: false, coordinatorUrl: null }); }
       })
       .catch((reason: unknown) => { if (active) setError(messageOf(reason)); })
       .finally(() => { if (active) setLoading(false); });
@@ -74,8 +80,21 @@ export function TeamWorkspaceSettings({ projectId, onConnectionChange }: { proje
     if (busy || !projectId) return;
     setBusy(true); setError(''); setNotice(''); setInvitation(null);
     try {
-      setInvitation(await window.studio.inviteTeamMember({ projectId, role }));
+      setInvitation(await window.studio.inviteTeamMember({ projectId, role, transport: inviteTransport }));
       setNotice('Einladung erstellt. Der Code wird nur jetzt angezeigt.');
+    } catch (reason) { setError(messageOf(reason)); }
+    finally { setBusy(false); }
+  }
+
+  async function toggleTailnet() {
+    if (busy || !projectId) return;
+    setBusy(true); setError(''); setNotice(''); setInvitation(null);
+    try {
+      const next = tailnet.enabled ? await window.studio.disableTeamTailnet(projectId)
+        : await window.studio.enableTeamTailnet(projectId);
+      setTailnet(next);
+      if (!next.enabled) setInviteTransport('local');
+      setNotice(next.enabled ? 'Tailscale-Teamzugang ist auf diesem Gerät aktiv.' : 'Tailscale-Teamzugang beendet.');
     } catch (reason) { setError(messageOf(reason)); }
     finally { setBusy(false); }
   }
@@ -157,7 +176,7 @@ export function TeamWorkspaceSettings({ projectId, onConnectionChange }: { proje
   }
 
   return <section className="team-workspace-settings" aria-label="Team-Workspace">
-    <header><h3>Team-Workspace</h3><p>Projekte gemeinsam verwalten. Dieser erste Koordinator läuft nur auf diesem Gerät.</p></header>
+    <header><h3>Team-Workspace</h3><p>Projekte gemeinsam verwalten. Verbunden über dieses Gerät oder bewusst über Tailscale.</p></header>
     {loading ? <p className="team-workspace-muted">Teamzugang wird geladen…</p> : null}
     {!loading && !hosted && projectId ? <form className="team-workspace-form" onSubmit={(event) => void create(event)}>
       <label>Workspace-Name<input value={workspaceName} onChange={(event) => setWorkspaceName(event.currentTarget.value)} maxLength={80} required placeholder="Produktteam" /></label>
@@ -215,18 +234,27 @@ export function TeamWorkspaceSettings({ projectId, onConnectionChange }: { proje
           </div>
         </details> : null}
       </li>)}</ul>
+      <div className="team-workspace-tailnet"><strong>Tailscale-Zugang</strong>
+        <p>{tailnet.enabled ? `Aktiv auf ${tailnet.coordinatorUrl}. Nur Geräte in deinem Tailnet erreichen diesen Koordinator.`
+          : 'Aus. Für ein zweites Gerät im selben Tailnet bewusst aktivieren. Die Freigabe endet beim Schließen von Branchloom.'}</p>
+        <button type="button" className="secondary-button" disabled={busy} onClick={() => void toggleTailnet()}>
+          {tailnet.enabled ? 'Tailscale-Zugang beenden' : 'Tailscale-Zugang aktivieren'}</button>
+      </div>
       <div className="team-workspace-invite"><label>Rolle<select value={role} disabled={busy} onChange={(event) => setRole(event.currentTarget.value as InviteRole)}>
         <option value="editor">Mitglied · Entwürfe und Vorschläge</option><option value="developer">Entwicklung · Entwürfe</option>
         <option value="viewer">Ansicht · lesen</option><option value="admin">Admin · erweiterte Rechte</option>
+      </select></label><label>Verbindung<select value={inviteTransport} disabled={busy} onChange={(event) => {
+        setInviteTransport(event.currentTarget.value as 'local' | 'tailnet'); setInvitation(null);
+      }}><option value="local">Dieser Rechner</option><option value="tailnet" disabled={!tailnet.enabled}>Anderes Gerät über Tailscale</option>
       </select></label><button type="button" className="secondary-button" disabled={busy} onClick={() => void invite()}>Einladung erstellen</button></div>
       {invitation ? <div className="team-workspace-invitation" role="status">
         <p>Einmaliger Code, gültig bis {new Date(invitation.expiresAt).toLocaleString('de-DE')}.</p>
         <label>Koordinator<input readOnly value={invitation.coordinatorUrl} onFocus={(event) => event.currentTarget.select()} /></label>
         <label>Einladungscode<input readOnly value={invitation.inviteSecret} onFocus={(event) => event.currentTarget.select()} /></label>
-        <small>Beide Werte nur an die eingeladene Person geben. Die lokale Adresse funktioniert ausschließlich auf diesem Rechner.</small>
+        <small>Beide Werte nur an die eingeladene Person geben. Der Tailscale-Link funktioniert nur bei aktivem Zugang und wenn beide Geräte mit demselben Tailnet verbunden sind.</small>
       </div> : null}
     </div> : null}
-    <details className="team-workspace-join"><summary>Einladung auf diesem Gerät annehmen</summary>
+    <details className="team-workspace-join"><summary>Einladung annehmen</summary>
       {pendingJoin ? <div className="team-workspace-pending"><p>Eine Einladung von {pendingJoin.coordinatorUrl} für {pendingJoin.displayName} wartet auf Wiederholung.</p>
         <button type="button" className="secondary-button" disabled={busy} onClick={() => void resume()}>Erneut verbinden</button>
         <button type="button" className="text-button" disabled={busy} onClick={() => void cancel()}>Verwerfen</button></div>

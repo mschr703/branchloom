@@ -544,9 +544,16 @@ export async function runWhiteboardVisibleSmoke(window: BrowserWindow, store: St
     if (tool.disabled || tool.tabIndex < 0) throw new Error('Line tool has no keyboard route.');
     tool.click();
     const overlay = await wait(() => document.querySelector('.wb-line-draw-surface'), 'drawing surface');
+    overlay.scrollIntoView({ block: 'center', inline: 'nearest' });
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     const box = overlay.getBoundingClientRect();
-    return { x1: Math.round(box.left + box.width * .25), y1: Math.round(box.top + box.height * .37),
-      x2: Math.round(box.left + box.width * .60), y2: Math.round(box.top + box.height * .55) };
+    const left = Math.max(0, box.left);
+    const top = Math.max(0, box.top);
+    const width = Math.min(window.innerWidth, box.right) - left;
+    const height = Math.min(window.innerHeight, box.bottom) - top;
+    if (width < 180 || height < 130) throw new Error('Drawing surface is not sufficiently visible for pointer input.');
+    return { x1: Math.round(left + width * .25), y1: Math.round(top + height * .28),
+      x2: Math.round(left + width * .60), y2: Math.round(top + height * .58) };
   })()`);
   if (whiteboardFreeLines(store, project.id).length) throw new Error('Entering line mode wrote to the database.');
   window.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', x: freeLineDrag.x1, y: freeLineDrag.y1, clickCount: 1 });
@@ -572,7 +579,7 @@ export async function runWhiteboardVisibleSmoke(window: BrowserWindow, store: St
       }
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
-    throw new Error('Pointer drag did not produce an aligned free-line draft: ' + JSON.stringify({ lastBounds,
+    throw new Error('Pointer drag did not produce an aligned free-line draft: ' + JSON.stringify({ expected: ${JSON.stringify(freeLineDrag)}, lastBounds,
       path: document.querySelector('.wb-free-line.is-draft .wb-free-line-stroke')?.getAttribute('d'),
       inspector: document.querySelector('.wb-inspector')?.textContent?.slice(0, 300) }));
   })()`);

@@ -44,9 +44,12 @@ it('rejects unprotected storage, untrusted HTTP origins, and corrupt encrypted d
   expect(checkedCoordinatorUrl('http://127.0.0.1:4567')).toBe('http://127.0.0.1:4567');
   expect(teamCoordinatorTransport('http://127.0.0.1:4567')).toBe('loopback');
   expect(teamCoordinatorTransport('https://team.example.com')).toBe('remote-https');
+  expect(checkedCoordinatorUrl('http://100.64.1.2:4567')).toBe('http://100.64.1.2:4567');
+  expect(teamCoordinatorTransport('http://100.127.1.2:4567')).toBe('tailnet');
   expect(() => teamCoordinatorTransport('http://team.example.com')).toThrow();
   for (const url of ['http://example.com:4567', 'https://team.example.com/path',
-    'https://user:pass@team.example.com', 'http://127.0.0.1']) {
+    'https://user:pass@team.example.com', 'http://127.0.0.1', 'http://100.128.1.2:4567',
+    'http://192.168.1.2:4567', 'http://100.64.1.2:4567/path', 'http://user:pass@100.64.1.2:4567']) {
     expect(() => checkedCoordinatorUrl(url)).toThrow();
   }
   writeFileSync(join(root, 'team-connections.bin'), 'invalid ciphertext');

@@ -8,11 +8,18 @@ import { authenticateTeamMember, claimTeamMemberInvite, createTeamMemberInvite,
   type TeamRole } from './team-workspace';
 import { teamBoardSnapshot } from './team-board';
 import { applyTeamCardDraftUpdate, readTeamCardDraft } from './team-card-draft';
+import { activeTailnetIPv4, isTailnetIPv4 } from './team-review-tailnet';
 
 const LOOPBACK = '127.0.0.1';
 const MAX_BODY = 4_096;
 type DraftSubscriber = { response: ServerResponse; credential: string; memberId: string;
   displayName: string; projectId: string; cardId: string };
+
+/** Keep this boundary independent of the UI and caller-selected transport. */
+export function checkedTeamCoordinatorBindHost(host: string, activeTailnetAddress: string | null): string {
+  if (host === LOOPBACK || (isTailnetIPv4(host) && host === activeTailnetAddress)) return host;
+  throw new Error('Team coordinator may bind only to 127.0.0.1 or the active local Tailscale address.');
+}
 
 function reply(response: ServerResponse, status: number, body: unknown): void {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8',
@@ -43,29 +50,33 @@ async function body(request: IncomingMessage, maxLength = MAX_BODY): Promise<Rec
   return value as Record<string, unknown>;
 }
 
-/** First coordinator transport slice. It intentionally accepts only loopback connections. */
+/** One authenticated coordinator listener, bound to an explicitly selected interface. */
 export class TeamCoordinatorHttp {
   private server: Server | null = null;
   private readonly subscribers = new Set<DraftSubscriber>();
   private heartbeat: NodeJS.Timeout | null = null;
+  private address: string | null = null;
 
   constructor(private readonly store: StudioStore,
     private readonly startAgent?: (cardId: string, agentId: string) => { id: string }) {}
 
-  async start(preferredPort = 0): Promise<string> {
+  async start(preferredPort = 0, host = LOOPBACK): Promise<string> {
     if (this.server) throw new Error('Team coordinator is already running.');
     if (!Number.isInteger(preferredPort) || preferredPort < 0 || preferredPort > 65535) throw new Error('Invalid coordinator port.');
+    if (host !== LOOPBACK && !isTailnetIPv4(host)) checkedTeamCoordinatorBindHost(host, null);
+    else checkedTeamCoordinatorBindHost(host, host === LOOPBACK ? null : await activeTailnetIPv4());
     const server = createServer((request, response) => { void this.handle(request, response); });
     try {
       await new Promise<void>((resolve, reject) => {
         server.once('error', reject);
-        server.listen(preferredPort, LOOPBACK, () => { server.off('error', reject); resolve(); });
+        server.listen(preferredPort, host, () => { server.off('error', reject); resolve(); });
       });
     } catch (error) { server.close(); throw error; }
     this.server = server;
     this.heartbeat = setInterval(() => this.refreshPresence(), 5_000);
     this.heartbeat.unref();
-    return `http://${LOOPBACK}:${(server.address() as AddressInfo).port}`;
+    this.address = `http://${host}:${(server.address() as AddressInfo).port}`;
+    return this.address;
   }
 
   async close(): Promise<void> {
@@ -73,6 +84,7 @@ export class TeamCoordinatorHttp {
     this.heartbeat = null;
     for (const subscriber of this.subscribers) subscriber.response.end();
     this.subscribers.clear();
+    this.address = null;
     const server = this.server;
     this.server = null;
     if (server) await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
@@ -82,6 +94,9 @@ export class TeamCoordinatorHttp {
     try {
       // Native clients call the coordinator from their main process. No browser origin is authorized here.
       if (request.headers.origin) return reply(response, 403, { error: 'Origin is not permitted' });
+      if (!this.address || request.headers.host !== new URL(this.address).host) {
+        return reply(response, 421, { error: 'Unexpected coordinator host' });
+      }
       const path = new URL(request.url ?? '/', `http://${LOOPBACK}`).pathname;
       if (request.method === 'POST' && path === '/v1/invitations/accept') {
         const value = await body(request);

@@ -18,6 +18,7 @@ import { TeamBoardHttp } from './team-board-http';
 import { TeamConnectionStore } from './team-connection-store';
 import { TeamJoinAttemptStore } from './team-join-attempt';
 import { TeamDraftOutboxStore } from './team-draft-outbox';
+import { TeamSecretStorage } from './team-secret-storage';
 import { TeamLocalService } from './team-local-service';
 import { TeamRemoteClient } from './team-remote-client';
 import { activeTailnetIPv4 } from './team-review-tailnet';
@@ -206,10 +207,14 @@ function mustStore(): StudioStore {
 
 function installIpc(): void {
   const db = mustStore();
-  const teamConnections = new TeamConnectionStore(app.getPath('userData'), safeStorage);
+  const userDataDirectory = app.getPath('userData');
+  const teamConnections = new TeamConnectionStore(userDataDirectory,
+    new TeamSecretStorage(userDataDirectory, safeStorage, 'team-connections'));
   const teamRemoteClient = new TeamRemoteClient(teamConnections,
-    new TeamJoinAttemptStore(app.getPath('userData'), safeStorage), fetch,
-    new TeamDraftOutboxStore(app.getPath('userData'), safeStorage));
+    new TeamJoinAttemptStore(userDataDirectory,
+      new TeamSecretStorage(userDataDirectory, safeStorage, 'team-join-attempt')), fetch,
+    new TeamDraftOutboxStore(userDataDirectory,
+      new TeamSecretStorage(userDataDirectory, safeStorage, 'team-draft-outbox')));
   teamLocalService = new TeamLocalService(db, teamConnections);
   apiContractHttp = new ApiContractHttp(db);
   const trello = new TrelloConnection(app.getPath('userData'), safeStorage);
@@ -254,7 +259,10 @@ function installIpc(): void {
   bind('createLocalTeamWorkspace', (input: Parameters<StudioAPI['createLocalTeamWorkspace']>[0]) => teamLocalService!.create(input));
   bind('ownedTeamWorkspaces', () => teamLocalService!.ownedWorkspaces());
   bind('addProjectToTeamWorkspace', (input: Parameters<StudioAPI['addProjectToTeamWorkspace']>[0]) => teamLocalService!.addProject(input.projectId, input.workspaceId));
-  bind('inviteTeamMember', (input: Parameters<StudioAPI['inviteTeamMember']>[0]) => teamLocalService!.invite(input.projectId, input.role));
+  bind('inviteTeamMember', (input: Parameters<StudioAPI['inviteTeamMember']>[0]) => teamLocalService!.invite(input.projectId, input.role, input.transport));
+  bind('teamTailnetStatus', (projectId: string) => teamLocalService!.tailnetStatus(projectId));
+  bind('enableTeamTailnet', (projectId: string) => teamLocalService!.enableTailnet(projectId));
+  bind('disableTeamTailnet', (projectId: string) => teamLocalService!.disableTailnet(projectId));
   bind('revokeTeamMember', (input: Parameters<StudioAPI['revokeTeamMember']>[0]) => teamLocalService!.revoke(input.projectId, input.memberId));
   bind('setTeamProjectAccess', (input: Parameters<StudioAPI['setTeamProjectAccess']>[0]) => teamLocalService!.setProjectAccess(input.projectId, input.memberId, input.access));
   bind('setTeamCapabilityGrant', (input: Parameters<StudioAPI['setTeamCapabilityGrant']>[0]) => teamLocalService!.setCapabilityGrant(input.projectId, input.memberId, input.capability, input.grant));

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { TeamRole } from './team-workspace';
+import { isTailnetIPv4 } from './team-review-tailnet';
 
 interface Encryptor {
   isAsyncEncryptionAvailable(): Promise<boolean>;
@@ -24,21 +25,23 @@ const SECRET = /^[A-Za-z0-9_-]{43}$/;
 const ROLES: readonly TeamRole[] = ['owner', 'admin', 'editor', 'developer', 'viewer'];
 const MAX_CONNECTIONS = 30;
 
-/** URLs are explicit origins. Plain HTTP is limited to loopback in this first client slice. */
+/** URLs are explicit origins. HTTP is limited to loopback or a verified tailnet route. */
 export function checkedCoordinatorUrl(value: string): string {
   let url: URL;
   try { url = new URL(value); } catch { throw new Error('Coordinator address is invalid.'); }
-  if ((url.protocol !== 'https:' && !(url.protocol === 'http:' && url.hostname === '127.0.0.1' && url.port)) ||
+  if ((url.protocol !== 'https:' && !(url.protocol === 'http:' &&
+    (url.hostname === '127.0.0.1' || isTailnetIPv4(url.hostname)) && url.port)) ||
     url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
-    throw new Error('Coordinator address must be an HTTPS origin or local 127.0.0.1 address with a port.');
+    throw new Error('Coordinator address must be HTTPS, local 127.0.0.1, or a Tailscale IPv4 address with a port.');
   }
   return url.origin;
 }
 
 /** Distinguish an on-device preview from an HTTPS coordinator without trusting a saved label. */
-export function teamCoordinatorTransport(value: string): 'loopback' | 'remote-https' {
+export function teamCoordinatorTransport(value: string): 'loopback' | 'tailnet' | 'remote-https' {
   const origin = checkedCoordinatorUrl(value);
-  return origin.startsWith('http://127.0.0.1:') ? 'loopback' : 'remote-https';
+  if (origin.startsWith('http://127.0.0.1:')) return 'loopback';
+  return origin.startsWith('http://') ? 'tailnet' : 'remote-https';
 }
 
 function checked(value: unknown): TeamConnectionSecret {

@@ -124,7 +124,7 @@ export function TeamMemberOverview({ hosted, projectMembers, rosterError, curren
   </section>;
 }
 
-export function TeamWorkspaceView({ projectId }: { projectId?: string }) {
+export function TeamWorkspaceView({ projectId, onOpenBoard }: { projectId?: string; onOpenBoard?: (target: { workspaceId: string; projectId: string; projectName: string }) => void }) {
   const settingsRef = useRef<HTMLDetailsElement>(null);
   const [refreshToken, setRefreshToken] = useState(0);
   const [connections, setConnections] = useState<SavedTeamConnection[]>([]);
@@ -210,6 +210,8 @@ export function TeamWorkspaceView({ projectId }: { projectId?: string }) {
         {workspace?.projects.length ? <label>Projekt<select value={remoteProjectId} onChange={(event) => setRemoteProjectId(event.currentTarget.value)}>
           {workspace.projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label> : null}
         {workspace ? <span>{workspace.member.displayName} · {roleNames[workspace.member.role] ?? workspace.member.role}</span> : null}</div>
+      {board && onOpenBoard && connections.find((item) => item.workspaceId === workspaceId)?.role !== 'owner' ?
+        <button type="button" className="secondary-button team-open-shared-board" onClick={() => onOpenBoard({ workspaceId, projectId: remoteProjectId, projectName: board.projectName })}>Gemeinsames Board öffnen</button> : null}
       {workspace ? <TeamMemberOverview hosted={hosted} projectMembers={projectMembers} rosterError={rosterError} currentMemberId={connections.find((item) => item.workspaceId === workspaceId)?.memberId} fallbackMember={workspace.member} workspaceId={workspaceId} onRoleChanged={() => setRefreshToken((value) => value + 1)} onRefresh={() => setRefreshToken((value) => value + 1)} /> : null}
       {board ? <div className="team-workspace-board-layout"><div className="team-workspace-board" aria-label={`Gemeinsame Arbeit ${board.projectName}`}>
         <div className="team-workspace-board-heading"><div><h3>Gemeinsame Arbeit</h3><p>Dieselben Karten wie im Projekt-Board. Hier öffnest du einen gemeinsamen Entwurf.</p></div><span>{board.cards.length}{board.truncated ? '+' : ''} Karten · Stand {new Date(board.observedAt).toLocaleTimeString('de-DE')}</span></div>

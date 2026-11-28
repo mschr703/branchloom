@@ -27,6 +27,8 @@
     "smoke:team-review": "npm run build:main && node scripts/run-team-review-smoke.cjs",
     "smoke:team-board": "npm run build:main && node scripts/run-team-board-smoke.cjs",
     "smoke:team-workspace": "npm run build && node scripts/smoke-electron.mjs --team-workspace --timeout-ms 120000",
+    "smoke:team-two-process": "npm run build && node scripts/smoke-team-two-process.mjs",
+    "smoke:team-secret-migration": "npm run build:main && node scripts/smoke-team-secret-migration.cjs",
     "smoke:team-review-tailnet": "npm run build:main && node scripts/run-team-review-smoke.cjs --tailnet",
     "smoke:package": "node scripts/smoke-electron.mjs --package",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",

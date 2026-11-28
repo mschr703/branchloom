@@ -1,5 +1,6 @@
 import type { SavedTeamConnection } from './team-connection-store';
-import { TeamConnectionStore } from './team-connection-store';
+import { TeamConnectionStore, teamCoordinatorTransport } from './team-connection-store';
+import { activeTailnetIPv4 } from './team-review-tailnet';
 import { TeamJoinAttemptStore } from './team-join-attempt';
 import type { TeamMember, TeamRole } from './team-workspace';
 import type { TeamAgentLaunch } from './team-workspace';
@@ -116,7 +117,14 @@ async function limitedJson(response: Response): Promise<unknown> {
 export class TeamRemoteClient {
   constructor(private readonly connections: TeamConnectionStore,
     private readonly attempts: TeamJoinAttemptStore, private readonly request: typeof fetch = fetch,
-    private readonly outbox?: TeamDraftOutboxStore) {}
+    private readonly outbox?: TeamDraftOutboxStore,
+    private readonly checkTailnet: () => Promise<string> = activeTailnetIPv4) {}
+
+  private async guardedRequest(target: string, init: RequestInit): Promise<Response> {
+    // A disconnected tailnet must not fall back to a plain route before sending a bearer token.
+    if (teamCoordinatorTransport(new URL(target).origin) === 'tailnet') await this.checkTailnet();
+    return this.request(target, { ...init, redirect: 'error' });
+  }
 
   async beginJoin(input: { coordinatorUrl: string; inviteSecret: string; displayName: string }): Promise<SavedTeamConnection> {
     await this.attempts.prepare(input);
@@ -128,7 +136,7 @@ export class TeamRemoteClient {
     if (!pending) throw new Error('No team invitation is waiting to be resumed.');
     let response: Response;
     try {
-      response = await this.request(`${pending.coordinatorUrl}/v1/invitations/accept`, {
+      response = await this.guardedRequest(`${pending.coordinatorUrl}/v1/invitations/accept`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, redirect: 'error', signal: AbortSignal.timeout(15_000),
         body: JSON.stringify({ secret: pending.inviteSecret, displayName: pending.displayName,
           credential: pending.credential, requestId: pending.requestId }),
@@ -161,7 +169,7 @@ export class TeamRemoteClient {
     if (!connection) throw new Error('This team workspace is not saved on this device.');
     let response: Response;
     try {
-      response = await this.request(`${connection.coordinatorUrl}/v1/workspace`, { method: 'GET',
+      response = await this.guardedRequest(`${connection.coordinatorUrl}/v1/workspace`, { method: 'GET',
         headers: { Authorization: `Bearer ${connection.credential}` }, redirect: 'error', signal: AbortSignal.timeout(15_000) });
     } catch { throw new Error('Coordinator is unavailable.'); }
     if (response.status === 401 || response.status === 403) throw new Error('Team access was revoked or is unavailable.');
@@ -320,7 +328,7 @@ export class TeamRemoteClient {
     const refreshIdle = () => { clearTimeout(idleTimer); idleTimer = setTimeout(() => idle.abort(), 15_000); };
     let response: Response;
     try {
-      response = await this.request(`${connection.coordinatorUrl}/v1/projects/${input.projectId}/cards/${input.cardId}/draft/events`, {
+      response = await this.guardedRequest(`${connection.coordinatorUrl}/v1/projects/${input.projectId}/cards/${input.cardId}/draft/events`, {
         headers: { Authorization: `Bearer ${connection.credential}` }, redirect: 'error', signal: activeSignal,
       });
     } catch (error) {
@@ -390,7 +398,7 @@ export class TeamRemoteClient {
     if (!connection) throw new Error('This team workspace is not saved on this device.');
     let response: Response;
     try {
-      response = await this.request(`${connection.coordinatorUrl}${path}`, {
+      response = await this.guardedRequest(`${connection.coordinatorUrl}${path}`, {
         method: body ? 'POST' : 'GET', headers: { Authorization: `Bearer ${connection.credential}`,
           ...(body ? { 'Content-Type': 'application/json' } : {}) },
         body: body ? JSON.stringify(body) : undefined, redirect: 'error', signal: AbortSignal.timeout(15_000),

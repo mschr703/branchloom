@@ -1,6 +1,7 @@
 import type { StudioStore } from './store';
 import { TeamConnectionStore, teamCoordinatorTransport, type SavedTeamConnection } from './team-connection-store';
 import { TeamCoordinatorHttp } from './team-coordinator-http';
+import { activeTailnetIPv4 } from './team-review-tailnet';
 import { addTeamProject, authenticateTeamMember, createTeamMemberInvite, createTeamWorkspace, revokeTeamMember,
   setTeamCapabilityGrant, setTeamProjectAccess, type TeamCapability, type TeamMember, type TeamRole } from './team-workspace';
 
@@ -26,14 +27,20 @@ export interface OwnedTeamWorkspace {
   memberCount: number;
 }
 
-/** The first host transport stays on loopback and reuses its saved port after restart. */
+export interface TeamTailnetStatus { enabled: boolean; coordinatorUrl: string | null }
+
+/** Loopback is always the default; tailnet hosting requires a separate explicit action. */
 export class TeamLocalService {
   private coordinator: TeamCoordinatorHttp | null = null;
   private agentStarter: ((cardId: string, agentId: string) => { id: string }) | null = null;
   private url: string | null = null;
   private starting: Promise<string> | null = null;
+  private tailnetCoordinator: TeamCoordinatorHttp | null = null;
+  private tailnetUrl: string | null = null;
+  private tailnetStarting: Promise<string> | null = null;
 
-  constructor(private readonly store: StudioStore, private readonly connections: TeamConnectionStore) {}
+  constructor(private readonly store: StudioStore, private readonly connections: TeamConnectionStore,
+    private readonly tailnetAddress: () => Promise<string> = activeTailnetIPv4) {}
 
   setAgentStarter(start: (cardId: string, agentId: string) => { id: string }): void {
     if (this.coordinator) throw new Error('Set the team agent worker before starting the coordinator.');
@@ -127,14 +134,67 @@ export class TeamLocalService {
     return (await this.hostedProject(input.projectId))!;
   }
 
-  async invite(projectId: string, role: Exclude<TeamRole, 'owner'>): Promise<{
+  async invite(projectId: string, role: Exclude<TeamRole, 'owner'>,
+    transport: 'local' | 'tailnet' = 'local'): Promise<{
     inviteSecret: string; coordinatorUrl: string; expiresAt: string;
   }> {
+    if (transport !== 'local' && transport !== 'tailnet') throw new Error('Invalid team invitation transport.');
     const hosted = await this.hostedProject(projectId);
     if (!hosted) throw new Error('This project has no team workspace.');
+    if (transport === 'tailnet' && !this.tailnetUrl) throw new Error('Enable Tailscale team access before inviting a peer.');
     const owner = await this.ownerConnection(hosted.workspaceId);
     const invitation = createTeamMemberInvite(this.store.db, owner.credential, hosted.workspaceId, role);
-    return { inviteSecret: invitation.secret, coordinatorUrl: hosted.coordinatorUrl, expiresAt: invitation.expiresAt };
+    return { inviteSecret: invitation.secret,
+      coordinatorUrl: transport === 'tailnet' ? this.tailnetUrl! : hosted.coordinatorUrl,
+      expiresAt: invitation.expiresAt };
+  }
+
+  async tailnetStatus(projectId: string): Promise<TeamTailnetStatus> {
+    await this.requireOwnerProject(projectId);
+    return { enabled: !!this.tailnetUrl, coordinatorUrl: this.tailnetUrl };
+  }
+
+  async enableTailnet(projectId: string): Promise<TeamTailnetStatus> {
+    const hosted = await this.hostedProject(projectId);
+    if (!hosted) throw new Error('This project has no team workspace.');
+    if (this.tailnetUrl) return { enabled: true, coordinatorUrl: this.tailnetUrl };
+    if (!this.tailnetStarting) this.tailnetStarting = (async () => {
+      const address = await this.tailnetAddress();
+      const coordinator = new TeamCoordinatorHttp(this.store, this.agentStarter ?? undefined);
+      const port = Number(new URL(hosted.coordinatorUrl).port);
+      const url = await coordinator.start(port, address);
+      this.tailnetCoordinator = coordinator;
+      this.tailnetUrl = url;
+      return url;
+    })();
+    try { await this.tailnetStarting; }
+    finally { this.tailnetStarting = null; }
+    return { enabled: true, coordinatorUrl: this.tailnetUrl };
+  }
+
+  async disableTailnet(projectId: string): Promise<TeamTailnetStatus> {
+    await this.requireOwnerProject(projectId);
+    await this.closeTailnet();
+    return { enabled: false, coordinatorUrl: null };
+  }
+
+  private async requireOwnerProject(projectId: string): Promise<void> {
+    const linked = this.store.db.prepare('SELECT workspace_id AS workspaceId FROM team_projects WHERE project_id = ?')
+      .get(projectId) as { workspaceId: string } | undefined;
+    if (!linked) throw new Error('This project has no team workspace.');
+    const owner = await this.ownerConnection(linked.workspaceId);
+    const member = authenticateTeamMember(this.store.db, owner.credential);
+    if (member.id !== owner.memberId || member.workspaceId !== linked.workspaceId) {
+      throw new Error('Team workspace owner credential does not match this workspace.');
+    }
+  }
+
+  private async closeTailnet(): Promise<void> {
+    await this.tailnetStarting?.catch(() => undefined);
+    const active = this.tailnetCoordinator;
+    this.tailnetCoordinator = null;
+    this.tailnetUrl = null;
+    await active?.close();
   }
 
   async revoke(projectId: string, memberId: string): Promise<HostedTeamWorkspace> {
@@ -164,6 +224,7 @@ export class TeamLocalService {
   }
 
   async close(): Promise<void> {
+    await this.closeTailnet();
     await this.starting?.catch(() => undefined);
     const active = this.coordinator;
     this.coordinator = null;
