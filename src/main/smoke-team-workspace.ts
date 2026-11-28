@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { app, safeStorage, type BrowserWindow } from 'electron';
 import type { StudioStore } from './store';
 import { TeamConnectionStore } from './team-connection-store';
+import { TeamSecretStorage } from './team-secret-storage';
 import { TeamJoinAttemptStore } from './team-join-attempt';
 import { TeamRemoteClient } from './team-remote-client';
 import type { TeamLocalService } from './team-local-service';
@@ -392,7 +393,9 @@ export async function runTeamWorkspaceVisibleSmoke(window: BrowserWindow, store:
   if (store.snapshot(project.id).cards.find((item) => item.id === card.id)?.description !== card.description) {
     throw new Error('A draft edit changed the accepted card description.');
   }
-  const ownerConnection = await new TeamConnectionStore(app.getPath('userData'), safeStorage).get(result.workspaceId);
+  const ownerRoot = app.getPath('userData');
+  const ownerConnection = await new TeamConnectionStore(ownerRoot,
+    new TeamSecretStorage(ownerRoot, safeStorage, 'team-connections')).get(result.workspaceId);
   if (!ownerConnection) throw new Error('Synthetic owner connection is unavailable.');
   await window.webContents.executeJavaScript(`(async () => {
     const wait = async (predicate, label) => {

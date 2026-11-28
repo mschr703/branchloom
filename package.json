@@ -1,6 +1,6 @@
 {
   "name": "branchloom",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "license": "SEE LICENSE IN LICENSE",
   "description": "Local command center for AI development",
@@ -30,6 +30,7 @@
     "smoke:team-two-process": "npm run build && node scripts/smoke-team-two-process.mjs",
     "smoke:team-secret-migration": "npm run build:main && node scripts/smoke-team-secret-migration.cjs",
     "smoke:team-review-tailnet": "npm run build:main && node scripts/run-team-review-smoke.cjs --tailnet",
+    "smoke:team-tailnet": "npm run build:main && node scripts/smoke-team-tailnet.mjs",
     "smoke:package": "node scripts/smoke-electron.mjs --package",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
     "test": "vitest run",

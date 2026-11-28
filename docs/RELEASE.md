@@ -1,6 +1,6 @@
 # Windows-Paket und Start
 
-Das aktuelle öffentliche Windows-Release ist [v0.1.4](https://github.com/mschr703/branchloom/releases/tag/v0.1.4). Der [Release-Lauf 46046471054](https://github.com/mschr703/branchloom/actions/runs/46046471054) bestand einschließlich vollständiger Tests, Quell- und Installer-Smokes, Paket- und Update-Metadatenprüfung. Die Release-Seite stellt `Branchloom-Setup-0.1.4.exe` und `latest.yml` bereit; das Manifest nennt die passende SHA-512-Prüfsumme. Der Installer ist weiterhin nicht signiert. Der Quellstand auf `main` enthält bereits neuere, noch nicht veröffentlichte Änderungen.
+Das letzte veröffentlichte Windows-Paket ist [v0.1.5](https://github.com/mschr703/branchloom/releases/tag/v0.1.5). Der Quellstand wird für v0.1.6 geprüft; erst ein grüner Release-Lauf und der veröffentlichte Tag machen daraus ein Update für installierte Nutzer. Die Release-Seite stellt den Installer und `latest.yml` mit SHA-512-Prüfsumme bereit. Der Installer ist weiterhin nicht signiert.
 
 ## Aus Quellcode starten
 
