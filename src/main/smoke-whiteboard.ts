@@ -51,8 +51,15 @@ export async function runWhiteboardVisibleSmoke(window: BrowserWindow, store: St
     };
     const picker = await wait(() => document.querySelector('.sidebar-projects .project-switcher-trigger:not(.is-compact)'), 'project picker');
     picker.click();
-    const choice = await wait(() => [...document.querySelectorAll('.project-switcher-panel .project-switcher-project > button:first-child')]
-      .find((item) => item.getAttribute('aria-label') === ${JSON.stringify(`${projectName} auswählen`)}), 'project choice');
+    let pickerAttempt = 0;
+    const choice = await wait(() => {
+      const item = [...document.querySelectorAll('.project-switcher-panel .project-switcher-project > button:first-child')]
+        .find((button) => button.getAttribute('aria-label') === ${JSON.stringify(`${projectName} auswählen`)});
+      // A late Electron resize intentionally closes the project popover. Reopen
+      // it only after its collapsed state is observable, not while React renders.
+      if (!item && ++pickerAttempt % 20 === 0 && picker.getAttribute('aria-expanded') === 'false') picker.click();
+      return item;
+    }, 'project choice');
     choice.click();
     const nav = await wait(() => [...document.querySelectorAll('nav[aria-label="Hauptnavigation"] button')]
       .find((item) => item.querySelector('.nav-label')?.textContent?.trim() === 'Whiteboard'), 'whiteboard navigation');
@@ -552,17 +559,22 @@ export async function runWhiteboardVisibleSmoke(window: BrowserWindow, store: St
   }
   window.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', x: freeLineDrag.x2, y: freeLineDrag.y2, clickCount: 1 });
   const draftBounds = await window.webContents.executeJavaScript(`(async () => {
+    let lastBounds = null;
     for (let attempt = 0; attempt < 80; attempt++) {
       const draft = document.querySelector('.wb-free-line.is-draft .wb-free-line-stroke');
       const save = [...document.querySelectorAll('.wb-inspector button')].find((button) => button.textContent?.includes('Linie übernehmen'));
       if (draft && save && !save.disabled) {
         if (!/^M[^MLCQZ]+L[^MLCQZ]+$/i.test(draft.getAttribute('d') ?? '')) throw new Error('Free line is not straight.');
         const box = draft.getBoundingClientRect();
-        return { left: box.left, top: box.top, right: box.right, bottom: box.bottom };
+        lastBounds = { left: box.left, top: box.top, right: box.right, bottom: box.bottom };
+        if (Math.abs(box.left - ${freeLineDrag.x1}) <= 18 && Math.abs(box.top - ${freeLineDrag.y1}) <= 18
+          && Math.abs(box.right - ${freeLineDrag.x2}) <= 18 && Math.abs(box.bottom - ${freeLineDrag.y2}) <= 18) return lastBounds;
       }
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
-    throw new Error('Pointer drag did not produce a free-line draft: ' + document.querySelector('.wb-inspector')?.textContent?.slice(0, 300));
+    throw new Error('Pointer drag did not produce an aligned free-line draft: ' + JSON.stringify({ lastBounds,
+      path: document.querySelector('.wb-free-line.is-draft .wb-free-line-stroke')?.getAttribute('d'),
+      inspector: document.querySelector('.wb-inspector')?.textContent?.slice(0, 300) }));
   })()`);
   if (Math.abs(draftBounds.left - freeLineDrag.x1) > 18 || Math.abs(draftBounds.top - freeLineDrag.y1) > 18
     || Math.abs(draftBounds.right - freeLineDrag.x2) > 18 || Math.abs(draftBounds.bottom - freeLineDrag.y2) > 18)
