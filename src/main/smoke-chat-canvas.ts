@@ -55,7 +55,9 @@ export async function runChatCanvasSmoke(window: BrowserWindow, store: StudioSto
     const save = await wait(() => [...draft.querySelectorAll('button')]
       .find((item) => item.textContent?.includes('Im Whiteboard speichern') && !item.disabled), 'explicit save action');
     save.click();
-    await wait(() => document.querySelector('.wb-view') && document.querySelector('.wb-inspector input')?.value === 'Edited canvas outline', 'opened saved Whiteboard box');
+    const inspectorTitle = () => [...document.querySelectorAll('.wb-inspector label')]
+      .find((label) => label.textContent?.trim() === 'Titel')?.querySelector('input')?.value;
+    await wait(() => document.querySelector('.wb-view') && inspectorTitle() === 'Edited canvas outline', 'opened saved Whiteboard box');
     const board = await window.studio.whiteboard(projectId);
     if (board.nodes.length !== 1 || board.nodes[0].title !== 'Edited canvas outline'
       || !board.nodes[0].description.includes('task:' + sourceId)
@@ -89,7 +91,8 @@ export async function runChatCanvasSmoke(window: BrowserWindow, store: StudioSto
     const node = await wait(() => [...document.querySelectorAll('.wb-node')]
       .find((item) => item.textContent?.includes('Edited canvas outline')), 'persisted node');
     node.click();
-    await wait(() => document.querySelector('.wb-inspector input')?.value === 'Edited canvas outline', 'node inspector after reload');
+    await wait(() => [...document.querySelectorAll('.wb-inspector label')]
+      .find((label) => label.textContent?.trim() === 'Titel')?.querySelector('input')?.value === 'Edited canvas outline', 'node inspector after reload');
     const board = await window.studio.whiteboard(projectId);
     if (board.nodes.length !== 1 || board.nodes[0].id !== nodeId) throw new Error('Whiteboard node changed after renderer reload.');
     return true;

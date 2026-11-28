@@ -1,6 +1,6 @@
 # Local team preview
 
-This preview runs one authenticated coordinator on the owner's laptop. It binds only to `127.0.0.1`, so a second app instance on the same laptop can join; colleagues on other devices cannot connect yet. The hosted project stays in the owner's local SQLite database. Joining does not copy the project repository, source files, CLI credentials, or browser profile.
+This preview runs one authenticated coordinator on the owner's laptop. Its default listener binds only to `127.0.0.1`, so a second app instance on the same laptop can join. Another device needs either the explicit [Tailscale listener](TEAM_TAILNET_PREVIEW.md) or a separately configured [private LAN HTTPS proxy](TEAM_LAN_HTTPS.md). Neither cross-device path has yet been accepted on two physical computers. The hosted project stays in the owner's local SQLite database. Joining does not copy the project repository, source files, CLI credentials, or browser profile.
 
 ## Start two separate local clients
 

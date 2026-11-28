@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { randomBytes } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import type { StudioStore } from './store';
 import type { CardPriority } from '../shared/types';
@@ -56,6 +57,7 @@ export class TeamCoordinatorHttp {
   private readonly subscribers = new Set<DraftSubscriber>();
   private heartbeat: NodeJS.Timeout | null = null;
   private address: string | null = null;
+  private readonly instance = randomBytes(16).toString('base64url');
 
   constructor(private readonly store: StudioStore,
     private readonly startAgent?: (cardId: string, agentId: string) => { id: string }) {}
@@ -98,6 +100,9 @@ export class TeamCoordinatorHttp {
         return reply(response, 421, { error: 'Unexpected coordinator host' });
       }
       const path = new URL(request.url ?? '/', `http://${LOOPBACK}`).pathname;
+      if (request.method === 'GET' && path === '/v1/instance') {
+        return reply(response, 200, { instance: this.instance });
+      }
       if (request.method === 'POST' && path === '/v1/invitations/accept') {
         const value = await body(request);
         const member = claimTeamMemberInvite(this.store.db, { inviteSecret: value.secret as string,

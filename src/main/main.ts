@@ -259,7 +259,8 @@ function installIpc(): void {
   bind('createLocalTeamWorkspace', (input: Parameters<StudioAPI['createLocalTeamWorkspace']>[0]) => teamLocalService!.create(input));
   bind('ownedTeamWorkspaces', () => teamLocalService!.ownedWorkspaces());
   bind('addProjectToTeamWorkspace', (input: Parameters<StudioAPI['addProjectToTeamWorkspace']>[0]) => teamLocalService!.addProject(input.projectId, input.workspaceId));
-  bind('inviteTeamMember', (input: Parameters<StudioAPI['inviteTeamMember']>[0]) => teamLocalService!.invite(input.projectId, input.role, input.transport));
+  bind('inviteTeamMember', (input: Parameters<StudioAPI['inviteTeamMember']>[0]) => teamLocalService!.invite(input.projectId, input.role, input.transport, input.lanOrigin));
+  bind('openTeamLanGuide', async () => { await shell.openExternal('https://github.com/mschr703/branchloom/blob/main/docs/TEAM_LAN_HTTPS.md'); });
   bind('teamTailnetStatus', (projectId: string) => teamLocalService!.tailnetStatus(projectId));
   bind('enableTeamTailnet', (projectId: string) => teamLocalService!.enableTailnet(projectId));
   bind('disableTeamTailnet', (projectId: string) => teamLocalService!.disableTailnet(projectId));

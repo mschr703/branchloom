@@ -1,6 +1,7 @@
 import type { SavedTeamConnection } from './team-connection-store';
 import { TeamConnectionStore, teamCoordinatorTransport } from './team-connection-store';
 import { activeTailnetIPv4 } from './team-review-tailnet';
+import { enableLanSystemTrust, isLanHttpsOrigin } from './team-lan-proxy';
 import { TeamJoinAttemptStore } from './team-join-attempt';
 import type { TeamMember, TeamRole } from './team-workspace';
 import type { TeamAgentLaunch } from './team-workspace';
@@ -123,6 +124,7 @@ export class TeamRemoteClient {
   private async guardedRequest(target: string, init: RequestInit): Promise<Response> {
     // A disconnected tailnet must not fall back to a plain route before sending a bearer token.
     if (teamCoordinatorTransport(new URL(target).origin) === 'tailnet') await this.checkTailnet();
+    if (isLanHttpsOrigin(new URL(target).origin) && this.request === fetch) enableLanSystemTrust();
     return this.request(target, { ...init, redirect: 'error' });
   }
 

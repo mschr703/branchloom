@@ -128,7 +128,8 @@ export interface StudioAPI {
   createLocalTeamWorkspace(input: { projectId: string; workspaceName: string; ownerName: string }): Promise<import('../main/team-local-service').HostedTeamWorkspace>;
   ownedTeamWorkspaces(): Promise<import('../main/team-local-service').OwnedTeamWorkspace[]>;
   addProjectToTeamWorkspace(input: { projectId: string; workspaceId: string }): Promise<import('../main/team-local-service').HostedTeamWorkspace>;
-  inviteTeamMember(input: { projectId: string; role: 'admin' | 'editor' | 'developer' | 'viewer'; transport?: 'local' | 'tailnet' }): Promise<{ inviteSecret: string; coordinatorUrl: string; expiresAt: string }>;
+  inviteTeamMember(input: { projectId: string; role: 'admin' | 'editor' | 'developer' | 'viewer'; transport?: 'local' | 'tailnet' | 'lan'; lanOrigin?: string }): Promise<{ inviteSecret: string; coordinatorUrl: string; expiresAt: string }>;
+  openTeamLanGuide(): Promise<void>;
   teamTailnetStatus(projectId: string): Promise<import('../main/team-local-service').TeamTailnetStatus>;
   enableTeamTailnet(projectId: string): Promise<import('../main/team-local-service').TeamTailnetStatus>;
   disableTeamTailnet(projectId: string): Promise<import('../main/team-local-service').TeamTailnetStatus>;

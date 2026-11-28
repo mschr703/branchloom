@@ -19,7 +19,8 @@ export function TeamWorkspaceSettings({ projectId, onConnectionChange }: { proje
   const [role, setRole] = useState<InviteRole>('editor');
   const [invitation, setInvitation] = useState<FreshInvitation | null>(null);
   const [tailnet, setTailnet] = useState<TeamTailnetStatus>({ enabled: false, coordinatorUrl: null });
-  const [inviteTransport, setInviteTransport] = useState<'local' | 'tailnet'>('local');
+  const [inviteTransport, setInviteTransport] = useState<'local' | 'tailnet' | 'lan'>('local');
+  const [lanOrigin, setLanOrigin] = useState('');
   const [coordinatorUrl, setCoordinatorUrl] = useState('');
   const [inviteSecret, setInviteSecret] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -80,7 +81,8 @@ export function TeamWorkspaceSettings({ projectId, onConnectionChange }: { proje
     if (busy || !projectId) return;
     setBusy(true); setError(''); setNotice(''); setInvitation(null);
     try {
-      setInvitation(await window.studio.inviteTeamMember({ projectId, role, transport: inviteTransport }));
+      setInvitation(await window.studio.inviteTeamMember({ projectId, role, transport: inviteTransport,
+        ...(inviteTransport === 'lan' ? { lanOrigin: lanOrigin.trim() } : {}) }));
       setNotice('Einladung erstellt. Der Code wird nur jetzt angezeigt.');
     } catch (reason) { setError(messageOf(reason)); }
     finally { setBusy(false); }
@@ -176,7 +178,7 @@ export function TeamWorkspaceSettings({ projectId, onConnectionChange }: { proje
   }
 
   return <section className="team-workspace-settings" aria-label="Team-Workspace">
-    <header><h3>Team-Workspace</h3><p>Projekte gemeinsam verwalten. Verbunden über dieses Gerät oder bewusst über Tailscale.</p></header>
+    <header><h3>Team-Workspace</h3><p>Projekte gemeinsam verwalten – auf diesem Gerät, über Tailscale oder mit einem eigenen HTTPS-Proxy im lokalen Netz.</p></header>
     {loading ? <p className="team-workspace-muted">Teamzugang wird geladen…</p> : null}
     {!loading && !hosted && projectId ? <form className="team-workspace-form" onSubmit={(event) => void create(event)}>
       <label>Workspace-Name<input value={workspaceName} onChange={(event) => setWorkspaceName(event.currentTarget.value)} maxLength={80} required placeholder="Produktteam" /></label>
@@ -244,14 +246,23 @@ export function TeamWorkspaceSettings({ projectId, onConnectionChange }: { proje
         <option value="editor">Mitglied · Entwürfe und Vorschläge</option><option value="developer">Entwicklung · Entwürfe</option>
         <option value="viewer">Ansicht · lesen</option><option value="admin">Admin · erweiterte Rechte</option>
       </select></label><label>Verbindung<select value={inviteTransport} disabled={busy} onChange={(event) => {
-        setInviteTransport(event.currentTarget.value as 'local' | 'tailnet'); setInvitation(null);
+        setInviteTransport(event.currentTarget.value as 'local' | 'tailnet' | 'lan'); setInvitation(null);
       }}><option value="local">Dieser Rechner</option><option value="tailnet" disabled={!tailnet.enabled}>Anderes Gerät über Tailscale</option>
+        <option value="lan">Lokales Netz mit HTTPS-Proxy</option>
       </select></label><button type="button" className="secondary-button" disabled={busy} onClick={() => void invite()}>Einladung erstellen</button></div>
+      {inviteTransport === 'lan' ? <div className="team-workspace-lan">
+        <label>HTTPS-Adresse im lokalen Netz<input value={lanOrigin} disabled={busy}
+          onChange={(event) => setLanOrigin(event.currentTarget.value)} placeholder="https://192.168.1.20:8443" /></label>
+        <small>Der Proxy muss auf {hosted.coordinatorUrl} zeigen und ein auf beiden Geräten vertrauenswürdiges Zertifikat verwenden. Branchloom prüft die Verbindung vor der Einladung.</small>
+        <button type="button" className="text-button" onClick={() => void window.studio.openTeamLanGuide()}>Einrichtung öffnen</button>
+      </div> : null}
       {invitation ? <div className="team-workspace-invitation" role="status">
         <p>Einmaliger Code, gültig bis {new Date(invitation.expiresAt).toLocaleString('de-DE')}.</p>
         <label>Koordinator<input readOnly value={invitation.coordinatorUrl} onFocus={(event) => event.currentTarget.select()} /></label>
         <label>Einladungscode<input readOnly value={invitation.inviteSecret} onFocus={(event) => event.currentTarget.select()} /></label>
-        <small>Beide Werte nur an die eingeladene Person geben. Der Tailscale-Link funktioniert nur bei aktivem Zugang und wenn beide Geräte mit demselben Tailnet verbunden sind.</small>
+        <small>Beide Werte nur an die eingeladene Person geben. {inviteTransport === 'tailnet'
+          ? 'Der Tailscale-Zugang muss auf beiden Geräten aktiv bleiben.' : inviteTransport === 'lan'
+            ? 'Das HTTPS-Zertifikat muss auf dem zweiten Gerät vertrauenswürdig sein.' : 'Dieser Link funktioniert nur auf diesem Rechner.'}</small>
       </div> : null}
     </div> : null}
     <details className="team-workspace-join"><summary>Einladung annehmen</summary>

@@ -10,6 +10,7 @@ const studio: StudioAPI = {
   ownedTeamWorkspaces: () => invoke('ownedTeamWorkspaces'),
   addProjectToTeamWorkspace: (input) => invoke('addProjectToTeamWorkspace', input),
   inviteTeamMember: (input) => invoke('inviteTeamMember', input),
+  openTeamLanGuide: () => invoke('openTeamLanGuide'),
   teamTailnetStatus: (projectId) => invoke('teamTailnetStatus', projectId),
   enableTeamTailnet: (projectId) => invoke('enableTeamTailnet', projectId),
   disableTeamTailnet: (projectId) => invoke('disableTeamTailnet', projectId),

@@ -36,6 +36,7 @@ it('creates a local workspace, exposes an invitation once, and requires a second
     ownedTeamWorkspaces: vi.fn().mockResolvedValue([]),
     pendingTeamJoin: vi.fn().mockResolvedValue(null), createLocalTeamWorkspace: create,
     inviteTeamMember: invite, revokeTeamMember: revoke,
+    openTeamLanGuide: vi.fn().mockResolvedValue(undefined),
     teamTailnetStatus: vi.fn().mockResolvedValue({ enabled: false, coordinatorUrl: null }),
     enableTeamTailnet: vi.fn().mockResolvedValue({ enabled: true, coordinatorUrl: 'http://100.73.95.17:4567' }),
     disableTeamTailnet: vi.fn().mockResolvedValue({ enabled: false, coordinatorUrl: null }),
@@ -71,6 +72,19 @@ it('creates a local workspace, exposes an invitation once, and requires a second
     await act(async () => { [...host.querySelectorAll<HTMLButtonElement>('button')]
       .find((button) => button.textContent === 'Tailscale-Zugang beenden')!.click(); });
     expect(window.studio.disableTeamTailnet).toHaveBeenCalledWith('project');
+    await act(async () => {
+      const transport = host.querySelectorAll<HTMLSelectElement>('.team-workspace-invite select')[1]!;
+      transport.value = 'lan'; transport.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await act(async () => { setInput(host.querySelector<HTMLInputElement>('.team-workspace-lan input')!,
+      'https://192.168.1.20:8443'); });
+    await act(async () => { [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent === 'Einladung erstellen')!.click(); });
+    expect(invite).toHaveBeenLastCalledWith({ projectId: 'project', role: 'editor', transport: 'lan',
+      lanOrigin: 'https://192.168.1.20:8443' });
+    await act(async () => { [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent === 'Einrichtung öffnen')!.click(); });
+    expect(window.studio.openTeamLanGuide).toHaveBeenCalledOnce();
     const rights = host.querySelector<HTMLDetailsElement>('.team-workspace-member-rights')!;
     await act(async () => { rights.open = true; });
     await act(async () => {

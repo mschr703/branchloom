@@ -1,16 +1,27 @@
 # Hosted team workspaces · implementation boundary
 
-The product direction is a paid team mode hosted on the project's VPS: members join a shared workspace, plan and edit together, and bring their own authorized agents. This document is a build plan, not an offer or a claim that billing or a remote team service is live. The present desktop coordinator is a loopback-only preview described in [TEAM_SYNC.md](TEAM_SYNC.md).
+The product direction is a local-first team workspace with an optional paid hosted service. People should be able to collaborate using their own computers on a local network without buying Branchloom hosting. A managed Branchloom VPS would keep the shared workspace reachable from anywhere even when members' laptops are off. Members may bring their own authorized agents; a separately provisioned server worker is optional. This document is a build plan, not an offer or a claim that billing or a remote team service is live. The current desktop preview is described in [TEAM_SYNC.md](TEAM_SYNC.md) and [TEAM_TAILNET_PREVIEW.md](TEAM_TAILNET_PREVIEW.md).
 
 ## Deployment modes
 
 | Mode | Coordinator | Current state |
 | --- | --- | --- |
-| Local preview | This desktop app, bound to `127.0.0.1` | Implemented for local testing. It stops when the host app stops. |
-| Managed team | Separate service on the operator's VPS behind HTTPS | Planned paid offer. It must work when all members' laptops are off. |
+| One computer | This desktop app, bound to `127.0.0.1` | Implemented for local testing. It stops when the host app stops. |
+| Own local network | One member's computer is the coordinator; other authorized devices connect through an approved private route | The peer preview supports an explicit Tailscale listener and an advanced, separately configured [LAN HTTPS proxy](TEAM_LAN_HTTPS.md). Plain LAN HTTP is refused; one-click pairing and a two-device acceptance test remain open. The host must remain online. |
+| Managed team | Separate Branchloom service on the operator's VPS behind HTTPS | Planned paid offer. The shared plan must remain reachable when all members' laptops are off; agent execution additionally needs an online authorized worker. |
 | Customer-hosted team | Customer's own VPS/server behind HTTPS | Requested earlier; licensing and support terms remain a product decision. |
 
-The client already accepts a saved HTTPS coordinator origin, but there is no deployable standalone coordinator yet. `teamCoordinatorTransport` classifies a validated connection from its URL. The local service now resumes and manages only loopback connections. An HTTPS owner connection cannot silently start a local coordinator or mutate a local workspace as if it were the remote canonical workspace. This is a safety boundary, not remote hosting support.
+The client already accepts a saved HTTPS coordinator origin, but there is no deployable standalone coordinator yet. `teamCoordinatorTransport` classifies a validated connection from its URL. The desktop service resumes its loopback listener and can optionally bind a second listener to the active Tailscale address. An owner-configured HTTPS proxy may forward a private LAN address to loopback after certificate and coordinator-instance checks. An HTTPS owner connection cannot silently start a local coordinator or mutate a local workspace as if it were the remote canonical workspace. This is a safety boundary, not remote hosting support.
+
+## Possible revenue, in build order
+
+1. **Managed workspace subscription:** charge for the always-on coordinator, synchronized project data, invitations, storage, backups and operational support. Keep local personal collaboration usable without this service. Decide actual seat and viewer rules after measuring hosting costs and team behavior.
+2. **Optional managed agent worker:** charge separately for server compute and storage consumed by jobs. Model/provider charges remain explicit and separate; existing personal CLI sessions must not be copied to a server or assumed valid there. Teams can continue using agents on their own devices.
+3. **Organization controls:** later offer SSO, audit export, retention policies, managed backups and administrative controls for teams that need them. These controls belong on an authenticated service with a verifiable audit trail.
+4. **Customer-hosted support:** offer managed updates, setup and support for a customer's own VPS. The product and commercial license terms require a separate decision before this is advertised.
+5. **Visual QA capacity:** if browser replay, screenshot storage or review automation become costly at scale, price hosted capacity separately while preserving local review and basic planning. Usage and limits must be measurable and visible.
+
+The first offer should stay simple: local use, an optional hosted team workspace, and separately metered hosted workers. No price, seat count, billing provider, trial or feature gate has been chosen. This list proposes business options; none is implemented. The current PolyForm Noncommercial terms and any future business-use offer need an explicit product decision before promising free commercial self-hosting.
 
 ## Service split
 
@@ -23,7 +34,7 @@ The client already accepts a saved HTTPS coordinator origin, but there is no dep
 
 The managed service, not the desktop UI, will be authoritative for team entitlements. The intended contract is a server-side workspace entitlement with plan identifier, enabled capabilities, seat limit, billing state and effective period. A verified billing event updates that record idempotently; requests that create members, start paid workers or use paid collaboration check the current entitlement in the same service that enforces member permissions. Clients receive a typed capability/status response for display and a recovery action. A UI flag alone cannot grant a paid capability.
 
-No payment provider, price, trial length, grace period, or seat policy is selected yet. There is no checkout, subscription enforcement or paywall in the current app. The local preview stays usable while the managed service is built; a later pricing decision must say which local or customer-hosted capabilities remain available. Source code and saved credentials must never be bundled into a billing event.
+No payment provider, price, trial length, grace period, or seat policy is selected yet. There is no checkout, subscription enforcement or paywall in the current app. Local collaboration is not intended to depend on a managed-hosting entitlement; any future commercial-use license is a separate policy decision. Source code and saved credentials must never be bundled into a billing event.
 
 ## First hosted acceptance path
 

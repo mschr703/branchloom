@@ -2,6 +2,7 @@ import type { StudioStore } from './store';
 import { TeamConnectionStore, teamCoordinatorTransport, type SavedTeamConnection } from './team-connection-store';
 import { TeamCoordinatorHttp } from './team-coordinator-http';
 import { activeTailnetIPv4 } from './team-review-tailnet';
+import { verifyLanProxyOrigin } from './team-lan-proxy';
 import { addTeamProject, authenticateTeamMember, createTeamMemberInvite, createTeamWorkspace, revokeTeamMember,
   setTeamCapabilityGrant, setTeamProjectAccess, type TeamCapability, type TeamMember, type TeamRole } from './team-workspace';
 
@@ -40,7 +41,8 @@ export class TeamLocalService {
   private tailnetStarting: Promise<string> | null = null;
 
   constructor(private readonly store: StudioStore, private readonly connections: TeamConnectionStore,
-    private readonly tailnetAddress: () => Promise<string> = activeTailnetIPv4) {}
+    private readonly tailnetAddress: () => Promise<string> = activeTailnetIPv4,
+    private readonly verifyLan: typeof verifyLanProxyOrigin = verifyLanProxyOrigin) {}
 
   setAgentStarter(start: (cardId: string, agentId: string) => { id: string }): void {
     if (this.coordinator) throw new Error('Set the team agent worker before starting the coordinator.');
@@ -135,17 +137,19 @@ export class TeamLocalService {
   }
 
   async invite(projectId: string, role: Exclude<TeamRole, 'owner'>,
-    transport: 'local' | 'tailnet' = 'local'): Promise<{
+    transport: 'local' | 'tailnet' | 'lan' = 'local', lanOrigin?: string): Promise<{
     inviteSecret: string; coordinatorUrl: string; expiresAt: string;
   }> {
-    if (transport !== 'local' && transport !== 'tailnet') throw new Error('Invalid team invitation transport.');
+    if (transport !== 'local' && transport !== 'tailnet' && transport !== 'lan') throw new Error('Invalid team invitation transport.');
     const hosted = await this.hostedProject(projectId);
     if (!hosted) throw new Error('This project has no team workspace.');
     if (transport === 'tailnet' && !this.tailnetUrl) throw new Error('Enable Tailscale team access before inviting a peer.');
+    const verifiedLanOrigin = transport === 'lan'
+      ? await this.verifyLan(lanOrigin ?? '', hosted.coordinatorUrl) : null;
     const owner = await this.ownerConnection(hosted.workspaceId);
     const invitation = createTeamMemberInvite(this.store.db, owner.credential, hosted.workspaceId, role);
     return { inviteSecret: invitation.secret,
-      coordinatorUrl: transport === 'tailnet' ? this.tailnetUrl! : hosted.coordinatorUrl,
+      coordinatorUrl: transport === 'tailnet' ? this.tailnetUrl! : verifiedLanOrigin ?? hosted.coordinatorUrl,
       expiresAt: invitation.expiresAt };
   }
 
